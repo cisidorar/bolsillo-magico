@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { --brand: #00AEDC; }
+
+  * { -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background-color: #E1F7FD;
+    color: #083344;
+    font-family: 'Nunito', system-ui, sans-serif;
+    @apply antialiased;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #B9ECFA; }
+  ::-webkit-scrollbar-thumb { background: #00AEDC; border-radius: 9999px; }
+}
+
+@layer utilities {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+  /* Hero — azul sólido Doraemon */
+  .hero-gradient {
+    background: #00AEDC;
+  }
+
+  /* Nav */
+  .glass-nav {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 2px solid #B9ECFA;
+  }
+
+  /* Card */
+  .card {
+    @apply bg-white rounded-3xl;
+    border: 1.5px solid #B9ECFA;
+    box-shadow: 0 4px 20px rgba(0, 174, 220, 0.09);
+  }
+
+  .card-brand {
+    @apply bg-[#E1F7FD] rounded-3xl;
+    border: 1.5px solid #B9ECFA;
+  }
+
+  /* FAB */
+  .fab-gradient {
+    background: #00AEDC;
+    box-shadow: 0 8px 28px rgba(0, 174, 220, 0.55);
+  }
+
+  /* Ocultar scrollbar pero mantener scroll */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}
+
+/*
+ * ── Doraemon brand color overrides ──────────────────────────────────────────
+ * Estos overrides reemplazan los valores morados que Tailwind JIT generó
+ * con los viejos colores. Aplican inmediatamente sin recompilar.
+ */
+
+/* text */
+.text-brand-50  { color: #E1F7FD !important; }
+.text-brand-100 { color: #B9ECFA !important; }
+.text-brand-200 { color: #85DDF5 !important; }
+.text-brand-300 { color: #57CDEF !important; }
+.text-brand-400 { color: #29C8EE !important; }
+.text-brand-500 { color: #15BBDF !important; }
+.text-brand-600 { color: #00AEDC !important; }
+.text-brand-700 { color: #0093BC !important; }
+.text-brand-800 { color: #006F96 !important; }
+.text-brand-900 { color: #083344 !important; }
+
+/* background */
+.bg-brand-50  { background-color: #E1F7FD !important; }
+.bg-brand-100 { background-color: #B9ECFA !important; }
+.bg-brand-200 { background-color: #85DDF5 !important; }
+.bg-brand-300 { background-color: #57CDEF !important; }
+.bg-brand-400 { background-color: #29C8EE !important; }
+.bg-brand-600 { background-color: #00AEDC !important; }
+.bg-brand-700 { background-color: #0093BC !important; }
+.bg-brand-800 { background-color: #006F96 !important; }
+
+/* border */
+.border-brand-50  { border-color: #E1F7FD !important; }
+.border-brand-100 { border-color: #B9ECFA !important; }
+.border-brand-200 { border-color: #85DDF5 !important; }
+.border-brand-400 { border-color: #29C8EE !important; }
+.border-brand-600 { border-color: #00AEDC !important; }
+
+/* hover */
+.hover\:bg-brand-50:hover   { background-color: #E1F7FD !important; }
+.hover\:bg-brand-100:hover  { background-color: #B9ECFA !important; }
+.hover\:border-brand-400:hover { border-color: #29C8EE !important; }
+.hover\:text-brand-600:hover { color: #00AEDC !important; }
+.hover\:text-brand-700:hover { color: #0093BC !important; }
+
+/* focus */
+.focus\:border-brand-400:focus { border-color: #29C8EE !important; }
+.focus\:border-brand-600:focus { border-color: #00AEDC !important; }
+
+/* placeholder */
+.placeholder-brand-300::placeholder { color: #85DDF5 !important; }
+.placeholder-brand-400::placeholder { color: #29C8EE !important; }
+
+/* divide */
+.divide-brand-100 > :not([hidden]) ~ :not([hidden]) { border-color: #B9ECFA !important; }
+
+/* ring */
+.ring-brand-600 { --tw-ring-color: #00AEDC !important; }
+.ring-offset-2.ring-brand-600 { --tw-ring-color: #00AEDC !important; }

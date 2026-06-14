@@ -1,0 +1,24 @@
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import CategoryManager from '@/components/CategoryManager'
+
+export const revalidate = 0
+
+export default async function CategoriasPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('sort_order')
+
+  return (
+    <div className="px-4 pt-6 pb-4">
+      <h1 className="text-xl font-semibold text-gray-900 mb-5">Categorías</h1>
+      <CategoryManager categories={categories ?? []} userId={user.id} />
+    </div>
+  )
+}
