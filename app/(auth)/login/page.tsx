@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
 
 type Mode = 'login' | 'signup'
 
@@ -57,9 +58,8 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl mb-3"
-          style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
-          🔔
+        <div className="w-20 h-20 relative mb-3">
+          <Image src="/camapana.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
         </div>
         <h1 className="text-2xl font-black text-white tracking-tight">Bolsillo Mágico</h1>
         <p className="text-sm text-white/60 font-medium mt-1">

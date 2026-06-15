@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
@@ -116,6 +117,11 @@ export default async function DashboardPage() {
           <div className="absolute top-6 -right-16 w-28 h-28 rounded-full bg-white/[0.05] pointer-events-none" />
 
           <div className="relative">
+            {/* Bell logo — top right brand mark */}
+            <div className="absolute top-0 right-0 w-12 h-12 opacity-80">
+              <Image src="/camapana.png" alt="" fill style={{ objectFit: 'contain' }} />
+            </div>
+
             {/* Saludo + mes */}
             <p className="text-sm text-white font-bold mb-0.5">
               {greeting}, {displayName} 👋
