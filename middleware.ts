@@ -21,7 +21,10 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getSession() lee la cookie JWT sin llamada de red (~0ms).
+  // La seguridad real la provee RLS en Supabase; el middleware solo enruta.
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   // /demo es pública — no requiere auth
   if (request.nextUrl.pathname.startsWith('/demo')) {
