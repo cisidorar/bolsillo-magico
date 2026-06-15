@@ -263,17 +263,27 @@ export default function ExpenseSheet({
                   {pinnedCats.map(c => (
                     <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
                   ))}
+                  {/* Categoría seleccionada fuera de pinned — visible aunque esté colapsado */}
+                  {!catsExpanded && selInOther && (() => {
+                    const selCat = otherCats.find(c => c.id === catId)
+                    return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
+                  })()}
                 </div>
                 {otherCats.length > 0 && (
                   <>
-                    {(catsExpanded || selInOther) && (
+                    {catsExpanded && (
                       <div className="flex flex-wrap gap-2 mt-2">
                         {otherCats.map(c => (
-                          <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                          <CatChip
+                            key={c.id}
+                            c={c}
+                            selected={catId === c.id}
+                            onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }}
+                          />
                         ))}
                       </div>
                     )}
-                    {!catsExpanded && !selInOther && (
+                    {!catsExpanded && (
                       <button
                         type="button"
                         onClick={() => setCatsExpanded(true)}
