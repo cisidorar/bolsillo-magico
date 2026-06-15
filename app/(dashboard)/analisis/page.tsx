@@ -21,19 +21,32 @@ export default async function AnalisisPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const refDate = new Date(year, month - 1, 1)
-  const sixAgo  = new Date(refDate); sixAgo.setMonth(sixAgo.getMonth() - 5)
-  const startDate = `${sixAgo.getFullYear()}-${String(sixAgo.getMonth() + 1).padStart(2, '0')}-01`
-  const nextMonth = month === 12 ? 1       : month + 1
-  const nextYear  = month === 12 ? year + 1 : year
+  // El gráfico siempre muestra los últimos 6 meses hasta HOY
+  const chartAnchor = new Date(now.getFullYear(), now.getMonth(), 1)
+  const sixAgo      = new Date(chartAnchor); sixAgo.setMonth(sixAgo.getMonth() - 5)
+  const chartStart  = `${sixAgo.getFullYear()}-${String(sixAgo.getMonth() + 1).padStart(2, '0')}-01`
+
+  // El mes seleccionado puede estar fuera de la ventana del gráfico (mes anterior)
+  const selectedKey = `${year}-${String(month).padStart(2, '0')}`
+  const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  // Fetch: desde 6 meses atrás hasta el fin del mes seleccionado (o actual si es mayor)
+  const selEnd   = new Date(year, month, 1)   // primer día del mes siguiente al seleccionado
+  const curEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const fetchEnd = selEnd > curEnd ? selEnd : curEnd
+  const nextYear  = fetchEnd.getFullYear()
+  const nextMonth = fetchEnd.getMonth() + 1
   const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+
+  // También necesitamos el inicio del mes seleccionado si está antes de chartStart
+  const fetchStart = selectedKey < chartStart.substring(0, 7) ? `${year}-${String(month).padStart(2, '0')}-01` : chartStart
 
   const [{ data: expenses }, { data: categoryBudgets }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
       .eq('user_id', user!.id)
-      .gte('date', startDate)
+      .gte('date', fetchStart)
       .lt('date', endDate)
       .order('date', { ascending: false }),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
@@ -45,10 +58,10 @@ export default async function AnalisisPage({
 
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
 
-  // ── 6-month trend ─────────────────────────────────────────────────────────
+  // ── Gráfico: siempre los últimos 6 meses hasta hoy ────────────────────────
   const byMonth: Record<string, { label: string; total: number; key: string }> = {}
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(refDate); d.setMonth(d.getMonth() - i)
+    const d = new Date(chartAnchor); d.setMonth(d.getMonth() - i)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     byMonth[key] = { key, label: d.toLocaleString('es-CL', { month: 'short' }), total: 0 }
   }
@@ -56,10 +69,8 @@ export default async function AnalisisPage({
     const key = e.date.substring(0, 7)
     if (byMonth[key]) byMonth[key].total += e.amount
   })
-  const monthData   = Object.values(byMonth)
-  const maxMonth    = Math.max(...monthData.map(m => m.total), 1)
-  const selectedKey = `${year}-${String(month).padStart(2, '0')}`
-  const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const monthData = Object.values(byMonth)
+  const maxMonth  = Math.max(...monthData.map(m => m.total), 1)
 
   // ── Selected month data ───────────────────────────────────────────────────
   const selectedExpenses = typedExpenses.filter(e => e.date.startsWith(selectedKey))
