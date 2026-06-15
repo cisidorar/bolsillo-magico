@@ -5,10 +5,10 @@ import './globals.css'
 const nunito = Nunito({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
 export const metadata: Metadata = {
-  title: 'Gstos',
+  title: 'Bolsillo Mágico',
   description: 'Registra y analiza tus gastos personales',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Gstos' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Bolsillo Mágico' },
 }
 
 export const viewport: Viewport = {
