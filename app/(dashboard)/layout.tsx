@@ -8,32 +8,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!user) redirect('/login')
 
-  // Crear categorías y métodos de pago por defecto si el usuario no tiene ninguno
-  const { count } = await supabase
-    .from('categories')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  if (count === 0) {
-    await supabase.from('categories').insert([
-      { user_id: user.id, name: 'Comida',     icon: '🍽️', color: '#0F6E56', bg_color: '#E1F5EE', is_default: true, sort_order: 1 },
-      { user_id: user.id, name: 'Transporte', icon: '🚗', color: '#185FA5', bg_color: '#E6F1FB', is_default: true, sort_order: 2 },
-      { user_id: user.id, name: 'Hogar',      icon: '🏠', color: '#854F0B', bg_color: '#FAEEDA', is_default: true, sort_order: 3 },
-      { user_id: user.id, name: 'Ocio',       icon: '🎮', color: '#993556', bg_color: '#FBEAF0', is_default: true, sort_order: 4 },
-      { user_id: user.id, name: 'Salud',      icon: '❤️', color: '#3B6D11', bg_color: '#EAF3DE', is_default: true, sort_order: 5 },
-      { user_id: user.id, name: 'Ropa',       icon: '👕', color: '#3C3489', bg_color: '#EEEDFE', is_default: true, sort_order: 6 },
-      { user_id: user.id, name: 'Educación',  icon: '📚', color: '#A32D2D', bg_color: '#FCEBEB', is_default: true, sort_order: 7 },
-      { user_id: user.id, name: 'Mascotas',   icon: '🐾', color: '#854F0B', bg_color: '#FAEEDA', is_default: true, sort_order: 8 },
-      { user_id: user.id, name: 'Otros',      icon: '📦', color: '#5F5E5A', bg_color: '#F1EFE8', is_default: true, sort_order: 9 },
-    ])
-    await supabase.from('payment_methods').insert([
-      { user_id: user.id, name: 'Débito',   icon: '💳', card_type: 'debit',   is_default: true,  sort_order: 1 },
-      { user_id: user.id, name: 'Crédito',  icon: '💎', card_type: 'credit',  is_default: false, sort_order: 2 },
-      { user_id: user.id, name: 'Efectivo', icon: '💵', card_type: 'cash',    is_default: false, sort_order: 3 },
-      { user_id: user.id, name: 'Digital',  icon: '📱', card_type: 'digital', is_default: false, sort_order: 4 },
-    ])
-  }
-
   // Auto-registro de gastos recurrentes con auto_register=true
   // Corre cada vez que se carga el dashboard (idempotente: solo inserta si no existe ya este mes)
   const today = new Date()

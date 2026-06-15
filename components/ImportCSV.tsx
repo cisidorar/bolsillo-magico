@@ -7,9 +7,10 @@ import { Upload, CheckCircle, AlertCircle, X, FileText } from 'lucide-react'
 type State = 'idle' | 'loading' | 'success' | 'error'
 
 interface Result {
-  imported: number
-  skipped:  number
-  columns:  { date: string; amount: string; desc: string | null; cat: string | null }
+  imported:      number
+  skipped:       number
+  newCategories: number
+  columns:       { date: string; amount: string; desc: string | null; cat: string | null }
 }
 
 export default function ImportCSV() {
@@ -172,6 +173,9 @@ export default function ImportCSV() {
                     <p className="text-sm font-extrabold text-emerald-800">
                       {result.imported} gastos importados
                     </p>
+                    {result.newCategories > 0 && (
+                      <p className="text-xs text-emerald-600 mt-0.5">{result.newCategories} categoría{result.newCategories > 1 ? 's' : ''} nueva{result.newCategories > 1 ? 's' : ''} creada{result.newCategories > 1 ? 's' : ''}</p>
+                    )}
                     {result.skipped > 0 && (
                       <p className="text-xs text-emerald-600 mt-0.5">{result.skipped} filas omitidas (fecha o monto inválido)</p>
                     )}

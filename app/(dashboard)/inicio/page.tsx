@@ -112,10 +112,6 @@ export default async function DashboardPage() {
 
         {/* ── Hero card ─────────────────────────────────────────────── */}
         <div className="hero-gradient rounded-3xl p-6 text-white overflow-hidden relative">
-          {/* Círculos decorativos */}
-          <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-white/[0.07] pointer-events-none" />
-          <div className="absolute top-6 -right-16 w-28 h-28 rounded-full bg-white/[0.05] pointer-events-none" />
-
           <div className="relative">
             {/* Bell logo — top right brand mark */}
             <div className="absolute top-0 right-0 w-12 h-12 opacity-80">

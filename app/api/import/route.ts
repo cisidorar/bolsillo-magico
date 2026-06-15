@@ -96,6 +96,19 @@ export async function POST(request: NextRequest) {
     }, { status: 422 })
   }
 
+  // Paleta de colores para categorías creadas automáticamente
+  const AUTO_COLORS = [
+    { color: '#0F6E56', bg_color: '#E1F5EE' },
+    { color: '#185FA5', bg_color: '#E6F1FB' },
+    { color: '#854F0B', bg_color: '#FAEEDA' },
+    { color: '#993556', bg_color: '#FBEAF0' },
+    { color: '#3B6D11', bg_color: '#EAF3DE' },
+    { color: '#3C3489', bg_color: '#EEEDFE' },
+    { color: '#A32D2D', bg_color: '#FCEBEB' },
+    { color: '#1B6DD4', bg_color: '#EEF4FF' },
+    { color: '#5F5E5A', bg_color: '#F1EFE8' },
+  ]
+
   // Cargar categorías y métodos del usuario
   const [{ data: cats }, { data: methods }] = await Promise.all([
     supabase.from('categories').select('id, name').eq('user_id', user.id),
@@ -104,6 +117,39 @@ export async function POST(request: NextRequest) {
 
   const catMap    = new Map((cats ?? []).map(c => [c.name.toLowerCase().trim(), c.id]))
   const methodMap = new Map((methods ?? []).map(m => [m.name.toLowerCase().trim(), m.id]))
+
+  // Detectar categorías del CSV que no existen aún y crearlas
+  if (iCat !== -1) {
+    const uniqueCatNames = [...new Set(
+      data.map(row => (row[iCat] ?? '').trim()).filter(Boolean)
+    )]
+    const missing = uniqueCatNames.filter(name => !catMap.has(name.toLowerCase()))
+
+    if (missing.length > 0) {
+      const maxOrder = (cats ?? []).length
+      const newCats = missing.map((name, i) => {
+        const palette = AUTO_COLORS[(maxOrder + i) % AUTO_COLORS.length]
+        return {
+          user_id:    user.id,
+          name,
+          icon:       'Tag',
+          color:      palette.color,
+          bg_color:   palette.bg_color,
+          is_default: false,
+          sort_order: maxOrder + i + 1,
+        }
+      })
+
+      const { data: created } = await supabase
+        .from('categories')
+        .insert(newCats)
+        .select('id, name')
+
+      for (const c of created ?? []) {
+        catMap.set(c.name.toLowerCase().trim(), c.id)
+      }
+    }
+  }
 
   // Categoría por defecto: "Otros"
   const defaultCatId    = catMap.get('otros') ?? cats?.[0]?.id ?? null
@@ -148,9 +194,16 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.from('expenses').insert(toInsert)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const newCatsCount = iCat !== -1
+    ? [...new Set(data.map(row => (row[iCat] ?? '').trim()).filter(Boolean))]
+        .filter(name => !(cats ?? []).some(c => c.name.toLowerCase().trim() === name.toLowerCase()))
+        .length
+    : 0
+
   return NextResponse.json({
-    imported: toInsert.length,
-    skipped:  skipped.length,
-    columns:  { date: headers[iDate], amount: headers[iAmount], desc: iDesc !== -1 ? headers[iDesc] : null, cat: iCat !== -1 ? headers[iCat] : null },
+    imported:      toInsert.length,
+    skipped:       skipped.length,
+    newCategories: newCatsCount,
+    columns:       { date: headers[iDate], amount: headers[iAmount], desc: iDesc !== -1 ? headers[iDesc] : null, cat: iCat !== -1 ? headers[iCat] : null },
   })
 }
