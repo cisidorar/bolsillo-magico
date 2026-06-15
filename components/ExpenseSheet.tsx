@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { X, Delete, CalendarDays } from 'lucide-react'
+import { X, Delete, CalendarDays, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
@@ -15,6 +15,27 @@ interface Props {
   onClose?: () => void
   fetchData?: boolean
   editExpense?: ExpenseWithRelations | null
+}
+
+function CatChip({ c, selected, onSelect }: { c: Category; selected: boolean; onSelect: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(c.id)}
+      className={cn(
+        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all',
+        selected
+          ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+          : 'border-gray-200 bg-gray-50 text-gray-600'
+      )}
+    >
+      {isEmoji(c.icon)
+        ? <span className="text-base">{c.icon}</span>
+        : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: selected ? c.color : '#9CA3AF' }} /> })()
+      }
+      {c.name}
+    </button>
+  )
 }
 
 export default function ExpenseSheet({
@@ -44,8 +65,10 @@ export default function ExpenseSheet({
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
 
-  const [cats, setCats] = useState<Category[]>(initCats)
-  const [pms, setPMs]   = useState<PaymentMethod[]>(initPMs)
+  const [cats, setCats]         = useState<Category[]>(initCats)
+  const [pms, setPMs]           = useState<PaymentMethod[]>(initPMs)
+  const [topCatIds, setTopCatIds] = useState<string[]>([])
+  const [catsExpanded, setCatsExpanded] = useState(false)
 
   // Indica si el usuario eligió el método manualmente (evita que el autoselect sobreescriba)
   const pmUserPicked = useRef(false)
@@ -87,6 +110,31 @@ export default function ExpenseSheet({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, fetchData, isEditing])
 
+  // Calcular las 3 categorías más usadas en los últimos 30 días
+  useEffect(() => {
+    if (!isOpen || isEditing) return
+    const since = new Date()
+    since.setDate(since.getDate() - 30)
+    supabase
+      .from('expenses')
+      .select('category_id')
+      .gte('date', since.toISOString().split('T')[0])
+      .not('category_id', 'is', null)
+      .then(({ data }) => {
+        if (!data?.length) return
+        const freq: Record<string, number> = {}
+        for (const e of data) {
+          if (e.category_id) freq[e.category_id] = (freq[e.category_id] ?? 0) + 1
+        }
+        const top = Object.entries(freq)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([id]) => id)
+        setTopCatIds(top)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isEditing])
+
   // Preselect default PM para nuevos gastos — solo si el usuario NO eligió manualmente
   useEffect(() => {
     if (!isEditing && !pmUserPicked.current && pms.length) {
@@ -98,7 +146,7 @@ export default function ExpenseSheet({
 
   const close = useCallback(() => {
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
-    setDesc(''); setError('')
+    setDesc(''); setError(''); setCatsExpanded(false)
     pmUserPicked.current = false
     if (onClose) onClose()
     else setInternalOpen(false)
@@ -191,26 +239,55 @@ export default function ExpenseSheet({
         {/* Categories */}
         <div className="px-5 pt-3">
           <p className="text-xs font-medium text-gray-400 mb-2">Categoría</p>
-          <div className="flex flex-wrap gap-2">
-            {cats.map(c => (
-              <button
-                key={c.id}
-                onClick={() => { setCatId(c.id); setError('') }}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all',
-                  catId === c.id
-                    ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-                    : 'border-gray-200 bg-gray-50 text-gray-600'
+          {(() => {
+            // En modo edición o sin datos de frecuencia, mostrar todas
+            if (isEditing || topCatIds.length === 0) {
+              return (
+                <div className="flex flex-wrap gap-2">
+                  {cats.map(c => (
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                  ))}
+                </div>
+              )
+            }
+
+            // Pinned: top 3 más usadas (preservando su orden de frecuencia)
+            const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
+            const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
+            // Si la categoría seleccionada no está en pinned, expandir automáticamente
+            const selInOther = catId && otherCats.some(c => c.id === catId)
+
+            return (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {pinnedCats.map(c => (
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                  ))}
+                </div>
+                {otherCats.length > 0 && (
+                  <>
+                    {(catsExpanded || selInOther) && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {otherCats.map(c => (
+                          <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                        ))}
+                      </div>
+                    )}
+                    {!catsExpanded && !selInOther && (
+                      <button
+                        type="button"
+                        onClick={() => setCatsExpanded(true)}
+                        className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        Ver {otherCats.length} más
+                      </button>
+                    )}
+                  </>
                 )}
-              >
-                {isEmoji(c.icon)
-                  ? <span className="text-base">{c.icon}</span>
-                  : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: catId === c.id ? c.color : '#9CA3AF' }} /> })()
-                }
-                {c.name}
-              </button>
-            ))}
-          </div>
+              </>
+            )
+          })()}
         </div>
 
         {/* Payment + date */}
