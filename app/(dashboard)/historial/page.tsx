@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import ExpenseList from '@/components/ExpenseList'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
@@ -29,8 +29,7 @@ export default async function HistorialPage({
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
   const nextMonth = month === 12 ? 1       : month + 1
   const nextYear  = month === 12 ? year + 1 : year

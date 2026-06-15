@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import MonthNav from '@/components/MonthNav'
@@ -18,8 +18,7 @@ export default async function AnalisisPage({
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
   // El gráfico siempre muestra los últimos 6 meses hasta HOY
   const chartAnchor = new Date(now.getFullYear(), now.getMonth(), 1)

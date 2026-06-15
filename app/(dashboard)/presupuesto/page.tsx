@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
 import type { CategoryBudget } from '@/types'
@@ -6,8 +6,7 @@ import type { CategoryBudget } from '@/types'
 export const dynamic = 'force-dynamic'
 
 export default async function PresupuestoPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
   const now = new Date()

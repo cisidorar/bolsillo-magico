@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, isEmoji } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
@@ -23,8 +23,7 @@ export default async function CategoriaDetallePage({
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
   const monthKey  = String(month).padStart(2, '0')
   const nextMonth = month === 12 ? 1 : month + 1

@@ -1,12 +1,11 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryManager from '@/components/CategoryManager'
 
 export const revalidate = 0
 
 export default async function CategoriasPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
   const { data: categories } = await supabase

@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { Sparkles } from 'lucide-react'
@@ -12,8 +12,7 @@ import type { ExpenseWithRelations, RecurringExpense, CategoryBudget } from '@/t
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
   const now = new Date()
   const month = now.getMonth() + 1

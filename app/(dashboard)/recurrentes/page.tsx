@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
@@ -7,8 +7,7 @@ import type { RecurringExpense } from '@/types'
 export const dynamic = 'force-dynamic'
 
 export default async function RecurrentesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
   const [{ data: recurring }, { data: categories }, { data: paymentMethods }, { data: allExpenses }] = await Promise.all([
