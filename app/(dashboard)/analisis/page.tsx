@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import MonthNav from '@/components/MonthNav'
+import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2 } from 'lucide-react'
 
@@ -55,9 +56,10 @@ export default async function AnalisisPage({
     const key = e.date.substring(0, 7)
     if (byMonth[key]) byMonth[key].total += e.amount
   })
-  const monthData  = Object.values(byMonth)
-  const maxMonth   = Math.max(...monthData.map(m => m.total), 1)
+  const monthData   = Object.values(byMonth)
+  const maxMonth    = Math.max(...monthData.map(m => m.total), 1)
   const selectedKey = `${year}-${String(month).padStart(2, '0')}`
+  const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   // ── Selected month data ───────────────────────────────────────────────────
   const selectedExpenses = typedExpenses.filter(e => e.date.startsWith(selectedKey))
@@ -156,20 +158,28 @@ export default async function AnalisisPage({
         <p className="text-sm font-bold text-gray-600 mb-4">Tendencia 6 meses</p>
         <div className="flex items-end gap-2 h-32">
           {monthData.map((m) => {
-            const isSelected = m.key === selectedKey
+            const isSelected  = m.key === selectedKey
+            const isCurrent   = m.key === currentKey
             const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-            const barColor = isSelected ? '#1B6DD4' : '#D5E6FF'
-            const textColor = isSelected ? '#1B6DD4' : '#9CA3AF'
+            // 3-state color: selected → azul fuerte | mes actual no selec → azul medio | resto → azul claro
+            const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
+            const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
+            const [mYear, mMonth] = m.key.split('-').map(Number)
+            const href = `/analisis?month=${mMonth}&year=${mYear}`
             return (
-              <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
+              <Link
+                key={m.key}
+                href={href}
+                className="flex-1 flex flex-col items-center gap-1 group"
+              >
                 {/* Amount label */}
-                <span className={`text-[9px] tabular-nums leading-none font-semibold ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
+                <span className={`text-[9px] tabular-nums leading-none font-semibold transition-colors ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
                   {m.total > 0 ? (m.total >= 1000000 ? `${(m.total/1000000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
                 </span>
                 {/* Bar */}
                 <div className="w-full flex-1 flex items-end">
                   <div
-                    className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
+                    className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
                     style={{
                       height: `${h}px`,
                       backgroundColor: barColor,
@@ -178,10 +188,14 @@ export default async function AnalisisPage({
                   />
                 </div>
                 {/* Label */}
-                <span className={`text-[10px] capitalize leading-none font-semibold`} style={{ color: textColor }}>
+                <span
+                  className="text-[10px] capitalize leading-none font-semibold transition-colors"
+                  style={{ color: textColor }}
+                >
                   {m.label}
+                  {isCurrent && !isSelected && <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: '#75A8FF' }} />}
                 </span>
-              </div>
+              </Link>
             )
           })}
         </div>
