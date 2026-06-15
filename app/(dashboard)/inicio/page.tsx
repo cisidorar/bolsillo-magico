@@ -126,7 +126,7 @@ export default async function DashboardPage() {
 
             {/* Monto principal */}
             <p className="text-xs text-white/80 font-semibold mb-1 uppercase tracking-wide">Gastado este mes</p>
-            <p className="text-5xl font-extrabold text-white tracking-tight leading-none">
+            <p className="font-extrabold text-white tracking-tight leading-none" style={{ fontSize: 'clamp(28px, 9vw, 48px)' }}>
               {formatCLP(total)}
             </p>
 
@@ -148,15 +148,15 @@ export default async function DashboardPage() {
 
             {/* Stats chips */}
             <div className="flex gap-3 mt-5">
-              <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3.5">
+              <div className="flex-1 bg-white/15 rounded-2xl px-3 py-3">
                 <p className="text-[11px] text-white/65 font-semibold mb-1">Por día</p>
-                <p className="text-2xl font-extrabold text-white tabular-nums leading-none">
+                <p className="font-extrabold text-white tabular-nums leading-none" style={{ fontSize: 'clamp(15px, 5vw, 24px)' }}>
                   {daysElapsed > 0 && total > 0 ? formatCLP(dailyAvg) : '–'}
                 </p>
               </div>
-              <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3.5">
+              <div className="flex-1 bg-white/15 rounded-2xl px-3 py-3">
                 <p className="text-[11px] text-white/65 font-semibold mb-1">Proyección</p>
-                <p className={`text-2xl font-extrabold tabular-nums leading-none ${budgetAmount && projection > budgetAmount ? 'text-red-300' : 'text-white'}`}>
+                <p className={`font-extrabold tabular-nums leading-none ${budgetAmount && projection > budgetAmount ? 'text-red-300' : 'text-white'}`} style={{ fontSize: 'clamp(15px, 5vw, 24px)' }}>
                   {total > 0 ? formatCLP(projection) : '–'}
                 </p>
               </div>

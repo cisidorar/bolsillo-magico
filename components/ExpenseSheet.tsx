@@ -310,7 +310,7 @@ export default function ExpenseSheet({
         </div>
 
         {/* Save button */}
-        <div className="px-5 pt-2 pb-24">
+        <div className="px-5 pt-2" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 16px))' }}>
           <button
             onClick={save}
             disabled={saving}

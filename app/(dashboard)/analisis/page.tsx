@@ -114,7 +114,7 @@ export default async function AnalisisPage({
           {/* Total */}
           <div className="card px-3 py-3 flex flex-col gap-1">
             <p className="text-[11px] font-medium text-gray-400">Total</p>
-            <p className="text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
+            <p className="font-extrabold text-gray-900 tabular-nums leading-tight" style={{ fontSize: 'clamp(13px, 4vw, 16px)' }}>{formatCLP(totalSelected)}</p>
           </div>
 
           {/* Promedio/día */}
