@@ -83,7 +83,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="min-h-screen flex flex-col max-w-lg mx-auto" style={{ backgroundColor: '#E1F7FD' }}>
+    <div className="min-h-screen flex flex-col max-w-lg mx-auto" style={{ backgroundColor: '#EEF4FF' }}>
       <main className="flex-1 overflow-y-auto pb-24">
         {children}
       </main>

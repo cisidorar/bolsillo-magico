@@ -6,6 +6,7 @@ import ServiceLogo from '@/components/ServiceLogo'
 import ProfileEditor from '@/components/ProfileEditor'
 import Link from 'next/link'
 import { ChevronRight, RefreshCw, Tag, CreditCard, Target, Download } from 'lucide-react'
+import ImportCSV from '@/components/ImportCSV'
 
 export const dynamic = 'force-dynamic'
 
@@ -165,6 +166,7 @@ export default async function AjustesPage() {
             </div>
             <ChevronRight className="w-4 h-4 text-gray-400" />
           </a>
+          <ImportCSV />
         </div>
       </div>
 

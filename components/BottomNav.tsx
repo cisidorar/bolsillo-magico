@@ -8,7 +8,7 @@ import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 
 const navItems = [
-  { href: '/',          icon: Home,     label: 'Inicio'    },
+  { href: '/inicio',    icon: Home,     label: 'Inicio'    },
   { href: '/historial', icon: List,     label: 'Historial' },
   null, // FAB
   { href: '/analisis',  icon: BarChart2, label: 'Análisis' },

@@ -104,7 +104,7 @@ export default async function AnalisisPage({
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Análisis</h1>
+        <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
         <MonthNav month={month} year={year} basePath="/analisis" />
       </div>
 
@@ -158,8 +158,8 @@ export default async function AnalisisPage({
           {monthData.map((m) => {
             const isSelected = m.key === selectedKey
             const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-            const barColor = isSelected ? '#00AEDC' : '#B9ECFA'
-            const textColor = isSelected ? '#00AEDC' : '#9CA3AF'
+            const barColor = isSelected ? '#1B6DD4' : '#D5E6FF'
+            const textColor = isSelected ? '#1B6DD4' : '#9CA3AF'
             return (
               <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
                 {/* Amount label */}
@@ -169,7 +169,7 @@ export default async function AnalisisPage({
                 {/* Bar */}
                 <div className="w-full flex-1 flex items-end">
                   <div
-                    className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(0,174,220,0.35)]' : ''}`}
+                    className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
                     style={{
                       height: `${h}px`,
                       backgroundColor: barColor,

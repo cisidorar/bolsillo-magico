@@ -211,7 +211,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
-                          style={{ width: `${(progress ?? 0) * 100}%`, backgroundColor: '#00AEDC' }}
+                          style={{ width: `${(progress ?? 0) * 100}%`, backgroundColor: '#1B6DD4' }}
                         />
                       </div>
                       <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">

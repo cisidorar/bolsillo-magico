@@ -5,8 +5,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   // Validar next para evitar open redirect: solo rutas internas
-  const rawNext = searchParams.get('next') ?? '/'
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/'
+  const rawNext = searchParams.get('next') ?? '/inicio'
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/inicio'
 
   if (code) {
     const supabase = await createClient()

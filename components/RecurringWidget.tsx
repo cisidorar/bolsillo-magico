@@ -164,7 +164,7 @@ export default function RecurringWidget({ recurring, registeredIds, userId, mont
           })}
 
           {actionItems.length > 1 && (
-            <div className="px-4 py-2.5 border-t flex items-center justify-between" style={{ backgroundColor: '#D4F3FC', borderColor: '#B9ECFA' }}>
+            <div className="px-4 py-2.5 border-t flex items-center justify-between" style={{ backgroundColor: '#EEF4FF', borderColor: '#D5E6FF' }}>
               <p className="text-xs font-medium text-gray-600">
                 {actionItems.length} pendientes de {totalActive}
               </p>

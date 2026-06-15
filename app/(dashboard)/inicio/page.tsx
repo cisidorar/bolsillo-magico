@@ -116,8 +116,11 @@ export default async function DashboardPage() {
           <div className="absolute top-6 -right-16 w-28 h-28 rounded-full bg-white/[0.05] pointer-events-none" />
 
           <div className="relative">
-            {/* Mes */}
-            <p className="text-xs text-white/65 font-semibold mb-4">
+            {/* Saludo + mes */}
+            <p className="text-sm text-white font-bold mb-0.5">
+              {greeting}, {displayName} 👋
+            </p>
+            <p className="text-xs text-white/55 font-medium mb-4">
               {monthName(month)} {year}
             </p>
 

@@ -28,8 +28,15 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
+  // / redirige al login (o al dashboard si ya está autenticado)
+  if (request.nextUrl.pathname === '/') {
+    return NextResponse.redirect(
+      new URL(user ? '/inicio' : '/login', request.url)
+    )
+  }
+
   // Rutas protegidas: redirigir a login si no está autenticado
-  const protectedPaths = ['/', '/historial', '/analisis', '/ajustes', '/recurrentes', '/presupuesto', '/categorias', '/metodos']
+  const protectedPaths = ['/inicio', '/historial', '/analisis', '/ajustes', '/recurrentes', '/presupuesto', '/categorias', '/metodos']
   const isProtected = protectedPaths.some(p =>
     request.nextUrl.pathname === p || request.nextUrl.pathname.startsWith(p + '/')
   )
@@ -40,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   // Si ya está autenticado y va al login, redirigir al dashboard
   if (user && request.nextUrl.pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/inicio', request.url))
   }
 
   return supabaseResponse

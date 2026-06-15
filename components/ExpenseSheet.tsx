@@ -315,7 +315,7 @@ export default function ExpenseSheet({
             onClick={save}
             disabled={saving}
             className="w-full py-3.5 bg-brand-600 text-white font-semibold rounded-2xl hover:bg-brand-700 transition-colors disabled:opacity-60 text-base"
-            style={{ backgroundColor: '#00AEDC' }}
+            style={{ backgroundColor: '#1B6DD4' }}
           >
             {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar gasto'}
           </button>

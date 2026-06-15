@@ -58,8 +58,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
           const isExpanded = expandedId === e.id
           const isPending  = pendingDelete === e.id
           const isDeleting = deleting === e.id
-          const catColor   = e.category?.color ?? '#00AEDC'
-          const catBg      = e.category?.bg_color ?? '#E1F7FD'
+          const catColor   = e.category?.color ?? '#1B6DD4'
+          const catBg      = e.category?.bg_color ?? '#EEF4FF'
 
           return (
             <div

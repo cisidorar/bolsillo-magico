@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { formatCLP } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
 import type { RecurringExpense } from '@/types'
 
@@ -48,10 +49,10 @@ export default async function RecurrentesPage() {
 
       {/* Summary */}
       {(recurring ?? []).length > 0 && (
-        <div className="bg-white rounded-2xl border border-brand-200 p-4 mb-5">
+        <div className="card p-4 mb-5">
           <p className="text-sm font-bold text-gray-600 mb-1">Compromiso mensual</p>
           <p className="text-2xl font-extrabold text-brand-900">
-            {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(totalMonthly)}
+            {formatCLP(totalMonthly)}
           </p>
           <p className="text-xs text-brand-400 mt-0.5">
             {(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length} gasto{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''} activo{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''}
