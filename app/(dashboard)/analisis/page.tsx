@@ -4,16 +4,16 @@ import { getExpenseIcon } from '@/lib/expense-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, X } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight } from 'lucide-react'
 
 export const revalidate = 0
 
 export default async function AnalisisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; cat?: string }>
+  searchParams: Promise<{ month?: string; year?: string }>
 }) {
-  const { month: monthStr, year: yearStr, cat: selectedCatId } = await searchParams
+  const { month: monthStr, year: yearStr } = await searchParams
   const now   = new Date()
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
@@ -38,13 +38,6 @@ export default async function AnalisisPage({
       .order('date', { ascending: false }),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
   ])
-
-  // Helper: URL para mes/cat
-  const monthBase = `month=${month}&year=${year}`
-  const catUrl = (catId: string) =>
-    selectedCatId === catId
-      ? `/analisis?${monthBase}`                        // deseleccionar
-      : `/analisis?${monthBase}&cat=${catId}`            // seleccionar
 
   const catBudgetMap = new Map(
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
@@ -268,98 +261,42 @@ export default async function AnalisisPage({
                 const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
                 const sharePct   = pct(c.total, totalSelected)
                 const { icon: Icon, color: iconColor, bg: iconBg } = getExpenseIcon(null, c.name)
-                const isActiveCat = selectedCatId === c.id
-
                 return (
-                  <Link key={c.id} href={catUrl(c.id)} className={`block px-4 py-3.5 transition-colors ${isActiveCat ? 'bg-brand-50' : 'hover:bg-gray-50/60'}`}>
+                  <Link
+                    key={c.id}
+                    href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                    className="block px-4 py-3.5 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
+                  >
                     <div className="flex items-center gap-3 mb-2">
-                      {/* Rank */}
-                      <span className="text-[10px] font-bold text-gray-300 w-3 flex-shrink-0 text-center">
-                        {idx + 1}
-                      </span>
-                      {/* Icon */}
-                      <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: iconBg }}
-                      >
+                      <span className="text-[10px] font-bold text-gray-300 w-3 flex-shrink-0 text-center">{idx + 1}</span>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
                         <Icon className="w-4 h-4" style={{ color: iconColor }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold leading-tight ${isActiveCat ? 'text-brand-700' : 'text-gray-800'}`}>{c.name}</p>
+                        <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
                         {limit ? (
                           <p className={`text-xs ${over ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                            {over
-                              ? `+${formatCLP(c.total - limit)} sobre el límite`
-                              : `${formatCLP(limit - c.total)} restante`
-                            }
+                            {over ? `+${formatCLP(c.total - limit)} sobre el límite` : `${formatCLP(limit - c.total)} restante`}
                           </p>
                         ) : (
                           <p className="text-xs text-gray-400">{sharePct}% del total</p>
                         )}
                       </div>
-                      <div className="text-right flex-shrink-0 flex items-center gap-2">
+                      <div className="text-right flex-shrink-0 flex items-center gap-1.5">
                         <div>
-                          <p className={`text-sm font-bold tabular-nums ${isActiveCat ? 'text-brand-700' : 'text-gray-900'}`}>{formatCLP(c.total)}</p>
-                          {limit && (
-                            <p className="text-[10px] text-gray-400 tabular-nums">de {formatCLP(limit)}</p>
-                          )}
+                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(c.total)}</p>
+                          {limit && <p className="text-[10px] text-gray-400 tabular-nums">de {formatCLP(limit)}</p>}
                         </div>
-                        {isActiveCat && <X className="w-3.5 h-3.5 text-brand-400 flex-shrink-0" />}
+                        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                       </div>
                     </div>
-                    {/* Progress bar */}
-                    <div
-                      className="h-1.5 rounded-full overflow-hidden ml-7"
-                      style={{ backgroundColor: `${barColor}20` }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${barWidth}%`, backgroundColor: barColor }}
-                      />
+                    <div className="h-1.5 rounded-full overflow-hidden ml-7" style={{ backgroundColor: `${barColor}20` }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
                     </div>
                   </Link>
                 )
               })}
             </div>
-
-            {/* ── Gastos de la categoría seleccionada ──────────────────────── */}
-            {selectedCatId && (() => {
-              const catInfo = catSummary.find(c => c.id === selectedCatId)
-              if (!catInfo) return null
-              const catExpenses = selectedExpenses
-                .filter(e => e.category_id === selectedCatId)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              return (
-                <div className="mt-3">
-                  <h2 className="text-sm font-bold text-gray-600 mb-2.5">
-                    {catInfo.name} · {monthName(month)}
-                    <span className="ml-2 text-brand-600">{formatCLP(catInfo.total)}</span>
-                  </h2>
-                  <div className="card divide-y divide-gray-50 overflow-hidden">
-                    {catExpenses.map(e => {
-                      const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
-                      return (
-                        <div key={e.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
-                            <Icon className="w-4 h-4" style={{ color }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">
-                              {e.description ?? catInfo.name}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
-                              {e.payment_method && <> · {e.payment_method.name}</>}
-                            </p>
-                          </div>
-                          <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(e.amount)}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })()}
           </div>
 
           {/* ── Cómo pagaste ─────────────────────────────────────────────────── */}
