@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import Link from 'next/link'
 
 /* ─── Doraemon SVG ─────────────────────────────────────────────────────────── */
-function Doraemon({ className }: { className?: string }) {
+function Doraemon({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <svg
       viewBox="0 0 280 260"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
+      style={style}
       aria-hidden="true"
     >
       {/* Shadow */}
