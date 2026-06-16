@@ -31,11 +31,12 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // / redirige al login (o al dashboard si ya está autenticado)
+  // / muestra la landing si no está autenticado, o redirige al dashboard si sí lo está
   if (request.nextUrl.pathname === '/') {
-    return NextResponse.redirect(
-      new URL(user ? '/inicio' : '/login', request.url)
-    )
+    if (user) {
+      return NextResponse.redirect(new URL('/inicio', request.url))
+    }
+    return supabaseResponse
   }
 
   // Rutas protegidas: redirigir a login si no está autenticado
