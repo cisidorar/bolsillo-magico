@@ -71,22 +71,20 @@ export default function ImportCSV() {
         </svg>
       </button>
 
-      {/* Bottom sheet */}
+      {/* Bottom sheet / Desktop modal */}
       {open && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ maxWidth: 512, margin: '0 auto' }}>
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => { setOpen(false); reset() }}
-          />
-
+        <div
+          className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/50"
+          onClick={() => { setOpen(false); reset() }}
+        >
           {/* Sheet */}
           <div
-            className="relative bg-white rounded-t-3xl px-5 pt-5 pb-10"
+            className="relative w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl px-5 pt-5 pb-10 lg:pb-6"
             style={{ boxShadow: '0 -8px 40px rgba(0,0,0,.15)' }}
+            onClick={e => e.stopPropagation()}
           >
-            {/* Handle + header */}
-            <div className="w-8 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            {/* Handle (mobile only) */}
+            <div className="w-8 h-1 bg-gray-200 rounded-full mx-auto mb-5 lg:hidden" />
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-base font-extrabold text-brand-900">Importar gastos</h2>
               <button
@@ -226,3 +224,4 @@ export default function ImportCSV() {
     </>
   )
 }
+

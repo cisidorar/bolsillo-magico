@@ -7,8 +7,8 @@ export default function LoadingInicio() {
       {/* Category cards skeleton */}
       <div>
         <div className="h-4 w-24 bg-gray-200 rounded-full mb-3" />
-        <div className="grid grid-cols-2 gap-2.5">
-          {[1,2,3,4].map(i => (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {[1,2,3,4,5,6].map(i => (
             <div key={i} className="rounded-3xl p-4 h-24 bg-gray-100" />
           ))}
         </div>

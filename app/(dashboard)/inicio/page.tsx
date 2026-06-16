@@ -97,7 +97,7 @@ export default async function DashboardPage() {
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
   )
 
-  // Resumen por categoría (top 4)
+  // Resumen por categoría (top 6 en desktop, top 4 en mobile)
   const byCat = typedExpenses.reduce<Record<string, {
     id: string; name: string; color: string; bg_color: string; icon: string; total: number
   }>>((acc, e) => {
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
     acc[id].total += e.amount
     return acc
   }, {})
-  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 4)
+  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 6)
 
   // Saludo contextual
   const hour = now.getHours()
@@ -120,6 +120,12 @@ export default async function DashboardPage() {
   const daysInMonth = new Date(year, month, 0).getDate()
   const dailyAvg    = daysElapsed > 0 ? Math.round(total / daysElapsed) : 0
   const projection  = Math.round(dailyAvg * daysInMonth)
+
+  // Gasto de esta semana (lunes a hoy)
+  const daysFromMonday = (now.getDay() + 6) % 7
+  const monday = new Date(now); monday.setDate(now.getDate() - daysFromMonday)
+  const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+  const weekTotal = typedExpenses.filter(e => e.date >= mondayStr).reduce((s, e) => s + e.amount, 0)
 
   // ── Calcular estado de cuenta por tarjeta de crédito ─────────────────────
   const creditCards = ((paymentMethods ?? []) as PaymentMethod[])
@@ -166,30 +172,35 @@ export default async function DashboardPage() {
         <div className="space-y-4">
 
           {/* ── Hero card ─────────────────────────────────────────────── */}
-          <div className="hero-gradient rounded-3xl p-6 text-white overflow-hidden relative">
+          <div className="hero-gradient rounded-3xl p-6 lg:p-5 text-white overflow-hidden relative">
             <div className="relative">
               {/* Bell logo */}
               <div className="absolute top-0 right-0 w-12 h-12 opacity-80">
                 <Image src="/camapana.png" alt="" fill style={{ objectFit: 'contain' }} />
               </div>
 
-              {/* Saludo + mes */}
-              <p className="text-sm text-white font-bold mb-0.5">
-                {greeting}, {displayName} 👋
-              </p>
-              <p className="text-xs text-white/55 font-medium mb-4">
+              {/* Saludo + mes (una línea en desktop) */}
+              <div className="flex items-baseline gap-2 mb-3 lg:mb-2">
+                <p className="text-sm text-white font-bold">
+                  {greeting}, {displayName} 👋
+                </p>
+                <p className="text-xs text-white/55 font-medium hidden lg:block">
+                  · {monthName(month)} {year}
+                </p>
+              </div>
+              <p className="text-xs text-white/55 font-medium mb-3 lg:hidden">
                 {monthName(month)} {year}
               </p>
 
               {/* Monto principal */}
-              <p className="text-xs text-white/80 font-semibold mb-1 uppercase tracking-wide">Gastado este mes</p>
-              <p className="font-extrabold text-white tracking-tight leading-none" style={{ fontSize: 'clamp(28px, 9vw, 48px)' }}>
+              <p className="text-[10px] text-white/80 font-semibold mb-1 uppercase tracking-wide">Gastado este mes</p>
+              <p className="font-extrabold text-white tracking-tight leading-none" style={{ fontSize: 'clamp(26px, 7vw, 40px)' }}>
                 {formatCLP(total)}
               </p>
 
               {/* Barra de presupuesto */}
               {budgetAmount && (
-                <div className="mt-5">
+                <div className="mt-4">
                   <div className="flex justify-between text-xs text-white/70 mb-1.5 font-medium">
                     <span>{isOver ? 'Sobre el presupuesto' : `Quedan ${formatCLP(budgetAmount - total)}`}</span>
                     <span>{formatCLP(budgetAmount)}</span>
@@ -203,17 +214,23 @@ export default async function DashboardPage() {
                 </div>
               )}
 
-              {/* Stats chips */}
-              <div className="flex gap-3 mt-5">
+              {/* Stats chips — 2 en mobile, 3 en desktop */}
+              <div className="flex gap-2 mt-5">
                 <div className="flex-1 bg-white/15 rounded-2xl px-3 py-3">
-                  <p className="text-[11px] text-white/65 font-semibold mb-1">Por día</p>
-                  <p className="font-extrabold text-white tabular-nums leading-none" style={{ fontSize: 'clamp(15px, 5vw, 24px)' }}>
+                  <p className="text-[10px] text-white/65 font-semibold mb-1">Por día</p>
+                  <p className="font-extrabold text-white tabular-nums leading-none" style={{ fontSize: 'clamp(13px, 4vw, 20px)' }}>
                     {daysElapsed > 0 && total > 0 ? formatCLP(dailyAvg) : '–'}
                   </p>
                 </div>
                 <div className="flex-1 bg-white/15 rounded-2xl px-3 py-3">
-                  <p className="text-[11px] text-white/65 font-semibold mb-1">Proyección</p>
-                  <p className={`font-extrabold tabular-nums leading-none ${budgetAmount && projection > budgetAmount ? 'text-red-300' : 'text-white'}`} style={{ fontSize: 'clamp(15px, 5vw, 24px)' }}>
+                  <p className="text-[10px] text-white/65 font-semibold mb-1">Esta semana</p>
+                  <p className="font-extrabold text-white tabular-nums leading-none" style={{ fontSize: 'clamp(13px, 4vw, 20px)' }}>
+                    {weekTotal > 0 ? formatCLP(weekTotal) : '–'}
+                  </p>
+                </div>
+                <div className="flex-1 bg-white/15 rounded-2xl px-3 py-3">
+                  <p className="text-[10px] text-white/65 font-semibold mb-1">Proyección</p>
+                  <p className={`font-extrabold tabular-nums leading-none ${budgetAmount && projection > budgetAmount ? 'text-red-300' : 'text-white'}`} style={{ fontSize: 'clamp(13px, 4vw, 20px)' }}>
                     {total > 0 ? formatCLP(projection) : '–'}
                   </p>
                 </div>
@@ -265,7 +282,7 @@ export default async function DashboardPage() {
                 <h2 className="text-sm font-bold text-gray-600">Por categoría</h2>
                 <Link href="/analisis" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver más</Link>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {catSummary.map(c => {
                   const limit   = catBudgetMap.get(c.id) ?? null
                   const catPct  = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
@@ -337,10 +354,17 @@ export default async function DashboardPage() {
           {/* ── Últimos gastos ────────────────────────────────────────── */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
-              <h2 className="text-sm font-bold text-gray-600">Últimos gastos</h2>
-              {typedExpenses.length > 5 && (
-                <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver todos</Link>
-              )}
+              <h2 className="text-sm font-bold text-gray-600">
+                Últimos gastos
+                {typedExpenses.length > 0 && (
+                  <span className="ml-1.5 text-[10px] font-bold text-gray-400 bg-gray-100 rounded-full px-1.5 py-0.5">
+                    {typedExpenses.length}
+                  </span>
+                )}
+              </h2>
+              <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
+                Ver todos
+              </Link>
             </div>
 
             {typedExpenses.length === 0 ? (
@@ -352,7 +376,7 @@ export default async function DashboardPage() {
                 <p className="text-xs text-gray-400">Toca + para agregar el primero</p>
               </div>
             ) : (
-              <ExpenseList expenses={typedExpenses.slice(0, 8)} />
+              <ExpenseList expenses={typedExpenses.slice(0, 10)} />
             )}
           </div>
 
