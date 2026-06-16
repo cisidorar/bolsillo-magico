@@ -21,7 +21,7 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 glass-nav safe-bottom max-w-lg mx-auto">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 glass-nav safe-bottom max-w-lg mx-auto lg:hidden">
         <div className="flex items-center justify-around py-2 px-1">
           {navItems.map((item, i) => {
             if (!item) {

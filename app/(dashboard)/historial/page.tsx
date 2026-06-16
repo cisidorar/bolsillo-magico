@@ -145,7 +145,7 @@ export default async function HistorialPage({
     : hasFilters ? 'Filtrado' : `${monthName(month)} ${year}`
 
   return (
-    <div className="px-4 pt-6 pb-4 space-y-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4 space-y-4">
 
       {/* Header */}
       <div className="flex items-center justify-between">

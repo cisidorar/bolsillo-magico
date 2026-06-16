@@ -213,13 +213,13 @@ export default function ExpenseSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end bg-black/50 max-w-lg mx-auto"
+      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
       onClick={e => { if (e.target === e.currentTarget) close() }}
     >
-      <div className="w-full bg-white rounded-t-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
+      <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
         {/* Handle + header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
-          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3" />
+          <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3 lg:hidden" />
           <h2 className="text-base font-semibold text-gray-900 mt-2">
             {isEditing ? 'Editar gasto' : 'Nuevo gasto'}
           </h2>

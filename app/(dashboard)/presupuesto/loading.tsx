@@ -1,6 +1,6 @@
 export default function LoadingPresupuesto() {
   return (
-    <div className="px-4 pt-6 pb-8 space-y-5 animate-pulse">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5 animate-pulse">
       <div className="h-5 w-28 bg-gray-200 rounded-full" />
       {/* Budget card */}
       <div className="h-32 bg-gray-100 rounded-3xl" />

@@ -53,6 +53,15 @@
     box-shadow: 0 8px 28px rgba(27, 109, 212, 0.50);
   }
 
+  /* Padding inferior para dejar espacio al BottomNav en mobile;
+     en desktop (lg+) se resetea a un valor pequeño */
+  .main-content-pad {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 1024px) {
+    .main-content-pad { padding-bottom: 3rem; }
+  }
+
   /* Ocultar scrollbar pero mantener scroll */
   .scrollbar-none {
     -ms-overflow-style: none;

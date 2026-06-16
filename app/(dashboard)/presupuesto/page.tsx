@@ -19,7 +19,7 @@ export default async function PresupuestoPage() {
   ])
 
   return (
-    <div className="px-4 pt-6 pb-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4 lg:max-w-xl">
       <div className="mb-5">
         <h1 className="text-xl font-bold text-brand-900">Presupuesto por categoría</h1>
         <p className="text-sm text-brand-400 mt-1">

@@ -28,7 +28,7 @@ export default async function AjustesPage() {
   const totalBudget = (categoryBudgets ?? []).reduce((s, b) => s + b.amount, 0)
 
   return (
-    <div className="px-4 pt-6 pb-8 space-y-5">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5 lg:max-w-xl">
       <h1 className="text-xl font-bold text-brand-900">Ajustes</h1>
 
       {/* ── Perfil ──────────────────────────────────────────────── */}

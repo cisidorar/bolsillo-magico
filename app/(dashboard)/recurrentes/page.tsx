@@ -49,15 +49,17 @@ export default async function RecurrentesPage({
     .filter(r => r.is_active)
     .reduce((s, r) => s + r.amount, 0)
 
+  const activeCount = (recurring ?? []).filter((r: RecurringExpense) => r.is_active).length
+
   return (
-    <div className="px-4 pt-6 pb-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-brand-900">Recurrentes</h1>
       </div>
 
-      {/* Toggle Lista / Calendario */}
-      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-4">
+      {/* Toggle Lista / Calendario — solo visible en mobile */}
+      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-4 lg:hidden">
         <Link
           href="/recurrentes"
           className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -76,11 +78,11 @@ export default async function RecurrentesPage({
         </Link>
       </div>
 
-      {isCalendar ? (
-        <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
-      ) : (
-        <>
-          {/* Summary */}
+      {/* Desktop: 2 columnas siempre visibles. Mobile: una a la vez según toggle */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+
+        {/* ── Panel Lista ─────────────────────────────────────────────── */}
+        <div className={isCalendar ? 'hidden lg:block' : 'block'}>
           {(recurring ?? []).length > 0 && (
             <div className="card p-4 mb-5">
               <p className="text-sm font-bold text-gray-600 mb-1">Compromiso mensual</p>
@@ -88,19 +90,24 @@ export default async function RecurrentesPage({
                 {formatCLP(totalMonthly)}
               </p>
               <p className="text-xs text-brand-400 mt-0.5">
-                {(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length} gasto{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''} activo{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''}
+                {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
               </p>
             </div>
           )}
-
           <RecurringManager
             items={recurringWithCounts}
             categories={categories ?? []}
             paymentMethods={paymentMethods ?? []}
             userId={user.id}
           />
-        </>
-      )}
+        </div>
+
+        {/* ── Panel Calendario ─────────────────────────────────────────── */}
+        <div className={!isCalendar ? 'hidden lg:block' : 'block'}>
+          <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
+        </div>
+
+      </div>
     </div>
   )
 }

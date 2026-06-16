@@ -63,7 +63,7 @@ export default async function CategoriaDetallePage({
     <div className="pb-8">
       {/* Header con volver */}
       <div
-        className="px-4 pt-5 pb-4 flex items-center gap-3"
+        className="px-4 lg:px-8 pt-5 pb-4 flex items-center gap-3"
         style={{ background: 'linear-gradient(160deg, #0F4489 0%, #1B6DD4 100%)' }}
       >
         <Link
@@ -95,7 +95,7 @@ export default async function CategoriaDetallePage({
       </div>
 
       {/* Lista agrupada por día */}
-      <div className="px-4 pt-4 space-y-4">
+      <div className="px-4 lg:px-8 pt-4 space-y-4">
         {days.length === 0 ? (
           <div className="card text-center py-14">
             <p className="text-sm font-bold text-gray-500">Sin gastos en {monthName(month)}</p>

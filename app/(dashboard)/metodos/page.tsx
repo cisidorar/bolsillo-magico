@@ -15,7 +15,7 @@ export default async function MetodosPage() {
     .order('sort_order')
 
   return (
-    <div className="px-4 pt-6 pb-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4 lg:max-w-xl">
       <h1 className="text-xl font-bold text-brand-900 mb-5">Métodos de pago</h1>
       <PaymentMethodManager paymentMethods={paymentMethods ?? []} userId={user.id} />
     </div>

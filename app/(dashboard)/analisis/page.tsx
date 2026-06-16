@@ -133,261 +133,244 @@ export default async function AnalisisPage({
   const viewParam = isBilling ? '&view=billing' : ''
 
   return (
-    <div className="px-4 pt-6 pb-8 space-y-5">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-5">
         <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
         <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
       </div>
 
-      {/* Toggle por compra / por facturación */}
-      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
-        <Link
-          href={`/analisis?month=${month}&year=${year}`}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          <ShoppingCart className="w-3.5 h-3.5" />
-          Por compra
-        </Link>
-        <Link
-          href={`/analisis?month=${month}&year=${year}&view=billing`}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          Por facturación
-        </Link>
-      </div>
+      {/* ── Responsive 2-col on desktop ──────────────────────────────────── */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
-      {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      {totalSelected > 0 && (
-        <div className="grid grid-cols-3 gap-2.5">
-          {/* Total */}
-          <div className="card px-3 py-3 flex flex-col gap-1">
-            <p className="text-[11px] font-medium text-gray-400">Total</p>
-            <p className="font-extrabold text-gray-900 tabular-nums leading-tight" style={{ fontSize: 'clamp(13px, 4vw, 16px)' }}>{formatCLP(totalSelected)}</p>
+        {/* ══ LEFT: toggle + KPIs + chart ═════════════════════════════════ */}
+        <div className="space-y-5">
+
+          {/* Toggle por compra / por facturación */}
+          <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
+            <Link
+              href={`/analisis?month=${month}&year=${year}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+              }`}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              Por compra
+            </Link>
+            <Link
+              href={`/analisis?month=${month}&year=${year}&view=billing`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Por facturación
+            </Link>
           </div>
 
-          {/* Promedio/día */}
-          <div className="card px-3 py-3 flex flex-col gap-1">
-            <p className="text-[11px] font-medium text-gray-400">Por día</p>
-            <p className="text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
-          </div>
-
-          {/* vs mes anterior */}
-          <div className="card px-3 py-3 flex flex-col gap-1">
-            <p className="text-[11px] font-medium text-gray-400">vs anterior</p>
-            {delta === null ? (
-              <div className="flex items-center gap-1">
-                <Minus className="w-3.5 h-3.5 text-gray-300" />
-                <p className="text-base font-extrabold text-gray-400">—</p>
+          {/* ── KPIs ──────────────────────────────────────────────────────── */}
+          {totalSelected > 0 && (
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="card px-3 py-3 flex flex-col gap-1">
+                <p className="text-[11px] font-medium text-gray-400">Total</p>
+                <p className="font-extrabold text-gray-900 tabular-nums leading-tight" style={{ fontSize: 'clamp(13px, 4vw, 16px)' }}>{formatCLP(totalSelected)}</p>
               </div>
-            ) : delta === 0 ? (
-              <div className="flex items-center gap-1">
-                <Minus className="w-3.5 h-3.5 text-gray-400" />
-                <p className="text-base font-extrabold text-gray-600">igual</p>
+              <div className="card px-3 py-3 flex flex-col gap-1">
+                <p className="text-[11px] font-medium text-gray-400">Por día</p>
+                <p className="text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
               </div>
-            ) : delta > 0 ? (
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                <p className="text-base font-extrabold text-red-500 tabular-nums">+{delta}%</p>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <TrendingDown className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                <p className="text-base font-extrabold text-emerald-600 tabular-nums">{delta}%</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Tendencia 6 meses ─────────────────────────────────────────────── */}
-      <div className="card p-4">
-        <p className="text-sm font-bold text-gray-600 mb-4">
-          Tendencia 6 meses
-          {isBilling && <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">facturación</span>}
-        </p>
-        <div className="flex items-end gap-2 h-32">
-          {monthData.map((m) => {
-            const isSelected  = m.key === selectedKey
-            const isCurrent   = m.key === currentKey
-            const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-            const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
-            const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
-            const [mYear, mMonth] = m.key.split('-').map(Number)
-            const href = `/analisis?month=${mMonth}&year=${mYear}${viewParam}`
-            return (
-              <Link
-                key={m.key}
-                href={href}
-                className="flex-1 flex flex-col items-center gap-1 group"
-              >
-                {/* Amount label */}
-                <span className={`text-[9px] tabular-nums leading-none font-semibold transition-colors ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
-                  {m.total > 0 ? (m.total >= 1000000 ? `${(m.total/1000000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
-                </span>
-                {/* Bar */}
-                <div className="w-full flex-1 flex items-end">
-                  <div
-                    className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
-                    style={{
-                      height: `${h}px`,
-                      backgroundColor: barColor,
-                      opacity: m.total === 0 ? 0.3 : 1,
-                    }}
-                  />
-                </div>
-                {/* Label */}
-                <span
-                  className="text-[10px] capitalize leading-none font-semibold transition-colors"
-                  style={{ color: textColor }}
-                >
-                  {m.label}
-                  {isCurrent && !isSelected && <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: '#75A8FF' }} />}
-                </span>
-              </Link>
-            )
-          })}
-        </div>
-      </div>
-
-      {totalSelected === 0 ? (
-        <div className="card text-center py-14 flex flex-col items-center gap-3">
-          <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
-            <BarChart2 className="w-7 h-7 text-brand-400" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-gray-600">
-              Sin gastos {isBilling ? `en estado de cuenta de ${monthName(month)}` : `en ${monthName(month)}`}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">Registra gastos para ver tu análisis</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* ── Mayor gasto del mes ─────────────────────────────────────────── */}
-          {topExpense && (
-            <div>
-              <h2 className="text-sm font-bold text-gray-600 mb-2.5">Mayor gasto</h2>
-              <div className="card px-4 py-3.5">
-                {(() => {
-                  const { icon: Icon, color, bg } = getExpenseIcon(
-                    topExpense.description ?? null,
-                    topExpense.category?.name ?? null
-                  )
-                  return (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
-                        <Icon className="w-5 h-5" style={{ color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {topExpense.description ?? topExpense.category?.name ?? 'Gasto'}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {topExpense.category?.name ?? '–'} · {new Date(topExpense.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(topExpense.amount)}</p>
-                        <p className="text-[10px] text-gray-400">{pct(topExpense.amount, totalSelected)}% del total</p>
-                      </div>
-                    </div>
-                  )
-                })()}
+              <div className="card px-3 py-3 flex flex-col gap-1">
+                <p className="text-[11px] font-medium text-gray-400">vs anterior</p>
+                {delta === null ? (
+                  <div className="flex items-center gap-1"><Minus className="w-3.5 h-3.5 text-gray-300" /><p className="text-base font-extrabold text-gray-400">—</p></div>
+                ) : delta === 0 ? (
+                  <div className="flex items-center gap-1"><Minus className="w-3.5 h-3.5 text-gray-400" /><p className="text-base font-extrabold text-gray-600">igual</p></div>
+                ) : delta > 0 ? (
+                  <div className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-red-500 flex-shrink-0" /><p className="text-base font-extrabold text-red-500 tabular-nums">+{delta}%</p></div>
+                ) : (
+                  <div className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /><p className="text-base font-extrabold text-emerald-600 tabular-nums">{delta}%</p></div>
+                )}
               </div>
             </div>
           )}
 
-          {/* ── Distribución por categoría ──────────────────────────────────── */}
-          <div>
-            <h2 className="text-sm font-bold text-gray-600 mb-2.5">
-              Por categoría · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
-            </h2>
-            <div className="card divide-y divide-gray-50 overflow-hidden">
-              {catSummary.map((c, idx) => {
-                const limit      = catBudgetMap.get(c.id) ?? null
-                const over       = limit ? c.total > limit : false
-                const budgetPct  = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
-                const barColor   = over ? '#EF4444' : budgetPct !== null && budgetPct >= 80 ? '#F59E0B' : c.color
-                const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
-                const sharePct   = pct(c.total, totalSelected)
-                const { icon: Icon, color: iconColor, bg: iconBg } = getExpenseIcon(null, c.name)
+          {/* ── Tendencia 6 meses ──────────────────────────────────────────── */}
+          <div className="card p-4">
+            <p className="text-sm font-bold text-gray-600 mb-4">
+              Tendencia 6 meses
+              {isBilling && <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">facturación</span>}
+            </p>
+            <div className="flex items-end gap-2 h-32">
+              {monthData.map((m) => {
+                const isSelected  = m.key === selectedKey
+                const isCurrent   = m.key === currentKey
+                const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
+                const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
+                const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
+                const [mYear, mMonth] = m.key.split('-').map(Number)
+                const href = `/analisis?month=${mMonth}&year=${mYear}${viewParam}`
                 return (
-                  <Link
-                    key={c.id}
-                    href={`/analisis/${c.id}?month=${month}&year=${year}${viewParam}`}
-                    className="block px-4 py-3.5 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-[10px] font-bold text-gray-300 w-3 flex-shrink-0 text-center">{idx + 1}</span>
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
-                        <Icon className="w-4 h-4" style={{ color: iconColor }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
-                        {limit ? (
-                          <p className={`text-xs ${over ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                            {over ? `+${formatCLP(c.total - limit)} sobre el límite` : `${formatCLP(limit - c.total)} restante`}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-gray-400">{sharePct}% del total</p>
-                        )}
-                      </div>
-                      <div className="text-right flex-shrink-0 flex items-center gap-1.5">
-                        <div>
-                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(c.total)}</p>
-                          {limit && <p className="text-[10px] text-gray-400 tabular-nums">de {formatCLP(limit)}</p>}
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      </div>
+                  <Link key={m.key} href={href} className="flex-1 flex flex-col items-center gap-1 group">
+                    <span className={`text-[9px] tabular-nums leading-none font-semibold transition-colors ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
+                      {m.total > 0 ? (m.total >= 1000000 ? `${(m.total/1000000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
+                    </span>
+                    <div className="w-full flex-1 flex items-end">
+                      <div
+                        className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
+                        style={{ height: `${h}px`, backgroundColor: barColor, opacity: m.total === 0 ? 0.3 : 1 }}
+                      />
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden ml-7" style={{ backgroundColor: `${barColor}20` }}>
-                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
-                    </div>
+                    <span className="text-[10px] capitalize leading-none font-semibold transition-colors" style={{ color: textColor }}>
+                      {m.label}
+                      {isCurrent && !isSelected && <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: '#75A8FF' }} />}
+                    </span>
                   </Link>
                 )
               })}
             </div>
           </div>
 
-          {/* ── Cómo pagaste ─────────────────────────────────────────────────── */}
-          {pmSummary.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-gray-600 mb-2.5">Cómo pagaste</h2>
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {pmSummary.map(pm => {
-                  const pmPct = pct(pm.total, totalSelected)
-                  return (
-                    <div key={pm.name} className="px-4 py-3">
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <div className="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-                          <CreditCard className="w-3.5 h-3.5 text-brand-500" />
+          {/* Empty state in left col when no data */}
+          {totalSelected === 0 && (
+            <div className="card text-center py-14 flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
+                <BarChart2 className="w-7 h-7 text-brand-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-600">
+                  Sin gastos {isBilling ? `en estado de cuenta de ${monthName(month)}` : `en ${monthName(month)}`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Registra gastos para ver tu análisis</p>
+              </div>
+            </div>
+          )}
+
+        </div>
+        {/* ══ END LEFT ═══════════════════════════════════════════════════════ */}
+
+        {/* ══ RIGHT: mayor gasto + categorías + cómo pagaste ════════════════ */}
+        {totalSelected > 0 && (
+          <div className="space-y-5">
+
+            {/* Mayor gasto */}
+            {topExpense && (
+              <div>
+                <h2 className="text-sm font-bold text-gray-600 mb-2.5">Mayor gasto</h2>
+                <div className="card px-4 py-3.5">
+                  {(() => {
+                    const { icon: Icon, color, bg } = getExpenseIcon(
+                      topExpense.description ?? null,
+                      topExpense.category?.name ?? null
+                    )
+                    return (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
+                          <Icon className="w-5 h-5" style={{ color }} />
                         </div>
-                        <p className="flex-1 text-sm font-semibold text-gray-800">{pm.name}</p>
-                        <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(pm.total)}</p>
-                        <p className="text-xs text-gray-400 w-8 text-right tabular-nums">{pmPct}%</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {topExpense.description ?? topExpense.category?.name ?? 'Gasto'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {topExpense.category?.name ?? '–'} · {new Date(topExpense.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(topExpense.amount)}</p>
+                          <p className="text-[10px] text-gray-400">{pct(topExpense.amount, totalSelected)}% del total</p>
+                        </div>
                       </div>
-                      <div className="h-1.5 rounded-full overflow-hidden bg-brand-50 ml-10">
-                        <div
-                          className="h-full rounded-full bg-brand-400 transition-all"
-                          style={{ width: `${pmPct}%` }}
-                        />
+                    )
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Distribución por categoría */}
+            <div>
+              <h2 className="text-sm font-bold text-gray-600 mb-2.5">
+                Por categoría · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
+              </h2>
+              <div className="card divide-y divide-gray-50 overflow-hidden">
+                {catSummary.map((c, idx) => {
+                  const limit      = catBudgetMap.get(c.id) ?? null
+                  const over       = limit ? c.total > limit : false
+                  const budgetPct  = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
+                  const barColor   = over ? '#EF4444' : budgetPct !== null && budgetPct >= 80 ? '#F59E0B' : c.color
+                  const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
+                  const sharePct   = pct(c.total, totalSelected)
+                  const { icon: Icon, color: iconColor, bg: iconBg } = getExpenseIcon(null, c.name)
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/analisis/${c.id}?month=${month}&year=${year}${viewParam}`}
+                      className="block px-4 py-3.5 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-[10px] font-bold text-gray-300 w-3 flex-shrink-0 text-center">{idx + 1}</span>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
+                          <Icon className="w-4 h-4" style={{ color: iconColor }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
+                          {limit ? (
+                            <p className={`text-xs ${over ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                              {over ? `+${formatCLP(c.total - limit)} sobre el límite` : `${formatCLP(limit - c.total)} restante`}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-400">{sharePct}% del total</p>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0 flex items-center gap-1.5">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(c.total)}</p>
+                            {limit && <p className="text-[10px] text-gray-400 tabular-nums">de {formatCLP(limit)}</p>}
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                        </div>
                       </div>
-                    </div>
+                      <div className="h-1.5 rounded-full overflow-hidden ml-7" style={{ backgroundColor: `${barColor}20` }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                      </div>
+                    </Link>
                   )
                 })}
               </div>
             </div>
-          )}
-        </>
-      )}
 
+            {/* Cómo pagaste */}
+            {pmSummary.length > 0 && (
+              <div>
+                <h2 className="text-sm font-bold text-gray-600 mb-2.5">Cómo pagaste</h2>
+                <div className="card divide-y divide-gray-50 overflow-hidden">
+                  {pmSummary.map(pm => {
+                    const pmPct = pct(pm.total, totalSelected)
+                    return (
+                      <div key={pm.name} className="px-4 py-3">
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <div className="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+                            <CreditCard className="w-3.5 h-3.5 text-brand-500" />
+                          </div>
+                          <p className="flex-1 text-sm font-semibold text-gray-800">{pm.name}</p>
+                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(pm.total)}</p>
+                          <p className="text-xs text-gray-400 w-8 text-right tabular-nums">{pmPct}%</p>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden bg-brand-50 ml-10">
+                          <div className="h-full rounded-full bg-brand-400 transition-all" style={{ width: `${pmPct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+        {/* ══ END RIGHT ══════════════════════════════════════════════════════ */}
+
+      </div>
     </div>
   )
 }
