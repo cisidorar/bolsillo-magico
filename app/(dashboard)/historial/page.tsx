@@ -158,38 +158,42 @@ export default async function HistorialPage({
 
       {/* Stats cards */}
       {totalCount > 0 && (
-        <div className="grid grid-cols-3 gap-3 lg:gap-4 mb-5">
-          {/* Total */}
-          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
-              <Wallet className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
+        <div className="grid grid-cols-3 gap-2.5 lg:gap-4 mb-5">
+
+          {/* Total del mes */}
+          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+              <Wallet className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">Total del mes</p>
-              <p className="text-base lg:text-xl font-extrabold text-gray-900 tabular-nums truncate">{formatCLP(total)}</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Total del mes</p>
+              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(total)}</p>
             </div>
           </div>
-          {/* Count */}
-          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
-              <Receipt className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
+
+          {/* Gastos count */}
+          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+              <Receipt className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
             </div>
             <div>
-              <p className="text-xl lg:text-2xl font-extrabold text-gray-900">{totalCount}</p>
-              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">gastos este mes</p>
+              <p className="text-lg lg:text-2xl font-extrabold text-gray-900 leading-none">{totalCount}</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">gastos este mes</p>
             </div>
           </div>
+
           {/* Promedio */}
-          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
-            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
-              <TrendingUp className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
+          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
+            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">Promedio</p>
-              <p className="text-base lg:text-xl font-extrabold text-gray-900 tabular-nums truncate">{formatCLP(avgPerExpense)}</p>
-              <p className="text-[10px] text-gray-400">Por gasto</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Promedio</p>
+              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(avgPerExpense)}</p>
+              <p className="text-[8px] lg:text-[10px] text-gray-400 leading-tight">Por gasto</p>
             </div>
           </div>
+
         </div>
       )}
 

@@ -119,7 +119,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             )}
           >
             <ShoppingCart className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Por compra</span>
+            <span>Compra</span>
           </button>
           <button
             onClick={() => handleView('billing')}
@@ -131,7 +131,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             )}
           >
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Por facturación</span>
+            <span>Facturación</span>
           </button>
         </div>
 
