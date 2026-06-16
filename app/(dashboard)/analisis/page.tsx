@@ -1,10 +1,11 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { billingPeriod, formatCLP, monthName, pct } from '@/lib/utils'
+import { billingPeriod, formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
+import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb } from 'lucide-react'
 
 export const revalidate = 0
 
@@ -26,12 +27,9 @@ export default async function AnalisisPage({
   const sixAgo      = new Date(chartAnchor); sixAgo.setMonth(sixAgo.getMonth() - 5)
   const chartStart  = `${sixAgo.getFullYear()}-${String(sixAgo.getMonth() + 1).padStart(2, '0')}-01`
 
-  // El mes seleccionado puede estar fuera de la ventana del gráfico (mes anterior)
   const selectedKey = `${year}-${String(month).padStart(2, '0')}`
   const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  // Fetch: desde 6 meses atrás hasta el fin del mes seleccionado (o actual si es mayor)
-  // En modo billing ampliamos ±1 mes para capturar gastos que cruzan corte
   const selEnd   = new Date(year, month + (isBilling ? 2 : 1), 1)
   const curEnd   = new Date(now.getFullYear(), now.getMonth() + (isBilling ? 2 : 1), 1)
   const fetchEnd = selEnd > curEnd ? selEnd : curEnd
@@ -39,9 +37,7 @@ export default async function AnalisisPage({
   const nextMonth = fetchEnd.getMonth() + 1
   const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
-  // También necesitamos el inicio del mes seleccionado si está antes de chartStart
   const fetchStartBase = selectedKey < chartStart.substring(0, 7) ? `${year}-${String(month).padStart(2, '0')}-01` : chartStart
-  // En modo billing: retrocedemos 1 mes extra para capturar gastos pre-corte
   const fetchStartDate = isBilling
     ? new Date(new Date(fetchStartBase).getFullYear(), new Date(fetchStartBase).getMonth() - 1, 1)
     : new Date(fetchStartBase)
@@ -64,10 +60,6 @@ export default async function AnalisisPage({
 
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
 
-  /**
-   * En modo billing remapeamos cada gasto al mes de su estado de cuenta.
-   * En modo compra usamos la fecha de compra directamente.
-   */
   function expenseMonthKey(e: ExpenseWithRelations): string {
     if (!isBilling) return e.date.substring(0, 7)
     const pm = e.payment_method as { billing_day?: number | null } | null
@@ -76,7 +68,7 @@ export default async function AnalisisPage({
     return `${bp.year}-${String(bp.month).padStart(2, '0')}`
   }
 
-  // ── Gráfico: siempre los últimos 6 meses hasta hoy ────────────────────────
+  // ── Gráfico: últimos 6 meses ──────────────────────────────────────────────
   const byMonth: Record<string, { label: string; total: number; key: string }> = {}
   for (let i = 5; i >= 0; i--) {
     const d = new Date(chartAnchor); d.setMonth(d.getMonth() - i)
@@ -99,9 +91,10 @@ export default async function AnalisisPage({
   const dailyAvg       = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
 
   // vs previous month
-  const prevMonthData = monthData[monthData.length - 2] // index 4 of 6
-  const prevTotal     = prevMonthData?.total ?? 0
-  const delta         = prevTotal > 0 ? Math.round(((totalSelected - prevTotal) / prevTotal) * 100) : null
+  const prevMonthData  = monthData[monthData.length - 2]
+  const prevTotal      = prevMonthData?.total ?? 0
+  const delta          = prevTotal > 0 ? Math.round(((totalSelected - prevTotal) / prevTotal) * 100) : null
+  const absoluteDelta  = totalSelected - prevTotal
 
   // ── Category breakdown ────────────────────────────────────────────────────
   const byCat: Record<string, {
@@ -130,81 +123,184 @@ export default async function AnalisisPage({
   })
   const pmSummary = Object.values(byPM).sort((a, b) => b.total - a.total)
 
+  // ── Distribución por día de semana ────────────────────────────────────────
+  const weekdayLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+  const byWeekday = Array.from({ length: 7 }, () => ({ total: 0, count: 0 }))
+  selectedExpenses.forEach(e => {
+    const d = new Date(e.date + 'T12:00:00')
+    const dow = (d.getDay() + 6) % 7 // Lun=0, Dom=6
+    byWeekday[dow].total += e.amount
+    byWeekday[dow].count++
+  })
+  const maxWeekday = Math.max(...byWeekday.map(d => d.total), 1)
+  const peakDowIdx = byWeekday.reduce((maxIdx, d, i) => d.total > byWeekday[maxIdx].total ? i : maxIdx, 0)
+
+  // ── Insight del mes ───────────────────────────────────────────────────────
+  const weekendTotal  = byWeekday[5].total + byWeekday[6].total
+  const weekdayTotal  = byWeekday.slice(0, 5).reduce((s, d) => s + d.total, 0)
+  const weekendPct    = totalSelected > 0 ? Math.round((weekendTotal / totalSelected) * 100) : 0
+  const topCat        = catSummary[0]
+  const topCatPct     = topCat && totalSelected > 0 ? pct(topCat.total, totalSelected) : 0
+
+  function buildInsight(): string {
+    if (totalSelected === 0) return ''
+    const parts: string[] = []
+    if (topCat) parts.push(`${topCat.name} fue tu categoría principal (${topCatPct}% del total).`)
+    if (byWeekday[peakDowIdx].total > 0) parts.push(`Gastaste más los ${weekdayLabels[peakDowIdx]}.`)
+    if (weekendPct >= 30) parts.push(`El fin de semana representó el ${weekendPct}% de tus gastos.`)
+    else if (weekdayTotal > 0) parts.push(`La mayoría de tus gastos fueron entre semana.`)
+    if (delta !== null && delta < -10) parts.push(`Redujiste tus gastos un ${Math.abs(delta)}% vs el mes anterior. ¡Bien hecho!`)
+    else if (delta !== null && delta > 20) parts.push(`Tus gastos subieron un ${delta}% vs el mes anterior.`)
+    return parts.slice(0, 2).join(' ')
+  }
+  const insight = buildInsight()
+
   const viewParam = isBilling ? '&view=billing' : ''
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Entiende en qué gastas y detecta oportunidades de ahorro.</p>
+        </div>
         <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
       </div>
 
-      {/* ── Responsive 2-col on desktop ──────────────────────────────────── */}
-      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
+      {/* Toggle */}
+      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-5">
+        <Link
+          href={`/analisis?month=${month}&year=${year}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          Por compra
+        </Link>
+        <Link
+          href={`/analisis?month=${month}&year=${year}&view=billing`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          Por facturación
+        </Link>
+      </div>
 
-        {/* ══ LEFT: toggle + KPIs + chart ═════════════════════════════════ */}
-        <div className="space-y-5">
+      {/* ── 4 KPI cards ──────────────────────────────────────────────────────── */}
+      {totalSelected > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 lg:gap-4 mb-5">
 
-          {/* Toggle por compra / por facturación */}
-          <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
-            <Link
-              href={`/analisis?month=${month}&year=${year}`}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              Por compra
-            </Link>
-            <Link
-              href={`/analisis?month=${month}&year=${year}&view=billing`}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
-              }`}
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              Por facturación
-            </Link>
+          {/* Total del mes */}
+          <div className="card p-3 lg:p-4 flex items-center gap-3">
+            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+              <Wallet className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#1B6DD4' }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">Total del mes</p>
+              <p className="text-sm lg:text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
+            </div>
           </div>
 
-          {/* ── KPIs ──────────────────────────────────────────────────────── */}
-          {totalSelected > 0 && (
-            <div className="grid grid-cols-3 gap-2.5">
-              <div className="card px-3 py-3 flex flex-col gap-1">
-                <p className="text-[11px] font-medium text-gray-400">Total</p>
-                <p className="font-extrabold text-gray-900 tabular-nums leading-tight" style={{ fontSize: 'clamp(13px, 4vw, 16px)' }}>{formatCLP(totalSelected)}</p>
-              </div>
-              <div className="card px-3 py-3 flex flex-col gap-1">
-                <p className="text-[11px] font-medium text-gray-400">Por día</p>
-                <p className="text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
-              </div>
-              <div className="card px-3 py-3 flex flex-col gap-1">
-                <p className="text-[11px] font-medium text-gray-400">vs anterior</p>
-                {delta === null ? (
-                  <div className="flex items-center gap-1"><Minus className="w-3.5 h-3.5 text-gray-300" /><p className="text-base font-extrabold text-gray-400">—</p></div>
-                ) : delta === 0 ? (
-                  <div className="flex items-center gap-1"><Minus className="w-3.5 h-3.5 text-gray-400" /><p className="text-base font-extrabold text-gray-600">igual</p></div>
-                ) : delta > 0 ? (
-                  <div className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-red-500 flex-shrink-0" /><p className="text-base font-extrabold text-red-500 tabular-nums">+{delta}%</p></div>
-                ) : (
-                  <div className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" /><p className="text-base font-extrabold text-emerald-600 tabular-nums">{delta}%</p></div>
-                )}
-              </div>
+          {/* Promedio diario */}
+          <div className="card p-3 lg:p-4 flex items-center gap-3">
+            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+              <BarChart2 className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#16A34A' }} />
             </div>
-          )}
+            <div className="min-w-0">
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">Por día</p>
+              <p className="text-sm lg:text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
+            </div>
+          </div>
 
-          {/* ── Tendencia 6 meses ──────────────────────────────────────────── */}
+          {/* vs anterior */}
+          <div className="card p-3 lg:p-4 flex items-center gap-3">
+            <div
+              className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4' }}
+            >
+              {delta === null || delta === 0
+                ? <Minus className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
+                : delta > 0
+                ? <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#EF4444' }} />
+                : <TrendingDown className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#16A34A' }} />
+              }
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">vs anterior</p>
+              {delta === null ? (
+                <p className="text-sm lg:text-base font-extrabold text-gray-400 leading-tight">—</p>
+              ) : (
+                <>
+                  <p className={`text-sm lg:text-base font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    {delta > 0 ? '+' : ''}{delta}%
+                  </p>
+                  <p className={`text-[9px] lg:text-[10px] tabular-nums leading-tight ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                    {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Mayor gasto */}
+          <div className="card p-3 lg:p-4 flex items-center gap-3">
+            {topExpense ? (() => {
+              const { icon: Icon, color, bg } = getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
+              return (
+                <>
+                  <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
+                    <Icon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">Mayor gasto</p>
+                    <p className="text-sm lg:text-base font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(topExpense.amount)}</p>
+                    <p className="text-[9px] lg:text-[10px] text-gray-400 truncate leading-tight">{topExpense.description ?? topExpense.category?.name ?? 'Gasto'}</p>
+                  </div>
+                </>
+              )
+            })() : (
+              <>
+                <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+                  <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#7C3AED' }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">Mayor gasto</p>
+                  <p className="text-sm font-extrabold text-gray-400">—</p>
+                </div>
+              </>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* ── Responsive 2-col on desktop ──────────────────────────────────────── */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
+
+        {/* ══ LEFT: tendencia + distribución + insight ═════════════════════════ */}
+        <div className="space-y-5">
+
+          {/* ── Tendencia 6 meses ────────────────────────────────────────────── */}
           <div className="card p-4">
-            <p className="text-sm font-bold text-gray-600 mb-4">
+            <p className="text-sm font-bold text-gray-700 mb-3">
               Tendencia 6 meses
               {isBilling && <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">facturación</span>}
             </p>
-            <div className="flex items-end gap-2 h-32">
+            {/* Y-axis max label */}
+            {maxMonth > 1 && (
+              <p className="text-[9px] text-gray-300 font-medium tabular-nums mb-1">
+                {maxMonth >= 1000000 ? `${(maxMonth/1000000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
+              </p>
+            )}
+            <div className="flex items-end gap-2 h-28">
               {monthData.map((m) => {
-                const isSelected  = m.key === selectedKey
-                const isCurrent   = m.key === currentKey
+                const isSelected = m.key === selectedKey
+                const isCurrent  = m.key === currentKey
                 const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
                 const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
                 const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
@@ -231,7 +327,51 @@ export default async function AnalisisPage({
             </div>
           </div>
 
-          {/* Empty state in left col when no data */}
+          {/* ── Distribución por semana ──────────────────────────────────────── */}
+          {totalSelected > 0 && (
+            <div className="card p-4">
+              <p className="text-sm font-bold text-gray-700 mb-3">Distribución por día</p>
+              <div className="flex items-end gap-1.5 h-24">
+                {byWeekday.map((day, i) => {
+                  const h = day.total > 0 ? Math.max(6, Math.round((day.total / maxWeekday) * 80)) : 3
+                  const isPeak = i === peakDowIdx && day.total > 0
+                  const isWeekend = i >= 5
+                  const barColor = isPeak ? '#1B6DD4' : isWeekend ? '#A3BFE8' : '#D5E6FF'
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      {isPeak && (
+                        <span className="text-[8px] font-bold leading-none" style={{ color: '#1B6DD4' }}>
+                          {day.total >= 1000000 ? `${(day.total/1000000).toFixed(1)}M` : `${Math.round(day.total/1000)}k`}
+                        </span>
+                      )}
+                      <div className="w-full flex-1 flex items-end">
+                        <div
+                          className="w-full rounded-t-md transition-all"
+                          style={{ height: `${h}px`, backgroundColor: barColor, opacity: day.total === 0 ? 0.25 : 1 }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-semibold text-gray-400 leading-none">{weekdayLabels[i]}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Insight del mes ──────────────────────────────────────────────── */}
+          {insight && (
+            <div className="card p-4 flex items-start gap-3" style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FEF3C7' }}>
+                <Lightbulb className="w-4 h-4" style={{ color: '#D97706' }} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-800 mb-0.5">Insight del mes</p>
+                <p className="text-xs text-amber-700 leading-relaxed">{insight}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
           {totalSelected === 0 && (
             <div className="card text-center py-14 flex flex-col items-center gap-3">
               <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
@@ -249,48 +389,14 @@ export default async function AnalisisPage({
         </div>
         {/* ══ END LEFT ═══════════════════════════════════════════════════════ */}
 
-        {/* ══ RIGHT: mayor gasto + categorías + cómo pagaste ════════════════ */}
+        {/* ══ RIGHT: top categorías + cómo pagaste ══════════════════════════ */}
         {totalSelected > 0 && (
           <div className="space-y-5">
 
-            {/* Mayor gasto */}
-            {topExpense && (
-              <div>
-                <h2 className="text-sm font-bold text-gray-600 mb-2.5">Mayor gasto</h2>
-                <div className="card px-4 py-3.5">
-                  {(() => {
-                    const { icon: Icon, color, bg } = getExpenseIcon(
-                      topExpense.description ?? null,
-                      topExpense.category?.name ?? null
-                    )
-                    return (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
-                          <Icon className="w-5 h-5" style={{ color }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">
-                            {topExpense.description ?? topExpense.category?.name ?? 'Gasto'}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {topExpense.category?.name ?? '–'} · {new Date(topExpense.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(topExpense.amount)}</p>
-                          <p className="text-[10px] text-gray-400">{pct(topExpense.amount, totalSelected)}% del total</p>
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {/* Distribución por categoría */}
+            {/* Top categorías */}
             <div>
               <h2 className="text-sm font-bold text-gray-600 mb-2.5">
-                Por categoría · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
+                Top categorías · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
               </h2>
               <div className="card divide-y divide-gray-50 overflow-hidden">
                 {catSummary.map((c, idx) => {
@@ -300,20 +406,51 @@ export default async function AnalisisPage({
                   const barColor   = over ? '#EF4444' : budgetPct !== null && budgetPct >= 80 ? '#F59E0B' : c.color
                   const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
                   const sharePct   = pct(c.total, totalSelected)
-                  const { icon: Icon, color: iconColor, bg: iconBg } = getExpenseIcon(null, c.name)
+
+                  // Rank badge colors for top 3
+                  const rankColors = [
+                    { bg: '#FEF3C7', text: '#D97706' },  // gold
+                    { bg: '#F1F5F9', text: '#64748B' },  // silver
+                    { bg: '#FEF2F2', text: '#B45309' },  // bronze
+                  ]
+                  const rankStyle = idx < 3 ? rankColors[idx] : null
+
+                  // Use actual category icon
+                  const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+
                   return (
                     <Link
                       key={c.id}
                       href={`/analisis/${c.id}?month=${month}&year=${year}${viewParam}`}
-                      className="block px-4 py-3.5 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
+                      className="block px-4 py-3 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
                     >
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-[10px] font-bold text-gray-300 w-3 flex-shrink-0 text-center">{idx + 1}</span>
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
-                          <Icon className="w-4 h-4" style={{ color: iconColor }} />
+                      <div className="flex items-center gap-3 mb-1.5">
+                        {/* Rank badge */}
+                        <div
+                          className="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
+                          style={rankStyle
+                            ? { background: rankStyle.bg, color: rankStyle.text }
+                            : { background: '#F3F4F6', color: '#9CA3AF' }
+                          }
+                        >
+                          {idx + 1}
                         </div>
+
+                        {/* Category icon */}
+                        <div
+                          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: c.bg_color }}
+                        >
+                          {isEmoji(c.icon)
+                            ? <span className="text-sm leading-none">{c.icon}</span>
+                            : CatIcon
+                              ? <CatIcon className="w-4 h-4" style={{ color: c.color }} />
+                              : null
+                          }
+                        </div>
+
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
+                          <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{c.name}</p>
                           {limit ? (
                             <p className={`text-xs ${over ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
                               {over ? `+${formatCLP(c.total - limit)} sobre el límite` : `${formatCLP(limit - c.total)} restante`}
@@ -322,6 +459,7 @@ export default async function AnalisisPage({
                             <p className="text-xs text-gray-400">{sharePct}% del total</p>
                           )}
                         </div>
+
                         <div className="text-right flex-shrink-0 flex items-center gap-1.5">
                           <div>
                             <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(c.total)}</p>
@@ -330,7 +468,9 @@ export default async function AnalisisPage({
                           <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                         </div>
                       </div>
-                      <div className="h-1.5 rounded-full overflow-hidden ml-7" style={{ backgroundColor: `${barColor}20` }}>
+
+                      {/* Progress bar with category color */}
+                      <div className="h-1.5 rounded-full overflow-hidden ml-8" style={{ backgroundColor: `${barColor}20` }}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
                       </div>
                     </Link>
