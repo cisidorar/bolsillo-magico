@@ -108,7 +108,7 @@ export default async function DashboardPage() {
   ;(prevMonthExpenses ?? []).forEach((e: { amount: number; category_id: string | null }) => {
     if (e.category_id) prevByCat[e.category_id] = (prevByCat[e.category_id] ?? 0) + e.amount
   })
-  const deltaVsLast = prevTotal > 0 && total > 0
+  const deltaVsLast = prevTotal > 0
     ? Math.round(((total - prevTotal) / prevTotal) * 100)
     : null
 
@@ -200,7 +200,7 @@ export default async function DashboardPage() {
     .join(' ')
   const lastX  = cumulativeByDay.length > 0 ? toX(todayDate)  : 0
   const lastY  = cumulativeByDay.length > 0 ? toY(total)       : PAD_T + plotH
-  const labelX = Math.min(lastX, SVG_W - 56)
+  const labelX = Math.min(lastX, SVG_W - 58)
 
   // ── Insights ─────────────────────────────────────────────────────────────
   type Insight = { emoji: string; title: string; detail: string; bg: string; textColor: string; href?: string }

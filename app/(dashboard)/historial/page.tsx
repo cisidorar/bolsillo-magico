@@ -1,5 +1,5 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import ExpenseList from '@/components/ExpenseList'
+import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, formatCLP, monthName } from '@/lib/utils'
@@ -209,22 +209,14 @@ export default async function HistorialPage({
           </p>
         </div>
       ) : (
-        sortedDates.map(date => {
-          const dayTotal = grouped[date].reduce((s, e) => s + e.amount, 0)
-          return (
-            <div key={date}>
-              <div className="flex items-center justify-between mb-2 px-0.5">
-                <span className="text-sm font-bold text-gray-600 capitalize">
-                  {dateLabel(date)}
-                </span>
-                <span className="text-sm font-semibold text-gray-400 tabular-nums">
-                  {formatCLP(dayTotal)}
-                </span>
-              </div>
-              <ExpenseList expenses={grouped[date]} />
-            </div>
-          )
-        })
+        <HistorialExpenses
+          groups={sortedDates.map(date => ({
+            date,
+            label: dateLabel(date),
+            dayTotal: grouped[date].reduce((s, e) => s + e.amount, 0),
+            expenses: grouped[date],
+          }))}
+        />
       )}
 
       {/* Paginación (solo en modo por compra) */}
