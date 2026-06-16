@@ -15,9 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <SideNav />
       {/* Main content: offset by sidebar on desktop */}
       <main className="lg:pl-60 main-content-pad">
-        <div className="max-w-6xl mx-auto">
-          {children}
-        </div>
+        {children}
       </main>
       {/* Mobile bottom nav */}
       <BottomNav />
