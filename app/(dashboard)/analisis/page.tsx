@@ -6,6 +6,7 @@ import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb } from 'lucide-react'
+import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
 
@@ -192,8 +193,9 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}&view=billing`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+            isBilling ? 'bg-white shadow-sm' : 'text-gray-500'
           }`}
+          style={isBilling ? { color: '#1B6DD4' } : undefined}
         >
           <CreditCard className="w-3.5 h-3.5" />
           Por facturación
@@ -300,7 +302,7 @@ export default async function AnalisisPage({
           <div className="card p-4">
             <p className="text-sm font-bold text-gray-700 mb-3">
               Tendencia 6 meses
-              {isBilling && <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">facturación</span>}
+              {isBilling && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: '#1B6DD4', background: '#EEF4FF' }}>facturación</span>}
             </p>
             {/* Y-axis max label */}
             {maxMonth > 1 && (
@@ -500,9 +502,13 @@ export default async function AnalisisPage({
                     return (
                       <div key={pm.name} className="px-4 py-3">
                         <div className="flex items-center gap-3 mb-1.5">
-                          <div className="w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-                            <CreditCard className="w-3.5 h-3.5 text-brand-500" />
-                          </div>
+                          {pm.domain ? (
+                            <ServiceLogo domain={pm.domain} name={pm.name} size={28} />
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+                              <CreditCard className="w-3.5 h-3.5" style={{ color: '#1B6DD4' }} />
+                            </div>
+                          )}
                           <p className="flex-1 text-sm font-semibold text-gray-800">{pm.name}</p>
                           <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(pm.total)}</p>
                           <p className="text-xs text-gray-400 w-8 text-right tabular-nums">{pmPct}%</p>

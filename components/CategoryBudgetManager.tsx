@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Check, X } from 'lucide-react'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
+import { getCategoryIcon } from '@/lib/category-icons'
 import type { Category, CategoryBudget } from '@/types'
 
 interface Props {
@@ -113,12 +114,22 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
           return (
             <div key={c.id} className="flex items-center gap-3 px-4 py-3">
               {/* Icono */}
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ background: c.bg_color }}
-              >
-                {isEmoji(c.icon) ? c.icon : '📦'}
-              </div>
+              {(() => {
+                const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+                return (
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ background: c.bg_color }}
+                  >
+                    {isEmoji(c.icon)
+                      ? <span className="leading-none">{c.icon}</span>
+                      : CatIcon
+                        ? <CatIcon className="w-5 h-5" style={{ color: c.color }} />
+                        : <span className="leading-none text-sm">{c.name[0]}</span>
+                    }
+                  </div>
+                )
+              })()}
 
               {/* Nombre */}
               <div className="flex-1 min-w-0">
