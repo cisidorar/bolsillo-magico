@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatCLP, relativeDate } from '@/lib/utils'
+import { formatCLP, relativeDate, isEmoji } from '@/lib/utils'
+import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { Pencil, Trash2, X, Check } from 'lucide-react'
@@ -116,23 +117,29 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                   <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
                     {e.description ?? e.category?.name ?? 'Gasto'}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {e.payment_method && (
-                      <ServiceLogo
-                        domain={e.payment_method.domain ?? null}
-                        name={e.payment_method.name}
-                        size={14}
-                        className="rounded-sm"
-                      />
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {/* Category badge */}
+                    {e.category && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: e.category.bg_color, color: e.category.color }}
+                      >
+                        {isEmoji(e.category.icon)
+                          ? <span className="text-[9px] leading-none">{e.category.icon}</span>
+                          : (() => { const CatIcon = getCategoryIcon(e.category!.icon); return <CatIcon className="w-2.5 h-2.5 flex-shrink-0" /> })()
+                        }
+                        <span className="truncate max-w-[72px]">{e.category.name}</span>
+                      </span>
                     )}
-                    <p className="text-xs text-gray-400 truncate">
-                      {e.description ? (e.category?.name ?? '–') : ''}
-                      {e.description && e.payment_method ? ' · ' : ''}
-                      {e.payment_method?.name ?? ''}
-                      {showDate && (
-                        <span className="text-gray-400"> · {relativeDate(e.date)}</span>
-                      )}
-                    </p>
+                    {/* Payment method */}
+                    {e.payment_method && (
+                      <span className="text-[10px] text-gray-400 truncate">
+                        {e.payment_method.name}
+                      </span>
+                    )}
+                    {showDate && (
+                      <span className="text-[10px] text-gray-400">· {relativeDate(e.date)}</span>
+                    )}
                   </div>
                 </div>
 

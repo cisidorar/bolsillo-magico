@@ -3,7 +3,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, formatCLP, monthName } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, Receipt, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -42,14 +42,17 @@ function nextMonthOf(m: number, y: number) {
 export default async function HistorialPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; q?: string; cat?: string; page?: string; view?: string }>
+  searchParams: Promise<{ month?: string; year?: string; q?: string; cats?: string; page?: string; view?: string }>
 }) {
-  const { month: monthStr, year: yearStr, q, cat, page: pageStr, view } = await searchParams
+  const { month: monthStr, year: yearStr, q, cats, page: pageStr, view } = await searchParams
   const now   = new Date()
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
   const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const isBilling = view === 'billing'
+
+  // Multi-category filter
+  const catIds = cats ? cats.split(',').filter(Boolean) : []
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
@@ -59,8 +62,6 @@ export default async function HistorialPage({
   let billingHitLimit = false
 
   if (isBilling) {
-    // En modo facturación: fetch ventana ampliada (mes-1 → mes+1) sin paginación,
-    // luego post-filtramos por billingPeriod(). Máximo ~300 registros.
     const prev = prevMonth(month, year)
     const next = nextMonthOf(nextMonthOf(month, year).m, nextMonthOf(month, year).y)
 
@@ -77,14 +78,13 @@ export default async function HistorialPage({
       .order('created_at', { ascending: false })
       .limit(300)
 
-    if (q)   billingQuery = billingQuery.ilike('description', `%${q}%`)
-    if (cat) billingQuery = billingQuery.eq('category_id', cat)
+    if (q)              billingQuery = billingQuery.ilike('description', `%${q}%`)
+    if (catIds.length > 0) billingQuery = billingQuery.in('category_id', catIds)
 
     const { data } = await billingQuery
     const all = (data ?? []) as ExpenseWithRelations[]
     billingHitLimit = all.length === 300
 
-    // Post-filtrar por billing period
     expenses = all.filter(e => {
       const pm = e.payment_method as { billing_day?: number | null } | null
       const bd = pm?.billing_day ?? null
@@ -93,9 +93,8 @@ export default async function HistorialPage({
     })
 
     totalCount = expenses.length
-    totalPages = 1 // Sin paginación en modo billing
+    totalPages = 1
   } else {
-    // Modo por compra: paginación normal
     const nextM = month === 12 ? 1       : month + 1
     const nextY = month === 12 ? year + 1 : year
     const offset = (page - 1) * PAGE_SIZE
@@ -110,8 +109,8 @@ export default async function HistorialPage({
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1)
 
-    if (q)   purchaseQuery = purchaseQuery.ilike('description', `%${q}%`)
-    if (cat) purchaseQuery = purchaseQuery.eq('category_id', cat)
+    if (q)              purchaseQuery = purchaseQuery.ilike('description', `%${q}%`)
+    if (catIds.length > 0) purchaseQuery = purchaseQuery.in('category_id', catIds)
 
     const { data, count } = await purchaseQuery
     expenses   = (data ?? []) as ExpenseWithRelations[]
@@ -124,7 +123,8 @@ export default async function HistorialPage({
   ])
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
-  const hasFilters = !!(q || cat)
+  const avgPerExpense = totalCount > 0 ? Math.round(total / totalCount) : 0
+  const hasFilters = !!(q || catIds.length > 0)
 
   // Group by date
   const grouped = expenses.reduce<Record<string, ExpenseWithRelations[]>>((acc, e) => {
@@ -134,7 +134,7 @@ export default async function HistorialPage({
   }, {})
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  const baseParams = { month, year, q, cat, view: isBilling ? 'billing' : undefined }
+  const baseParams = { month, year, q, cats: catIds.join(',') || undefined, view: isBilling ? 'billing' : undefined }
   const prevHref = (!isBilling && page > 1) ? buildHref({ ...baseParams, page: page - 1 }) : null
   const nextHref = (!isBilling && page < totalPages) ? buildHref({ ...baseParams, page: page + 1 }) : null
 
@@ -145,102 +145,118 @@ export default async function HistorialPage({
     : hasFilters ? 'Filtrado' : `${monthName(month)} ${year}`
 
   return (
-    <div className="px-4 lg:px-6 pt-6 lg:pt-8 pb-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-brand-900">Historial</h1>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-900">Historial</h1>
+          <p className="text-sm text-gray-400 mt-1">Revisa y organiza tus gastos realizados.</p>
+        </div>
         <MonthNav month={month} year={year} basePath="/historial" extraParams={isBilling ? { view: 'billing' } : {}} />
       </div>
 
-      {/* Desktop 2-col: left=filters+summary, right=list */}
-      <div className="lg:grid lg:gap-6 lg:items-start space-y-4 lg:space-y-0" style={{ gridTemplateColumns: '280px 1fr' }}>
-
-        {/* ── Left: filters + summary ─────────────────────────────── */}
-        <div className="space-y-4">
-          <HistorialFilters
-            categories={categories ?? []}
-            month={month}
-            year={year}
-          />
-
-          {/* Banner modo facturación */}
-          {isBilling && (
-            <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-              <span className="text-indigo-500 text-base mt-0.5">💳</span>
-              <p className="text-xs text-indigo-700 leading-relaxed">
-                Mostrando gastos cuyo <strong>estado de cuenta cierra en {monthName(month)} {year}</strong>,
-                independiente de la fecha de compra.
-              </p>
+      {/* Stats cards */}
+      {totalCount > 0 && (
+        <div className="grid grid-cols-3 gap-3 lg:gap-4 mb-5">
+          {/* Total */}
+          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+              <Wallet className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
             </div>
-          )}
-
-          {/* Aviso límite billing */}
-          {isBilling && billingHitLimit && (
-            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-              <span className="text-amber-500 text-base mt-0.5">⚠️</span>
-              <p className="text-xs text-amber-700 leading-relaxed">
-                Se mostraron los primeros 300 gastos del período. Usa los filtros para acotar.
-              </p>
+            <div className="min-w-0">
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">Total del mes</p>
+              <p className="text-base lg:text-xl font-extrabold text-gray-900 tabular-nums truncate">{formatCLP(total)}</p>
             </div>
-          )}
-
-          {/* Summary card */}
-          {totalCount > 0 && (
-            <div className="card px-5 py-4">
-              <p className="text-xs font-medium text-gray-400 mb-1">{summaryLabel}</p>
-              <p className="text-2xl font-extrabold text-gray-900 tabular-nums mb-2">{formatCLP(total)}</p>
-              <p className="text-sm font-bold text-gray-500">
-                {totalCount} gasto{totalCount !== 1 ? 's' : ''}
-              </p>
+          </div>
+          {/* Count */}
+          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+              <Receipt className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
             </div>
-          )}
+            <div>
+              <p className="text-xl lg:text-2xl font-extrabold text-gray-900">{totalCount}</p>
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">gastos este mes</p>
+            </div>
+          </div>
+          {/* Promedio */}
+          <div className="card p-3.5 lg:p-4 flex items-center gap-3">
+            <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+              <TrendingUp className="w-5 h-5 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium">Promedio</p>
+              <p className="text-base lg:text-xl font-extrabold text-gray-900 tabular-nums truncate">{formatCLP(avgPerExpense)}</p>
+              <p className="text-[10px] text-gray-400">Por gasto</p>
+            </div>
+          </div>
         </div>
+      )}
 
-        {/* ── Right: expense list + pagination ────────────────────── */}
-        <div className="space-y-4">
-          {expenses.length === 0 ? (
-            <div className="card text-center py-16 flex flex-col items-center gap-3">
-              {hasFilters
-                ? <SearchX className="w-10 h-10 text-gray-300" />
-                : <ClipboardList className="w-10 h-10 text-gray-300" />
-              }
-              <p className="text-sm font-medium text-gray-500">
-                {hasFilters ? 'Sin resultados para ese filtro' : isBilling ? 'Sin gastos en este estado de cuenta' : 'Sin gastos este mes'}
-              </p>
-            </div>
-          ) : (
-            <HistorialExpenses
-              groups={sortedDates.map(date => ({
-                date,
-                label: dateLabel(date),
-                dayTotal: grouped[date].reduce((s, e) => s + e.amount, 0),
-                expenses: grouped[date],
-              }))}
-            />
-          )}
-
-          {/* Paginación */}
-          {!isBilling && totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              {prevHref ? (
-                <Link href={prevHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
-                  <ChevronLeft className="w-4 h-4" />
-                  Anterior
-                </Link>
-              ) : <div />}
-              <p className="text-xs text-gray-400 font-medium">Página {page} de {totalPages}</p>
-              {nextHref ? (
-                <Link href={nextHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
-                  Siguiente
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
-              ) : <div />}
-            </div>
-          )}
-        </div>
-
+      {/* Filters */}
+      <div className="mb-5">
+        <HistorialFilters categories={categories ?? []} month={month} year={year} />
       </div>
+
+      {/* Banners */}
+      {isBilling && (
+        <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4">
+          <span className="text-indigo-500 text-base mt-0.5">💳</span>
+          <p className="text-xs text-indigo-700 leading-relaxed">
+            Mostrando gastos cuyo <strong>estado de cuenta cierra en {monthName(month)} {year}</strong>,
+            independiente de la fecha de compra.
+          </p>
+        </div>
+      )}
+      {isBilling && billingHitLimit && (
+        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-4">
+          <span className="text-amber-500 text-base mt-0.5">⚠️</span>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            Se mostraron los primeros 300 gastos del período. Usa los filtros para acotar los resultados.
+          </p>
+        </div>
+      )}
+
+      {/* Expense list */}
+      {expenses.length === 0 ? (
+        <div className="card text-center py-16 flex flex-col items-center gap-3">
+          {hasFilters
+            ? <SearchX className="w-10 h-10 text-gray-300" />
+            : <ClipboardList className="w-10 h-10 text-gray-300" />
+          }
+          <p className="text-sm font-medium text-gray-500">
+            {hasFilters ? 'Sin resultados para ese filtro' : isBilling ? 'Sin gastos en este estado de cuenta' : 'Sin gastos este mes'}
+          </p>
+        </div>
+      ) : (
+        <HistorialExpenses
+          groups={sortedDates.map(date => ({
+            date,
+            label: dateLabel(date),
+            dayTotal: grouped[date].reduce((s, e) => s + e.amount, 0),
+            expenses: grouped[date],
+          }))}
+        />
+      )}
+
+      {/* Paginación */}
+      {!isBilling && totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2 mt-4">
+          {prevHref ? (
+            <Link href={prevHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+              Anterior
+            </Link>
+          ) : <div />}
+          <p className="text-xs text-gray-400 font-medium">Página {page} de {totalPages}</p>
+          {nextHref ? (
+            <Link href={nextHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
+              Siguiente
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          ) : <div />}
+        </div>
+      )}
     </div>
   )
 }

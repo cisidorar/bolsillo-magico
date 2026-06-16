@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCLP, cn } from '@/lib/utils'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
-import { Square, CheckSquare, Trash2, X, Loader2 } from 'lucide-react'
+import { Square, CheckSquare, Trash2, X, Loader2, Calendar, ChevronUp, ChevronDown } from 'lucide-react'
 import ExpenseList from './ExpenseList'
 import ServiceLogo from './ServiceLogo'
 import type { ExpenseWithRelations } from '@/types'
@@ -22,10 +22,19 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [selectMode, setSelectMode]   = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [deleting, setDeleting]       = useState(false)
-  const [excludeIds, setExcludeIds]   = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode]     = useState(false)
+  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
+  const [deleting, setDeleting]         = useState(false)
+  const [excludeIds, setExcludeIds]     = useState<Set<string>>(new Set())
+  const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set())
+
+  function toggleCollapse(date: string) {
+    setCollapsedDates(prev => {
+      const next = new Set(prev)
+      next.has(date) ? next.delete(date) : next.add(date)
+      return next
+    })
+  }
 
   // Filter out optimistically-deleted items
   const visibleGroups = groups
@@ -91,73 +100,97 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
 
   return (
     <>
-      {/* Select mode toggle */}
-      <div className="flex items-center justify-end gap-3 -mt-1">
-        {selectMode ? (
-          <>
+      {/* Select mode toolbar */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs text-gray-400 font-medium">
+          {visibleGroups.reduce((s, g) => s + g.expenses.length, 0)} registros
+        </p>
+        <div className="flex items-center gap-3">
+          {selectMode ? (
+            <>
+              <button
+                onClick={toggleAll}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+              >
+                {allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+              </button>
+              <button
+                onClick={cancel}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-3 h-3" />
+                Cancelar
+              </button>
+            </>
+          ) : (
             <button
-              onClick={toggleAll}
-              className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors py-1"
+              onClick={() => setSelectMode(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
             >
-              {allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
+              <CheckSquare className="w-3.5 h-3.5" />
+              Seleccionar
             </button>
-            <button
-              onClick={cancel}
-              className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1"
-            >
-              <X className="w-3 h-3" />
-              Cancelar
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => setSelectMode(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors py-1"
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-            Seleccionar
-          </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Grouped list */}
       {visibleGroups.map(group => {
         const allGroupSelected  = group.expenses.every(e => selectedIds.has(e.id))
         const someGroupSelected = group.expenses.some(e  => selectedIds.has(e.id))
+        const isCollapsed = collapsedDates.has(group.date)
 
         return (
-          <div key={group.date}>
+          <div key={group.date} className="mb-4">
             {/* Date header */}
-            <div className="flex items-center justify-between mb-2 px-0.5">
-              <div className="flex items-center gap-2">
-                {selectMode && (
-                  <button
-                    onClick={() => toggleGroup(group.expenses)}
-                    className="flex-shrink-0"
-                    aria-label="Seleccionar todos del día"
-                  >
-                    {allGroupSelected ? (
-                      <CheckSquare className="w-4 h-4 text-brand-600" />
-                    ) : someGroupSelected ? (
-                      <div className="w-4 h-4 rounded border-2 border-brand-400 bg-brand-100 flex items-center justify-center">
-                        <div className="w-2 h-0.5 bg-brand-600 rounded" />
-                      </div>
-                    ) : (
-                      <Square className="w-4 h-4 text-gray-300" />
-                    )}
-                  </button>
-                )}
-                <span className="text-sm font-bold text-gray-600 capitalize">
-                  {group.label}
-                </span>
-              </div>
-              <span className="text-sm font-semibold text-gray-400 tabular-nums">
+            <div className="flex items-center gap-2 mb-2 px-0.5">
+              {/* Checkbox (select mode) */}
+              {selectMode && (
+                <button
+                  onClick={() => toggleGroup(group.expenses)}
+                  className="flex-shrink-0"
+                  aria-label="Seleccionar todos del día"
+                >
+                  {allGroupSelected ? (
+                    <CheckSquare className="w-4 h-4 text-brand-600" />
+                  ) : someGroupSelected ? (
+                    <div className="w-4 h-4 rounded border-2 border-brand-400 bg-brand-100 flex items-center justify-center">
+                      <div className="w-2 h-0.5 bg-brand-600 rounded" />
+                    </div>
+                  ) : (
+                    <Square className="w-4 h-4 text-gray-300" />
+                  )}
+                </button>
+              )}
+
+              {/* Calendar icon */}
+              <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+
+              {/* Date label */}
+              <span className="text-sm font-bold text-gray-700 capitalize flex-1">
+                {group.label}
+              </span>
+
+              {/* Day total */}
+              <span className="text-sm font-semibold text-gray-500 tabular-nums">
                 {formatCLP(group.dayTotal)}
               </span>
+
+              {/* Collapse toggle */}
+              <button
+                onClick={() => toggleCollapse(group.date)}
+                className="p-0.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                aria-label={isCollapsed ? 'Expandir' : 'Colapsar'}
+              >
+                {isCollapsed
+                  ? <ChevronDown className="w-4 h-4" />
+                  : <ChevronUp className="w-4 h-4" />
+                }
+              </button>
             </div>
 
             {/* Expense rows */}
-            {selectMode ? (
+            {!isCollapsed && selectMode ? (
               <div className="card overflow-hidden">
                 {group.expenses.map((e, idx) => {
                   const isSelected  = selectedIds.has(e.id)
@@ -232,9 +265,9 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                   )
                 })}
               </div>
-            ) : (
+            ) : !isCollapsed ? (
               <ExpenseList expenses={group.expenses} />
-            )}
+            ) : null}
           </div>
         )
       })}
@@ -242,7 +275,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
       {/* Floating bulk action bar */}
       {selectMode && selectedIds.size > 0 && (
         <div className="fixed bottom-24 lg:bottom-8 left-0 lg:left-60 right-0 z-[60] px-4 lg:px-8 pointer-events-none">
-          <div className="max-w-6xl mx-auto pointer-events-auto">
+          <div className="pointer-events-auto">
             <div
               className="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-white shadow-2xl"
               style={{ background: '#0A1F44', boxShadow: '0 8px 32px rgba(10,31,68,.45)' }}
