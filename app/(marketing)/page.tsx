@@ -324,7 +324,7 @@ export default function LandingPage() {
 
         {/* ══════════ HERO ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#060E20 0%,#0A1F44 40%,#0F4489 75%,#1B6DD4 100%)',
+          background:'linear-gradient(160deg,#0A1F44 0%,#0F4489 55%,#1B6DD4 100%)',
           minHeight:'100svh',
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
           padding:'90px 24px 60px',
@@ -354,10 +354,7 @@ export default function LandingPage() {
               marginBottom:20,
             }}>
               Tu plata,<br />
-              <span style={{
-                background:'linear-gradient(90deg,#7DB9FF,#D4EAFF)',
-                WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-              }}>
+              <span style={{ color:'#D5E6FF' }}>
                 bajo control.
               </span>
             </h1>
@@ -495,7 +492,7 @@ export default function LandingPage() {
 
         {/* ══════════ CTA FINAL ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#060E20,#0A1F44 40%,#1B6DD4)',
+          background:'linear-gradient(160deg,#0A1F44 0%,#0F4489 55%,#1B6DD4 100%)',
           padding:'100px 24px',
           textAlign:'center',
           position:'relative',
@@ -529,7 +526,7 @@ export default function LandingPage() {
 
         {/* ══════════ FOOTER ══════════ */}
         <footer style={{
-          background:'#04080F', padding:'28px 24px',
+          background:'#0A1F44', padding:'28px 24px',
           display:'flex', alignItems:'center', justifyContent:'space-between',
           flexWrap:'wrap', gap:12,
         }}>
