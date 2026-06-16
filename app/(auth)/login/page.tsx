@@ -71,7 +71,7 @@ function LoginForm() {
       <div className="min-h-svh lg:flex">
 
         {/* ── Panel izquierdo — solo desktop ──────────────────────── */}
-        <div className="hidden lg:flex lg:w-[46%] flex-col items-center justify-center px-14 py-16 relative overflow-hidden">
+        <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center px-14 py-16 relative overflow-hidden">
 
           {/* Decoración de fondo */}
           <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full opacity-10" style={{ background: '#fff' }} />
@@ -103,7 +103,7 @@ function LoginForm() {
         </div>
 
         {/* ── Panel derecho — formulario ──────────────────────────── */}
-        <div className="flex-1 min-h-svh flex flex-col items-center justify-center px-5 py-10 lg:px-16 lg:py-0 lg:bg-white">
+        <div className="flex-1 flex flex-col items-center justify-center min-h-svh lg:min-h-screen px-5 py-10 lg:px-16 lg:py-16 lg:bg-white">
 
           {/* Logo — solo mobile (encima de la card) */}
           <div className="flex flex-col items-center mb-8 lg:hidden">
