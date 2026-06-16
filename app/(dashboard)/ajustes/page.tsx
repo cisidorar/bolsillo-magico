@@ -25,145 +25,157 @@ export default async function AjustesPage() {
   ])
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-10 space-y-6 lg:max-w-2xl">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-10">
 
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div>
+      <div className="mb-6">
         <h1 className="text-2xl font-extrabold text-brand-900">Ajustes</h1>
         <p className="text-sm text-gray-400 mt-0.5">Administra tu cuenta, finanzas y preferencias.</p>
       </div>
 
-      {/* ── Perfil ───────────────────────────────────────────────── */}
-      <ProfileEditor
-        userId={user.id}
-        displayName={profile?.display_name ?? null}
-        email={user.email ?? ''}
-        avatarUrl={profile?.avatar_url ?? null}
-      />
+      {/* ── Grid desktop: izquierda (Perfil + Finanzas) | derecha (Datos + Cuenta) ── */}
+      <div className="lg:grid lg:gap-6 lg:items-start space-y-6 lg:space-y-0" style={{ gridTemplateColumns: '3fr 2fr' }}>
 
-      {/* ── Finanzas ─────────────────────────────────────────────── */}
-      <section>
-        <SectionHeader icon={Coins} label="Finanzas" color="#F59E0B" />
-        <div className="card overflow-hidden divide-y divide-gray-50">
+        {/* ── Columna izquierda ──────────────────────────────────── */}
+        <div className="space-y-6">
 
-          <SettingsRow
-            href="/presupuesto"
-            icon={
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
-                <Target className="w-5 h-5" style={{ color: '#1B6DD4' }} />
-              </div>
-            }
-            title="Límite mensual"
-            subtitle="Define y controla tu presupuesto mensual."
+          {/* Perfil */}
+          <ProfileEditor
+            userId={user.id}
+            displayName={profile?.display_name ?? null}
+            email={user.email ?? ''}
+            avatarUrl={profile?.avatar_url ?? null}
           />
 
-          <SettingsRow
-            href="/categorias"
-            icon={
-              <div className="flex-shrink-0">
-                {(categories ?? []).length > 0 ? (
-                  <div className="flex -space-x-2">
-                    {(categories ?? []).slice(0, 3).map(c => (
-                      <div
-                        key={c.id}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white flex-shrink-0"
-                        style={{ background: c.bg_color }}
-                      >
-                        {isEmoji(c.icon)
-                          ? <span className="text-base">{c.icon}</span>
-                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
-                        }
+          {/* Finanzas */}
+          <section>
+            <SectionHeader icon={Coins} label="Finanzas" color="#F59E0B" />
+            <div className="card overflow-hidden divide-y divide-gray-50">
+
+              <SettingsRow
+                href="/presupuesto"
+                icon={
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+                    <Target className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+                  </div>
+                }
+                title="Límite mensual"
+                subtitle="Define y controla tu presupuesto mensual."
+              />
+
+              <SettingsRow
+                href="/categorias"
+                icon={
+                  <div className="flex-shrink-0">
+                    {(categories ?? []).length > 0 ? (
+                      <div className="flex -space-x-2">
+                        {(categories ?? []).slice(0, 3).map(c => (
+                          <div
+                            key={c.id}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white flex-shrink-0"
+                            style={{ background: c.bg_color }}
+                          >
+                            {isEmoji(c.icon)
+                              ? <span className="text-base">{c.icon}</span>
+                              : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
+                            }
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5F3FF' }}>
-                    <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
-                  </div>
-                )}
-              </div>
-            }
-            title="Categorías"
-            subtitle="Organiza tus gastos por categorías."
-          />
-
-          <SettingsRow
-            href="/metodos"
-            icon={
-              <div className="flex-shrink-0">
-                {(paymentMethods ?? []).length > 0 ? (
-                  <div className="flex -space-x-2">
-                    {(paymentMethods ?? []).slice(0, 3).map(m => (
-                      <div key={m.id} className="ring-2 ring-white rounded-xl flex-shrink-0">
-                        <ServiceLogo domain={m.domain} name={m.name} size={40} />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5F3FF' }}>
+                        <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F0FDF4' }}>
-                    <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
-                  </div>
-                )}
-              </div>
-            }
-            title="Métodos de pago"
-            subtitle="Administra tus cuentas y tarjetas."
-          />
+                }
+                title="Categorías"
+                subtitle="Organiza tus gastos por categorías."
+              />
 
-          <SettingsRow
-            href="/recurrentes"
-            icon={
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDFA' }}>
-                <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
-              </div>
-            }
-            title="Gastos recurrentes"
-            subtitle="Gestiona suscripciones y cobros fijos."
-          />
+              <SettingsRow
+                href="/metodos"
+                icon={
+                  <div className="flex-shrink-0">
+                    {(paymentMethods ?? []).length > 0 ? (
+                      <div className="flex -space-x-2">
+                        {(paymentMethods ?? []).slice(0, 3).map(m => (
+                          <div key={m.id} className="ring-2 ring-white rounded-xl flex-shrink-0">
+                            <ServiceLogo domain={m.domain} name={m.name} size={40} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F0FDF4' }}>
+                        <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
+                      </div>
+                    )}
+                  </div>
+                }
+                title="Métodos de pago"
+                subtitle="Administra tus cuentas y tarjetas."
+              />
+
+              <SettingsRow
+                href="/recurrentes"
+                icon={
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDFA' }}>
+                    <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
+                  </div>
+                }
+                title="Gastos recurrentes"
+                subtitle="Gestiona suscripciones y cobros fijos."
+              />
+
+            </div>
+          </section>
+        </div>
+
+        {/* ── Columna derecha ────────────────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* Datos */}
+          <section>
+            <SectionHeader icon={Database} label="Datos" color="#1B6DD4" />
+            <div className="card overflow-hidden divide-y divide-gray-50">
+
+              <a
+                href="/api/export"
+                download
+                className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50/70 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+                  <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">Exportar gastos</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Descarga todos tus gastos en CSV.</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors flex-shrink-0" />
+              </a>
+
+              <ImportCSV />
+
+            </div>
+          </section>
+
+          {/* Cuenta */}
+          <section>
+            <SectionHeader icon={Shield} label="Cuenta" color="#1B6DD4" />
+            <form action="/api/auth/signout" method="post">
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-red-500 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 active:scale-[0.99] transition-all"
+                style={{ background: 'rgba(254,242,242,0.6)' }}
+              >
+                <LogOut className="w-4 h-4" />
+                Cerrar sesión
+              </button>
+            </form>
+          </section>
 
         </div>
-      </section>
-
-      {/* ── Datos ────────────────────────────────────────────────── */}
-      <section>
-        <SectionHeader icon={Database} label="Datos" color="#1B6DD4" />
-        <div className="card overflow-hidden divide-y divide-gray-50">
-
-          <a
-            href="/api/export"
-            download
-            className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50/70 transition-colors group"
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
-              <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">Exportar gastos</p>
-              <p className="text-xs text-gray-400 mt-0.5">Descarga todos tus gastos en CSV.</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-          </a>
-
-          <ImportCSV />
-
-        </div>
-      </section>
-
-      {/* ── Cuenta ───────────────────────────────────────────────── */}
-      <section>
-        <SectionHeader icon={Shield} label="Cuenta" color="#1B6DD4" />
-        <form action="/api/auth/signout" method="post">
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-red-500 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 active:scale-[0.99] transition-all"
-            style={{ background: 'rgba(254,242,242,0.6)' }}
-          >
-            <LogOut className="w-4 h-4" />
-            Cerrar sesión
-          </button>
-        </form>
-      </section>
-
+      </div>
     </div>
   )
 }
