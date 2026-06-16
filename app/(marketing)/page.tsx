@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -219,8 +219,6 @@ function AppPreview() {
    Main landing page
 ───────────────────────────────────────────────────────── */
 export default function LandingPage() {
-  const featuresRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     const io = new IntersectionObserver(
       entries => entries.forEach(e => {
@@ -279,9 +277,11 @@ export default function LandingPage() {
         @media(min-width:1024px) {
           .hero-layout { flex-direction:row !important; text-align:left !important; padding:100px 80px !important; gap:80px !important; }
           .hero-text { max-width:520px; }
+          .hero-subtitle { margin-left:0 !important; margin-right:0 !important; }
           .hero-ctas { justify-content:flex-start !important; }
-          .features-grid { grid-template-columns:repeat(3,1fr) !important; max-width:900px !important; }
-          .section-inner { max-width:900px; margin:0 auto; }
+          .hero-trust { justify-content:flex-start !important; }
+          .features-grid { grid-template-columns:repeat(3,1fr) !important; max-width:960px !important; }
+          .section-inner { max-width:960px; margin:0 auto; }
           .how-grid { grid-template-columns:repeat(3,1fr) !important; }
         }
         @media(max-width:1023px) {
@@ -294,7 +294,7 @@ export default function LandingPage() {
         position:'fixed', top:0, left:0, right:0, zIndex:100,
         display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 24px', height:60,
-        background:'rgba(10,31,68,.82)',
+        background:'rgba(15,68,137,.88)',
         backdropFilter:'blur(20px) saturate(1.5)',
         borderBottom:'1px solid rgba(255,255,255,.08)',
       }}>
@@ -324,7 +324,7 @@ export default function LandingPage() {
 
         {/* ══════════ HERO ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0A1F44 0%,#0F4489 55%,#1B6DD4 100%)',
+          background:'linear-gradient(160deg,#0F4489 0%,#1B6DD4 100%)',
           minHeight:'100svh',
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
           padding:'90px 24px 60px',
@@ -340,12 +340,17 @@ export default function LandingPage() {
           {/* Text side */}
           <div className="hero-text">
             <div className="hero-in" style={{
-              display:'inline-block', background:'rgba(255,255,255,.1)',
+              display:'inline-flex', alignItems:'center', gap:8,
+              background:'rgba(255,255,255,.1)',
               border:'1px solid rgba(255,255,255,.2)', borderRadius:100,
-              padding:'5px 16px', fontSize:11, fontWeight:800, color:'rgba(255,255,255,.85)',
-              letterSpacing:'.08em', textTransform:'uppercase', marginBottom:24,
+              padding:'6px 16px 6px 10px', fontSize:11, fontWeight:800,
+              color:'rgba(255,255,255,.85)', letterSpacing:'.06em',
+              textTransform:'uppercase', marginBottom:24,
             }}>
-              💰 Control de gastos personales
+              <div style={{ width:20, height:20, position:'relative', flexShrink:0 }}>
+                <Image src="/camapana.png" alt="" fill style={{ objectFit:'contain' }} />
+              </div>
+              Control de gastos personales
             </div>
 
             <h1 className="hero-in-2" style={{
@@ -359,14 +364,14 @@ export default function LandingPage() {
               </span>
             </h1>
 
-            <p className="hero-in-3" style={{
+            <p className="hero-in-3 hero-subtitle" style={{
               fontSize:17, color:'rgba(255,255,255,.65)', lineHeight:1.7,
-              marginBottom:36, maxWidth:400, margin:'0 auto 36px',
+              maxWidth:420, margin:'0 auto 36px',
             }}>
               Registra tus gastos en segundos. Analiza en qué va tu plata. Controla suscripciones y cuotas. Todo en un solo lugar.
             </p>
 
-            <div className="hero-in-4 hero-ctas" style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:48 }}>
+            <div className="hero-in-4 hero-ctas" style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:32 }}>
               <Link href="/login" className="btn-primary">
                 Empezar gratis →
               </Link>
@@ -376,9 +381,9 @@ export default function LandingPage() {
             </div>
 
             {/* Trust badges */}
-            <div className="hero-in-4" style={{ display:'flex', gap:24, justifyContent:'center', flexWrap:'wrap' }}>
+            <div className="hero-in-4 hero-trust" style={{ display:'flex', gap:20, justifyContent:'center', flexWrap:'wrap' }}>
               {['✓ Gratis para siempre', '✓ Sin tarjeta', '✓ Datos seguros'].map(t => (
-                <span key={t} style={{ fontSize:12, fontWeight:700, color:'rgba(255,255,255,.5)' }}>{t}</span>
+                <span key={t} style={{ fontSize:12, fontWeight:700, color:'rgba(255,255,255,.45)' }}>{t}</span>
               ))}
             </div>
           </div>
@@ -492,7 +497,7 @@ export default function LandingPage() {
 
         {/* ══════════ CTA FINAL ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0A1F44 0%,#0F4489 55%,#1B6DD4 100%)',
+          background:'linear-gradient(160deg,#0F4489 0%,#1B6DD4 100%)',
           padding:'100px 24px',
           textAlign:'center',
           position:'relative',
@@ -501,7 +506,14 @@ export default function LandingPage() {
           <div style={{ position:'absolute', top:'-20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(27,109,212,.3),transparent 65%)', pointerEvents:'none' }} />
 
           <div data-reveal style={{ position:'relative' }}>
-            <div style={{ fontSize:56, marginBottom:20 }}>🔔</div>
+            <div style={{ width:80, height:80, position:'relative', margin:'0 auto 24px' }}>
+              <Image
+                src="/camapana.png"
+                alt="Bolsillo Mágico"
+                fill
+                style={{ objectFit:'contain', filter:'drop-shadow(0 8px 24px rgba(0,0,0,.35))' }}
+              />
+            </div>
             <h2 style={{
               fontSize:'clamp(32px,7vw,52px)', fontWeight:900, color:'#fff',
               lineHeight:1.08, letterSpacing:'-0.03em', marginBottom:16,
@@ -526,7 +538,7 @@ export default function LandingPage() {
 
         {/* ══════════ FOOTER ══════════ */}
         <footer style={{
-          background:'#0A1F44', padding:'28px 24px',
+          background:'#0F4489', padding:'28px 24px',
           display:'flex', alignItems:'center', justifyContent:'space-between',
           flexWrap:'wrap', gap:12,
         }}>
