@@ -52,7 +52,7 @@ export default async function RecurrentesPage({
   const activeCount = (recurring ?? []).filter((r: RecurringExpense) => r.is_active).length
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-4">
+    <div className="px-4 lg:px-6 pt-6 lg:pt-8 pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-brand-900">Recurrentes</h1>
@@ -78,8 +78,8 @@ export default async function RecurrentesPage({
         </Link>
       </div>
 
-      {/* Desktop: 2 columnas siempre visibles. Mobile: una a la vez según toggle */}
-      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+      {/* Desktop: lista fija izquierda, calendario ocupa el resto. Mobile: una a la vez */}
+      <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '320px 1fr' }}>
 
         {/* ── Panel Lista ─────────────────────────────────────────────── */}
         <div className={isCalendar ? 'hidden lg:block' : 'block'}>

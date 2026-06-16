@@ -100,7 +100,7 @@ export default function CalendarioPagos({ items }: Props) {
         {/* Cabecera días de semana */}
         <div className="grid grid-cols-7 border-b border-gray-100">
           {WEEKDAYS.map(d => (
-            <div key={d} className="py-2 text-center text-[10px] font-bold text-gray-400">
+            <div key={d} className="py-2.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wide">
               {d}
             </div>
           ))}
@@ -110,7 +110,7 @@ export default function CalendarioPagos({ items }: Props) {
         <div className="grid grid-cols-7">
           {/* Celdas vacías de offset */}
           {Array.from({ length: offset }).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[64px] border-b border-r border-gray-50" />
+            <div key={`empty-${i}`} className="min-h-[84px] border-b border-r border-gray-50" />
           ))}
 
           {/* Días del mes */}
@@ -129,7 +129,7 @@ export default function CalendarioPagos({ items }: Props) {
                 onClick={() => hasItems && setSelectedDay(isSelected ? null : day)}
                 disabled={!hasItems}
                 className={[
-                  'min-h-[64px] p-1.5 flex flex-col items-center gap-1 border-b transition-colors text-left w-full',
+                  'min-h-[84px] p-1.5 flex flex-col items-center gap-1 border-b transition-colors text-left w-full',
                   isLastCol ? 'border-r-0' : 'border-r border-gray-50',
                   'border-gray-50',
                   isSelected ? 'bg-brand-50' : hasItems ? 'hover:bg-gray-50/80 active:bg-gray-100 cursor-pointer' : 'cursor-default',
@@ -152,12 +152,12 @@ export default function CalendarioPagos({ items }: Props) {
                         key={item.id}
                         domain={item.domain}
                         name={item.name}
-                        size={18}
+                        size={22}
                         className="rounded-md"
                       />
                     ))}
                     {dayItems.length > 3 && (
-                      <span className="w-[18px] h-[18px] rounded-md bg-gray-200 text-[9px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0">
+                      <span className="w-[22px] h-[22px] rounded-md bg-gray-200 text-[9px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0">
                         +{dayItems.length - 3}
                       </span>
                     )}
@@ -185,7 +185,7 @@ export default function CalendarioPagos({ items }: Props) {
             const remainder  = totalCells % 7
             const trailing   = remainder === 0 ? 0 : 7 - remainder
             return Array.from({ length: trailing }).map((_, i) => (
-              <div key={`trail-${i}`} className="min-h-[64px] border-b border-gray-50" />
+              <div key={`trail-${i}`} className="min-h-[84px] border-b border-gray-50" />
             ))
           })()}
         </div>

@@ -23,8 +23,8 @@ export default function SideNav() {
   return (
     <>
       <aside
-        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 bg-white border-r border-gray-100 py-6 px-4"
-        style={{ boxShadow: '2px 0 12px rgba(27,109,212,0.06)' }}
+        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 bg-white border-r-2 border-blue-100 py-6 px-4"
+        style={{ boxShadow: '4px 0 24px rgba(0,0,0,0.08)' }}
       >
         {/* ── Logo ───────────────────────────────────────────── */}
         <div className="flex items-center gap-2.5 mb-7 px-1">
