@@ -1,16 +1,17 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import Image from 'next/image'
 
 type Mode = 'login' | 'signup'
 
 export default function LoginPage() {
-  const router   = useRouter()
-  const supabase = createClient()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const supabase     = createClient()
 
   const [mode,    setMode]    = useState<Mode>('login')
   const [email,   setEmail]   = useState('')
@@ -19,6 +20,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const [success, setSuccess] = useState('')
+
+  // Mostrar error si el callback de auth falló (ej: link expirado)
+  useEffect(() => {
+    if (searchParams.get('error')) {
+      setError('El enlace de autenticación expiró o no es válido. Intenta de nuevo.')
+    }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

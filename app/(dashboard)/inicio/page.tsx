@@ -1,13 +1,14 @@
 import Image from 'next/image'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, CreditCard } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import ExpenseList from '@/components/ExpenseList'
 import RecurringWidget from '@/components/RecurringWidget'
+import ServiceLogo from '@/components/ServiceLogo'
 import Link from 'next/link'
-import type { ExpenseWithRelations, RecurringExpense, CategoryBudget } from '@/types'
+import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,11 @@ export default async function DashboardPage() {
   const nextYear  = month === 12 ? year + 1 : year
   const monthStr  = String(month).padStart(2, '0')
 
+  // Para el widget de estado de cuenta, necesitamos 2 meses de historia
+  // (el estado puede incluir gastos del mes anterior al corte)
+  const twoMonthsAgo = new Date(year, now.getMonth() - 2, 1)
+  const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
+
   const [
     { data: expenses },
     { data: budget },
@@ -31,6 +37,7 @@ export default async function DashboardPage() {
     { data: categoryBudgets },
     { data: profile },
     { data: allRecurringExpenses },
+    { data: statementExpenses },
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -50,14 +57,23 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id).eq('is_active', true).order('billing_day'),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
     supabase.from('profiles').select('display_name').eq('id', user!.id).maybeSingle(),
+    // Acotado a 10 años (suficiente para 120 cuotas)
     supabase
       .from('expenses')
       .select('recurring_expense_id')
       .eq('user_id', user!.id)
-      .not('recurring_expense_id', 'is', null),
+      .not('recurring_expense_id', 'is', null)
+      .gte('date', `${year - 10}-01-01`),
+    // Gastos de los últimos 2 meses para calcular estados de cuenta
+    supabase
+      .from('expenses')
+      .select('amount, date, payment_method_id, payment_method:payment_methods(id, name, billing_day, card_type, domain)')
+      .eq('user_id', user!.id)
+      .gte('date', statementFetchStart)
+      .lte('date', now.toISOString().split('T')[0]),
   ])
 
-  // Derivar paid_installments desde expenses reales (evita dependencia de RLS update)
+  // Derivar paid_installments desde expenses reales
   const paidMap = (allRecurringExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
     if (e.recurring_expense_id) acc[e.recurring_expense_id] = (acc[e.recurring_expense_id] ?? 0) + 1
     return acc
@@ -99,11 +115,47 @@ export default async function DashboardPage() {
   const rawName = profile?.display_name ?? user!.email ?? ''
   const displayName = rawName.includes('@') ? rawName.split('@')[0] : rawName
 
-  // Indicadores financieros accionables
-  const daysElapsed   = now.getDate()                                         // días transcurridos del mes
-  const daysInMonth   = new Date(year, month, 0).getDate()                    // días totales del mes
-  const dailyAvg      = daysElapsed > 0 ? Math.round(total / daysElapsed) : 0 // gasto diario promedio
-  const projection    = Math.round(dailyAvg * daysInMonth)                    // proyección fin de mes
+  // Indicadores financieros
+  const daysElapsed = now.getDate()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const dailyAvg    = daysElapsed > 0 ? Math.round(total / daysElapsed) : 0
+  const projection  = Math.round(dailyAvg * daysInMonth)
+
+  // ── Calcular estado de cuenta por tarjeta de crédito ─────────────────────
+  const creditCards = ((paymentMethods ?? []) as PaymentMethod[])
+    .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+
+  type StatementCard = {
+    id: string
+    name: string
+    domain: string | null
+    billingDay: number
+    statementMonth: number
+    statementYear: number
+    closesOn: string
+    total: number
+    count: number
+  }
+
+  const statementCards: StatementCard[] = creditCards.map(card => {
+    const range   = currentStatementRange(card.billing_day!)
+    const inRange = (statementExpenses ?? []).filter(e => {
+      if (e.payment_method_id !== card.id) return false
+      const bp = billingPeriod(e.date, card.billing_day!)
+      return bp.month === range.month && bp.year === range.year
+    })
+    return {
+      id:             card.id,
+      name:           card.name,
+      domain:         card.domain,
+      billingDay:     card.billing_day!,
+      statementMonth: range.month,
+      statementYear:  range.year,
+      closesOn:       range.end,
+      total:          inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0),
+      count:          inRange.length,
+    }
+  }).filter(c => c.count > 0) // solo mostrar tarjetas con gastos en el estado actual
 
   return (
     <>
@@ -112,7 +164,7 @@ export default async function DashboardPage() {
         {/* ── Hero card ─────────────────────────────────────────────── */}
         <div className="hero-gradient rounded-3xl p-6 text-white overflow-hidden relative">
           <div className="relative">
-            {/* Bell logo — top right brand mark */}
+            {/* Bell logo */}
             <div className="absolute top-0 right-0 w-12 h-12 opacity-80">
               <Image src="/camapana.png" alt="" fill style={{ objectFit: 'contain' }} />
             </div>
@@ -164,6 +216,43 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Estados de cuenta tarjetas de crédito ─────────────────── */}
+        {statementCards.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 className="text-sm font-bold text-gray-600 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+                Estado de cuenta
+              </h2>
+              <Link href="/historial?view=billing" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
+                Ver detalle
+              </Link>
+            </div>
+            <div className="card divide-y divide-gray-50 overflow-hidden">
+              {statementCards.map(card => {
+                const closeDate = new Date(card.closesOn + 'T12:00:00')
+                const closesLabel = closeDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                const statementLabel = `${monthName(card.statementMonth).slice(0,3)} ${card.statementYear !== year ? card.statementYear : ''}`
+                return (
+                  <div key={card.id} className="flex items-center gap-3 px-4 py-3.5">
+                    <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{card.name}</p>
+                      <p className="text-xs text-gray-400">
+                        Estado {statementLabel.trim()} · cierra {closesLabel}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(card.total)}</p>
+                      <p className="text-[10px] text-gray-400">{card.count} compra{card.count !== 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Categorías ────────────────────────────────────────────── */}
         {catSummary.length > 0 && (

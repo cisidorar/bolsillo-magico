@@ -16,8 +16,8 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // Scripts: solo self + inline eval necesario para Next.js
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Scripts: solo self + inline (Next.js no requiere unsafe-eval en producción)
+      "script-src 'self' 'unsafe-inline'",
       // Estilos: self + inline (Tailwind genera estilos inline)
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Fuentes

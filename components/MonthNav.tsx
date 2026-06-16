@@ -8,16 +8,18 @@ interface Props {
   month: number
   year: number
   basePath: string
+  extraParams?: Record<string, string>
 }
 
-export default function MonthNav({ month, year, basePath }: Props) {
+export default function MonthNav({ month, year, basePath, extraParams }: Props) {
   const router = useRouter()
 
   function navigate(delta: number) {
     let m = month + delta, y = year
     if (m < 1)  { m = 12; y-- }
     if (m > 12) { m = 1;  y++ }
-    router.push(`${basePath}?month=${m}&year=${y}`)
+    const params = new URLSearchParams({ month: String(m), year: String(y), ...extraParams })
+    router.push(`${basePath}?${params.toString()}`)
   }
 
   const now = new Date()

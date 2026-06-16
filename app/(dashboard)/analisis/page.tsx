@@ -1,22 +1,23 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct } from '@/lib/utils'
+import { billingPeriod, formatCLP, monthName, pct } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart } from 'lucide-react'
 
 export const revalidate = 0
 
 export default async function AnalisisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string }>
+  searchParams: Promise<{ month?: string; year?: string; view?: string }>
 }) {
-  const { month: monthStr, year: yearStr } = await searchParams
+  const { month: monthStr, year: yearStr, view } = await searchParams
   const now   = new Date()
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
+  const isBilling = view === 'billing'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
@@ -30,15 +31,21 @@ export default async function AnalisisPage({
   const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   // Fetch: desde 6 meses atrás hasta el fin del mes seleccionado (o actual si es mayor)
-  const selEnd   = new Date(year, month, 1)   // primer día del mes siguiente al seleccionado
-  const curEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  // En modo billing ampliamos ±1 mes para capturar gastos que cruzan corte
+  const selEnd   = new Date(year, month + (isBilling ? 2 : 1), 1)
+  const curEnd   = new Date(now.getFullYear(), now.getMonth() + (isBilling ? 2 : 1), 1)
   const fetchEnd = selEnd > curEnd ? selEnd : curEnd
   const nextYear  = fetchEnd.getFullYear()
   const nextMonth = fetchEnd.getMonth() + 1
   const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
   // También necesitamos el inicio del mes seleccionado si está antes de chartStart
-  const fetchStart = selectedKey < chartStart.substring(0, 7) ? `${year}-${String(month).padStart(2, '0')}-01` : chartStart
+  const fetchStartBase = selectedKey < chartStart.substring(0, 7) ? `${year}-${String(month).padStart(2, '0')}-01` : chartStart
+  // En modo billing: retrocedemos 1 mes extra para capturar gastos pre-corte
+  const fetchStartDate = isBilling
+    ? new Date(new Date(fetchStartBase).getFullYear(), new Date(fetchStartBase).getMonth() - 1, 1)
+    : new Date(fetchStartBase)
+  const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
   const [{ data: expenses }, { data: categoryBudgets }] = await Promise.all([
     supabase
@@ -57,6 +64,18 @@ export default async function AnalisisPage({
 
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
 
+  /**
+   * En modo billing remapeamos cada gasto al mes de su estado de cuenta.
+   * En modo compra usamos la fecha de compra directamente.
+   */
+  function expenseMonthKey(e: ExpenseWithRelations): string {
+    if (!isBilling) return e.date.substring(0, 7)
+    const pm = e.payment_method as { billing_day?: number | null } | null
+    const bd = pm?.billing_day ?? null
+    const bp = billingPeriod(e.date, bd)
+    return `${bp.year}-${String(bp.month).padStart(2, '0')}`
+  }
+
   // ── Gráfico: siempre los últimos 6 meses hasta hoy ────────────────────────
   const byMonth: Record<string, { label: string; total: number; key: string }> = {}
   for (let i = 5; i >= 0; i--) {
@@ -65,14 +84,14 @@ export default async function AnalisisPage({
     byMonth[key] = { key, label: d.toLocaleString('es-CL', { month: 'short' }), total: 0 }
   }
   typedExpenses.forEach(e => {
-    const key = e.date.substring(0, 7)
+    const key = expenseMonthKey(e)
     if (byMonth[key]) byMonth[key].total += e.amount
   })
   const monthData = Object.values(byMonth)
   const maxMonth  = Math.max(...monthData.map(m => m.total), 1)
 
   // ── Selected month data ───────────────────────────────────────────────────
-  const selectedExpenses = typedExpenses.filter(e => e.date.startsWith(selectedKey))
+  const selectedExpenses = typedExpenses.filter(e => expenseMonthKey(e) === selectedKey)
   const totalSelected    = selectedExpenses.reduce((s, e) => s + e.amount, 0)
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
@@ -111,13 +130,37 @@ export default async function AnalisisPage({
   })
   const pmSummary = Object.values(byPM).sort((a, b) => b.total - a.total)
 
+  const viewParam = isBilling ? '&view=billing' : ''
+
   return (
     <div className="px-4 pt-6 pb-8 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
-        <MonthNav month={month} year={year} basePath="/analisis" />
+        <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
+      </div>
+
+      {/* Toggle por compra / por facturación */}
+      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
+        <Link
+          href={`/analisis?month=${month}&year=${year}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          Por compra
+        </Link>
+        <Link
+          href={`/analisis?month=${month}&year=${year}&view=billing`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isBilling ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          Por facturación
+        </Link>
       </div>
 
       {/* ── KPIs ──────────────────────────────────────────────────────────── */}
@@ -165,17 +208,19 @@ export default async function AnalisisPage({
 
       {/* ── Tendencia 6 meses ─────────────────────────────────────────────── */}
       <div className="card p-4">
-        <p className="text-sm font-bold text-gray-600 mb-4">Tendencia 6 meses</p>
+        <p className="text-sm font-bold text-gray-600 mb-4">
+          Tendencia 6 meses
+          {isBilling && <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">facturación</span>}
+        </p>
         <div className="flex items-end gap-2 h-32">
           {monthData.map((m) => {
             const isSelected  = m.key === selectedKey
             const isCurrent   = m.key === currentKey
             const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-            // 3-state color: selected → azul fuerte | mes actual no selec → azul medio | resto → azul claro
             const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
             const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
             const [mYear, mMonth] = m.key.split('-').map(Number)
-            const href = `/analisis?month=${mMonth}&year=${mYear}`
+            const href = `/analisis?month=${mMonth}&year=${mYear}${viewParam}`
             return (
               <Link
                 key={m.key}
@@ -217,7 +262,9 @@ export default async function AnalisisPage({
             <BarChart2 className="w-7 h-7 text-brand-400" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-600">Sin gastos en {monthName(month)}</p>
+            <p className="text-sm font-bold text-gray-600">
+              Sin gastos {isBilling ? `en estado de cuenta de ${monthName(month)}` : `en ${monthName(month)}`}
+            </p>
             <p className="text-xs text-gray-400 mt-1">Registra gastos para ver tu análisis</p>
           </div>
         </div>
@@ -260,7 +307,7 @@ export default async function AnalisisPage({
           {/* ── Distribución por categoría ──────────────────────────────────── */}
           <div>
             <h2 className="text-sm font-bold text-gray-600 mb-2.5">
-              Por categoría · {monthName(month)}
+              Por categoría · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
             </h2>
             <div className="card divide-y divide-gray-50 overflow-hidden">
               {catSummary.map((c, idx) => {
@@ -274,7 +321,7 @@ export default async function AnalisisPage({
                 return (
                   <Link
                     key={c.id}
-                    href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                    href={`/analisis/${c.id}?month=${month}&year=${year}${viewParam}`}
                     className="block px-4 py-3.5 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
                   >
                     <div className="flex items-center gap-3 mb-2">

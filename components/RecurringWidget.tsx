@@ -72,6 +72,17 @@ export default function RecurringWidget({ recurring, registeredIds, userId, mont
       date: dateStr,
     })
 
+    // Auto-desactivar si se completaron todas las cuotas
+    if (item.total_installments !== null && item.total_installments > 0) {
+      const newPaid = (item.paid_installments ?? 0) + 1
+      if (newPaid >= item.total_installments) {
+        await supabase
+          .from('recurring_expenses')
+          .update({ is_active: false })
+          .eq('id', item.id)
+      }
+    }
+
     setRegistering(null)
     setConfirming(null)
     router.refresh()

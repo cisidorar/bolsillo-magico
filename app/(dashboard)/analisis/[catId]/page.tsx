@@ -14,10 +14,10 @@ export default async function CategoriaDetallePage({
   searchParams,
 }: {
   params: Promise<{ catId: string }>
-  searchParams: Promise<{ month?: string; year?: string }>
+  searchParams: Promise<{ month?: string; year?: string; view?: string }>
 }) {
   const { catId } = await params
-  const { month: monthStr, year: yearStr } = await searchParams
+  const { month: monthStr, year: yearStr, view } = await searchParams
 
   const now   = new Date()
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
@@ -55,7 +55,7 @@ export default async function CategoriaDetallePage({
   }
   const days = Object.entries(byDay).sort((a, b) => b[0].localeCompare(a[0]))
 
-  const backHref = `/analisis?month=${month}&year=${year}`
+  const backHref = `/analisis?month=${month}&year=${year}${view === 'billing' ? '&view=billing' : ''}`
 
   const CatIcon = isEmoji(category.icon) ? null : getCategoryIcon(category.icon)
 

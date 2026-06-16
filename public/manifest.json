@@ -1,0 +1,20 @@
+{
+  "name": "Bolsillo Mágico",
+  "short_name": "Bolsillo",
+  "description": "Registra y analiza tus gastos personales",
+  "start_url": "/inicio",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1B6DD4",
+  "theme_color": "#1B6DD4",
+  "icons": [
+    {
+      "src": "/camapana.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities"],
+  "lang": "es"
+}

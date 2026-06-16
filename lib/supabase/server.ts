@@ -26,12 +26,12 @@ export async function createClient() {
 }
 
 /**
- * Lee el usuario desde la cookie JWT sin hacer una llamada de red.
+ * Obtiene el usuario validando el JWT contra Supabase Auth.
  * Deduplicado con React cache() — si layout y página lo llaman, solo ejecuta 1 vez.
- * Seguro porque el middleware ya validó el token con getUser() antes de llegar aquí.
+ * Usa getUser() (no getSession()) para detectar tokens expirados o revocados.
  */
 export const getServerSession = cache(async () => {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.user ?? null
+  const { data: { user } } = await supabase.auth.getUser()
+  return user ?? null
 })

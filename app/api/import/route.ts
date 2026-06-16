@@ -75,6 +75,11 @@ export async function POST(request: NextRequest) {
   const file = form.get('file') as File | null
   if (!file) return NextResponse.json({ error: 'No se recibió archivo' }, { status: 400 })
 
+  const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json({ error: 'El archivo es demasiado grande (máximo 5 MB)' }, { status: 413 })
+  }
+
   const text = await file.text()
   const rows = parseCSV(text)
   if (rows.length < 2) return NextResponse.json({ error: 'El archivo está vacío' }, { status: 400 })
