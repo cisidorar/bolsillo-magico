@@ -2,11 +2,20 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
+import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
+import Link from 'next/link'
 import type { RecurringExpense } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function RecurrentesPage() {
+export default async function RecurrentesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>
+}) {
+  const { view } = await searchParams
+  const isCalendar = view === 'calendar'
+
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
@@ -42,29 +51,56 @@ export default async function RecurrentesPage() {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-brand-900">Recurrentes</h1>
       </div>
 
-      {/* Summary */}
-      {(recurring ?? []).length > 0 && (
-        <div className="card p-4 mb-5">
-          <p className="text-sm font-bold text-gray-600 mb-1">Compromiso mensual</p>
-          <p className="text-2xl font-extrabold text-brand-900">
-            {formatCLP(totalMonthly)}
-          </p>
-          <p className="text-xs text-brand-400 mt-0.5">
-            {(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length} gasto{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''} activo{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''}
-          </p>
-        </div>
-      )}
+      {/* Toggle Lista / Calendario */}
+      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-4">
+        <Link
+          href="/recurrentes"
+          className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            !isCalendar ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          Lista
+        </Link>
+        <Link
+          href="/recurrentes?view=calendar"
+          className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isCalendar ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'
+          }`}
+        >
+          Calendario
+        </Link>
+      </div>
 
-      <RecurringManager
-        items={recurringWithCounts}
-        categories={categories ?? []}
-        paymentMethods={paymentMethods ?? []}
-        userId={user.id}
-      />
+      {isCalendar ? (
+        <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
+      ) : (
+        <>
+          {/* Summary */}
+          {(recurring ?? []).length > 0 && (
+            <div className="card p-4 mb-5">
+              <p className="text-sm font-bold text-gray-600 mb-1">Compromiso mensual</p>
+              <p className="text-2xl font-extrabold text-brand-900">
+                {formatCLP(totalMonthly)}
+              </p>
+              <p className="text-xs text-brand-400 mt-0.5">
+                {(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length} gasto{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''} activo{(recurring ?? []).filter((r: RecurringExpense) => r.is_active).length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          )}
+
+          <RecurringManager
+            items={recurringWithCounts}
+            categories={categories ?? []}
+            paymentMethods={paymentMethods ?? []}
+            userId={user.id}
+          />
+        </>
+      )}
     </div>
   )
 }
