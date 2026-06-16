@@ -1,496 +1,491 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
-/* ─── Doraemon SVG ─────────────────────────────────────────────────────────── */
-function Doraemon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+/* ─────────────────────────────────────────────────────────
+   Phone mockup — mini preview del dashboard
+───────────────────────────────────────────────────────── */
+function AppPreview() {
+  const [active, setActive] = useState(0)
+  const screens = ['Inicio', 'Análisis', 'Recurrentes']
+
+  useEffect(() => {
+    const id = setInterval(() => setActive(p => (p + 1) % screens.length), 2800)
+    return () => clearInterval(id)
+  }, [])
+
   return (
-    <svg
-      viewBox="0 0 280 260"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      style={style}
-      aria-hidden="true"
-    >
-      {/* Shadow */}
-      <ellipse cx="140" cy="256" rx="85" ry="10" fill="rgba(0,0,0,.1)" />
+    <div style={{ position:'relative', width:240, margin:'0 auto' }}>
+      {/* Glow behind phone */}
+      <div style={{
+        position:'absolute', inset:-40, borderRadius:'50%',
+        background:'radial-gradient(ellipse, rgba(27,109,212,.35) 0%, transparent 70%)',
+        pointerEvents:'none',
+      }} />
 
-      {/* Body */}
-      <ellipse cx="140" cy="222" rx="92" ry="56" fill="#1B6DD4" />
-      {/* Belly white */}
-      <ellipse cx="140" cy="228" rx="65" ry="42" fill="#fff" />
-      {/* Pocket arc */}
-      <path d="M 102 248 Q 140 272 178 248" stroke="#ddd" strokeWidth="2" fill="none" strokeLinecap="round" />
-
-      {/* Arms left */}
-      <ellipse cx="48" cy="205" rx="28" ry="16" fill="#1B6DD4" transform="rotate(-30 48 205)" />
-      <circle cx="34" cy="215" r="14" fill="#1B6DD4" />
-      {/* Arms right */}
-      <ellipse cx="232" cy="205" rx="28" ry="16" fill="#1B6DD4" transform="rotate(30 232 205)" />
-      <circle cx="246" cy="215" r="14" fill="#1B6DD4" />
-
-      {/* Head */}
-      <circle cx="140" cy="108" r="100" fill="#1B6DD4" />
-
-      {/* Face white area */}
-      <ellipse cx="140" cy="130" rx="78" ry="72" fill="#fff" />
-
-      {/* Eye whites left */}
-      <ellipse cx="108" cy="92" rx="22" ry="27" fill="#fff" />
-      {/* Eye whites right */}
-      <ellipse cx="172" cy="92" rx="22" ry="27" fill="#fff" />
-
-      {/* Pupils left */}
-      <circle cx="114" cy="99" r="13" fill="#1a1a1a" />
-      <circle cx="119" cy="94" r="5" fill="#fff" />
-      {/* Pupils right */}
-      <circle cx="166" cy="99" r="13" fill="#1a1a1a" />
-      <circle cx="171" cy="94" r="5" fill="#fff" />
-
-      {/* Nose — red */}
-      <circle cx="140" cy="120" r="14" fill="#E03C31" />
-      <circle cx="135" cy="115" r="4" fill="rgba(255,255,255,.35)" />
-
-      {/* Mouth */}
-      <path d="M 105 142 Q 140 175 175 142" stroke="#1a1a1a" strokeWidth="3" fill="none" strokeLinecap="round" />
-
-      {/* Whiskers left */}
-      <line x1="28" y1="128" x2="116" y2="134" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-      <line x1="28" y1="142" x2="116" y2="142" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-      <line x1="28" y1="156" x2="116" y2="150" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-      {/* Whiskers right */}
-      <line x1="164" y1="134" x2="252" y2="128" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-      <line x1="164" y1="142" x2="252" y2="142" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-      <line x1="164" y1="150" x2="252" y2="156" stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" />
-
-      {/* Collar */}
-      <rect x="60" y="198" width="160" height="20" rx="10" fill="#E03C31" />
-      {/* Bell */}
-      <circle cx="140" cy="220" r="17" fill="#F5C518" />
-      <line x1="132" y1="212" x2="148" y2="212" stroke="#c9a000" strokeWidth="2" />
-      <circle cx="140" cy="224" r="5" fill="#c9a000" />
-    </svg>
-  )
-}
-
-/* ─── Phone Mockup ──────────────────────────────────────────────────────────── */
-function PhoneMockup() {
-  return (
-    <div className="relative mx-auto" style={{ width: 220 }}>
       {/* Phone frame */}
-      <div
-        className="rounded-[36px] overflow-hidden"
-        style={{
-          background: '#0a1628',
-          padding: '14px',
-          boxShadow: '0 32px 80px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.06)',
-        }}
-      >
-        <div className="rounded-[26px] overflow-hidden" style={{ background: '#EEF4FF' }}>
-          {/* Status bar notch */}
-          <div className="flex justify-center pt-2 pb-1">
-            <div className="w-20 h-5 rounded-full bg-black" />
+      <div style={{
+        background:'#070F1E',
+        borderRadius:44,
+        padding:12,
+        boxShadow:'0 40px 100px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,.1)',
+        position:'relative',
+      }}>
+        {/* Side buttons */}
+        <div style={{ position:'absolute', left:-3, top:80, width:3, height:32, background:'#1a2540', borderRadius:'2px 0 0 2px' }} />
+        <div style={{ position:'absolute', left:-3, top:124, width:3, height:56, background:'#1a2540', borderRadius:'2px 0 0 2px' }} />
+        <div style={{ position:'absolute', right:-3, top:96, width:3, height:48, background:'#1a2540', borderRadius:'0 2px 2px 0' }} />
+
+        <div style={{ background:'#EEF4FF', borderRadius:34, overflow:'hidden', minHeight:440 }}>
+          {/* Notch */}
+          <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6, background:'#EEF4FF' }}>
+            <div style={{ width:80, height:22, borderRadius:12, background:'#0a0f1e' }} />
           </div>
 
-          {/* Hero card */}
-          <div
-            className="mx-3 rounded-2xl p-4 text-white mb-3"
-            style={{ background: 'linear-gradient(135deg,#155BB0,#1B6DD4)' }}
-          >
-            <p className="text-[9px] opacity-70 font-bold mb-1">Junio 2025</p>
-            <p className="text-[10px] opacity-80 font-semibold">Gastado este mes</p>
-            <p className="text-2xl font-black leading-tight">$487.320</p>
-            <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div className="h-full w-3/4 bg-white/70 rounded-full" />
-            </div>
-            <p className="text-[9px] opacity-60 mt-1">Quedan $112.680</p>
-          </div>
-
-          {/* Category cards */}
-          <div className="grid grid-cols-2 gap-2 mx-3 mb-3">
-            {[
-              { name: 'Comida', icon: '🍽️', amount: '$228.500', color: '#0F6E56', bg: '#E1F5EE', pct: 91 },
-              { name: 'Transporte', icon: '🚗', amount: '$54.000', color: '#185FA5', bg: '#E6F1FB', pct: 43 },
-            ].map(c => (
-              <div key={c.name} className="rounded-xl p-2.5" style={{ background: '#fff', border: '.5px solid #D5E6FF' }}>
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm mb-1.5" style={{ background: c.bg }}>
-                  {c.icon}
-                </div>
-                <p className="text-[9px] font-semibold text-gray-400">{c.name}</p>
-                <p className="text-[11px] font-black text-gray-900">{c.amount}</p>
-                <div className="h-1 rounded-full mt-1 overflow-hidden" style={{ background: `${c.color}20` }}>
-                  <div className="h-full rounded-full" style={{ width: `${c.pct}%`, background: c.color }} />
-                </div>
+          {/* ── Pantalla 1: Inicio ────────────── */}
+          <div style={{
+            opacity: active === 0 ? 1 : 0,
+            transform: active === 0 ? 'translateX(0)' : 'translateX(-20px)',
+            transition:'all .5s ease',
+            position: active === 0 ? 'static' : 'absolute',
+            padding:'8px 12px 12px',
+          }}>
+            {/* Hero card */}
+            <div style={{
+              background:'linear-gradient(140deg,#0F3D8C,#1B6DD4)',
+              borderRadius:20,
+              padding:'14px 14px 12px',
+              color:'#fff',
+              marginBottom:10,
+            }}>
+              <p style={{ fontSize:9, opacity:.6, fontWeight:700, marginBottom:2 }}>Hola, Catalina 👋</p>
+              <p style={{ fontSize:10, opacity:.7, fontWeight:600 }}>Junio 2025</p>
+              <p style={{ fontSize:24, fontWeight:900, letterSpacing:'-0.02em', margin:'4px 0 2px' }}>$487.320</p>
+              <div style={{ height:5, background:'rgba(255,255,255,.2)', borderRadius:4, overflow:'hidden', marginBottom:4 }}>
+                <div style={{ height:'100%', width:'81%', background:'rgba(255,255,255,.8)', borderRadius:4 }} />
               </div>
-            ))}
+              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                <p style={{ fontSize:9, opacity:.55 }}>Gastado este mes</p>
+                <p style={{ fontSize:9, opacity:.7, fontWeight:700 }}>$112.680 restante</p>
+              </div>
+            </div>
+
+            {/* Category grid */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, marginBottom:10 }}>
+              {[
+                { icon:'🍽️', name:'Comida',    amt:'$228.500', pct:91, c:'#E03C31', bg:'#FDEDEC' },
+                { icon:'🚗', name:'Transporte', amt:'$54.000',  pct:43, c:'#1B6DD4', bg:'#EEF4FF' },
+              ].map(c => (
+                <div key={c.name} style={{ background:'#fff', borderRadius:14, padding:'10px 10px 8px', border:'.5px solid #D5E6FF' }}>
+                  <div style={{ width:28, height:28, borderRadius:9, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, marginBottom:6 }}>{c.icon}</div>
+                  <p style={{ fontSize:8, color:'#8AACBC', fontWeight:700 }}>{c.name}</p>
+                  <p style={{ fontSize:11, fontWeight:900, color:'#0a2a38' }}>{c.amt}</p>
+                  <div style={{ height:3, background:'#F0F6FF', borderRadius:3, overflow:'hidden', marginTop:4 }}>
+                    <div style={{ height:'100%', width:`${c.pct}%`, background:c.c, borderRadius:3 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent expenses */}
+            <div style={{ background:'#fff', borderRadius:14, overflow:'hidden', border:'.5px solid #D5E6FF' }}>
+              {[
+                { icon:'🍽️', name:'Almuerzo',    amt:'$8.900',  bg:'#FDEDEC' },
+                { icon:'🎵', name:'Spotify',      amt:'$5.990',  bg:'#E1F5EE' },
+                { icon:'🚗', name:'Uber',         amt:'$4.500',  bg:'#EEF4FF' },
+              ].map((e, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderBottom:i<2?'.5px solid #F4F9FF':'none' }}>
+                  <div style={{ width:28, height:28, borderRadius:9, background:e.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 }}>{e.icon}</div>
+                  <p style={{ flex:1, fontSize:10, fontWeight:700, color:'#0a2a38' }}>{e.name}</p>
+                  <p style={{ fontSize:10, fontWeight:900, color:'#0a2a38' }}>{e.amt}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Expense rows */}
-          <div className="mx-3 mb-3 rounded-xl overflow-hidden" style={{ background: '#fff', border: '.5px solid #D5E6FF' }}>
-            {[
-              { name: 'Almuerzo', cat: 'Comida', amt: '$8.900', color: '#E1F5EE', icon: '🍽️' },
-              { name: 'Metro', cat: 'Transporte', amt: '$1.000', color: '#E6F1FB', icon: '🚗' },
-              { name: 'Netflix', cat: 'Ocio', amt: '$9.990', color: '#FBEAF0', icon: '🎮' },
-            ].map((e, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: i < 2 ? '.5px solid #F0F6FF' : 'none' }}>
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0" style={{ background: e.color }}>
-                  {e.icon}
+          {/* ── Pantalla 2: Análisis ─────────── */}
+          {active === 1 && (
+            <div style={{ padding:'8px 12px 12px', animation:'fadeIn .5s ease' }}>
+              <p style={{ fontSize:12, fontWeight:800, color:'#0a2a38', marginBottom:12 }}>Análisis · Junio</p>
+
+              {/* Donut */}
+              <div style={{ display:'flex', justifyContent:'center', marginBottom:14 }}>
+                <svg viewBox="0 0 100 100" width={110} height={110}>
+                  {[
+                    { pct:46.8, color:'#E03C31', offset:0 },
+                    { pct:11.1, color:'#1B6DD4', offset:46.8 },
+                    { pct:15.8, color:'#0D9488', offset:57.9 },
+                    { pct:26.3, color:'#7C3AED', offset:73.7 },
+                  ].map((s, i) => {
+                    const r = 38, c = 2*Math.PI*r
+                    return (
+                      <circle key={i} cx="50" cy="50" r={r}
+                        fill="none" stroke={s.color} strokeWidth="18"
+                        strokeDasharray={`${(s.pct/100)*c} ${c}`}
+                        strokeDashoffset={-((s.offset/100)*c)}
+                        style={{ transform:'rotate(-90deg)', transformOrigin:'50% 50%' }}
+                      />
+                    )
+                  })}
+                  <text x="50" y="47" textAnchor="middle" style={{ fontSize:9, fontWeight:900, fill:'#0a2a38' }}>$487k</text>
+                  <text x="50" y="58" textAnchor="middle" style={{ fontSize:7, fill:'#8AACBC', fontWeight:600 }}>total</text>
+                </svg>
+              </div>
+
+              {[
+                { icon:'🍽️', name:'Comida',      pct:46.8, color:'#E03C31', bg:'#FDEDEC' },
+                { icon:'🎮', name:'Ocio',         pct:15.8, color:'#0D9488', bg:'#CCFBF1' },
+                { icon:'🚗', name:'Transporte',   pct:11.1, color:'#1B6DD4', bg:'#EEF4FF' },
+              ].map(c => (
+                <div key={c.name} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                  <div style={{ width:28, height:28, borderRadius:9, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 }}>{c.icon}</div>
+                  <p style={{ flex:1, fontSize:10, fontWeight:700, color:'#0a2a38' }}>{c.name}</p>
+                  <div style={{ width:60, height:4, background:'#F0F6FF', borderRadius:4, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${c.pct}%`, background:c.color, borderRadius:4 }} />
+                  </div>
+                  <p style={{ fontSize:10, fontWeight:800, color:'#0a2a38', minWidth:32, textAlign:'right' }}>{c.pct}%</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-bold text-gray-900 truncate">{e.name}</p>
-                  <p className="text-[8px] text-gray-400 font-medium">{e.cat}</p>
+              ))}
+            </div>
+          )}
+
+          {/* ── Pantalla 3: Recurrentes ──────── */}
+          {active === 2 && (
+            <div style={{ padding:'8px 12px 12px', animation:'fadeIn .5s ease' }}>
+              <p style={{ fontSize:12, fontWeight:800, color:'#0a2a38', marginBottom:4 }}>Recurrentes</p>
+              <p style={{ fontSize:9, color:'#8AACBC', fontWeight:700, marginBottom:12 }}>Carga mensual · $342.990</p>
+              {[
+                { icon:'🎬', name:'Netflix',  next:'15 jun', amt:'$9.990',   done:true,  bg:'#FDEDEC' },
+                { icon:'🎵', name:'Spotify',  next:'22 jun', amt:'$5.990',   done:false, bg:'#E1F5EE' },
+                { icon:'🏠', name:'Arriendo', next:'1 jul',  amt:'$280.000', done:true,  bg:'#FAEEDA' },
+                { icon:'💳', name:'Crédito',  next:'28 jun', amt:'$47.010',  done:false, bg:'#EEF4FF' },
+              ].map((r, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 0', borderBottom:'.5px solid #F4F9FF' }}>
+                  <div style={{ width:32, height:32, borderRadius:10, background:r.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}>{r.icon}</div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ fontSize:11, fontWeight:800, color:'#0a2a38' }}>{r.name}</p>
+                    <p style={{ fontSize:9, color:'#8AACBC', fontWeight:600 }}>{r.next}</p>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <p style={{ fontSize:10, fontWeight:900, color:'#0a2a38' }}>{r.amt}</p>
+                    <span style={{
+                      fontSize:8, fontWeight:700, padding:'2px 6px', borderRadius:100,
+                      background:r.done?'#E1F5EE':'#FEF3C7',
+                      color:r.done?'#0F6E56':'#92400E',
+                    }}>{r.done ? '✓' : '⏳'}</span>
+                  </div>
                 </div>
-                <p className="text-[10px] font-black text-gray-900">{e.amt}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Tab bar */}
+          <div style={{
+            display:'flex', justifyContent:'space-around', padding:'6px 0 8px',
+            background:'#fff', borderTop:'.5px solid #D5E6FF', marginTop:4,
+          }}>
+            {['🏠','📊','🔄','📋'].map((icon, i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+                <div style={{
+                  width:28, height:28, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center',
+                  background: [0,1,2].indexOf(active) === i ? '#EEF4FF' : 'transparent',
+                  fontSize:14,
+                }}>{icon}</div>
+                <div style={{ width:4, height:4, borderRadius:2, background: [0,1,2].indexOf(active)===i?'#1B6DD4':'transparent' }} />
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Floating badge */}
-      <div
-        className="absolute -right-4 top-20 rounded-2xl px-3 py-2 text-white text-xs font-bold"
-        style={{
-          background: 'linear-gradient(135deg,#155BB0,#1B6DD4)',
-          boxShadow: '0 8px 24px rgba(0,110,180,.4)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        +$8.900 ✓
+      {/* Screen label pills */}
+      <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:20 }}>
+        {screens.map((s, i) => (
+          <button key={i} onClick={() => setActive(i)} style={{
+            fontSize:10, fontWeight:700, padding:'4px 12px', borderRadius:100, border:'none', cursor:'pointer',
+            background: active===i ? '#1B6DD4' : 'rgba(255,255,255,.2)',
+            color: active===i ? '#fff' : 'rgba(255,255,255,.6)',
+            transition:'all .3s',
+          }}>{s}</button>
+        ))}
       </div>
     </div>
   )
 }
 
-/* ─── Main Page ─────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────
+   Main landing page
+───────────────────────────────────────────────────────── */
 export default function LandingPage() {
-  const observerRef = useRef<IntersectionObserver | null>(null)
+  const featuresRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible')
-          }
-        })
-      },
+    const io = new IntersectionObserver(
+      entries => entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('revealed')
+      }),
       { threshold: 0.12 }
     )
-
-    document.querySelectorAll('[data-reveal]').forEach((el) => {
-      observerRef.current?.observe(el)
-    })
-
-    return () => observerRef.current?.disconnect()
+    document.querySelectorAll('[data-reveal]').forEach(el => io.observe(el))
+    return () => io.disconnect()
   }, [])
 
   return (
     <>
       <style>{`
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family: var(--font-nunito, 'Nunito', system-ui, sans-serif); }
+        @keyframes fadeIn  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+        @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(50px)} to{opacity:1;transform:none} }
+        .hero-in   { animation: slideUp .8s cubic-bezier(.22,1,.36,1) both; }
+        .hero-in-2 { animation: slideUp .8s .15s cubic-bezier(.22,1,.36,1) both; }
+        .hero-in-3 { animation: slideUp .8s .3s  cubic-bezier(.22,1,.36,1) both; }
+        .hero-in-4 { animation: slideUp .8s .45s cubic-bezier(.22,1,.36,1) both; }
+        .float     { animation: float 4s ease-in-out infinite; }
+
         [data-reveal] {
-          opacity: 0;
-          transform: translateY(40px);
-          transition: opacity .75s ease, transform .75s ease;
+          opacity:0; transform:translateY(40px);
+          transition: opacity .7s ease, transform .7s ease;
         }
-        [data-reveal="left"] {
-          transform: translateX(-40px);
-        }
-        [data-reveal="right"] {
-          transform: translateX(40px);
-        }
-        [data-reveal="scale"] {
-          transform: scale(.92) translateY(20px);
-          transition: opacity .8s ease, transform .8s ease;
-        }
-        [data-reveal].is-visible {
-          opacity: 1;
-          transform: none;
-        }
-        [data-delay="1"] { transition-delay: .1s; }
-        [data-delay="2"] { transition-delay: .2s; }
-        [data-delay="3"] { transition-delay: .3s; }
-        [data-delay="4"] { transition-delay: .4s; }
+        [data-reveal].revealed { opacity:1; transform:none; }
+        [data-delay="1"] { transition-delay:.1s }
+        [data-delay="2"] { transition-delay:.2s }
+        [data-delay="3"] { transition-delay:.3s }
+        [data-delay="4"] { transition-delay:.4s }
 
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-12px); }
+        .btn-primary {
+          display:inline-flex; align-items:center; justify-content:center; gap:8px;
+          background:#fff; color:#1B6DD4; font-weight:800; font-size:16px;
+          padding:16px 36px; border-radius:100px; text-decoration:none;
+          box-shadow:0 12px 40px rgba(0,0,0,.22);
+          transition:transform .2s, box-shadow .2s;
+          font-family:inherit;
         }
-        @keyframes fadeDown {
-          from { opacity:0; transform:translateY(-24px); }
-          to   { opacity:1; transform:translateY(0); }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 18px 48px rgba(0,0,0,.28); }
+        .btn-ghost {
+          display:inline-flex; align-items:center; justify-content:center;
+          color:rgba(255,255,255,.7); font-weight:700; font-size:14px;
+          padding:12px 24px; border-radius:100px; text-decoration:none;
+          border:1px solid rgba(255,255,255,.25);
+          transition:all .2s; font-family:inherit;
         }
-        .doraemon-float {
-          animation: float 4s ease-in-out infinite;
-        }
-        .hero-animate {
-          animation: fadeDown .8s ease forwards;
-        }
-        .hero-animate-delay1 { animation: fadeDown .8s .15s ease both; }
-        .hero-animate-delay2 { animation: fadeDown .8s .3s ease both; }
-        .hero-animate-delay3 { animation: fadeDown .8s .45s ease both; }
+        .btn-ghost:hover { background:rgba(255,255,255,.1); color:#fff; }
+        .feature-card:hover { transform:translateY(-4px) scale(1.01); }
 
-        @keyframes shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position: 200% center; }
+        /* Desktop overrides */
+        @media(min-width:1024px) {
+          .hero-layout { flex-direction:row !important; text-align:left !important; padding:100px 80px !important; gap:80px !important; }
+          .hero-text { max-width:520px; }
+          .hero-ctas { justify-content:flex-start !important; }
+          .features-grid { grid-template-columns:repeat(3,1fr) !important; max-width:900px !important; }
+          .section-inner { max-width:900px; margin:0 auto; }
+          .how-grid { grid-template-columns:repeat(3,1fr) !important; }
         }
-        .badge-pill {
-          display: inline-block;
-          padding: 6px 14px;
-          border-radius: 100px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: .06em;
-          text-transform: uppercase;
-          color: #1B6DD4;
-          background: rgba(255,255,255,.2);
-          border: 1px solid rgba(255,255,255,.35);
-          backdrop-filter: blur(8px);
+        @media(max-width:1023px) {
+          .nav-links { display:none !important; }
         }
       `}</style>
 
-      <main className="overflow-x-hidden">
+      {/* ══════════ NAVBAR ══════════ */}
+      <nav style={{
+        position:'fixed', top:0, left:0, right:0, zIndex:100,
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        padding:'0 24px', height:60,
+        background:'rgba(10,31,68,.82)',
+        backdropFilter:'blur(20px) saturate(1.5)',
+        borderBottom:'1px solid rgba(255,255,255,.08)',
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:32, height:32, position:'relative', flexShrink:0 }}>
+            <Image src="/camapana.png" alt="logo" fill style={{ objectFit:'contain' }} />
+          </div>
+          <span style={{ fontWeight:900, fontSize:16, color:'#fff', letterSpacing:'-0.01em' }}>Bolsillo Mágico</span>
+        </div>
 
-        {/* ══════════════════════ HERO ══════════════════════ */}
-        <section
-          style={{
-            background: 'linear-gradient(160deg, #0A1F44 0%, #0F4489 45%, #1B6DD4 100%)',
-            minHeight: '100svh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '60px 24px 40px',
-            textAlign: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Decorative circles */}
-          <div style={{ position:'absolute', top:-80, right:-80, width:320, height:320, borderRadius:'50%', background:'rgba(255,255,255,.04)', pointerEvents:'none' }} />
-          <div style={{ position:'absolute', bottom:-60, left:-60, width:240, height:240, borderRadius:'50%', background:'rgba(255,255,255,.04)', pointerEvents:'none' }} />
+        <div className="nav-links" style={{ display:'flex', alignItems:'center', gap:32 }}>
+          {['Funciones','Cómo funciona'].map(l => (
+            <span key={l} style={{ color:'rgba(255,255,255,.65)', fontSize:14, fontWeight:600, cursor:'pointer' }}>{l}</span>
+          ))}
+        </div>
 
-          <div className="badge-pill hero-animate mb-6">bolsillo mágico</div>
+        <Link href="/login" style={{
+          background:'rgba(255,255,255,.12)', color:'#fff', fontWeight:700,
+          fontSize:13, padding:'8px 20px', borderRadius:100, textDecoration:'none',
+          border:'1px solid rgba(255,255,255,.2)',
+        }}>
+          Iniciar sesión
+        </Link>
+      </nav>
 
-          <h1
-            className="hero-animate-delay1"
-            style={{
-              fontSize: 'clamp(32px, 8vw, 52px)',
-              fontWeight: 900,
-              color: '#fff',
-              lineHeight: 1.1,
-              marginBottom: 18,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Controla tu plata.<br />
-            <span style={{ color: 'rgba(255,255,255,.65)' }}>Sin complicaciones.</span>
-          </h1>
+      <main style={{ overflow:'hidden' }}>
 
-          <p
-            className="hero-animate-delay2"
-            style={{
-              fontSize: 17,
-              color: 'rgba(255,255,255,.72)',
-              maxWidth: 340,
-              margin: '0 auto 36px',
-              lineHeight: 1.65,
-            }}
-          >
-            Registra tus gastos en 3 segundos. Visualiza a dónde va cada peso. Gratis, siempre.
-          </p>
+        {/* ══════════ HERO ══════════ */}
+        <section style={{
+          background:'linear-gradient(160deg,#060E20 0%,#0A1F44 40%,#0F4489 75%,#1B6DD4 100%)',
+          minHeight:'100svh',
+          display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+          padding:'90px 24px 60px',
+          textAlign:'center',
+          position:'relative',
+          overflow:'hidden',
+        }} className="hero-layout">
 
-          <div className="hero-animate-delay3" style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:56 }}>
-            <Link
-              href="/login"
-              style={{
-                display: 'inline-block',
-                background: '#fff',
-                color: '#1B6DD4',
-                fontWeight: 800,
-                fontSize: 15,
-                padding: '14px 32px',
-                borderRadius: 100,
-                textDecoration: 'none',
-                boxShadow: '0 8px 32px rgba(0,0,0,.2)',
-              }}
-            >
-              Empieza gratis →
-            </Link>
+          {/* Background orbs */}
+          <div style={{ position:'absolute', top:'10%', right:'-10%', width:500, height:500, borderRadius:'50%', background:'radial-gradient(circle,rgba(27,109,212,.25),transparent 70%)', pointerEvents:'none' }} />
+          <div style={{ position:'absolute', bottom:'-5%', left:'-10%', width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(10,64,140,.4),transparent 70%)', pointerEvents:'none' }} />
+
+          {/* Text side */}
+          <div className="hero-text">
+            <div className="hero-in" style={{
+              display:'inline-block', background:'rgba(255,255,255,.1)',
+              border:'1px solid rgba(255,255,255,.2)', borderRadius:100,
+              padding:'5px 16px', fontSize:11, fontWeight:800, color:'rgba(255,255,255,.85)',
+              letterSpacing:'.08em', textTransform:'uppercase', marginBottom:24,
+            }}>
+              💰 Control de gastos personales
+            </div>
+
+            <h1 className="hero-in-2" style={{
+              fontSize:'clamp(36px,8vw,58px)', fontWeight:900,
+              color:'#fff', lineHeight:1.08, letterSpacing:'-0.03em',
+              marginBottom:20,
+            }}>
+              Tu plata,<br />
+              <span style={{
+                background:'linear-gradient(90deg,#7DB9FF,#D4EAFF)',
+                WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+              }}>
+                bajo control.
+              </span>
+            </h1>
+
+            <p className="hero-in-3" style={{
+              fontSize:17, color:'rgba(255,255,255,.65)', lineHeight:1.7,
+              marginBottom:36, maxWidth:400, margin:'0 auto 36px',
+            }}>
+              Registra tus gastos en segundos. Analiza en qué va tu plata. Controla suscripciones y cuotas. Todo en un solo lugar.
+            </p>
+
+            <div className="hero-in-4 hero-ctas" style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', marginBottom:48 }}>
+              <Link href="/login" className="btn-primary">
+                Empezar gratis →
+              </Link>
+              <Link href="/login" className="btn-ghost">
+                Ya tengo cuenta
+              </Link>
+            </div>
+
+            {/* Trust badges */}
+            <div className="hero-in-4" style={{ display:'flex', gap:24, justifyContent:'center', flexWrap:'wrap' }}>
+              {['✓ Gratis para siempre', '✓ Sin tarjeta', '✓ Datos seguros'].map(t => (
+                <span key={t} style={{ fontSize:12, fontWeight:700, color:'rgba(255,255,255,.5)' }}>{t}</span>
+              ))}
+            </div>
           </div>
 
-          {/* Doraemon */}
-          <div className="doraemon-float hero-animate-delay3" style={{ marginTop: -8 }}>
-            <Doraemon style={{ width: 'clamp(200px, 50vw, 280px)', height: 'auto', filter: 'drop-shadow(0 16px 32px rgba(0,0,0,.25))' }} />
+          {/* Phone mockup */}
+          <div className="float hero-in-4" style={{ flexShrink:0, marginTop:48 }}>
+            <AppPreview />
           </div>
         </section>
 
-        {/* ══════════════════════ FEATURE 1: Registro rápido ══════════════════════ */}
-        <section
-          style={{
-            background: '#EEF4FF',
-            padding: '88px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: 48,
-          }}
-        >
-          <div data-reveal style={{ maxWidth: 380 }}>
-            <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
-              rápido como la magia
-            </p>
-            <h2 style={{ fontSize:'clamp(26px,6vw,38px)', fontWeight:900, color:'#0a2a38', lineHeight:1.15, marginBottom:16, letterSpacing:'-0.01em' }}>
-              Registra un gasto<br />en 3 segundos
-            </h2>
-            <p style={{ fontSize:16, color:'#4b6a7a', lineHeight:1.65 }}>
-              Sin formularios interminables. Escribe el monto, elige categoría y listo. Tu bolsillo siempre al día.
-            </p>
-          </div>
+        {/* ══════════ CÓMO FUNCIONA ══════════ */}
+        <section style={{ background:'#fff', padding:'96px 24px' }}>
+          <div className="section-inner">
+            <div data-reveal style={{ textAlign:'center', marginBottom:56 }}>
+              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
+                tan fácil como parece
+              </p>
+              <h2 style={{ fontSize:'clamp(28px,5vw,42px)', fontWeight:900, color:'#0a1f44', lineHeight:1.1, letterSpacing:'-0.02em' }}>
+                En 3 pasos y ya
+              </h2>
+            </div>
 
-          <div data-reveal="scale" data-delay="2">
-            <PhoneMockup />
-          </div>
-        </section>
-
-        {/* ══════════════════════ FEATURE 2: Presupuesto ══════════════════════ */}
-        <section
-          style={{
-            background: '#fff',
-            padding: '88px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: 48,
-          }}
-        >
-          <div data-reveal style={{ maxWidth: 380 }}>
-            <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
-              sin sorpresas
-            </p>
-            <h2 style={{ fontSize:'clamp(26px,6vw,38px)', fontWeight:900, color:'#0a2a38', lineHeight:1.15, marginBottom:16, letterSpacing:'-0.01em' }}>
-              Sabe cuánto<br />te queda del mes
-            </h2>
-            <p style={{ fontSize:16, color:'#4b6a7a', lineHeight:1.65 }}>
-              Presupuesto mensual, límites por categoría y proyección de gasto al fin de mes. Siempre un paso adelante.
-            </p>
-          </div>
-
-          {/* Budget visual */}
-          <div data-reveal="scale" data-delay="2" style={{ width:'100%', maxWidth:340 }}>
-            <div
-              style={{
-                background:'#0a2a38',
-                borderRadius:28,
-                padding:14,
-                boxShadow:'0 32px 80px rgba(0,0,0,.25)',
-                margin:'0 auto',
-              }}
-            >
-              <div style={{ background:'#EEF4FF', borderRadius:20, overflow:'hidden', padding:'20px 16px' }}>
-                {/* Header */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-                  <div>
-                    <p style={{ fontSize:10, color:'#6b8a9a', fontWeight:700 }}>Presupuesto junio</p>
-                    <p style={{ fontSize:22, fontWeight:900, color:'#0a2a38', letterSpacing:'-0.01em' }}>$600.000</p>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <p style={{ fontSize:10, color:'#6b8a9a', fontWeight:700 }}>Gastado</p>
-                    <p style={{ fontSize:22, fontWeight:900, color:'#1B6DD4' }}>81%</p>
-                  </div>
-                </div>
-
-                {/* Progress */}
-                <div style={{ height:8, background:'#D5E6FF', borderRadius:8, overflow:'hidden', marginBottom:6 }}>
-                  <div style={{ height:'100%', width:'81%', background:'linear-gradient(90deg,#155BB0,#1B6DD4)', borderRadius:8 }} />
-                </div>
-                <p style={{ fontSize:10, color:'#6b8a9a', fontWeight:700, marginBottom:20 }}>Quedan $113.680</p>
-
-                {/* Category limits */}
-                {[
-                  { name:'Comida', pct:91, color:'#E03C31', bg:'#E1F5EE', icon:'🍽️' },
-                  { name:'Transporte', pct:43, color:'#185FA5', bg:'#E6F1FB', icon:'🚗' },
-                  { name:'Ocio', pct:36, color:'#993556', bg:'#FBEAF0', icon:'🎮' },
-                ].map(c => (
-                  <div key={c.name} style={{ marginBottom:12 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ fontSize:12 }}>{c.icon}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color:'#0a2a38' }}>{c.name}</span>
-                      </div>
-                      <span style={{ fontSize:11, fontWeight:700, color: c.pct >= 80 ? '#E03C31' : '#6b8a9a' }}>{c.pct}%</span>
+            <div className="how-grid" style={{ display:'grid', gridTemplateColumns:'1fr', gap:24 }}>
+              {[
+                {
+                  n:'01', icon:'✉️',
+                  title:'Crea tu cuenta',
+                  desc:'Solo tu email. Sin tarjeta, sin trucos. En 30 segundos ya estás adentro.',
+                  color:'#1B6DD4', bg:'#EEF4FF',
+                },
+                {
+                  n:'02', icon:'⚡',
+                  title:'Registra un gasto',
+                  desc:'Monto, categoría, listo. Más rápido que sacar la billetera.',
+                  color:'#0D9488', bg:'#CCFBF1',
+                },
+                {
+                  n:'03', icon:'📊',
+                  title:'Entiende tu plata',
+                  desc:'Gráficos, análisis por categoría y comparación mensual automática.',
+                  color:'#7C3AED', bg:'#EDE9FE',
+                },
+              ].map((step, i) => (
+                <div
+                  key={i}
+                  data-reveal data-delay={String(i + 1)}
+                  className="feature-card"
+                  style={{
+                    background:'#F7FAFF', border:'1px solid #D5E6FF',
+                    borderRadius:24, padding:'28px 24px',
+                    transition:'transform .25s, box-shadow .25s',
+                  }}
+                >
+                  <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+                    <div style={{ width:48, height:48, borderRadius:16, background:step.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
+                      {step.icon}
                     </div>
-                    <div style={{ height:5, background:'#e8f5fc', borderRadius:4, overflow:'hidden' }}>
-                      <div style={{ height:'100%', width:`${c.pct}%`, background:c.pct>=80?'#E03C31':c.color, borderRadius:4 }} />
-                    </div>
+                    <span style={{ fontSize:13, fontWeight:900, color:step.color, letterSpacing:'.04em' }}>{step.n}</span>
                   </div>
-                ))}
-              </div>
+                  <h3 style={{ fontSize:18, fontWeight:900, color:'#0a1f44', marginBottom:8 }}>{step.title}</h3>
+                  <p style={{ fontSize:14, color:'#4b6a7a', lineHeight:1.65 }}>{step.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* ══════════════════════ FEATURE 3: Recurrentes ══════════════════════ */}
-        <section
-          style={{
-            background: '#EEF4FF',
-            padding: '88px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            gap: 48,
-          }}
-        >
-          <div data-reveal style={{ maxWidth: 380 }}>
-            <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
-              cero olvidos
-            </p>
-            <h2 style={{ fontSize:'clamp(26px,6vw,38px)', fontWeight:900, color:'#0a2a38', lineHeight:1.15, marginBottom:16, letterSpacing:'-0.01em' }}>
-              Nunca más una<br />suscripción olvidada
-            </h2>
-            <p style={{ fontSize:16, color:'#4b6a7a', lineHeight:1.65 }}>
-              Netflix, Spotify, arriendo, cuotas del auto. Todo en un lugar, con recordatorios automáticos.
-            </p>
-          </div>
+        {/* ══════════ FEATURES ══════════ */}
+        <section style={{ background:'#EEF4FF', padding:'96px 24px' }}>
+          <div className="section-inner">
+            <div data-reveal style={{ textAlign:'center', marginBottom:56 }}>
+              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
+                todo lo que necesitas
+              </p>
+              <h2 style={{ fontSize:'clamp(28px,5vw,42px)', fontWeight:900, color:'#0a1f44', lineHeight:1.1, letterSpacing:'-0.02em' }}>
+                Diseñado para<br />la vida real
+              </h2>
+            </div>
 
-          {/* Recurring list visual */}
-          <div data-reveal="scale" data-delay="2" style={{ width:'100%', maxWidth:340 }}>
-            <div style={{ background:'#fff', borderRadius:24, padding:20, boxShadow:'0 16px 48px rgba(0,110,180,.1)', border:'.5px solid #D5E6FF' }}>
-              <p style={{ fontSize:12, fontWeight:700, color:'#6b8a9a', marginBottom:16 }}>Compromisos del mes · $342.990</p>
+            <div className="features-grid" style={{ display:'grid', gridTemplateColumns:'1fr', gap:16, maxWidth:480, margin:'0 auto' }}>
               {[
-                { name:'Netflix', next:'15', amount:'$9.990', done:true,  icon:'🎬', color:'#E03C31', bg:'#FCEBEB' },
-                { name:'Spotify', next:'22', amount:'$5.990', done:false, icon:'🎵', color:'#0F6E56', bg:'#E1F5EE' },
-                { name:'Arriendo', next:'1',  amount:'$280.000', done:true,  icon:'🏠', color:'#854F0B', bg:'#FAEEDA' },
-                { name:'Crédito', next:'28', amount:'$47.010', done:false, icon:'💳', color:'#185FA5', bg:'#E6F1FB' },
-              ].map(r => (
+                { icon:'⚡', title:'Registro instantáneo',  desc:'Agrega cualquier gasto en segundos. Sin complicaciones.',     bg:'#DBEAFE', delay:'1' },
+                { icon:'📊', title:'Análisis visual',        desc:'Entiende tus hábitos con gráficos claros por categoría.',      bg:'#D1FAE5', delay:'2' },
+                { icon:'🔄', title:'Gastos recurrentes',     desc:'Suscripciones y cuotas con registro automático.',              bg:'#FEF3C7', delay:'3' },
+                { icon:'🎯', title:'Presupuesto mensual',    desc:'Define límites y recibe alertas cuando te acercas al tope.',   bg:'#FCE7F3', delay:'4' },
+                { icon:'💳', title:'Múltiples métodos',      desc:'Débito, crédito, efectivo y digital. Todo separado.',          bg:'#E0E7FF', delay:'1' },
+                { icon:'📤', title:'Exporta tus datos',      desc:'Descarga tus gastos en CSV cuando quieras. Tus datos, tuyos.', bg:'#D1FAE5', delay:'2' },
+              ].map(f => (
                 <div
-                  key={r.name}
+                  key={f.title}
+                  data-reveal data-delay={f.delay}
+                  className="feature-card"
                   style={{
-                    display:'flex', alignItems:'center', gap:12,
-                    padding:'10px 0',
-                    borderBottom:'.5px solid #F0F6FF',
+                    background:'#fff', border:'1px solid #D5E6FF', borderRadius:20,
+                    padding:'20px', display:'flex', alignItems:'flex-start', gap:14,
+                    transition:'transform .25s, box-shadow .25s',
                   }}
                 >
-                  <div style={{ width:38, height:38, borderRadius:12, background:r.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                    {r.icon}
+                  <div style={{ width:44, height:44, borderRadius:14, background:f.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
+                    {f.icon}
                   </div>
-                  <div style={{ flex:1, textAlign:'left' }}>
-                    <p style={{ fontSize:13, fontWeight:800, color:'#0a2a38' }}>{r.name}</p>
-                    <p style={{ fontSize:11, color:'#6b8a9a', fontWeight:600 }}>Día {r.next} del mes</p>
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    <p style={{ fontSize:13, fontWeight:900, color:'#0a2a38' }}>{r.amount}</p>
-                    <span style={{
-                      fontSize:10, fontWeight:700, borderRadius:100, padding:'2px 8px',
-                      background: r.done ? '#E1F5EE' : '#FEF3C7',
-                      color: r.done ? '#0F6E56' : '#92400E',
-                    }}>
-                      {r.done ? '✓ Pagado' : 'Pendiente'}
-                    </span>
+                  <div>
+                    <p style={{ fontSize:15, fontWeight:800, color:'#0a1f44', marginBottom:4 }}>{f.title}</p>
+                    <p style={{ fontSize:13, color:'#4b6a7a', lineHeight:1.55 }}>{f.desc}</p>
                   </div>
                 </div>
               ))}
@@ -498,89 +493,56 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ══════════════════════ FEATURES GRID ══════════════════════ */}
-        <section style={{ background:'#fff', padding:'88px 24px' }}>
-          <div data-reveal style={{ textAlign:'center', marginBottom:48 }}>
-            <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
-              todo en uno
-            </p>
-            <h2 style={{ fontSize:'clamp(26px,6vw,38px)', fontWeight:900, color:'#0a2a38', lineHeight:1.15, letterSpacing:'-0.01em' }}>
-              Diseñado para<br />la vida real
-            </h2>
-          </div>
+        {/* ══════════ CTA FINAL ══════════ */}
+        <section style={{
+          background:'linear-gradient(160deg,#060E20,#0A1F44 40%,#1B6DD4)',
+          padding:'100px 24px',
+          textAlign:'center',
+          position:'relative',
+          overflow:'hidden',
+        }}>
+          <div style={{ position:'absolute', top:'-20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(27,109,212,.3),transparent 65%)', pointerEvents:'none' }} />
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, maxWidth:420, margin:'0 auto' }}>
-            {[
-              { icon:'⚡', title:'Registro rápido', desc:'3 segundos y ya está anotado. Sin formularios largos.', bg:'#EEF4FF', delay:1 },
-              { icon:'📊', title:'Análisis visual', desc:'Gráficos por categoría. Entiende tu plata de un vistazo.', bg:'#E1F5EE', delay:2 },
-              { icon:'🔄', title:'Recurrentes', desc:'Cuotas y suscripciones con registro automático.', bg:'#FAEEDA', delay:3 },
-              { icon:'🎯', title:'Presupuesto', desc:'Límites por categoría y alertas cuando te pasas.', bg:'#FCEBEB', delay:4 },
-            ].map(f => (
-              <div
-                key={f.title}
-                data-reveal="scale"
-                data-delay={String(f.delay)}
-                style={{
-                  background:'#F5F8FF',
-                  border:'.5px solid #D5E6FF',
-                  borderRadius:20,
-                  padding:'20px 16px',
-                }}
-              >
-                <div style={{ width:44, height:44, borderRadius:14, background:f.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, marginBottom:12 }}>
-                  {f.icon}
-                </div>
-                <p style={{ fontSize:13, fontWeight:800, color:'#0a2a38', marginBottom:4 }}>{f.title}</p>
-                <p style={{ fontSize:12, color:'#4b6a7a', lineHeight:1.5 }}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ══════════════════════ CTA FINAL ══════════════════════ */}
-        <section
-          style={{
-            background: 'linear-gradient(160deg, #0A1F44, #1B6DD4)',
-            padding: '100px 24px',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <div data-reveal style={{ marginBottom:40 }}>
-            <Doraemon style={{ width:120, height:'auto', opacity:.9, marginBottom:24, filter:'drop-shadow(0 8px 20px rgba(0,0,0,.3))' }} />
-            <h2 style={{ fontSize:'clamp(28px,7vw,44px)', fontWeight:900, color:'#fff', lineHeight:1.1, marginBottom:16, letterSpacing:'-0.02em' }}>
-              Tu plata,<br />bajo control.
+          <div data-reveal style={{ position:'relative' }}>
+            <div style={{ fontSize:56, marginBottom:20 }}>🔔</div>
+            <h2 style={{
+              fontSize:'clamp(32px,7vw,52px)', fontWeight:900, color:'#fff',
+              lineHeight:1.08, letterSpacing:'-0.03em', marginBottom:16,
+            }}>
+              Empieza hoy.<br />
+              <span style={{ color:'rgba(255,255,255,.5)' }}>Es gratis.</span>
             </h2>
-            <p style={{ fontSize:16, color:'rgba(255,255,255,.7)', marginBottom:36, lineHeight:1.6 }}>
-              Gratis, sin tarjeta. Solo tu email y listo.
+            <p style={{ fontSize:16, color:'rgba(255,255,255,.6)', marginBottom:40, lineHeight:1.7 }}>
+              Sin tarjeta. Sin compromisos.<br />Solo tú y tu plata, finalmente bajo control.
             </p>
-            <Link
-              href="/login"
-              style={{
-                display: 'inline-block',
-                background: '#fff',
-                color: '#1B6DD4',
-                fontWeight: 800,
-                fontSize: 16,
-                padding: '16px 40px',
-                borderRadius: 100,
-                textDecoration: 'none',
-                boxShadow: '0 12px 40px rgba(0,0,0,.25)',
-              }}
-            >
-              Crear cuenta gratis →
-            </Link>
-            <br />
-            <Link
-              href="/login"
-              style={{ display:'inline-block', marginTop:16, fontSize:13, color:'rgba(255,255,255,.55)', fontWeight:600, textDecoration:'none' }}
-            >
+
+            <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap', marginBottom:20 }}>
+              <Link href="/login" className="btn-primary" style={{ fontSize:17, padding:'18px 44px' }}>
+                Crear cuenta gratis →
+              </Link>
+            </div>
+            <Link href="/login" style={{ fontSize:13, color:'rgba(255,255,255,.45)', fontWeight:600, textDecoration:'none' }}>
               ¿Ya tienes cuenta? Inicia sesión
             </Link>
           </div>
         </section>
+
+        {/* ══════════ FOOTER ══════════ */}
+        <footer style={{
+          background:'#04080F', padding:'28px 24px',
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          flexWrap:'wrap', gap:12,
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:24, height:24, position:'relative' }}>
+              <Image src="/camapana.png" alt="logo" fill style={{ objectFit:'contain' }} />
+            </div>
+            <span style={{ fontWeight:800, fontSize:13, color:'rgba(255,255,255,.5)' }}>Bolsillo Mágico</span>
+          </div>
+          <p style={{ fontSize:12, color:'rgba(255,255,255,.25)', fontWeight:600 }}>
+            © {new Date().getFullYear()} · Hecho con ❤️
+          </p>
+        </footer>
 
       </main>
     </>
