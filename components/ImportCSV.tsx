@@ -55,18 +55,16 @@ export default function ImportCSV() {
       {/* Botón disparador */}
       <button
         onClick={() => { setOpen(true); reset() }}
-        className="flex items-center justify-between w-full px-4 py-3.5 hover:bg-brand-50 transition-colors"
+        className="flex items-center gap-4 w-full px-4 py-4 hover:bg-gray-50/70 transition-colors group text-left"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
-            <Upload className="w-4 h-4 text-brand-600" />
-          </div>
-          <div className="text-left">
-            <p className="text-sm font-medium text-gray-900">Importar desde CSV</p>
-            <p className="text-xs text-gray-400">Carga tus gastos desde Excel u otra app</p>
-          </div>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+          <Upload className="w-5 h-5" style={{ color: '#1B6DD4' }} />
         </div>
-        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">Importar desde CSV</p>
+          <p className="text-xs text-gray-400 mt-0.5">Carga tus gastos desde Excel u otra app</p>
+        </div>
+        <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
       </button>
