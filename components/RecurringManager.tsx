@@ -424,21 +424,31 @@ export default function RecurringManager({ items: init, categories, paymentMetho
         <label className="text-xs font-semibold text-gray-500 block mb-2">
           Método de pago <span className="text-red-400">*</span>
         </label>
-        <div className="flex flex-wrap gap-2">
-          {paymentMethods.map(p => (
-            <button key={p.id}
-              onClick={() => set('payment_method_id', form.payment_method_id === p.id ? '' : p.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-full text-xs border transition-all',
-                form.payment_method_id === p.id
-                  ? 'border-brand-600 bg-brand-50 text-brand-800 font-semibold'
-                  : 'border-gray-200 bg-gray-50 text-gray-600'
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
+        {paymentMethods.length === 0 ? (
+          <a
+            href="/ajustes"
+            className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-dashed border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors"
+          >
+            <CreditCard className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs font-semibold">Agrega un método de pago en Ajustes →</span>
+          </a>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {paymentMethods.map(p => (
+              <button key={p.id}
+                onClick={() => set('payment_method_id', form.payment_method_id === p.id ? '' : p.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs border transition-all',
+                  form.payment_method_id === p.id
+                    ? 'border-brand-600 bg-brand-50 text-brand-800 font-semibold'
+                    : 'border-gray-200 bg-gray-50 text-gray-600'
+                )}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Auto-registrar (solo cuando no es cuotas) */}
