@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, X, CalendarDays } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { formatCLP, monthName } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
 
@@ -24,16 +24,12 @@ interface Props {
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
-/** Día del mes en que cae un recurrente, clampado al último día del mes */
 function effectiveDay(billingDay: number, year: number, month: number): number {
-  const lastDay = new Date(year, month, 0).getDate()
-  return Math.min(billingDay, lastDay)
+  return Math.min(billingDay, new Date(year, month, 0).getDate())
 }
 
-/** Offset de columna para el primer día del mes (Lunes = 0) */
 function startOffset(year: number, month: number): number {
-  const dow = new Date(year, month - 1, 1).getDay() // 0=Dom
-  return (dow + 6) % 7 // Lunes=0 … Dom=6
+  return (new Date(year, month - 1, 1).getDay() + 6) % 7
 }
 
 export default function CalendarioPagos({ items }: Props) {
@@ -42,12 +38,12 @@ export default function CalendarioPagos({ items }: Props) {
   const [year,  setYear]  = useState(now.getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
-  const activeItems = items.filter(r => r.is_active)
-  const daysInMonth = new Date(year, month, 0).getDate()
-  const offset      = startOffset(year, month)
-  const today       = now.getMonth() + 1 === month && now.getFullYear() === year ? now.getDate() : null
+  const activeItems  = items.filter(r => r.is_active)
+  const daysInMonth  = new Date(year, month, 0).getDate()
+  const offset       = startOffset(year, month)
+  const today        = now.getMonth() + 1 === month && now.getFullYear() === year ? now.getDate() : null
+  const monthTotal   = activeItems.reduce((s, r) => s + r.amount, 0)
 
-  // Agrupar recurrentes por día efectivo
   const byDay: Record<number, RecurringWithRelations[]> = {}
   for (const item of activeItems) {
     const d = effectiveDay(item.billing_day, year, month)
@@ -56,8 +52,7 @@ export default function CalendarioPagos({ items }: Props) {
   }
 
   function navigate(delta: number) {
-    let m = month + delta
-    let y = year
+    let m = month + delta, y = year
     if (m < 1)  { m = 12; y-- }
     if (m > 12) { m = 1;  y++ }
     setMonth(m); setYear(y); setSelectedDay(null)
@@ -66,66 +61,17 @@ export default function CalendarioPagos({ items }: Props) {
   const selectedItems = selectedDay ? (byDay[selectedDay] ?? []) : []
   const selectedTotal = selectedItems.reduce((s, r) => s + r.amount, 0)
 
-  // Total mensual del mes mostrado
-  const monthTotal = activeItems.reduce((s, r) => s + r.amount, 0)
-
-  // ── Shared detail panel content ─────────────────────────────────────────────
-  const DetailPanel = ({ closeable = false }: { closeable?: boolean }) => (
-    selectedDay && selectedItems.length > 0 ? (
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-brand-50/60">
-          <div>
-            <p className="text-xs font-bold text-brand-700 capitalize">
-              {new Date(year, month - 1, selectedDay).toLocaleDateString('es-CL', {
-                weekday: 'long', day: 'numeric', month: 'long'
-              })}
-            </p>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">
-              {selectedItems.length} pago{selectedItems.length !== 1 ? 's' : ''} · {formatCLP(selectedTotal)}
-            </p>
-          </div>
-          {closeable && (
-            <button
-              onClick={() => setSelectedDay(null)}
-              className="p-1.5 rounded-lg hover:bg-brand-100 transition-colors text-gray-400"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        <div className="divide-y divide-gray-50">
-          {selectedItems.map(item => (
-            <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
-              <ServiceLogo domain={item.domain} name={item.name} size={36} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
-                <p className="text-xs text-gray-400">
-                  {item.category?.name ?? '–'}
-                  {item.payment_method ? ` · ${item.payment_method.name}` : ''}
-                  {item.total_installments
-                    ? ` · cuota ${item.paid_installments + 1}/${item.total_installments}`
-                    : ''}
-                </p>
-              </div>
-              <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
-                {formatCLP(item.amount)}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    ) : null
-  )
+  const totalCells = offset + daysInMonth
+  const trailing   = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7)
 
   return (
-    // Desktop: calendario a la izquierda, panel de detalle fijo a la derecha
-    <div className="lg:grid lg:gap-5 lg:items-start" style={{ gridTemplateColumns: '1fr 220px' }}>
+    <div className="space-y-3">
 
-      {/* ── Columna izquierda: nav + grid ──────────────────────────────── */}
-      <div className="space-y-3">
+      {/* ── Card principal del calendario ───────────────────────────────── */}
+      <div className="card overflow-hidden">
 
-        {/* Nav de mes + total */}
-        <div className="flex items-center justify-between">
+        {/* Nav de mes */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <button
             onClick={() => navigate(-1)}
             className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors"
@@ -134,9 +80,8 @@ export default function CalendarioPagos({ items }: Props) {
           </button>
           <div className="text-center">
             <p className="text-sm font-bold text-brand-900 capitalize">
-              {monthName(month)} {year !== now.getFullYear() ? year : ''}
+              {monthName(month)} {year}
             </p>
-            <p className="text-xs text-gray-400 font-medium">{formatCLP(monthTotal)} / mes</p>
           </div>
           <button
             onClick={() => navigate(1)}
@@ -146,130 +91,157 @@ export default function CalendarioPagos({ items }: Props) {
           </button>
         </div>
 
-        {/* Grid del calendario */}
-        <div className="card overflow-hidden">
+        {/* Cabecera días de semana */}
+        <div className="grid grid-cols-7 border-b border-gray-100">
+          {WEEKDAYS.map(d => (
+            <div key={d} className="py-2 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wide">
+              {d}
+            </div>
+          ))}
+        </div>
 
-          {/* Cabecera días de semana */}
-          <div className="grid grid-cols-7 border-b border-gray-100">
-            {WEEKDAYS.map(d => (
-              <div key={d} className="py-2 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wide">
-                {d}
+        {/* Celdas de días */}
+        <div className="grid grid-cols-7">
+          {Array.from({ length: offset }).map((_, i) => (
+            <div key={`e-${i}`} className="min-h-[68px] border-b border-r border-gray-50" />
+          ))}
+
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+            const dayItems   = byDay[day] ?? []
+            const isToday    = day === today
+            const isSelected = day === selectedDay
+            const hasItems   = dayItems.length > 0
+            const dayTotal   = dayItems.reduce((s, r) => s + r.amount, 0)
+            const col        = (offset + day - 1) % 7
+            const isLastCol  = col === 6
+
+            return (
+              <button
+                key={day}
+                onClick={() => hasItems && setSelectedDay(isSelected ? null : day)}
+                disabled={!hasItems}
+                className={[
+                  'min-h-[68px] p-1.5 flex flex-col items-center gap-0.5 border-b transition-colors w-full',
+                  isLastCol ? '' : 'border-r border-gray-50',
+                  'border-gray-50',
+                  isSelected
+                    ? 'bg-brand-50'
+                    : hasItems
+                      ? 'hover:bg-gray-50/80 cursor-pointer'
+                      : 'cursor-default',
+                ].join(' ')}
+              >
+                <span className={[
+                  'w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold leading-none flex-shrink-0',
+                  isToday    ? 'bg-brand-600 text-white' : 'text-gray-700',
+                  isSelected && !isToday ? 'text-brand-700' : '',
+                ].join(' ')}>
+                  {day}
+                </span>
+
+                {hasItems && (
+                  <div className="flex flex-wrap gap-0.5 justify-center">
+                    {dayItems.slice(0, 2).map(item => (
+                      <ServiceLogo key={item.id} domain={item.domain} name={item.name} size={20} className="rounded-md" />
+                    ))}
+                    {dayItems.length > 2 && (
+                      <span className="w-5 h-5 rounded-md bg-gray-100 text-[9px] font-bold text-gray-500 flex items-center justify-center">
+                        +{dayItems.length - 2}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {hasItems && (
+                  <span className="text-[9px] font-semibold text-gray-400 tabular-nums leading-none">
+                    {dayTotal >= 1_000_000
+                      ? `$${(dayTotal / 1_000_000).toFixed(1)}M`
+                      : dayTotal >= 1_000
+                        ? `$${Math.round(dayTotal / 1_000)}k`
+                        : `$${dayTotal}`}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+
+          {Array.from({ length: trailing }).map((_, i) => (
+            <div key={`t-${i}`} className="min-h-[68px] border-b border-gray-50" />
+          ))}
+        </div>
+
+        {/* Leyenda */}
+        <div className="flex items-center gap-5 px-4 py-2.5 border-t border-gray-100">
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#1B6DD4' }} />
+            <span className="text-xs text-gray-400">Hoy</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
+            <span className="text-xs text-gray-400">Día con cargo</span>
+          </div>
+        </div>
+
+        {/* Total programado */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/60">
+          <span className="text-xs font-semibold text-gray-500 capitalize">
+            Total programado en {monthName(month)}
+          </span>
+          <span className="text-sm font-bold tabular-nums" style={{ color: '#1B6DD4' }}>
+            {formatCLP(monthTotal)}
+          </span>
+        </div>
+      </div>
+
+      {/* Panel de detalle del día seleccionado */}
+      {selectedDay && selectedItems.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-brand-50/60">
+            <div>
+              <p className="text-xs font-bold text-brand-700 capitalize">
+                {new Date(year, month - 1, selectedDay).toLocaleDateString('es-CL', {
+                  weekday: 'long', day: 'numeric', month: 'long'
+                })}
+              </p>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                {selectedItems.length} pago{selectedItems.length !== 1 ? 's' : ''} · {formatCLP(selectedTotal)}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedDay(null)}
+              className="p-1.5 rounded-lg hover:bg-brand-100 transition-colors text-gray-400"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {selectedItems.map(item => (
+              <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
+                <ServiceLogo domain={item.domain} name={item.name} size={36} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                  <p className="text-xs text-gray-400">
+                    {item.category?.name ?? '–'}
+                    {item.payment_method ? ` · ${item.payment_method.name}` : ''}
+                    {item.total_installments
+                      ? ` · cuota ${item.paid_installments + 1}/${item.total_installments}`
+                      : ''}
+                  </p>
+                </div>
+                <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
+                  {formatCLP(item.amount)}
+                </p>
               </div>
             ))}
           </div>
-
-          {/* Celdas de días */}
-          <div className="grid grid-cols-7">
-            {/* Celdas vacías de offset */}
-            {Array.from({ length: offset }).map((_, i) => (
-              <div key={`empty-${i}`} className="min-h-[70px] border-b border-r border-gray-50" />
-            ))}
-
-            {/* Días del mes */}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-              const dayItems   = byDay[day] ?? []
-              const isToday    = day === today
-              const isSelected = day === selectedDay
-              const hasItems   = dayItems.length > 0
-              const dayTotal   = dayItems.reduce((s, r) => s + r.amount, 0)
-              const col        = (offset + day - 1) % 7
-              const isLastCol  = col === 6
-
-              return (
-                <button
-                  key={day}
-                  onClick={() => hasItems && setSelectedDay(isSelected ? null : day)}
-                  disabled={!hasItems}
-                  className={[
-                    'min-h-[70px] p-1.5 flex flex-col items-center gap-0.5 border-b transition-colors w-full',
-                    isLastCol ? 'border-r-0' : 'border-r border-gray-50',
-                    'border-gray-50',
-                    isSelected ? 'bg-brand-50' : hasItems ? 'hover:bg-gray-50/80 active:bg-gray-100 cursor-pointer' : 'cursor-default',
-                  ].join(' ')}
-                >
-                  {/* Número del día */}
-                  <span className={[
-                    'w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold leading-none flex-shrink-0',
-                    isToday    ? 'bg-brand-600 text-white' : 'text-gray-700',
-                    isSelected && !isToday ? 'text-brand-700' : '',
-                  ].join(' ')}>
-                    {day}
-                  </span>
-
-                  {/* Logos de servicios (máx 2 en desktop, 3 en mobile + badge excedente) */}
-                  {hasItems && (
-                    <div className="flex flex-wrap gap-0.5 justify-center">
-                      {dayItems.slice(0, 2).map(item => (
-                        <ServiceLogo
-                          key={item.id}
-                          domain={item.domain}
-                          name={item.name}
-                          size={20}
-                          className="rounded-md"
-                        />
-                      ))}
-                      {dayItems.length > 2 && (
-                        <span className="w-[20px] h-[20px] rounded-md bg-gray-200 text-[9px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0">
-                          +{dayItems.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Total del día */}
-                  {hasItems && (
-                    <span className="text-[9px] font-semibold text-gray-500 tabular-nums leading-none">
-                      {dayTotal >= 1000000
-                        ? `$${(dayTotal / 1000000).toFixed(1)}M`
-                        : dayTotal >= 1000
-                          ? `$${Math.round(dayTotal / 1000)}k`
-                          : `$${dayTotal}`
-                      }
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-
-            {/* Celdas de relleno al final */}
-            {(() => {
-              const totalCells = offset + daysInMonth
-              const remainder  = totalCells % 7
-              const trailing   = remainder === 0 ? 0 : 7 - remainder
-              return Array.from({ length: trailing }).map((_, i) => (
-                <div key={`trail-${i}`} className="min-h-[70px] border-b border-gray-50" />
-              ))
-            })()}
-          </div>
         </div>
+      )}
 
-        {/* Mobile: panel de detalle debajo del calendario */}
-        <div className="lg:hidden">
-          <DetailPanel closeable />
+      {activeItems.length === 0 && (
+        <div className="card text-center py-12 text-sm text-gray-400 font-medium">
+          No tienes gastos recurrentes activos
         </div>
-
-        {/* Estado vacío */}
-        {activeItems.length === 0 && (
-          <div className="card text-center py-12 text-sm text-gray-400 font-medium">
-            No tienes gastos recurrentes activos
-          </div>
-        )}
-      </div>
-
-      {/* ── Columna derecha: panel de detalle (solo desktop) ───────────── */}
-      <div className="hidden lg:block sticky top-6 space-y-3">
-        {selectedDay && selectedItems.length > 0 ? (
-          <DetailPanel />
-        ) : (
-          <div className="card p-5 flex flex-col items-center justify-center text-center gap-2 min-h-[120px]">
-            <CalendarDays className="w-7 h-7 text-gray-200" />
-            <p className="text-xs text-gray-400 font-medium leading-snug">
-              Selecciona un día con pagos para ver el detalle
-            </p>
-          </div>
-        )}
-      </div>
-
+      )}
     </div>
   )
 }

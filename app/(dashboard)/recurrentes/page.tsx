@@ -4,9 +4,24 @@ import { formatCLP } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import Link from 'next/link'
+import { CircleDollarSign, CalendarClock } from 'lucide-react'
 import type { RecurringExpense } from '@/types'
 
 export const dynamic = 'force-dynamic'
+
+/** Próxima fecha en que cae el día de cobro, desde hoy */
+function nextBillingDate(billingDay: number, from: Date): Date {
+  const d = from.getDate()
+  const m = from.getMonth() + 1
+  const y = from.getFullYear()
+  const lastThisMonth = new Date(y, m, 0).getDate()
+  const thisMonthDay  = Math.min(billingDay, lastThisMonth)
+  if (thisMonthDay >= d) return new Date(y, m - 1, thisMonthDay)
+  const nextM    = m === 12 ? 1 : m + 1
+  const nextY    = m === 12 ? y + 1 : y
+  const lastNext = new Date(nextY, nextM, 0).getDate()
+  return new Date(nextY, nextM - 1, Math.min(billingDay, lastNext))
+}
 
 export default async function RecurrentesPage({
   searchParams,
@@ -34,7 +49,6 @@ export default async function RecurrentesPage({
       .not('recurring_expense_id', 'is', null),
   ])
 
-  // Contar cuotas pagadas desde expenses (más confiable que paid_installments)
   const paidMap = (allExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
     if (e.recurring_expense_id) acc[e.recurring_expense_id] = (acc[e.recurring_expense_id] ?? 0) + 1
     return acc
@@ -45,21 +59,33 @@ export default async function RecurrentesPage({
     paid_installments: r.total_installments ? (paidMap[r.id] ?? 0) : r.paid_installments,
   }))
 
-  const totalMonthly = recurringWithCounts
-    .filter(r => r.is_active)
-    .reduce((s, r) => s + r.amount, 0)
+  const activeItems  = recurringWithCounts.filter(r => r.is_active)
+  const totalMonthly = activeItems.reduce((s, r) => s + r.amount, 0)
+  const activeCount  = activeItems.length
 
-  const activeCount = (recurring ?? []).filter((r: RecurringExpense) => r.is_active).length
+  // Próximo cargo más cercano a hoy
+  const now = new Date()
+  const nextPayment = activeItems.length > 0
+    ? activeItems
+        .map(r => ({ ...r, nextDate: nextBillingDate(r.billing_day, now) }))
+        .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())[0]
+    : null
+
+  const nextDateLabel = nextPayment
+    ? nextPayment.nextDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+    : null
 
   return (
-    <div className="px-4 lg:px-6 pt-6 lg:pt-8 pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-brand-900">Recurrentes</h1>
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold text-brand-900">Recurrentes</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Visualiza tus gastos recurrentes y tu carga mensual.</p>
       </div>
 
-      {/* Toggle Lista / Calendario — solo visible en mobile */}
-      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-4 lg:hidden">
+      {/* Toggle Lista / Calendario — solo mobile */}
+      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-5 lg:hidden">
         <Link
           href="/recurrentes"
           className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -78,32 +104,61 @@ export default async function RecurrentesPage({
         </Link>
       </div>
 
-      {/* Desktop: lista fija izquierda, calendario acotado a la derecha. Mobile: una a la vez */}
-      <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '300px minmax(0, 800px)' }}>
+      {/* ── Grid dos columnas ─────────────────────────────────────────────── */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-5 lg:space-y-0">
 
-        {/* ── Panel Lista ─────────────────────────────────────────────── */}
-        <div className={isCalendar ? 'hidden lg:block' : 'block'}>
-          {(recurring ?? []).length > 0 && (
-            <div className="card p-4 mb-5">
-              <p className="text-sm font-bold text-gray-600 mb-1">Compromiso mensual</p>
-              <p className="text-2xl font-extrabold text-brand-900">
-                {formatCLP(totalMonthly)}
-              </p>
-              <p className="text-xs text-brand-400 mt-0.5">
+        {/* ── Columna izquierda ──────────────────────────────────────────── */}
+        <div className={`space-y-4 ${isCalendar ? 'hidden lg:block' : 'block'}`}>
+
+          {/* Carga mensual */}
+          <div className="card p-5 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#EEF4FF' }}>
+              <CircleDollarSign className="w-7 h-7" style={{ color: '#1B6DD4' }} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-500">Carga mensual</p>
+              <p className="text-2xl font-extrabold text-brand-900 tabular-nums">{formatCLP(totalMonthly)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
                 {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
               </p>
             </div>
-          )}
-          <RecurringManager
-            items={recurringWithCounts}
-            categories={categories ?? []}
-            paymentMethods={paymentMethods ?? []}
-            userId={user.id}
-          />
+          </div>
+
+          {/* Lista */}
+          <div>
+            <p className="text-sm font-bold text-gray-700 mb-3 px-0.5">Tus recurrentes</p>
+            <RecurringManager
+              items={recurringWithCounts}
+              categories={categories ?? []}
+              paymentMethods={paymentMethods ?? []}
+              userId={user.id}
+            />
+          </div>
         </div>
 
-        {/* ── Panel Calendario ─────────────────────────────────────────── */}
-        <div className={!isCalendar ? 'hidden lg:block' : 'block'}>
+        {/* ── Columna derecha ────────────────────────────────────────────── */}
+        <div className={`space-y-4 ${!isCalendar ? 'hidden lg:block' : 'block'}`}>
+
+          {/* Próximo cargo */}
+          {nextPayment && (
+            <div className="card p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#F0FDF4' }}>
+                <CalendarClock className="w-5 h-5" style={{ color: '#16A34A' }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-400 mb-0.5">Próximo cargo</p>
+                <p className="text-sm font-semibold text-gray-800 truncate">
+                  {nextDateLabel}
+                  <span className="text-gray-400 font-normal"> · </span>
+                  {nextPayment.name}
+                  <span className="text-gray-400 font-normal"> · </span>
+                  <span className="tabular-nums">{formatCLP(nextPayment.amount)}</span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Calendario */}
           <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
         </div>
 

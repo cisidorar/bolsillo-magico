@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Pencil, Check, X, RefreshCw, Pause, Play, CreditCard } from 'lucide-react'
+import { Plus, Trash2, Pencil, Check, X, RefreshCw, Pause, Play, CreditCard, MoreVertical } from 'lucide-react'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -44,21 +44,46 @@ const DEFAULT: Form = {
   cuotas: false, totalAmount: '', numCuotas: '',
 }
 
+/** Próxima fecha de cobro desde hoy */
+function nextBillingDate(billingDay: number): Date {
+  const now  = new Date()
+  const d    = now.getDate()
+  const m    = now.getMonth() + 1
+  const y    = now.getFullYear()
+  const last = new Date(y, m, 0).getDate()
+  const day  = Math.min(billingDay, last)
+  if (day >= d) return new Date(y, m - 1, day)
+  const nm   = m === 12 ? 1  : m + 1
+  const ny   = m === 12 ? y + 1 : y
+  return new Date(ny, nm - 1, Math.min(billingDay, new Date(ny, nm, 0).getDate()))
+}
+
 export default function RecurringManager({ items: init, categories, paymentMethods, userId }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [items, setItems]                     = useState<RecurringExpense[]>(init)
-
-  // Sincronizar cuando el server refresca (ej: después de registrar una cuota)
+  const [items, setItems]             = useState<RecurringExpense[]>(init)
   useEffect(() => { setItems(init) }, [init])
-  const [mode, setMode]                       = useState<'list' | 'new' | 'edit'>('list')
-  const [editTarget, setEditTarget]           = useState<RecurringExpense | null>(null)
-  const [form, setForm]                       = useState<Form>(DEFAULT)
-  const [saving, setSaving]               = useState(false)
-  const [deleting, setDeleting]           = useState<string | null>(null)
+
+  const [mode, setMode]               = useState<'list' | 'new' | 'edit'>('list')
+  const [editTarget, setEditTarget]   = useState<RecurringExpense | null>(null)
+  const [form, setForm]               = useState<Form>(DEFAULT)
+  const [saving, setSaving]           = useState(false)
+  const [deleting, setDeleting]       = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
-  const [error, setError]                 = useState('')
+  const [error, setError]             = useState('')
+  const [openMenu, setOpenMenu]       = useState<string | null>(null)
+  const menuRef                       = useRef<HTMLDivElement>(null)
+
+  // Cerrar menú al hacer click afuera
+  useEffect(() => {
+    if (!openMenu) return
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [openMenu])
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm(f => ({ ...f, [k]: v }))
@@ -171,115 +196,148 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
   // ── Lista ────────────────────────────────────────────────────────────────
   if (mode === 'list') return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" ref={menuRef}>
       <div className="card overflow-hidden divide-y divide-gray-50">
         {items.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-8">Sin gastos recurrentes aún</p>
+          <p className="text-sm text-gray-400 text-center py-10">Sin gastos recurrentes aún</p>
         )}
+
         {items.map(item => {
-          const isCuotas = item.total_installments != null && item.total_installments > 0
-          const progress = isCuotas
+          const isCuotas    = item.total_installments != null && item.total_installments > 0
+          const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
+          const isMenuOpen  = openMenu === item.id
+          const next        = nextBillingDate(item.billing_day)
+          const nextLabel   = next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
+          const progress    = isCuotas
             ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
             : null
-          const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
 
           return (
-            <div key={item.id} className={cn('px-4 py-3.5', !item.is_active && 'opacity-50')}>
+            <div key={item.id} className={cn('px-4 py-4', !item.is_active && 'opacity-60')}>
+
+              {/* Fila principal */}
               <div className="flex items-center gap-3">
                 <ServiceLogo domain={item.domain} name={item.name} size={40} />
+
+                {/* Nombre + categoría */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-800 truncate">{item.name}</span>
-                    {isCuotas ? (
-                      <span className="text-[10px] bg-brand-50 text-brand-700 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                        {item.paid_installments ?? 0}/{item.total_installments} cuotas
-                      </span>
-                    ) : item.auto_register ? (
-                      <span className="text-[10px] bg-brand-50 text-brand-700 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">auto</span>
-                    ) : null}
-                    {!item.is_active && (
-                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                        {isCompleted ? 'completado' : 'pausado'}
-                      </span>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {item.category?.name ?? 'Sin categoría'}
+                    {item.auto_register && !isCuotas && (
+                      <span className="ml-1.5 text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1 py-0.5 rounded-full font-medium">auto</span>
                     )}
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Día {item.billing_day} · {item.payment_method?.name ?? 'Sin método'}
                   </p>
-                  {isCuotas && (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${(progress ?? 0) * 100}%`, backgroundColor: '#1B6DD4' }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
-                        {Math.round((progress ?? 0) * 100)}%
-                      </span>
+                </div>
+
+                {/* Próxima fecha */}
+                <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
+                  <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
+                  <p className="text-[11px] text-gray-400">Próximo cargo</p>
+                </div>
+
+                {/* Monto */}
+                <div className="text-right flex-shrink-0">
+                  <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
+                  <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : '/ mes'}</p>
+                </div>
+
+                {/* Chip de estado */}
+                <span className={cn(
+                  'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
+                  item.is_active && !isCompleted
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : isCompleted
+                      ? 'bg-gray-100 text-gray-500'
+                      : 'bg-amber-50 text-amber-700'
+                )}>
+                  {isCompleted ? 'Completado' : item.is_active ? 'Activo' : 'Pausado'}
+                </span>
+
+                {/* Menú ⋮ */}
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setOpenMenu(isMenuOpen ? null : item.id)}
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="absolute right-0 top-8 z-30 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 w-36">
+                      <button
+                        onClick={() => { setOpenMenu(null); openEdit(item) }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-gray-400" /> Editar
+                      </button>
+                      {item.is_active && !isCompleted && (
+                        <button
+                          onClick={() => { setOpenMenu(null); toggleActive(item) }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Pause className="w-3.5 h-3.5 text-gray-400" /> Pausar
+                        </button>
+                      )}
+                      {!item.is_active && !isCompleted && (
+                        <button
+                          onClick={() => { setOpenMenu(null); toggleActive(item) }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Play className="w-3.5 h-3.5 text-gray-400" /> Reactivar
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setOpenMenu(null); setPendingDelete(item.id) }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                      </button>
                     </div>
                   )}
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
-                  <p className="text-xs text-gray-400">{isCuotas ? '/ cuota' : '/ mes'}</p>
-                </div>
               </div>
-              {/* Acciones */}
-              <div className="flex items-center gap-1 mt-2">
-                {!item.is_active && pendingDelete !== item.id && !isCompleted && (
-                  <button
-                    onClick={() => toggleActive(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                  >
-                    <Play className="w-3 h-3 fill-emerald-700" />
-                    Reactivar
-                  </button>
-                )}
 
-                <div className="flex items-center gap-1 ml-auto">
-                  {pendingDelete === item.id ? (
-                    <>
-                      <span className="text-xs text-red-500 font-medium mr-1">¿Eliminar?</span>
-                      <button onClick={() => setPendingDelete(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => deleteItem(item.id)} disabled={deleting === item.id} className="p-1.5 rounded-lg text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60">
-                        {deleting === item.id
-                          ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          : <Check className="w-3.5 h-3.5" />
-                        }
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {item.is_active && (
-                        <button onClick={() => toggleActive(item)} className="p-2 text-gray-300 hover:text-amber-500 transition-colors" title="Pausar">
-                          <Pause className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button onClick={() => openEdit(item)} className="p-2 text-gray-300 hover:text-brand-600 transition-colors">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => setPendingDelete(item.id)} className="p-2 text-gray-300 hover:text-red-400 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
+              {/* Barra de progreso cuotas */}
+              {isCuotas && (
+                <div className="mt-2.5 ml-[52px] flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${(progress ?? 0) * 100}%`, backgroundColor: '#1B6DD4' }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+                    {item.paid_installments ?? 0}/{item.total_installments} cuotas
+                  </span>
                 </div>
-              </div>
+              )}
+
+              {/* Confirmación de eliminación */}
+              {pendingDelete === item.id && (
+                <div className="mt-3 ml-[52px] flex items-center gap-2">
+                  <span className="text-xs text-red-500 font-medium">¿Eliminar?</span>
+                  <button
+                    onClick={() => setPendingDelete(null)}
+                    className="text-xs text-gray-500 px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={() => deleteItem(item.id)}
+                    disabled={deleting === item.id}
+                    className="text-xs text-white px-2.5 py-1 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-60 transition-colors flex items-center gap-1"
+                  >
+                    {deleting === item.id
+                      ? <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      : 'Sí, eliminar'
+                    }
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
-
-        {items.length > 0 && (
-          <div className="px-4 py-3 flex items-center justify-between bg-brand-50 border-t border-brand-100">
-            <span className="text-sm font-bold text-gray-600">Total mensual</span>
-            <span className="text-sm font-bold text-brand-900 tabular-nums">
-              {formatCLP(items.filter(i => i.is_active).reduce((s, i) => s + i.amount, 0))}
-            </span>
-          </div>
-        )}
       </div>
 
       <button
