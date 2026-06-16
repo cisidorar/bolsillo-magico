@@ -90,11 +90,20 @@ export default async function AnalisisPage({
   const daysElapsed    = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
   const dailyAvg       = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
 
-  // vs previous month
-  const prevMonthData  = monthData[monthData.length - 2]
-  const prevTotal      = prevMonthData?.total ?? 0
-  const delta          = prevTotal > 0 ? Math.round(((totalSelected - prevTotal) / prevTotal) * 100) : null
-  const absoluteDelta  = totalSelected - prevTotal
+  // vs previous month — comparación al mismo día cuando es el mes actual
+  const prevMonthNum  = month === 1 ? 12 : month - 1
+  const prevMonthYear = month === 1 ? year - 1 : year
+  const prevMonthKey2 = `${prevMonthYear}-${String(prevMonthNum).padStart(2, '0')}`
+
+  const rawPrevExpenses = typedExpenses.filter(e => expenseMonthKey(e) === prevMonthKey2)
+  const cutoffDay       = now.getDate()
+  // En modo compra y mes actual: solo hasta el mismo día del mes anterior
+  const prevExpensesForDelta = (isCurrentMonth && !isBilling)
+    ? rawPrevExpenses.filter(e => parseInt(e.date.split('-')[2]) <= cutoffDay)
+    : rawPrevExpenses
+  const prevTotal     = prevExpensesForDelta.reduce((s, e) => s + e.amount, 0)
+  const delta         = prevTotal > 0 ? Math.round(((totalSelected - prevTotal) / prevTotal) * 100) : null
+  const absoluteDelta = totalSelected - prevTotal
 
   // ── Category breakdown ────────────────────────────────────────────────────
   const byCat: Record<string, {
@@ -231,7 +240,9 @@ export default async function AnalisisPage({
               }
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">vs anterior</p>
+              <p className="text-[10px] lg:text-xs text-gray-400 font-medium leading-tight">
+                vs anterior{isCurrentMonth && !isBilling ? ` · día ${cutoffDay}` : ''}
+              </p>
               {delta === null ? (
                 <p className="text-sm lg:text-base font-extrabold text-gray-400 leading-tight">—</p>
               ) : (

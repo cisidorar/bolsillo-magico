@@ -77,10 +77,10 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .gte('date', statementFetchStart)
       .lte('date', now.toISOString().split('T')[0]),
-    // Prev month for vs-anterior + insights
+    // Prev month for vs-anterior + insights (al mismo día del mes)
     supabase
       .from('expenses')
-      .select('amount, category_id')
+      .select('amount, category_id, date')
       .eq('user_id', user!.id)
       .gte('date', `${prevY}-${prevMStr}-01`)
       .lt('date',  `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`),
@@ -102,10 +102,13 @@ export default async function DashboardPage() {
   const progressPct   = budgetAmount ? Math.round((total / budgetAmount) * 100) : 0
   const isOver        = budgetAmount ? total > budgetAmount : false
 
-  // Mes anterior
-  const prevTotal = (prevMonthExpenses ?? []).reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+  // Mes anterior — comparación al mismo día del mes (ej. si hoy es día 16, comparamos vs días 1-16 del mes anterior)
+  const prevMonthSameDate = (prevMonthExpenses ?? []).filter(
+    (e: { date: string }) => parseInt(e.date.split('-')[2]) <= todayDate
+  )
+  const prevTotal = prevMonthSameDate.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
   const prevByCat: Record<string, number> = {}
-  ;(prevMonthExpenses ?? []).forEach((e: { amount: number; category_id: string | null }) => {
+  prevMonthSameDate.forEach((e: { amount: number; category_id: string | null }) => {
     if (e.category_id) prevByCat[e.category_id] = (prevByCat[e.category_id] ?? 0) + e.amount
   })
   const deltaVsLast = prevTotal > 0
@@ -362,7 +365,7 @@ export default async function DashboardPage() {
                       {deltaVsLast <= 0 ? '↓' : '↑'} {Math.abs(deltaVsLast)}%{' '}
                       {deltaVsLast <= 0 ? 'menos' : 'más'} que {monthName(prevM).slice(0, 3).toLowerCase()}
                     </span>
-                    <span className="text-[10px] text-white/35">· {monthName(prevM).slice(0, 3)}: {formatCLP(prevTotal)}</span>
+                    <span className="text-[10px] text-white/35">· al día {todayDate}: {formatCLP(prevTotal)}</span>
                   </div>
                 )}
               </div>

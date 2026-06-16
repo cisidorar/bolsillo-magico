@@ -78,8 +78,8 @@ export default async function RecurrentesPage({
         </Link>
       </div>
 
-      {/* Desktop: lista fija izquierda, calendario ocupa el resto. Mobile: una a la vez */}
-      <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '320px 1fr' }}>
+      {/* Desktop: lista fija izquierda, calendario acotado a la derecha. Mobile: una a la vez */}
+      <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '300px minmax(0, 800px)' }}>
 
         {/* ── Panel Lista ─────────────────────────────────────────────── */}
         <div className={isCalendar ? 'hidden lg:block' : 'block'}>
