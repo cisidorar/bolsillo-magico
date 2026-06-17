@@ -223,6 +223,197 @@ export default function ExpenseSheet({
 
   if (!isOpen) return null
 
+  // ─── Shared sub-components ────────────────────────────────────────────────
+  const methodChips = (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        onClick={() => { pmUserPicked.current = true; setPmId(null) }}
+        className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+          pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+      >Efectivo</button>
+      {pms.map(pm => (
+        <button key={pm.id}
+          onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
+          className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+            pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+        >{pm.name}</button>
+      ))}
+    </div>
+  )
+
+  const dateChips = (
+    <>
+      <div className="flex flex-wrap gap-1.5">
+        {quickDates.map(d => (
+          <button key={d.value}
+            onClick={() => { setDateStr(d.value); setShowDatePicker(false) }}
+            className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+              dateStr === d.value && !showDatePicker
+                ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+                : 'border-gray-200 bg-gray-50 text-gray-600')}
+          >{d.label}</button>
+        ))}
+        <button
+          onClick={() => setShowDatePicker(v => !v)}
+          className={cn('px-2.5 py-1.5 rounded-full text-xs border transition-all',
+            showDatePicker || !isQuickDate
+              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+              : 'border-gray-200 bg-gray-50 text-gray-600')}
+        ><CalendarDays className="w-3.5 h-3.5" /></button>
+      </div>
+      {(showDatePicker || !isQuickDate) && (
+        <input type="date" value={dateStr} max={todayStr}
+          onChange={e => { setDateStr(e.target.value); setShowDatePicker(false) }}
+          className="mt-2 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-800 outline-none focus:border-brand-400"
+        />
+      )}
+    </>
+  )
+
+  // ─── EDIT MODE — layout compacto, sin numpad ──────────────────────────────
+  if (isEditing) {
+    const selectedCat = cats.find(c => c.id === catId)
+
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
+        onClick={e => { if (e.target === e.currentTarget) close() }}
+      >
+        <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl">
+          {/* Handle */}
+          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900">Editar gasto</h2>
+            <button onClick={close} className="p-2 -mr-2 text-gray-400 hover:text-gray-600" aria-label="Cerrar">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="px-5 pt-4 space-y-4" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
+
+            {/* Amount */}
+            <div>
+              <p className="text-xs font-medium text-gray-400 mb-1.5">Monto</p>
+              <div className={cn(
+                'flex items-center gap-2 bg-gray-50 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400',
+                error && !amount ? 'border-red-300' : 'border-gray-200'
+              )}>
+                <span className="text-2xl font-bold text-gray-300">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={amount}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\D/g, '')
+                    if (raw.length <= 9) { setAmount(raw); setError('') }
+                  }}
+                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none"
+                  placeholder="0"
+                />
+              </div>
+              {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            </div>
+
+            {/* Category */}
+            <div>
+              <p className="text-xs font-medium text-gray-400 mb-1.5">Categoría</p>
+              <div className="flex items-center gap-2">
+                {selectedCat
+                  ? <CatChip c={selectedCat} selected onSelect={() => {}} />
+                  : <span className="text-sm text-gray-400 italic">Sin categoría</span>
+                }
+                <button
+                  type="button"
+                  onClick={() => setCatPickerOpen(v => !v)}
+                  className={cn(
+                    'flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full border transition-all',
+                    catPickerOpen
+                      ? 'border-brand-500 bg-brand-50 text-brand-700'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                  )}
+                >
+                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', catPickerOpen && 'rotate-180')} />
+                  {catPickerOpen ? 'Cerrar' : 'Cambiar'}
+                </button>
+              </div>
+              {catPickerOpen && (
+                <div className="mt-2.5 flex flex-wrap gap-2 max-h-36 overflow-y-auto">
+                  {cats.map(c => (
+                    <CatChip key={c.id} c={c} selected={catId === c.id}
+                      onSelect={id => { setCatId(id); setError(''); setCatPickerOpen(false) }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Method + Date side by side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium text-gray-400 mb-1.5">Método</p>
+                {methodChips}
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-400 mb-1.5">Fecha</p>
+                {dateChips}
+              </div>
+            </div>
+
+            {/* Description */}
+            <input
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="Descripción (opcional)..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
+            />
+
+            {/* Actions */}
+            {deleteConfirm ? (
+              <div className="flex items-center gap-3 pt-1">
+                <p className="flex-1 text-sm text-gray-500">¿Eliminar este gasto?</p>
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  className="px-4 py-2.5 text-sm font-semibold text-gray-500 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-4 py-2.5 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60"
+                >
+                  {deleting ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 bg-red-50 border border-red-100 rounded-2xl hover:bg-red-100 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar
+                </button>
+                <button
+                  onClick={save}
+                  disabled={saving || deleting}
+                  className="flex-1 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors"
+                  style={{ backgroundColor: '#1B6DD4' }}
+                >
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── NEW EXPENSE MODE — layout con numpad ─────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
@@ -232,9 +423,7 @@ export default function ExpenseSheet({
         {/* Handle + header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-2">
           <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3 lg:hidden" />
-          <h2 className="text-base font-semibold text-gray-900 mt-2">
-            {isEditing ? 'Editar gasto' : 'Nuevo gasto'}
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900 mt-2">Nuevo gasto</h2>
           <button onClick={close} className="p-2 -mr-2 text-gray-400 hover:text-gray-600" aria-label="Cerrar">
             <X className="w-5 h-5" />
           </button>
@@ -251,174 +440,63 @@ export default function ExpenseSheet({
         {/* Categories */}
         <div className="px-5 pt-3">
           <p className="text-xs font-medium text-gray-400 mb-2">Categoría</p>
-
-          {isEditing ? (
-            // Modo edición: mostrar solo la seleccionada + botón cambiar
-            (() => {
-              const selectedCat = cats.find(c => c.id === catId)
+          {(() => {
+            if (topCatIds.length === 0) {
               return (
-                <>
-                  <div className="flex items-center gap-2">
-                    {selectedCat ? (
-                      <CatChip c={selectedCat} selected onSelect={() => {}} />
-                    ) : (
-                      <span className="text-sm text-gray-400 italic">Sin categoría</span>
+                <div className="flex flex-wrap gap-2">
+                  {cats.map(c => (
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                  ))}
+                </div>
+              )
+            }
+            const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
+            const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
+            const selInOther = catId && otherCats.some(c => c.id === catId)
+            return (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {pinnedCats.map(c => (
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                  ))}
+                  {!catsExpanded && selInOther && (() => {
+                    const selCat = otherCats.find(c => c.id === catId)
+                    return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
+                  })()}
+                </div>
+                {otherCats.length > 0 && (
+                  <>
+                    {catsExpanded && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {otherCats.map(c => (
+                          <CatChip key={c.id} c={c} selected={catId === c.id}
+                            onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }} />
+                        ))}
+                      </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setCatPickerOpen(v => !v)}
-                      className={cn(
-                        'text-xs font-semibold px-3 py-1.5 rounded-full border transition-all',
-                        catPickerOpen
-                          ? 'border-brand-600 bg-brand-50 text-brand-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'
-                      )}
-                    >
-                      {catPickerOpen ? 'Cerrar' : 'Cambiar'}
-                    </button>
-                  </div>
-                  {catPickerOpen && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {cats.map(c => (
-                        <CatChip
-                          key={c.id}
-                          c={c}
-                          selected={catId === c.id}
-                          onSelect={id => { setCatId(id); setError(''); setCatPickerOpen(false) }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </>
-              )
-            })()
-          ) : (
-            // Modo nuevo gasto: pinned + expandir
-            (() => {
-              if (topCatIds.length === 0) {
-                return (
-                  <div className="flex flex-wrap gap-2">
-                    {cats.map(c => (
-                      <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
-                    ))}
-                  </div>
-                )
-              }
-
-              const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
-              const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
-              const selInOther = catId && otherCats.some(c => c.id === catId)
-
-              return (
-                <>
-                  <div className="flex flex-wrap gap-2">
-                    {pinnedCats.map(c => (
-                      <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
-                    ))}
-                    {!catsExpanded && selInOther && (() => {
-                      const selCat = otherCats.find(c => c.id === catId)
-                      return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
-                    })()}
-                  </div>
-                  {otherCats.length > 0 && (
-                    <>
-                      {catsExpanded && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {otherCats.map(c => (
-                            <CatChip
-                              key={c.id}
-                              c={c}
-                              selected={catId === c.id}
-                              onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {!catsExpanded && (
-                        <button
-                          type="button"
-                          onClick={() => setCatsExpanded(true)}
-                          className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors"
-                        >
-                          <ChevronDown className="w-3.5 h-3.5" />
-                          Ver {otherCats.length} más
-                        </button>
-                      )}
-                    </>
-                  )}
-                </>
-              )
-            })()
-          )}
+                    {!catsExpanded && (
+                      <button type="button" onClick={() => setCatsExpanded(true)}
+                        className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        Ver {otherCats.length} más
+                      </button>
+                    )}
+                  </>
+                )}
+              </>
+            )
+          })()}
         </div>
 
         {/* Payment + date */}
         <div className="px-5 pt-3 grid grid-cols-2 gap-3">
           <div>
             <p className="text-xs font-medium text-gray-400 mb-2">Método</p>
-            <div className="flex flex-wrap gap-1.5">
-              {/* Efectivo siempre disponible (pmId = null) */}
-              <button
-                onClick={() => { pmUserPicked.current = true; setPmId(null) }}
-                className={cn(
-                  'px-3 py-1.5 rounded-full text-xs border transition-all',
-                  pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600'
-                )}
-              >
-                Efectivo
-              </button>
-              {pms.map(pm => (
-                <button
-                  key={pm.id}
-                  onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
-                  className={cn(
-                    'px-3 py-1.5 rounded-full text-xs border transition-all',
-                    pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600'
-                  )}
-                >
-                  {pm.name}
-                </button>
-              ))}
-            </div>
+            {methodChips}
           </div>
           <div>
             <p className="text-xs font-medium text-gray-400 mb-2">Fecha</p>
-            <div className="flex flex-wrap gap-1.5">
-              {quickDates.map(d => (
-                <button
-                  key={d.value}
-                  onClick={() => { setDateStr(d.value); setShowDatePicker(false) }}
-                  className={cn(
-                    'px-3 py-1.5 rounded-full text-xs border transition-all',
-                    dateStr === d.value && !showDatePicker
-                      ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-                      : 'border-gray-200 bg-gray-50 text-gray-600'
-                  )}
-                >
-                  {d.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setShowDatePicker(v => !v)}
-                className={cn(
-                  'px-2.5 py-1.5 rounded-full text-xs border transition-all',
-                  showDatePicker || !isQuickDate
-                    ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-                    : 'border-gray-200 bg-gray-50 text-gray-600'
-                )}
-              >
-                <CalendarDays className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            {(showDatePicker || !isQuickDate) && (
-              <input
-                type="date"
-                value={dateStr}
-                max={todayStr}
-                onChange={e => { setDateStr(e.target.value); setShowDatePicker(false) }}
-                className="mt-2 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-800 outline-none focus:border-brand-400"
-              />
-            )}
+            {dateChips}
           </div>
         </div>
 
@@ -432,64 +510,29 @@ export default function ExpenseSheet({
           />
         </div>
 
-        {/* Numpad + Save button — sticky al fondo */}
+        {/* Numpad */}
         <div className="mt-2 border-t border-gray-100 grid grid-cols-3">
           {['1','2','3','4','5','6','7','8','9','000','0','del'].map(k => (
-            <button
-              key={k}
+            <button key={k}
               onClick={() => k === 'del' ? numpad('del') : numpad(k)}
-              className={cn(
-                'py-3 text-lg text-gray-800 font-medium active:bg-gray-100 transition-colors border-r border-b border-gray-100',
-                k === 'del' && 'text-gray-400'
-              )}
+              className={cn('py-3 text-lg text-gray-800 font-medium active:bg-gray-100 transition-colors border-r border-b border-gray-100',
+                k === 'del' && 'text-gray-400')}
             >
               {k === 'del' ? <Delete className="w-5 h-5 mx-auto" /> : k}
             </button>
           ))}
         </div>
 
-        {/* Save button + delete */}
+        {/* Save button */}
         <div className="px-5 pt-2" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 16px))' }}>
           <button
             onClick={save}
-            disabled={saving || deleting}
-            className="w-full py-3.5 bg-brand-600 text-white font-semibold rounded-2xl hover:bg-brand-700 transition-colors disabled:opacity-60 text-base"
+            disabled={saving}
+            className="w-full py-3.5 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
             style={{ backgroundColor: '#1B6DD4' }}
           >
-            {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar gasto'}
+            {saving ? 'Guardando...' : 'Guardar gasto'}
           </button>
-
-          {isEditing && (
-            <div className="mt-3 flex items-center justify-center">
-              {deleteConfirm ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400">¿Eliminar este gasto?</span>
-                  <button
-                    onClick={() => setDeleteConfirm(false)}
-                    className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors px-2 py-1"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors px-3 py-1.5 rounded-xl disabled:opacity-60"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {deleting ? 'Eliminando...' : 'Confirmar'}
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setDeleteConfirm(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors py-1 px-2"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Eliminar gasto
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
