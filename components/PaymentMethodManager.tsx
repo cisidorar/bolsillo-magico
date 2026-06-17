@@ -14,11 +14,11 @@ const CARD_TYPES: { value: CardType; label: string; Icon: React.ElementType; des
   { value: 'digital', label: 'Digital', Icon: Smartphone,  desc: 'Transferencia, Mach, Fintual, etc.' },
 ]
 
-const TYPE_COLORS: Record<CardType, { bg: string; text: string; border: string }> = {
-  debit:   { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200' },
-  credit:  { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
-  cash:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200' },
-  digital: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+const TYPE_COLORS: Record<CardType, { bg: string; text: string; border: string; bgHex: string; textHex: string }> = {
+  debit:   { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   bgHex: '#EFF6FF', textHex: '#1D4ED8' },
+  credit:  { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', bgHex: '#EEF2FF', textHex: '#4338CA' },
+  cash:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  bgHex: '#F0FDF4', textHex: '#15803D' },
+  digital: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', bgHex: '#FFF7ED', textHex: '#C2410C' },
 }
 
 // Bancos (débito/crédito)
@@ -214,91 +214,112 @@ export default function PaymentMethodManager({ paymentMethods: init, userId }: P
 
   // ── Lista ────────────────────────────────────────────────────────────────
   if (mode === 'list') return (
-    <div className="flex flex-col gap-4">
-      <div className="bg-white rounded-2xl border border-brand-200 divide-y divide-brand-100">
-        {methods.length === 0 && (
-          <p className="text-sm text-brand-400 text-center py-8">
-            Aún no tienes métodos de pago
-          </p>
-        )}
-        {methods.map(m => {
-          const cardType = (m.card_type === 'cash' ? 'digital' : m.card_type) ?? 'debit'
-          const c    = TYPE_COLORS[cardType]
-          const type = CARD_TYPES.find(t => t.value === cardType) ?? CARD_TYPES[0]
-          return (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-              <ServiceLogo
-                domain={m.domain}
-                name={m.name}
-                size={40}
-                className="flex-shrink-0"
-                fallbackColor={ALL_OPTIONS.find(b => b.domain === m.domain)?.color}
-              />
+    <div className="flex flex-col gap-3">
+      {methods.length === 0 ? (
+        <div className="card text-center py-14 flex flex-col items-center gap-2">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1" style={{ background: '#EEF4FF' }}>
+            <CreditCard className="w-6 h-6" style={{ color: '#1B6DD4' }} />
+          </div>
+          <p className="text-sm font-bold text-gray-600">Sin métodos de pago</p>
+          <p className="text-xs text-gray-400">Agrega tu primera tarjeta o cuenta</p>
+        </div>
+      ) : (
+        <div className="card overflow-hidden divide-y divide-gray-50">
+          {methods.map(m => {
+            const ct   = m.card_type ?? 'debit'
+            const displayCt = ct === 'cash' ? 'digital' : ct
+            const c    = TYPE_COLORS[displayCt as CardType] ?? TYPE_COLORS.debit
+            const type = CARD_TYPES.find(t => t.value === displayCt)
+              ?? (ct === 'cash' ? { label: 'Efectivo' } : CARD_TYPES[0])
+            const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold text-gray-900">{m.name}</span>
-                  {m.last_four && (
-                    <span className="text-xs text-brand-400">···{m.last_four}</span>
-                  )}
-                  {m.is_default && (
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                  )}
+            return (
+              <div key={m.id} className="flex items-center gap-3 px-4 py-3.5">
+                {/* Logo */}
+                <div className="flex-shrink-0">
+                  <ServiceLogo
+                    domain={m.domain}
+                    name={m.name}
+                    size={44}
+                    fallbackColor={fallbackColor}
+                  />
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={cn('text-xs px-1.5 py-0.5 rounded-md font-medium', c.bg, c.text)}>{type.label}</span>
-                  {m.card_type === 'credit' && m.billing_day && (
-                    <span className="text-xs text-brand-400">Cierra día {m.billing_day}</span>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-900 truncate">{m.name}</span>
+                    {m.last_four && (
+                      <span className="text-xs text-gray-400 font-medium tabular-nums">···{m.last_four}</span>
+                    )}
+                    {m.is_default && (
+                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span
+                      className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                      style={{ backgroundColor: c.bgHex, color: c.textHex }}
+                    >
+                      {type.label}
+                    </span>
+                    {m.card_type === 'credit' && m.billing_day && (
+                      <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Acciones */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  {pendingDelete === m.id ? (
+                    <>
+                      <span className="text-xs text-red-500 font-semibold mr-1.5">¿Eliminar?</span>
+                      <button
+                        onClick={() => setPendingDelete(null)}
+                        className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { deleteMethod(m.id); setPendingDelete(null) }}
+                        disabled={deleting === m.id}
+                        className="p-1.5 rounded-xl text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 ml-0.5"
+                      >
+                        {deleting === m.id
+                          ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          : <Check className="w-3.5 h-3.5" />
+                        }
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => openEdit(m)}
+                        className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setPendingDelete(m.id)}
+                        className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
-
-              <div className="flex items-center gap-1">
-                {pendingDelete === m.id ? (
-                  <>
-                    <span className="text-xs text-red-600 font-medium mr-1">¿Eliminar?</span>
-                    <button
-                      onClick={() => setPendingDelete(null)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-brand-50 transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => { deleteMethod(m.id); setPendingDelete(null) }}
-                      disabled={deleting === m.id}
-                      className="p-1.5 rounded-lg text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60"
-                    >
-                      {deleting === m.id
-                        ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        : <Check className="w-3.5 h-3.5" />
-                      }
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => openEdit(m)}
-                      className="p-2 text-gray-300 hover:text-brand-600 transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setPendingDelete(m.id)}
-                      className="p-2 text-gray-300 hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       <button
         onClick={openNew}
-        className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-brand-200 rounded-2xl text-sm font-bold text-brand-600 hover:border-brand-400 hover:bg-brand-50 transition-colors"
+        className="flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed rounded-3xl text-sm font-bold transition-colors"
+        style={{ borderColor: '#D5E6FF', color: '#1B6DD4' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#EEF4FF' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '' }}
       >
         <Plus className="w-4 h-4" />
         Agregar método de pago
