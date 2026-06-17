@@ -1,11 +1,8 @@
-import Image from 'next/image'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
-import { Sparkles, CreditCard, Calendar, ChevronRight } from 'lucide-react'
+import { CreditCard, Calendar } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
-import ExpenseList from '@/components/ExpenseList'
-import RecurringWidget from '@/components/RecurringWidget'
 import ServiceLogo from '@/components/ServiceLogo'
 import Link from 'next/link'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod } from '@/types'
@@ -77,10 +74,10 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .gte('date', statementFetchStart)
       .lte('date', now.toISOString().split('T')[0]),
-    // Prev month for vs-anterior + insights (al mismo día del mes)
+    // Prev month for vs-anterior (al mismo día del mes)
     supabase
       .from('expenses')
-      .select('amount, category_id, date')
+      .select('amount, date')
       .eq('user_id', user!.id)
       .gte('date', `${prevY}-${prevMStr}-01`)
       .lt('date',  `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`),
@@ -102,28 +99,20 @@ export default async function DashboardPage() {
   const progressPct   = budgetAmount ? Math.round((total / budgetAmount) * 100) : 0
   const isOver        = budgetAmount ? total > budgetAmount : false
 
-  // Mes anterior — comparación al mismo día del mes (ej. si hoy es día 16, comparamos vs días 1-16 del mes anterior)
+  // Mes anterior — comparación al mismo día del mes
   const prevMonthSameDate = (prevMonthExpenses ?? []).filter(
     (e: { date: string }) => parseInt(e.date.split('-')[2]) <= todayDate
   )
   const prevTotal = prevMonthSameDate.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
-  const prevByCat: Record<string, number> = {}
-  prevMonthSameDate.forEach((e: { amount: number; category_id: string | null }) => {
-    if (e.category_id) prevByCat[e.category_id] = (prevByCat[e.category_id] ?? 0) + e.amount
-  })
   const deltaVsLast = prevTotal > 0
     ? Math.round(((total - prevTotal) / prevTotal) * 100)
     : null
-
-  const registeredRecurringIds = typedExpenses
-    .filter(e => e.recurring_expense_id != null)
-    .map(e => e.recurring_expense_id as string)
 
   const catBudgetMap = new Map(
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
   )
 
-  // Resumen por categoría
+  // Resumen por categoría — top 4
   const byCat = typedExpenses.reduce<Record<string, {
     id: string; name: string; color: string; bg_color: string; icon: string; total: number
   }>>((acc, e) => {
@@ -133,7 +122,7 @@ export default async function DashboardPage() {
     acc[id].total += e.amount
     return acc
   }, {})
-  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 6)
+  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 4)
 
   // Saludo + fecha
   const hour        = now.getHours()
@@ -149,12 +138,6 @@ export default async function DashboardPage() {
   const daysInMonth = new Date(year, month, 0).getDate()
   const dailyAvg    = daysElapsed > 0 && total > 0 ? Math.round(total / daysElapsed) : 0
   const projection  = dailyAvg > 0 ? Math.round(dailyAvg * daysInMonth) : 0
-
-  // Gasto semanal
-  const daysFromMonday = (now.getDay() + 6) % 7
-  const monday = new Date(now); monday.setDate(now.getDate() - daysFromMonday)
-  const mondayStr  = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
-  const weekTotal  = typedExpenses.filter(e => e.date >= mondayStr).reduce((s, e) => s + e.amount, 0)
 
   // ── Estados de cuenta ────────────────────────────────────────────────────
   const creditCards = ((paymentMethods ?? []) as PaymentMethod[])
@@ -181,102 +164,6 @@ export default async function DashboardPage() {
       count: inRange.length,
     }
   }).filter(c => c.count > 0)
-
-  // ── Gráfico SVG: gasto acumulado diario ──────────────────────────────────
-  const byDay: Record<number, number> = {}
-  typedExpenses.forEach(e => {
-    const d = parseInt(e.date.split('-')[2])
-    byDay[d] = (byDay[d] ?? 0) + e.amount
-  })
-  let cum = 0
-  const cumulativeByDay: { day: number; value: number }[] = []
-  for (let d = 1; d <= todayDate; d++) {
-    cum += (byDay[d] ?? 0)
-    cumulativeByDay.push({ day: d, value: cum })
-  }
-
-  const SVG_W = 400, SVG_H = 80, PAD_T = 12, PAD_B = 4
-  const plotH  = SVG_H - PAD_T - PAD_B
-  const maxVal = Math.max(total, budgetAmount ?? 0, 1)
-  const toX    = (day: number)   => ((day - 1) / Math.max(daysInMonth - 1, 1)) * SVG_W
-  const toY    = (value: number) => PAD_T + plotH - Math.min(1, value / maxVal) * plotH
-
-  const spendingPoints = cumulativeByDay
-    .map(p => `${toX(p.day).toFixed(1)},${toY(p.value).toFixed(1)}`)
-    .join(' ')
-  const lastX  = cumulativeByDay.length > 0 ? toX(todayDate)  : 0
-  const lastY  = cumulativeByDay.length > 0 ? toY(total)       : PAD_T + plotH
-  const labelX = Math.min(lastX, SVG_W - 58)
-
-  // ── Insights ─────────────────────────────────────────────────────────────
-  type Insight = { emoji: string; title: string; detail: string; bg: string; textColor: string; href?: string }
-  const insights: Insight[] = []
-
-  // 1. Top category trend vs prev month
-  // Umbral mínimo: ambos meses deben tener al menos $10.000 en esa categoría
-  // para evitar % engañosos (ej: subió 1300% porque pasó de $500 a $7.000)
-  const MIN_CAT_AMOUNT = 10_000
-  if (catSummary.length > 0 && prevTotal > 0) {
-    const top  = catSummary[0]
-    const prev = prevByCat[top.id] ?? 0
-    if (prev >= MIN_CAT_AMOUNT && top.total >= MIN_CAT_AMOUNT) {
-      const delta    = Math.round(((top.total - prev) / prev) * 100)
-      const deltaAbs = Math.abs(delta)
-      // Solo mostrar si el cambio es significativo (≥15%) y hay diferencia real en CLP
-      const clpDiff  = Math.abs(top.total - prev)
-      if (deltaAbs >= 15 && clpDiff >= 5_000) {
-        const pctLabel = deltaAbs > 200 ? `más del doble` : `${deltaAbs}%`
-        insights.push(delta > 0
-          ? { emoji: '📈', title: `${top.name} subió ${pctLabel}`, detail: `${formatCLP(top.total - prev)} más que ${monthName(prevM).slice(0, 3).toLowerCase()}`, bg: '#FFF7ED', textColor: '#C2410C', href: `/analisis/${top.id}?month=${month}&year=${year}` }
-          : { emoji: '📉', title: `${top.name} bajó ${pctLabel}`, detail: `${formatCLP(prev - top.total)} menos que ${monthName(prevM).slice(0, 3).toLowerCase()}`, bg: '#F0FDF4', textColor: '#166534', href: `/analisis/${top.id}?month=${month}&year=${year}` }
-        )
-      }
-    }
-  }
-
-  // 2. Categoría mejor controlada
-  const goodCat = catSummary.find(c => {
-    const limit = catBudgetMap.get(c.id)
-    return limit && c.total < limit * 0.7
-  })
-  if (goodCat) {
-    const limit = catBudgetMap.get(goodCat.id)!
-    insights.push({
-      emoji: '✅',
-      title: `${goodCat.name} dentro del presupuesto`,
-      detail: `Quedan ${formatCLP(limit - goodCat.total)}`,
-      bg: '#F0FDF4', textColor: '#166534',
-    })
-  }
-
-  // 3. Proyección
-  if (budgetAmount && projection > 0) {
-    if (projection > budgetAmount) {
-      insights.push({
-        emoji: '⚠️',
-        title: `Tu proyección supera el presupuesto`,
-        detail: `en ${formatCLP(projection - budgetAmount)}`,
-        bg: '#FEF2F2', textColor: '#B91C1C',
-      })
-    } else if (insights.length < 2) {
-      insights.push({
-        emoji: '🎯',
-        title: `¡Vas bien este mes!`,
-        detail: `Proyectas usar el ${Math.round(pct(projection, budgetAmount))}% del presupuesto`,
-        bg: '#EFF6FF', textColor: '#1E40AF',
-      })
-    }
-  }
-
-  // Fallback
-  if (insights.length === 0 && total > 0) {
-    insights.push({
-      emoji: '💡',
-      title: `${formatCLP(dailyAvg)} en promedio por día`,
-      detail: `${daysElapsed} días transcurridos`,
-      bg: '#EEF4FF', textColor: '#155BB0',
-    })
-  }
 
   // ── Próximos pagos ────────────────────────────────────────────────────────
   type ProximoPago = {
@@ -408,11 +295,10 @@ export default async function DashboardPage() {
                   </div>
                 )}
 
-                {/* Stat chips — fila en mobile, apilados en desktop */}
+                {/* Stat chips */}
                 <div className="flex gap-2 lg:flex-col lg:gap-2">
                   {[
-                    { label: 'Por día',      value: formatCLP(dailyAvg) },
-                    { label: 'Esta semana',  value: formatCLP(weekTotal) },
+                    { label: 'Por día',    value: formatCLP(dailyAvg) },
                     {
                       label: 'Proyección',
                       value: total > 0 ? formatCLP(projection) : '–',
@@ -455,7 +341,6 @@ export default async function DashboardPage() {
                   const openDate  = new Date(card.opensOn  + 'T12:00:00')
                   const closeDate = new Date(card.closesOn + 'T12:00:00')
                   const fmt = (d: Date) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  // Días restantes hasta el cierre
                   const today0   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
                   const close0   = new Date(closeDate.getFullYear(), closeDate.getMonth(), closeDate.getDate())
                   const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
@@ -491,10 +376,10 @@ export default async function DashboardPage() {
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold text-gray-600">Por categoría</h2>
                 <Link href="/analisis" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                  Ver todas
+                  Ver análisis
                 </Link>
               </div>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
                 {catSummary.map(c => {
                   const limit    = catBudgetMap.get(c.id) ?? null
                   const catPct   = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
@@ -554,160 +439,11 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* ── Evolución + Insights — side-by-side en desktop ─────────── */}
-          {total > 0 && (
-            <div className="lg:grid lg:grid-cols-[3fr,2fr] lg:gap-4 space-y-4 lg:space-y-0">
-
-              {/* Evolución de gastos */}
-              <div className="card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-bold text-gray-700">Evolución de gastos</p>
-                  <span className="text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-lg">
-                    {monthName(month)}
-                  </span>
-                </div>
-
-                {/* SVG chart */}
-                <svg
-                  viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-                  className="w-full"
-                  style={{ height: SVG_H, overflow: 'visible' }}
-                  aria-hidden="true"
-                >
-                  <defs>
-                    <linearGradient id="spendGrad" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%"   stopColor="#1B6DD4" stopOpacity="0.22" />
-                      <stop offset="100%" stopColor="#1B6DD4" stopOpacity="0"    />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Budget ramp (diagonal dashed) */}
-                  {budgetAmount && (
-                    <line
-                      x1="0"    y1={toY(0).toFixed(1)}
-                      x2={SVG_W} y2={toY(budgetAmount).toFixed(1)}
-                      stroke="#1B6DD4" strokeWidth="1.5" strokeDasharray="5 3" opacity="0.3"
-                    />
-                  )}
-
-                  {/* Area under spending line */}
-                  {cumulativeByDay.length >= 2 && (
-                    <polygon
-                      points={`${toX(1).toFixed(1)},${(PAD_T + plotH).toFixed(1)} ${spendingPoints} ${lastX.toFixed(1)},${(PAD_T + plotH).toFixed(1)}`}
-                      fill="url(#spendGrad)"
-                    />
-                  )}
-
-                  {/* Spending line */}
-                  {cumulativeByDay.length >= 2 && (
-                    <polyline
-                      points={spendingPoints}
-                      fill="none"
-                      stroke="#1B6DD4"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  )}
-
-                  {/* Dot at current day */}
-                  {cumulativeByDay.length >= 1 && (
-                    <>
-                      <circle
-                        cx={lastX.toFixed(1)} cy={lastY.toFixed(1)}
-                        r="5" fill="white" stroke="#1B6DD4" strokeWidth="2.5"
-                      />
-                      {/* Value label */}
-                      <rect
-                        x={labelX.toFixed(1)} y={(lastY - 22).toFixed(1)}
-                        width="58" height="16" rx="5" fill="#1B6DD4"
-                      />
-                      <text
-                        x={(labelX + 29).toFixed(1)} y={(lastY - 11).toFixed(1)}
-                        textAnchor="middle" fill="white"
-                        fontSize="8.5" fontWeight="700"
-                      >
-                        {total >= 1_000_000
-                          ? `$${(total / 1_000_000).toFixed(1)}M`
-                          : `$${Math.round(total / 1000)}k`}
-                      </text>
-                    </>
-                  )}
-                </svg>
-
-                {/* X axis day labels */}
-                <div className="flex justify-between mt-1 px-0.5">
-                  {[1, Math.ceil(daysInMonth / 3), Math.ceil((daysInMonth * 2) / 3), daysInMonth].map(d => (
-                    <span key={d} className="text-[9px] text-gray-300 font-medium">{d}</span>
-                  ))}
-                </div>
-
-                {/* Legend */}
-                <div className="flex items-center gap-4 mt-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-0.5 bg-brand-600 rounded-full" />
-                    <span className="text-[10px] text-gray-400">Gasto real</span>
-                  </div>
-                  {budgetAmount && (
-                    <div className="flex items-center gap-1.5">
-                      <svg width="16" height="4" aria-hidden="true">
-                        <line x1="0" y1="2" x2="16" y2="2" stroke="#1B6DD4" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.5" />
-                      </svg>
-                      <span className="text-[10px] text-gray-400">Ritmo presupuesto</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Insights para ti */}
-              <div>
-                <h2 className="text-sm font-bold text-gray-600 mb-2.5 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  Insights para ti
-                </h2>
-                <div className="space-y-2">
-                  {insights.slice(0, 3).map((ins, i) => {
-                    const inner = (
-                      <div
-                        className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
-                        style={{ backgroundColor: ins.bg }}
-                      >
-                        <span className="text-base flex-shrink-0 mt-0.5">{ins.emoji}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold leading-snug" style={{ color: ins.textColor }}>
-                            {ins.title}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{ins.detail}</p>
-                        </div>
-                        {ins.href && <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-gray-300" />}
-                      </div>
-                    )
-                    return ins.href
-                      ? <Link key={i} href={ins.href}>{inner}</Link>
-                      : <div key={i}>{inner}</div>
-                  })}
-                </div>
-              </div>
-
-            </div>
-          )}
-
         </div>
         {/* ══ END LEFT COLUMN ══ */}
 
         {/* ══ RIGHT COLUMN ════════════════════════════════════════════ */}
         <div className="space-y-4 mt-4 lg:mt-0">
-
-          {/* Recurrentes */}
-          {recurringWithCounts.length > 0 && (
-            <RecurringWidget
-              recurring={recurringWithCounts}
-              registeredIds={registeredRecurringIds}
-              userId={user!.id}
-              month={month}
-              year={year}
-            />
-          )}
 
           {/* Próximos pagos */}
           {proximosPagos.length > 0 && (
@@ -744,35 +480,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
-
-          {/* Últimos gastos */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h2 className="text-sm font-bold text-gray-600">
-                Últimos gastos
-                {typedExpenses.length > 0 && (
-                  <span className="ml-1.5 text-[10px] font-bold text-gray-400 bg-gray-100 rounded-full px-1.5 py-0.5">
-                    {typedExpenses.length}
-                  </span>
-                )}
-              </h2>
-              <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                Ver todos
-              </Link>
-            </div>
-
-            {typedExpenses.length === 0 ? (
-              <div className="card text-center py-14 flex flex-col items-center gap-2">
-                <div className="w-12 h-12 rounded-2xl bg-brand-50 flex items-center justify-center mb-1">
-                  <Sparkles className="w-6 h-6 text-brand-400" />
-                </div>
-                <p className="text-sm font-bold text-gray-600">Sin gastos este mes</p>
-                <p className="text-xs text-gray-400">Toca + para agregar el primero</p>
-              </div>
-            ) : (
-              <ExpenseList expenses={typedExpenses.slice(0, 10)} />
-            )}
-          </div>
 
         </div>
         {/* ══ END RIGHT COLUMN ══ */}

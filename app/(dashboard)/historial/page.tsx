@@ -3,7 +3,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, billingPeriodRange, formatCLP, monthName } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, Receipt, TrendingUp } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -123,8 +123,37 @@ export default async function HistorialPage({
   ])
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
-  const avgPerExpense = totalCount > 0 ? Math.round(total / totalCount) : 0
   const hasFilters = !!(q || catIds.length > 0)
+
+  // ── vs mes anterior (solo modo compra) ────────────────────────────────────
+  const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
+  const prevM2 = month === 1 ? 12 : month - 1
+  const prevY2 = month === 1 ? year - 1 : year
+  const prevNextM2 = prevM2 === 12 ? 1 : prevM2 + 1
+  const prevNextY2 = prevM2 === 12 ? prevY2 + 1 : prevY2
+
+  let prevMonthRaw: { amount: number; date: string }[] = []
+  if (!isBilling) {
+    let prevQ = supabase
+      .from('expenses')
+      .select('amount, date')
+      .eq('user_id', user!.id)
+      .gte('date', `${prevY2}-${String(prevM2).padStart(2, '0')}-01`)
+      .lt('date',  `${prevNextY2}-${String(prevNextM2).padStart(2, '0')}-01`)
+    if (catIds.length > 0) prevQ = prevQ.in('category_id', catIds)
+    if (q) prevQ = prevQ.ilike('description', `%${q}%`)
+    const { data: prevData } = await prevQ
+    prevMonthRaw = (prevData ?? []) as { amount: number; date: string }[]
+  }
+
+  const prevFiltered = isCurrentMonth
+    ? prevMonthRaw.filter(e => parseInt(e.date.split('-')[2]) <= now.getDate())
+    : prevMonthRaw
+  const prevTotal = prevFiltered.reduce((s, e) => s + e.amount, 0)
+  const delta = !isBilling && prevTotal > 0
+    ? Math.round(((total - prevTotal) / prevTotal) * 100)
+    : null
+  const absoluteDelta = total - prevTotal
 
   // En modo billing: derivar períodos reales por tarjeta a partir de los gastos ya filtrados
   type CardPeriod = { name: string; start: string; end: string; billingDay: number }
@@ -142,6 +171,18 @@ export default async function HistorialPage({
     }
     // Si no hay expenses pero estamos en billing mode, no mostramos nada
   }
+
+  // ── Promedio diario ───────────────────────────────────────────────────────
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth
+  let daysForAvg = daysElapsed
+  if (isBilling && cardPeriods.length > 0) {
+    const p = cardPeriods[0]
+    const s = new Date(p.start + 'T12:00:00')
+    const e = new Date(p.end   + 'T12:00:00')
+    daysForAvg = Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1
+  }
+  const dailyAvg = daysForAvg > 0 && total > 0 ? Math.round(total / daysForAvg) : 0
 
   // Group by date
   const grouped = expenses.reduce<Record<string, ExpenseWithRelations[]>>((acc, e) => {
@@ -190,28 +231,46 @@ export default async function HistorialPage({
             </div>
           </div>
 
-          {/* Gastos count */}
+          {/* vs mes anterior */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
-              <Receipt className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
+            <div
+              className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4' }}
+            >
+              {delta === null || delta === 0
+                ? <Minus className="w-4 h-4 lg:w-6 lg:h-6 text-gray-400" />
+                : delta > 0
+                  ? <TrendingUp   className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#EF4444' }} />
+                  : <TrendingDown className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
+              }
             </div>
-            <div>
-              <p className="text-lg lg:text-2xl font-extrabold text-gray-900 leading-none">{totalCount}</p>
+            <div className="min-w-0">
               <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">
-                {isBilling ? 'en el período' : 'gastos este mes'}
+                vs mes anterior{isCurrentMonth && !isBilling ? ` · día ${now.getDate()}` : ''}
               </p>
+              {isBilling || delta === null ? (
+                <p className="text-[13px] lg:text-xl font-extrabold text-gray-400 leading-none">—</p>
+              ) : (
+                <>
+                  <p className={`text-[13px] lg:text-xl font-extrabold tabular-nums leading-none ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    {delta > 0 ? '+' : ''}{delta}%
+                  </p>
+                  <p className={`text-[8px] lg:text-[10px] tabular-nums leading-tight ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                    {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Promedio */}
+          {/* Promedio diario */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
             <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
               <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Promedio</p>
-              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(avgPerExpense)}</p>
-              <p className="text-[8px] lg:text-[10px] text-gray-400 leading-tight">Por gasto</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Promedio diario</p>
+              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
             </div>
           </div>
 
