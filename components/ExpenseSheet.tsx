@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { X, Delete, CalendarDays, ChevronDown } from 'lucide-react'
+import { X, Delete, CalendarDays, ChevronDown, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
@@ -62,13 +62,16 @@ export default function ExpenseSheet({
   const [dateStr, setDateStr] = useState(todayStr)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [desc, setDesc]       = useState('')
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleting, setDeleting]   = useState(false)
 
   const [cats, setCats]         = useState<Category[]>(initCats)
   const [pms, setPMs]           = useState<PaymentMethod[]>(initPMs)
   const [topCatIds, setTopCatIds] = useState<string[]>([])
   const [catsExpanded, setCatsExpanded] = useState(false)
+  const [catPickerOpen, setCatPickerOpen] = useState(false)
 
   // Indica si el usuario eligió el método manualmente (evita que el autoselect sobreescriba)
   const pmUserPicked = useRef(false)
@@ -146,11 +149,20 @@ export default function ExpenseSheet({
 
   const close = useCallback(() => {
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
-    setDesc(''); setError(''); setCatsExpanded(false)
+    setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false)
     pmUserPicked.current = false
     if (onClose) onClose()
     else setInternalOpen(false)
   }, [onClose, todayStr])
+
+  async function handleDelete() {
+    if (!editExpense) return
+    setDeleting(true)
+    await supabase.from('expenses').delete().eq('id', editExpense.id)
+    setDeleting(false)
+    router.refresh()
+    close()
+  }
 
   function numpad(key: string) {
     setError('')
@@ -239,65 +251,105 @@ export default function ExpenseSheet({
         {/* Categories */}
         <div className="px-5 pt-3">
           <p className="text-xs font-medium text-gray-400 mb-2">Categoría</p>
-          {(() => {
-            // En modo edición o sin datos de frecuencia, mostrar todas
-            if (isEditing || topCatIds.length === 0) {
+
+          {isEditing ? (
+            // Modo edición: mostrar solo la seleccionada + botón cambiar
+            (() => {
+              const selectedCat = cats.find(c => c.id === catId)
               return (
-                <div className="flex flex-wrap gap-2">
-                  {cats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
-                  ))}
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    {selectedCat ? (
+                      <CatChip c={selectedCat} selected onSelect={() => {}} />
+                    ) : (
+                      <span className="text-sm text-gray-400 italic">Sin categoría</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setCatPickerOpen(v => !v)}
+                      className={cn(
+                        'text-xs font-semibold px-3 py-1.5 rounded-full border transition-all',
+                        catPickerOpen
+                          ? 'border-brand-600 bg-brand-50 text-brand-700'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'
+                      )}
+                    >
+                      {catPickerOpen ? 'Cerrar' : 'Cambiar'}
+                    </button>
+                  </div>
+                  {catPickerOpen && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {cats.map(c => (
+                        <CatChip
+                          key={c.id}
+                          c={c}
+                          selected={catId === c.id}
+                          onSelect={id => { setCatId(id); setError(''); setCatPickerOpen(false) }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )
-            }
+            })()
+          ) : (
+            // Modo nuevo gasto: pinned + expandir
+            (() => {
+              if (topCatIds.length === 0) {
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {cats.map(c => (
+                      <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                    ))}
+                  </div>
+                )
+              }
 
-            // Pinned: top 3 más usadas (preservando su orden de frecuencia)
-            const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
-            const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
-            // Si la categoría seleccionada no está en pinned, expandir automáticamente
-            const selInOther = catId && otherCats.some(c => c.id === catId)
+              const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
+              const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
+              const selInOther = catId && otherCats.some(c => c.id === catId)
 
-            return (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {pinnedCats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
-                  ))}
-                  {/* Categoría seleccionada fuera de pinned — visible aunque esté colapsado */}
-                  {!catsExpanded && selInOther && (() => {
-                    const selCat = otherCats.find(c => c.id === catId)
-                    return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
-                  })()}
-                </div>
-                {otherCats.length > 0 && (
-                  <>
-                    {catsExpanded && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {otherCats.map(c => (
-                          <CatChip
-                            key={c.id}
-                            c={c}
-                            selected={catId === c.id}
-                            onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {!catsExpanded && (
-                      <button
-                        type="button"
-                        onClick={() => setCatsExpanded(true)}
-                        className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                        Ver {otherCats.length} más
-                      </button>
-                    )}
-                  </>
-                )}
-              </>
-            )
-          })()}
+              return (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {pinnedCats.map(c => (
+                      <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                    ))}
+                    {!catsExpanded && selInOther && (() => {
+                      const selCat = otherCats.find(c => c.id === catId)
+                      return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
+                    })()}
+                  </div>
+                  {otherCats.length > 0 && (
+                    <>
+                      {catsExpanded && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {otherCats.map(c => (
+                            <CatChip
+                              key={c.id}
+                              c={c}
+                              selected={catId === c.id}
+                              onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {!catsExpanded && (
+                        <button
+                          type="button"
+                          onClick={() => setCatsExpanded(true)}
+                          className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          Ver {otherCats.length} más
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
+              )
+            })()
+          )}
         </div>
 
         {/* Payment + date */}
@@ -396,16 +448,48 @@ export default function ExpenseSheet({
           ))}
         </div>
 
-        {/* Save button */}
+        {/* Save button + delete */}
         <div className="px-5 pt-2" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 16px))' }}>
           <button
             onClick={save}
-            disabled={saving}
+            disabled={saving || deleting}
             className="w-full py-3.5 bg-brand-600 text-white font-semibold rounded-2xl hover:bg-brand-700 transition-colors disabled:opacity-60 text-base"
             style={{ backgroundColor: '#1B6DD4' }}
           >
             {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Guardar gasto'}
           </button>
+
+          {isEditing && (
+            <div className="mt-3 flex items-center justify-center">
+              {deleteConfirm ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400">¿Eliminar este gasto?</span>
+                  <button
+                    onClick={() => setDeleteConfirm(false)}
+                    className="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors px-2 py-1"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors px-3 py-1.5 rounded-xl disabled:opacity-60"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {deleting ? 'Eliminando...' : 'Confirmar'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors py-1 px-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Eliminar gasto
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
