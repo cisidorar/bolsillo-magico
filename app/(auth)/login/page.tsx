@@ -41,8 +41,9 @@ function LoginForm() {
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState('')
   const [success,    setSuccess]    = useState('')
-  const [resetSent,  setResetSent]  = useState(false)
-  const [showResend, setShowResend] = useState(false)  // email no confirmado
+  const [resetSent,   setResetSent]   = useState(false)
+  const [signupSent,  setSignupSent]  = useState(false)  // registro exitoso, pendiente de confirmar
+  const [showResend,  setShowResend]  = useState(false)  // email no confirmado
 
   // Rate limiting
   const [attempts,    setAttempts]    = useState(0)
@@ -76,7 +77,7 @@ function LoginForm() {
   function switchMode(m: Mode) {
     setMode(m)
     setError(''); setSuccess(''); setEmail(''); setPass('')
-    setResetSent(false); setShowResend(false); setNameField('')
+    setResetSent(false); setSignupSent(false); setShowResend(false); setNameField('')
   }
 
   function registerFailedAttempt() {
@@ -141,7 +142,7 @@ function LoginForm() {
         setError(error.message === 'User already registered' ? 'Ya existe una cuenta con ese email' : error.message)
         setLoading(false); return
       }
-      setSuccess('¡Cuenta creada! Revisá tu email para confirmar antes de ingresar.')
+      setSignupSent(true)
       setLoading(false)
     }
   }
@@ -247,8 +248,26 @@ function LoginForm() {
 
               <div className="flex flex-col gap-3">
 
+                {/* ── Signup confirmación pendiente ─────────────────── */}
+                {mode === 'signup' && signupSent && (
+                  <div className="text-center py-2">
+                    <div className="text-3xl mb-3">📬</div>
+                    <p className="text-sm font-bold text-gray-800 mb-1">¡Revisá tu correo!</p>
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      Enviamos un enlace de confirmación a{' '}
+                      <span className="font-semibold text-gray-600">{email}</span>.{' '}
+                      Confirmá tu cuenta antes de ingresar.
+                    </p>
+                    <button type="button" onClick={() => switchMode('login')}
+                      className="mt-4 text-sm font-semibold"
+                      style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      ← Volver al login
+                    </button>
+                  </div>
+                )}
+
                 {/* ── Login / Signup ─────────────────────────────────── */}
-                {(mode === 'login' || mode === 'signup') && (<>
+                {(mode === 'login' || mode === 'signup') && !signupSent && (<>
 
                   {mode === 'signup' && (
                     <div className="field">
@@ -364,7 +383,7 @@ function LoginForm() {
             </div>
 
             {/* Switch login ↔ signup */}
-            {(mode === 'login' || mode === 'signup') && (
+            {(mode === 'login' || mode === 'signup') && !signupSent && (
               <p className="mt-6 text-sm font-medium text-center text-white/60 lg:text-gray-400">
                 {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
                 <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
