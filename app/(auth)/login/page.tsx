@@ -36,6 +36,7 @@ function LoginForm() {
   const [mode,       setMode]       = useState<Mode>('login')
   const [email,      setEmail]      = useState('')
   const [pass,       setPass]       = useState('')
+  const [nameField,  setNameField]  = useState('')
   const [showPw,     setShowPw]     = useState(false)
   const [loading,    setLoading]    = useState(false)
   const [error,      setError]      = useState('')
@@ -75,7 +76,7 @@ function LoginForm() {
   function switchMode(m: Mode) {
     setMode(m)
     setError(''); setSuccess(''); setEmail(''); setPass('')
-    setResetSent(false); setShowResend(false)
+    setResetSent(false); setShowResend(false); setNameField('')
   }
 
   function registerFailedAttempt() {
@@ -103,6 +104,7 @@ function LoginForm() {
     }
 
     if (!email || !pass) { setError('Completa todos los campos'); return }
+    if (mode === 'signup' && !nameField.trim()) { setError('Ingresa tu nombre'); return }
     if (mode === 'signup' && pass.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return }
     setLoading(true)
 
@@ -130,7 +132,10 @@ function LoginForm() {
     } else {
       const { error } = await supabase.auth.signUp({
         email, password: pass,
-        options: { emailRedirectTo: `${window.location.origin}/api/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+          data: { display_name: nameField.trim() },
+        },
       })
       if (error) {
         setError(error.message === 'User already registered' ? 'Ya existe una cuenta con ese email' : error.message)
@@ -244,6 +249,16 @@ function LoginForm() {
 
                 {/* ── Login / Signup ─────────────────────────────────── */}
                 {(mode === 'login' || mode === 'signup') && (<>
+
+                  {mode === 'signup' && (
+                    <div className="field">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                      </svg>
+                      <input type="text" value={nameField} onChange={e => setNameField(e.target.value)}
+                        placeholder="Tu nombre" autoComplete="name" maxLength={40} />
+                    </div>
+                  )}
 
                   <div className="field">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>

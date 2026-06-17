@@ -16,6 +16,15 @@ export async function GET(request: Request) {
       // Crear categorías y métodos de pago por defecto en el primer login
       await supabase.rpc('seed_user_defaults', { p_user_id: data.user.id })
 
+      // Si el usuario ingresó su nombre al registrarse, guardarlo en profiles
+      const displayName = data.user.user_metadata?.display_name as string | undefined
+      if (displayName?.trim()) {
+        await supabase
+          .from('profiles')
+          .update({ display_name: displayName.trim() })
+          .eq('id', data.user.id)
+      }
+
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocalEnv = process.env.NODE_ENV === 'development'
 
