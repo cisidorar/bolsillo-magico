@@ -291,26 +291,26 @@ export default function ExpenseSheet({
             </button>
           </div>
 
-          <div className="px-5 pt-4 space-y-4" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
+          <div className="px-5 pt-4 space-y-3.5" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
 
-            {/* Amount */}
+            {/* Amount — formatted display */}
             <div>
               <p className="text-xs font-medium text-gray-400 mb-1.5">Monto</p>
               <div className={cn(
-                'flex items-center gap-2 bg-gray-50 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400',
+                'flex items-center gap-1 bg-gray-50 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400',
                 error && !amount ? 'border-red-300' : 'border-gray-200'
               )}>
-                <span className="text-2xl font-bold text-gray-300">$</span>
+                <span className="text-2xl font-bold text-gray-300 flex-shrink-0">$</span>
                 <input
                   type="text"
                   inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={amount}
+                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
                   onChange={e => {
-                    const raw = e.target.value.replace(/\D/g, '')
+                    // Strips thousand separators (dots in es-CL) before storing raw digits
+                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
                     if (raw.length <= 9) { setAmount(raw); setError('') }
                   }}
-                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none"
+                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0"
                   placeholder="0"
                 />
               </div>
@@ -320,7 +320,7 @@ export default function ExpenseSheet({
             {/* Category */}
             <div>
               <p className="text-xs font-medium text-gray-400 mb-1.5">Categoría</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {selectedCat
                   ? <CatChip c={selectedCat} selected onSelect={() => {}} />
                   : <span className="text-sm text-gray-400 italic">Sin categoría</span>
@@ -350,16 +350,55 @@ export default function ExpenseSheet({
               )}
             </div>
 
-            {/* Method + Date side by side */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-gray-400 mb-1.5">Método</p>
-                {methodChips}
+            {/* Method + Date — chips en 2 cols, date input full-width abajo */}
+            <div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-1.5">Método</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => { pmUserPicked.current = true; setPmId(null) }}
+                      className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                        pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                    >Efectivo</button>
+                    {pms.map(pm => (
+                      <button key={pm.id}
+                        onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
+                        className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                          pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                      >{pm.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-400 mb-1.5">Fecha</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickDates.map(d => (
+                      <button key={d.value}
+                        onClick={() => { setDateStr(d.value); setShowDatePicker(false) }}
+                        className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                          dateStr === d.value && !showDatePicker
+                            ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+                            : 'border-gray-200 bg-gray-50 text-gray-600')}
+                      >{d.label}</button>
+                    ))}
+                    <button
+                      onClick={() => setShowDatePicker(v => !v)}
+                      className={cn('px-2.5 py-1.5 rounded-full text-xs border transition-all',
+                        showDatePicker || !isQuickDate
+                          ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+                          : 'border-gray-200 bg-gray-50 text-gray-600')}
+                    ><CalendarDays className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-medium text-gray-400 mb-1.5">Fecha</p>
-                {dateChips}
-              </div>
+              {/* Date input full width — fuera del grid para no cortarse */}
+              {(showDatePicker || !isQuickDate) && (
+                <input type="date" value={dateStr} max={todayStr}
+                  onChange={e => { setDateStr(e.target.value); setShowDatePicker(false) }}
+                  className="mt-2 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-brand-400"
+                />
+              )}
             </div>
 
             {/* Description */}
