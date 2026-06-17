@@ -250,16 +250,54 @@ function LoginForm() {
 
                 {/* ── Signup confirmación pendiente ─────────────────── */}
                 {mode === 'signup' && signupSent && (
-                  <div className="text-center py-2">
-                    <div className="text-3xl mb-3">📬</div>
-                    <p className="text-sm font-bold text-gray-800 mb-1">¡Revisá tu correo!</p>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Enviamos un enlace de confirmación a{' '}
-                      <span className="font-semibold text-gray-600">{email}</span>.{' '}
-                      Confirmá tu cuenta antes de ingresar.
+                  <div className="text-center py-4">
+                    {/* Icono */}
+                    <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+                      style={{ background: '#EEF4FF' }}>
+                      📬
+                    </div>
+                    <h3 className="text-lg font-extrabold text-gray-900 mb-2">¡Revisá tu correo!</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed mb-1">
+                      Enviamos un enlace de confirmación a
                     </p>
+                    <p className="text-sm font-bold mb-5" style={{ color: '#1B6DD4' }}>{email}</p>
+
+                    {/* Steps */}
+                    <div className="text-left space-y-3 mb-6 px-1">
+                      {[
+                        { n: '1', text: 'Abrí tu bandeja de entrada' },
+                        { n: '2', text: 'Buscá un correo de Bolsillo Mágico' },
+                        { n: '3', text: 'Hacé clic en "Confirmar cuenta"' },
+                      ].map(({ n, text }) => (
+                        <div key={n} className="flex items-center gap-3">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
+                            style={{ background: '#1B6DD4' }}>{n}</div>
+                          <p className="text-sm text-gray-600">{text}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Reenviar */}
+                    <div className="rounded-2xl px-4 py-3 mb-4 text-xs text-gray-400"
+                      style={{ background: '#F5F8FF', border: '1.5px solid #DAEDF8' }}>
+                      ¿No llegó el correo?{' '}
+                      <button type="button"
+                        onClick={async () => {
+                          await supabase.auth.resend({ type: 'signup', email })
+                          setSuccess('Correo reenviado')
+                        }}
+                        className="font-bold"
+                        style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+                        Reenviar
+                      </button>
+                    </div>
+
+                    {success && (
+                      <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 mb-3">{success}</p>
+                    )}
+
                     <button type="button" onClick={() => switchMode('login')}
-                      className="mt-4 text-sm font-semibold"
+                      className="text-sm font-semibold"
                       style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       ← Volver al login
                     </button>
@@ -363,16 +401,17 @@ function LoginForm() {
 
                 {/* ── Email enviado ──────────────────────────────────── */}
                 {mode === 'forgot' && resetSent && (
-                  <div className="text-center py-2">
-                    <div className="text-3xl mb-3">📬</div>
-                    <p className="text-sm font-bold text-gray-800 mb-1">¡Revisá tu correo!</p>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Enviamos instrucciones a{' '}
-                      <span className="font-semibold text-gray-600">{email}</span>.{' '}
-                      El enlace expira en 1 hora.
-                    </p>
+                  <div className="text-center py-4">
+                    <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+                      style={{ background: '#EEF4FF' }}>
+                      🔑
+                    </div>
+                    <h3 className="text-lg font-extrabold text-gray-900 mb-2">Revisá tu correo</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed mb-1">Enviamos instrucciones a</p>
+                    <p className="text-sm font-bold mb-5" style={{ color: '#1B6DD4' }}>{email}</p>
+                    <p className="text-xs text-gray-400 mb-6">El enlace expira en 1 hora.</p>
                     <button type="button" onClick={() => switchMode('login')}
-                      className="mt-4 text-sm font-semibold"
+                      className="text-sm font-semibold"
                       style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                       ← Volver al login
                     </button>
