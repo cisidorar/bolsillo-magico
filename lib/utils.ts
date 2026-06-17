@@ -73,6 +73,41 @@ export function billingPeriod(
 }
 
 /**
+ * Dado un mes/año de estado de cuenta y el día de corte, retorna el rango exacto
+ * de fechas del período:
+ *   - end: día de corte del mes del estado (clampado al último día real del mes)
+ *   - start: día siguiente al corte del mes anterior (maneja overflow de mes)
+ *
+ * Ejemplo corte 15, estado junio 2025 → start: 2025-05-16, end: 2025-06-15
+ * Ejemplo corte 28, estado marzo 2025 → start: 2025-03-01 (feb solo tiene 28 días)
+ */
+export function billingPeriodRange(
+  statementMonth: number,
+  statementYear: number,
+  billingDay: number
+): { start: string; end: string } {
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  // end = día de corte del mes del estado (clampado al último día real)
+  const lastDayOfEnd = new Date(statementYear, statementMonth, 0).getDate()
+  const endDay = Math.min(billingDay, lastDayOfEnd)
+  const endDate = new Date(statementYear, statementMonth - 1, endDay)
+
+  // start = día siguiente al cierre del mes anterior
+  // Para evitar overflow (ej: billingDay=28, prevMonth=febrero → no existe día 29):
+  // computamos el cierre del mes anterior y le sumamos 1 día
+  const prevM = statementMonth === 1 ? 12 : statementMonth - 1
+  const prevY = statementMonth === 1 ? statementYear - 1 : statementYear
+  const lastDayOfPrev = new Date(prevY, prevM, 0).getDate()
+  const prevCloseDay  = Math.min(billingDay, lastDayOfPrev)
+  const prevClose     = new Date(prevY, prevM - 1, prevCloseDay)
+  const startDate     = new Date(prevClose.getTime() + 86_400_000) // +1 día
+
+  return { start: fmt(startDate), end: fmt(endDate) }
+}
+
+/**
  * Retorna el rango del estado de cuenta ACTUALMENTE ABIERTO para una tarjeta con un
  * día de corte dado. El estado abierto es el que se está acumulando ahora.
  *
@@ -87,37 +122,14 @@ export function currentStatementRange(billingDay: number): {
 } {
   const today    = new Date()
   const todayDay = today.getDate()
+  const m        = today.getMonth() + 1  // 1-indexed
   const y        = today.getFullYear()
-  const m        = today.getMonth() // 0-indexed
 
-  let startDate: Date
-  let endDate: Date
+  // Si el corte aún no llegó este mes → el estado cierra este mes
+  // Si el corte ya pasó → el estado cierra el mes que viene
+  const statementMonth = todayDay <= billingDay ? m : (m === 12 ? 1 : m + 1)
+  const statementYear  = todayDay <= billingDay ? y : (m === 12 ? y + 1 : y)
 
-  if (todayDay <= billingDay) {
-    // Corte aún no llegó: estado corre desde el día siguiente al corte del mes anterior
-    startDate = new Date(y, m - 1, billingDay + 1)
-    endDate   = new Date(y, m,     billingDay)
-  } else {
-    // Corte ya pasó: estado corre desde el día siguiente al corte de este mes
-    startDate = new Date(y, m,     billingDay + 1)
-    endDate   = new Date(y, m + 1, billingDay)
-  }
-
-  // Clampar endDate al último día real del mes (evita overflow cuando billingDay
-  // es mayor que los días del mes, ej: billing_day=31 en junio que tiene 30 días)
-  const lastDayOfEndMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate()
-  if (endDate.getDate() !== billingDay && billingDay > lastDayOfEndMonth) {
-    endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0)
-  }
-
-  // Formatear como YYYY-MM-DD usando componentes locales (sin conversión UTC)
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-  return {
-    start: fmt(startDate),
-    end:   fmt(endDate),
-    month: endDate.getMonth() + 1,
-    year:  endDate.getFullYear(),
-  }
+  const range = billingPeriodRange(statementMonth, statementYear, billingDay)
+  return { ...range, month: statementMonth, year: statementYear }
 }

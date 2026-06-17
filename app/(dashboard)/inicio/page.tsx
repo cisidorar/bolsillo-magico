@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { Sparkles, CreditCard, Calendar, ChevronRight } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
@@ -162,7 +162,9 @@ export default async function DashboardPage() {
 
   type StatementCard = {
     id: string; name: string; domain: string | null; billingDay: number
-    statementMonth: number; statementYear: number; closesOn: string; total: number; count: number
+    statementMonth: number; statementYear: number
+    opensOn: string; closesOn: string
+    total: number; count: number
   }
   const statementCards: StatementCard[] = creditCards.map(card => {
     const range   = currentStatementRange(card.billing_day!)
@@ -173,7 +175,8 @@ export default async function DashboardPage() {
     })
     return {
       id: card.id, name: card.name, domain: card.domain, billingDay: card.billing_day!,
-      statementMonth: range.month, statementYear: range.year, closesOn: range.end,
+      statementMonth: range.month, statementYear: range.year,
+      opensOn: range.start, closesOn: range.end,
       total: inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0),
       count: inRange.length,
     }
@@ -442,21 +445,31 @@ export default async function DashboardPage() {
               </div>
               <div className="card divide-y divide-gray-50 overflow-hidden">
                 {statementCards.map(card => {
-                  const closeDate     = new Date(card.closesOn + 'T12:00:00')
-                  const closesLabel   = closeDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  const statementLabel = `${monthName(card.statementMonth).slice(0, 3)} ${card.statementYear !== year ? card.statementYear : ''}`
+                  const openDate  = new Date(card.opensOn  + 'T12:00:00')
+                  const closeDate = new Date(card.closesOn + 'T12:00:00')
+                  const fmt = (d: Date) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                  // Días restantes hasta el cierre
+                  const today0   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                  const close0   = new Date(closeDate.getFullYear(), closeDate.getMonth(), closeDate.getDate())
+                  const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
+                  const daysLabel = daysLeft === 0 ? 'Cierra hoy'
+                    : daysLeft === 1 ? 'Cierra mañana'
+                    : daysLeft > 0   ? `Cierra en ${daysLeft}d`
+                    : 'Cerrado'
                   return (
                     <div key={card.id} className="flex items-center gap-3 px-4 py-3.5">
                       <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{card.name}</p>
                         <p className="text-xs text-gray-400">
-                          Estado {statementLabel.trim()} · cierra {closesLabel}
+                          {fmt(openDate)} – {fmt(closeDate)}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(card.total)}</p>
-                        <p className="text-[10px] text-gray-400">{card.count} compra{card.count !== 1 ? 's' : ''}</p>
+                        <p className={`text-[10px] font-semibold ${daysLeft <= 3 && daysLeft >= 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+                          {daysLabel}
+                        </p>
                       </div>
                     </div>
                   )

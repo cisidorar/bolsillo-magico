@@ -2,7 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
-import { billingPeriod, formatCLP, monthName } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, formatCLP, monthName } from '@/lib/utils'
 import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, Receipt, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
@@ -126,6 +126,23 @@ export default async function HistorialPage({
   const avgPerExpense = totalCount > 0 ? Math.round(total / totalCount) : 0
   const hasFilters = !!(q || catIds.length > 0)
 
+  // En modo billing: derivar períodos reales por tarjeta a partir de los gastos ya filtrados
+  type CardPeriod = { name: string; start: string; end: string; billingDay: number }
+  const cardPeriods: CardPeriod[] = []
+  if (isBilling) {
+    const seen = new Set<number>()
+    for (const e of expenses) {
+      const pm = e.payment_method as { name?: string; billing_day?: number | null } | null
+      const bd = pm?.billing_day ?? null
+      if (bd && !seen.has(bd)) {
+        seen.add(bd)
+        const range = billingPeriodRange(month, year, bd)
+        cardPeriods.push({ name: pm?.name ?? '', start: range.start, end: range.end, billingDay: bd })
+      }
+    }
+    // Si no hay expenses pero estamos en billing mode, no mostramos nada
+  }
+
   // Group by date
   const grouped = expenses.reduce<Record<string, ExpenseWithRelations[]>>((acc, e) => {
     if (!acc[e.date]) acc[e.date] = []
@@ -160,13 +177,15 @@ export default async function HistorialPage({
       {totalCount > 0 && (
         <div className="grid grid-cols-3 gap-2.5 lg:gap-4 mb-5">
 
-          {/* Total del mes */}
+          {/* Total del mes / período */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
             <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
               <Wallet className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Total del mes</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">
+                {isBilling ? 'Total del período' : 'Total del mes'}
+              </p>
               <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(total)}</p>
             </div>
           </div>
@@ -178,7 +197,9 @@ export default async function HistorialPage({
             </div>
             <div>
               <p className="text-lg lg:text-2xl font-extrabold text-gray-900 leading-none">{totalCount}</p>
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">gastos este mes</p>
+              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">
+                {isBilling ? 'en el período' : 'gastos este mes'}
+              </p>
             </div>
           </div>
 
@@ -204,12 +225,35 @@ export default async function HistorialPage({
 
       {/* Banners */}
       {isBilling && (
-        <div className="flex items-start gap-2.5 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4">
-          <span className="text-indigo-500 text-base mt-0.5">💳</span>
-          <p className="text-xs text-indigo-700 leading-relaxed">
-            Mostrando gastos cuyo <strong>estado de cuenta cierra en {monthName(month)} {year}</strong>,
-            independiente de la fecha de compra.
-          </p>
+        <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-indigo-500 text-base">💳</span>
+            <p className="text-xs font-semibold text-indigo-700">
+              Facturación · {monthName(month)} {year}
+            </p>
+          </div>
+          {cardPeriods.length > 0 ? (
+            <div className="space-y-1 pl-6">
+              {cardPeriods.map(cp => {
+                const fmt = (s: string) => {
+                  const d = new Date(s + 'T12:00:00')
+                  return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                }
+                return (
+                  <p key={cp.billingDay} className="text-[11px] text-indigo-600">
+                    {cp.name
+                      ? <><span className="font-semibold">{cp.name}:</span> {fmt(cp.start)} – {fmt(cp.end)}</>
+                      : <>{fmt(cp.start)} – {fmt(cp.end)} (corte día {cp.billingDay})</>
+                    }
+                  </p>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-indigo-500 pl-6">
+              Gastos cuyo estado de cuenta cierra en {monthName(month)} {year}, independiente de la fecha de compra.
+            </p>
+          )}
         </div>
       )}
       {isBilling && billingHitLimit && (
