@@ -223,7 +223,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
                   <p className="text-xs text-gray-400 truncate">
-                    {item.category?.name ?? 'Sin categoría'}
+                    {item.category?.name ?? ''}
                     {item.auto_register && !isCuotas && (
                       <span className="ml-1.5 text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1 py-0.5 rounded-full font-medium">auto</span>
                     )}

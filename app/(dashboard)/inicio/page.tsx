@@ -213,15 +213,22 @@ export default async function DashboardPage() {
   const insights: Insight[] = []
 
   // 1. Top category trend vs prev month
+  // Umbral mínimo: ambos meses deben tener al menos $10.000 en esa categoría
+  // para evitar % engañosos (ej: subió 1300% porque pasó de $500 a $7.000)
+  const MIN_CAT_AMOUNT = 10_000
   if (catSummary.length > 0 && prevTotal > 0) {
     const top  = catSummary[0]
     const prev = prevByCat[top.id] ?? 0
-    if (prev > 0) {
-      const delta = Math.round(((top.total - prev) / prev) * 100)
-      if (Math.abs(delta) >= 15) {
+    if (prev >= MIN_CAT_AMOUNT && top.total >= MIN_CAT_AMOUNT) {
+      const delta    = Math.round(((top.total - prev) / prev) * 100)
+      const deltaAbs = Math.abs(delta)
+      // Solo mostrar si el cambio es significativo (≥15%) y hay diferencia real en CLP
+      const clpDiff  = Math.abs(top.total - prev)
+      if (deltaAbs >= 15 && clpDiff >= 5_000) {
+        const pctLabel = deltaAbs > 200 ? `más del doble` : `${deltaAbs}%`
         insights.push(delta > 0
-          ? { emoji: '📈', title: `${top.name} subió ${delta}%`, detail: `vs. el mes pasado`, bg: '#FFF7ED', textColor: '#C2410C', href: `/analisis/${top.id}?month=${month}&year=${year}` }
-          : { emoji: '📉', title: `${top.name} bajó ${Math.abs(delta)}%`, detail: `vs. el mes pasado`, bg: '#F0FDF4', textColor: '#166534', href: `/analisis/${top.id}?month=${month}&year=${year}` }
+          ? { emoji: '📈', title: `${top.name} subió ${pctLabel}`, detail: `${formatCLP(top.total - prev)} más que ${monthName(prevM).slice(0, 3).toLowerCase()}`, bg: '#FFF7ED', textColor: '#C2410C', href: `/analisis/${top.id}?month=${month}&year=${year}` }
+          : { emoji: '📉', title: `${top.name} bajó ${pctLabel}`, detail: `${formatCLP(prev - top.total)} menos que ${monthName(prevM).slice(0, 3).toLowerCase()}`, bg: '#F0FDF4', textColor: '#166534', href: `/analisis/${top.id}?month=${month}&year=${year}` }
         )
       }
     }
@@ -404,8 +411,8 @@ export default async function DashboardPage() {
                 {/* Stat chips — fila en mobile, apilados en desktop */}
                 <div className="flex gap-2 lg:flex-col lg:gap-2">
                   {[
-                    { label: 'Por día',      value: total > 0 ? formatCLP(dailyAvg) : '–' },
-                    { label: 'Esta semana',  value: weekTotal > 0 ? formatCLP(weekTotal) : '–' },
+                    { label: 'Por día',      value: formatCLP(dailyAvg) },
+                    { label: 'Esta semana',  value: formatCLP(weekTotal) },
                     {
                       label: 'Proyección',
                       value: total > 0 ? formatCLP(projection) : '–',

@@ -3,9 +3,10 @@
 import React, { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, Pencil, Star, CreditCard, Landmark, Smartphone } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Plus, Trash2, Check, X, Pencil, Star, CreditCard, Landmark, Smartphone, ChevronRight } from 'lucide-react'
+import { cn, formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
+import Link from 'next/link'
 import type { PaymentMethod, CardType } from '@/types'
 
 const CARD_TYPES: { value: CardType; label: string; Icon: React.ElementType; desc: string }[] = [
@@ -54,6 +55,7 @@ const ALL_OPTIONS = [...BANK_OPTIONS, ...WALLET_OPTIONS]
 interface Props {
   paymentMethods: PaymentMethod[]
   userId: string
+  statementTotals?: Record<string, { total: number; start: string; end: string }>
 }
 
 type FormState = {
@@ -76,7 +78,7 @@ const DEFAULT_FORM: FormState = {
   selectedBank: null,
 }
 
-export default function PaymentMethodManager({ paymentMethods: init, userId }: Props) {
+export default function PaymentMethodManager({ paymentMethods: init, userId, statementTotals = {} }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -233,81 +235,109 @@ export default function PaymentMethodManager({ paymentMethods: init, userId }: P
               ?? (ct === 'cash' ? { label: 'Efectivo' } : CARD_TYPES[0])
             const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
 
+            const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
+            const fmtDate = (s: string) => {
+              const d = new Date(s + 'T12:00:00')
+              return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+            }
+
             return (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3.5">
-                {/* Logo */}
-                <div className="flex-shrink-0">
-                  <ServiceLogo
-                    domain={m.domain}
-                    name={m.name}
-                    size={44}
-                    fallbackColor={fallbackColor}
-                  />
-                </div>
+              <div key={m.id} className="px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  {/* Logo */}
+                  <div className="flex-shrink-0">
+                    <ServiceLogo
+                      domain={m.domain}
+                      name={m.name}
+                      size={44}
+                      fallbackColor={fallbackColor}
+                    />
+                  </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-900 truncate">{m.name}</span>
-                    {m.last_four && (
-                      <span className="text-xs text-gray-400 font-medium tabular-nums">···{m.last_four}</span>
-                    )}
-                    {m.is_default && (
-                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-gray-900 truncate">{m.name}</span>
+                      {m.last_four && (
+                        <span className="text-xs text-gray-400 font-medium tabular-nums">···{m.last_four}</span>
+                      )}
+                      {m.is_default && (
+                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span
+                        className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                        style={{ backgroundColor: c.bgHex, color: c.textHex }}
+                      >
+                        {type.label}
+                      </span>
+                      {m.card_type === 'credit' && m.billing_day && (
+                        <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    {pendingDelete === m.id ? (
+                      <>
+                        <span className="text-xs text-red-500 font-semibold mr-1.5">¿Eliminar?</span>
+                        <button
+                          onClick={() => setPendingDelete(null)}
+                          className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => { deleteMethod(m.id); setPendingDelete(null) }}
+                          disabled={deleting === m.id}
+                          className="p-1.5 rounded-xl text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 ml-0.5"
+                        >
+                          {deleting === m.id
+                            ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            : <Check className="w-3.5 h-3.5" />
+                          }
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPendingDelete(m.id)}
+                          className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span
-                      className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
-                      style={{ backgroundColor: c.bgHex, color: c.textHex }}
-                    >
-                      {type.label}
-                    </span>
-                    {m.card_type === 'credit' && m.billing_day && (
-                      <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
-                    )}
-                  </div>
                 </div>
 
-                {/* Acciones */}
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  {pendingDelete === m.id ? (
-                    <>
-                      <span className="text-xs text-red-500 font-semibold mr-1.5">¿Eliminar?</span>
-                      <button
-                        onClick={() => setPendingDelete(null)}
-                        className="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { deleteMethod(m.id); setPendingDelete(null) }}
-                        disabled={deleting === m.id}
-                        className="p-1.5 rounded-xl text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 ml-0.5"
-                      >
-                        {deleting === m.id
-                          ? <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          : <Check className="w-3.5 h-3.5" />
-                        }
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => openEdit(m)}
-                        className="p-2 text-gray-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setPendingDelete(m.id)}
-                        className="p-2 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-xl transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>
-                  )}
-                </div>
+                {/* Saldo período actual — solo tarjetas de crédito */}
+                {stmt && (
+                  <Link
+                    href="/historial?view=billing"
+                    className="mt-2.5 ml-[56px] flex items-center justify-between rounded-2xl px-3.5 py-2.5 transition-colors"
+                    style={{ background: '#EEF4FF' }}
+                  >
+                    <div>
+                      <p className="text-[11px] text-gray-400 font-medium">
+                        Período {fmtDate(stmt.start)} – {fmtDate(stmt.end)}
+                      </p>
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color: '#1B6DD4' }}>
+                        {formatCLP(stmt.total)}
+                      </p>
+                      <p className="text-[10px] text-gray-400">acumulado hasta hoy</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: '#1B6DD4' }} />
+                  </Link>
+                )}
               </div>
             )
           })}
