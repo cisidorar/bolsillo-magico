@@ -103,7 +103,7 @@ function LoginForm() {
     }
 
     if (!email || !pass) { setError('Completa todos los campos'); return }
-    if (pass.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
+    if (mode === 'signup' && pass.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return }
     setLoading(true)
 
     if (mode === 'login') {
@@ -258,7 +258,8 @@ function LoginForm() {
                       <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                     <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
-                      placeholder="Contraseña" autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                      placeholder={mode === 'signup' ? 'Contraseña (mín. 8 caracteres)' : 'Contraseña'}
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                       disabled={isLocked} />
                     <button type="button" onClick={() => setShowPw(!showPw)}
                       style={{ color: '#93BAD0', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
