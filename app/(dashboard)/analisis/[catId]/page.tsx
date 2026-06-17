@@ -1,7 +1,7 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, isEmoji } from '@/lib/utils'
-import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
+import CatExpenseList from '@/components/CatExpenseList'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
@@ -53,7 +53,16 @@ export default async function CategoriaDetallePage({
     if (!byDay[e.date]) byDay[e.date] = []
     byDay[e.date].push(e)
   }
-  const days = Object.entries(byDay).sort((a, b) => b[0].localeCompare(a[0]))
+  const groups = Object.entries(byDay)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, exps]) => ({
+      date,
+      label: new Date(date + 'T12:00:00').toLocaleDateString('es-CL', {
+        weekday: 'long', day: 'numeric', month: 'long',
+      }),
+      dayTotal: exps.reduce((s, e) => s + e.amount, 0),
+      expenses: exps,
+    }))
 
   const backHref = `/analisis?month=${month}&year=${year}${view === 'billing' ? '&view=billing' : ''}`
 
@@ -61,11 +70,8 @@ export default async function CategoriaDetallePage({
 
   return (
     <div className="pb-8">
-      {/* Header con volver */}
-      <div
-        className="px-4 lg:px-8 pt-5 pb-4 flex items-center gap-3"
-        style={{ background: 'linear-gradient(160deg, #0F4489 0%, #1B6DD4 100%)' }}
-      >
+      {/* Header */}
+      <div className="hero-gradient px-4 lg:px-8 pt-5 pb-4 flex items-center gap-3">
         <Link
           href={backHref}
           className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 active:bg-white/30 transition-colors"
@@ -75,7 +81,10 @@ export default async function CategoriaDetallePage({
 
         {/* Ícono + nombre */}
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: category.bg_color }}>
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: category.bg_color }}
+          >
             {isEmoji(category.icon)
               ? <span className="text-lg">{category.icon}</span>
               : CatIcon && <CatIcon className="w-5 h-5" style={{ color: category.color }} />
@@ -95,50 +104,14 @@ export default async function CategoriaDetallePage({
       </div>
 
       {/* Lista agrupada por día */}
-      <div className="px-4 lg:px-8 pt-4 space-y-4">
-        {days.length === 0 ? (
+      <div className="px-4 lg:px-8 pt-4">
+        {groups.length === 0 ? (
           <div className="card text-center py-14">
             <p className="text-sm font-bold text-gray-500">Sin gastos en {monthName(month)}</p>
           </div>
-        ) : days.map(([date, exps]) => {
-          const dayTotal = exps.reduce((s, e) => s + e.amount, 0)
-          const dateObj  = new Date(date + 'T12:00:00')
-          const label    = dateObj.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
-
-          return (
-            <div key={date}>
-              {/* Separador de día */}
-              <div className="flex items-center justify-between mb-2 px-1">
-                <p className="text-xs font-bold text-gray-400 capitalize">{label}</p>
-                <p className="text-xs font-bold text-gray-500 tabular-nums">{formatCLP(dayTotal)}</p>
-              </div>
-
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {exps.map(e => {
-                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, category.name)
-                  return (
-                    <div key={e.id} className="flex items-center gap-3 px-4 py-3.5">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
-                        <Icon className="w-4 h-4" style={{ color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {e.description || category.name}
-                        </p>
-                        {e.payment_method && (
-                          <p className="text-xs text-gray-400">{e.payment_method.name}</p>
-                        )}
-                      </div>
-                      <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
-                        {formatCLP(e.amount)}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+        ) : (
+          <CatExpenseList groups={groups} categoryName={category.name} />
+        )}
       </div>
     </div>
   )

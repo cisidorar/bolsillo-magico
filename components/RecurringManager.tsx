@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Pencil, Check, X, RefreshCw, Pause, Play, CreditCard, MoreVertical } from 'lucide-react'
@@ -73,11 +74,19 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const [error, setError]             = useState('')
   const [openMenu, setOpenMenu]       = useState<string | null>(null)
+  const [menuPos, setMenuPos]         = useState<{ top: number; right: number } | null>(null)
   const menuRef                       = useRef<HTMLDivElement>(null)
+  const btnRefs                       = useRef<Record<string, HTMLButtonElement | null>>({})
 
   // Cerrar menú al hacer click afuera
   useEffect(() => {
-    if (!openMenu) return
+    if (!openMenu) { setMenuPos(null); return }
+    // Calcular posición fixed desde el botón
+    const btn = btnRefs.current[openMenu]
+    if (btn) {
+      const r = btn.getBoundingClientRect()
+      setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    }
     function handler(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null)
     }
@@ -255,46 +264,14 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 </span>
 
                 {/* Menú ⋮ */}
-                <div className="relative flex-shrink-0">
+                <div className="flex-shrink-0">
                   <button
+                    ref={el => { btnRefs.current[item.id] = el }}
                     onClick={() => setOpenMenu(isMenuOpen ? null : item.id)}
                     className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
-
-                  {isMenuOpen && (
-                    <div className="absolute right-0 top-8 z-30 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 w-36">
-                      <button
-                        onClick={() => { setOpenMenu(null); openEdit(item) }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <Pencil className="w-3.5 h-3.5 text-gray-400" /> Editar
-                      </button>
-                      {item.is_active && !isCompleted && (
-                        <button
-                          onClick={() => { setOpenMenu(null); toggleActive(item) }}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Pause className="w-3.5 h-3.5 text-gray-400" /> Pausar
-                        </button>
-                      )}
-                      {!item.is_active && !isCompleted && (
-                        <button
-                          onClick={() => { setOpenMenu(null); toggleActive(item) }}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Play className="w-3.5 h-3.5 text-gray-400" /> Reactivar
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setOpenMenu(null); setPendingDelete(item.id) }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -347,6 +324,55 @@ export default function RecurringManager({ items: init, categories, paymentMetho
         <Plus className="w-4 h-4" />
         Agregar recurrente
       </button>
+
+      {/* Dropdown portal — escapa overflow-hidden de cualquier tarjeta padre */}
+      {openMenu && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+          className="bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 w-36"
+        >
+          {(() => {
+            const item = items.find(i => i.id === openMenu)
+            if (!item) return null
+            const isCuotas    = item.total_installments != null && item.total_installments > 0
+            const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
+            return (
+              <>
+                <button
+                  onClick={() => { setOpenMenu(null); openEdit(item) }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-gray-400" /> Editar
+                </button>
+                {item.is_active && !isCompleted && (
+                  <button
+                    onClick={() => { setOpenMenu(null); toggleActive(item) }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Pause className="w-3.5 h-3.5 text-gray-400" /> Pausar
+                  </button>
+                )}
+                {!item.is_active && !isCompleted && (
+                  <button
+                    onClick={() => { setOpenMenu(null); toggleActive(item) }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Play className="w-3.5 h-3.5 text-gray-400" /> Reactivar
+                  </button>
+                )}
+                <button
+                  onClick={() => { setOpenMenu(null); setPendingDelete(item.id) }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                </button>
+              </>
+            )
+          })()}
+        </div>,
+        document.body
+      )}
     </div>
   )
 
