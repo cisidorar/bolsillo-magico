@@ -349,7 +349,11 @@ export default async function DashboardPage() {
                     : daysLeft > 0   ? `Cierra en ${daysLeft}d`
                     : 'Cerrado'
                   return (
-                    <div key={card.id} className="flex items-center gap-3 px-4 py-3.5">
+                    <Link
+                      key={card.id}
+                      href={`/cuenta/${card.id}`}
+                      className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/60 active:bg-gray-100/50 transition-colors"
+                    >
                       <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{card.name}</p>
@@ -363,7 +367,10 @@ export default async function DashboardPage() {
                           {daysLabel}
                         </p>
                       </div>
-                    </div>
+                      <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
                   )
                 })}
               </div>
