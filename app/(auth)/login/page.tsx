@@ -6,10 +6,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, CheckCircle } from 'lucide-react'
 import Image from 'next/image'
 
-type Mode = 'login' | 'signup' | 'forgot'
+type Mode = 'login' | 'signup'
 
-const MAX_ATTEMPTS  = 5   // intentos antes de bloquear
-const LOCKOUT_SECS  = 60  // segundos de bloqueo
+const MAX_ATTEMPTS  = 5
+const LOCKOUT_SECS  = 60
 
 const FEATURES = [
   'Registra tus gastos al instante',
@@ -33,17 +33,13 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const supabase     = createClient()
 
-  const [mode,       setMode]       = useState<Mode>('login')
-  const [email,      setEmail]      = useState('')
-  const [pass,       setPass]       = useState('')
-  const [nameField,  setNameField]  = useState('')
-  const [showPw,     setShowPw]     = useState(false)
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState('')
-  const [success,    setSuccess]    = useState('')
-  const [resetSent,   setResetSent]   = useState(false)
-  const [signupSent,  setSignupSent]  = useState(false)  // registro exitoso, pendiente de confirmar
-  const [showResend,  setShowResend]  = useState(false)  // email no confirmado
+  const [mode,      setMode]      = useState<Mode>('login')
+  const [email,     setEmail]     = useState('')
+  const [pass,      setPass]      = useState('')
+  const [nameField, setNameField] = useState('')
+  const [showPw,    setShowPw]    = useState(false)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
 
   // Rate limiting
   const [attempts,    setAttempts]    = useState(0)
@@ -51,15 +47,12 @@ function LoginForm() {
   const [countdown,   setCountdown]   = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Countdown ticker
   useEffect(() => {
     if (!lockedUntil) return
     timerRef.current = setInterval(() => {
       const remaining = Math.ceil((lockedUntil - Date.now()) / 1000)
       if (remaining <= 0) {
-        setLockedUntil(null)
-        setCountdown(0)
-        setError('')
+        setLockedUntil(null); setCountdown(0); setError('')
         if (timerRef.current) clearInterval(timerRef.current)
       } else {
         setCountdown(remaining)
@@ -75,18 +68,14 @@ function LoginForm() {
   }, [searchParams])
 
   function switchMode(m: Mode) {
-    setMode(m)
-    setError(''); setSuccess(''); setEmail(''); setPass('')
-    setResetSent(false); setSignupSent(false); setShowResend(false); setNameField('')
+    setMode(m); setError(''); setEmail(''); setPass(''); setNameField('')
   }
 
   function registerFailedAttempt() {
     const next = attempts + 1
     if (next >= MAX_ATTEMPTS) {
       const until = Date.now() + LOCKOUT_SECS * 1000
-      setLockedUntil(until)
-      setCountdown(LOCKOUT_SECS)
-      setAttempts(0)
+      setLockedUntil(until); setCountdown(LOCKOUT_SECS); setAttempts(0)
       setError(`Demasiados intentos fallidos. Esperá ${LOCKOUT_SECS} segundos.`)
     } else {
       setAttempts(next)
@@ -96,9 +85,8 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(''); setSuccess(''); setShowResend(false)
+    setError('')
 
-    // Bloqueo activo
     if (lockedUntil && Date.now() < lockedUntil) {
       setError(`Demasiados intentos. Esperá ${countdown} segundos.`)
       return
@@ -110,84 +98,49 @@ function LoginForm() {
     setLoading(true)
 
     if (mode === 'login') {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass })
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
       if (error) {
         setLoading(false)
-        if (error.message === 'Email not confirmed') {
-          setError('Debés confirmar tu email antes de ingresar.')
-          setShowResend(true)
-          return
-        }
-        if (error.message === 'Invalid login credentials') {
-          registerFailedAttempt()
-          return
-        }
-        setError(error.message)
-        return
+        if (error.message === 'Invalid login credentials') { registerFailedAttempt(); return }
+        setError(error.message); return
       }
-      // Login exitoso — reset contador de intentos
       setAttempts(0)
       fetch('/api/seed', { method: 'POST' }).catch(() => {})
       router.push('/inicio'); router.refresh()
 
     } else {
-      const { error } = await supabase.auth.signUp({
+      // Signup — confirmación de email desactivada en Supabase
+      const { error: signUpError } = await supabase.auth.signUp({
         email, password: pass,
-        options: {
-          emailRedirectTo: `${window.location.origin}/api/auth/callback`,
-          data: { display_name: nameField.trim() },
-        },
+        options: { data: { display_name: nameField.trim() } },
       })
-      if (error) {
-        setError(error.message === 'User already registered' ? 'Ya existe una cuenta con ese email' : error.message)
+      if (signUpError) {
+        setError(signUpError.message === 'User already registered' ? 'Ya existe una cuenta con ese email' : signUpError.message)
         setLoading(false); return
       }
-      setSignupSent(true)
-      setLoading(false)
+      // Auto-login directo tras registro
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password: pass })
+      if (loginError) {
+        setError('Cuenta creada. Inicia sesión para continuar.')
+        setLoading(false); switchMode('login'); return
+      }
+      fetch('/api/seed', { method: 'POST' }).catch(() => {})
+      router.push('/inicio'); router.refresh()
     }
   }
 
-  async function handleForgot(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!email) { setError('Ingresá tu correo electrónico'); return }
-    setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/api/auth/callback?next=/update-password`,
-    })
-    setLoading(false)
-    if (error) { setError('No se pudo enviar el correo. Verificá el email e intentá de nuevo.'); return }
-    setResetSent(true)
-  }
-
-  async function handleResendConfirmation() {
-    setError(''); setShowResend(false)
-    setLoading(true)
-    await supabase.auth.resend({ type: 'signup', email })
-    setLoading(false)
-    setSuccess('Email de confirmación reenviado. Revisá tu bandeja.')
-  }
-
-  const isLocked  = !!lockedUntil && Date.now() < lockedUntil
+  const isLocked    = !!lockedUntil && Date.now() < lockedUntil
   const btnDisabled = loading || isLocked
 
-  const desktopTitle =
-    mode === 'login' ? 'Bienvenido de nuevo' :
-    mode === 'signup' ? 'Crea tu cuenta' : 'Recuperar contraseña'
-
-  const desktopSubtitle =
-    mode === 'login' ? 'Inicia sesión para continuar' :
-    mode === 'signup' ? 'Regístrate gratis, sin tarjeta' : 'Te enviaremos un enlace por correo'
-
-  const mobileSubtitle =
-    mode === 'login' ? 'Inicia sesión para continuar' :
-    mode === 'signup' ? 'Crea tu cuenta gratis' : 'Recuperar contraseña'
+  const desktopTitle    = mode === 'login' ? 'Bienvenido de nuevo' : 'Crea tu cuenta'
+  const desktopSubtitle = mode === 'login' ? 'Inicia sesión para continuar' : 'Regístrate gratis, sin tarjeta'
+  const mobileSubtitle  = mode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta gratis'
 
   return (
     <div className="min-h-svh" style={{ background: 'linear-gradient(160deg, #0F4489 0%, #1B6DD4 100%)' }}>
       <div className="min-h-svh lg:flex">
 
-        {/* ── Panel izquierdo — solo desktop ──────────────────────── */}
+        {/* Panel izquierdo — solo desktop */}
         <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center px-14 py-16 relative overflow-hidden">
           <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full opacity-10" style={{ background: '#fff' }} />
           <div className="absolute -bottom-16 -right-16 w-64 h-64 rounded-full opacity-10" style={{ background: '#fff' }} />
@@ -209,7 +162,7 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* ── Panel derecho — formulario ──────────────────────────── */}
+        {/* Panel derecho — formulario */}
         <div className="flex-1 flex flex-col items-center justify-center min-h-svh lg:min-h-screen px-5 py-10 lg:px-16 lg:py-16 lg:bg-white">
 
           {/* Logo — solo mobile */}
@@ -230,7 +183,6 @@ function LoginForm() {
               <p className="text-sm text-gray-400 mt-1">{desktopSubtitle}</p>
             </div>
 
-            {/* Card */}
             <div className="bg-white lg:bg-transparent rounded-3xl p-6 lg:p-0 shadow-2xl lg:shadow-none">
               <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
@@ -248,190 +200,62 @@ function LoginForm() {
 
               <div className="flex flex-col gap-3">
 
-                {/* ── Signup confirmación pendiente ─────────────────── */}
-                {mode === 'signup' && signupSent && (
-                  <div className="text-center py-4">
-                    {/* Icono */}
-                    <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                      style={{ background: '#EEF4FF' }}>
-                      📬
-                    </div>
-                    <h3 className="text-lg font-extrabold text-gray-900 mb-2">¡Revisá tu correo!</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed mb-1">
-                      Enviamos un enlace de confirmación a
-                    </p>
-                    <p className="text-sm font-bold mb-5" style={{ color: '#1B6DD4' }}>{email}</p>
-
-                    {/* Steps */}
-                    <div className="text-left space-y-3 mb-6 px-1">
-                      {[
-                        { n: '1', text: 'Abrí tu bandeja de entrada' },
-                        { n: '2', text: 'Buscá un correo de Bolsillo Mágico' },
-                        { n: '3', text: 'Hacé clic en "Confirmar cuenta"' },
-                      ].map(({ n, text }) => (
-                        <div key={n} className="flex items-center gap-3">
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white"
-                            style={{ background: '#1B6DD4' }}>{n}</div>
-                          <p className="text-sm text-gray-600">{text}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Reenviar */}
-                    <div className="rounded-2xl px-4 py-3 mb-4 text-xs text-gray-400"
-                      style={{ background: '#F5F8FF', border: '1.5px solid #DAEDF8' }}>
-                      ¿No llegó el correo?{' '}
-                      <button type="button"
-                        onClick={async () => {
-                          await supabase.auth.resend({ type: 'signup', email })
-                          setSuccess('Correo reenviado')
-                        }}
-                        className="font-bold"
-                        style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-                        Reenviar
-                      </button>
-                    </div>
-
-                    {success && (
-                      <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5 mb-3">{success}</p>
-                    )}
-
-                    <button type="button" onClick={() => switchMode('login')}
-                      className="text-sm font-semibold"
-                      style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ← Volver al login
-                    </button>
-                  </div>
-                )}
-
-                {/* ── Login / Signup ─────────────────────────────────── */}
-                {(mode === 'login' || mode === 'signup') && !signupSent && (<>
-
-                  {mode === 'signup' && (
-                    <div className="field">
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                      </svg>
-                      <input type="text" value={nameField} onChange={e => setNameField(e.target.value)}
-                        placeholder="Tu nombre" autoComplete="name" maxLength={40} />
-                    </div>
-                  )}
-
+                {mode === 'signup' && (
                   <div className="field">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                     </svg>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="Correo electrónico" autoComplete="email" disabled={isLocked} />
-                  </div>
-
-                  <div className="field">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
-                      placeholder={mode === 'signup' ? 'Contraseña (mín. 8 caracteres)' : 'Contraseña'}
-                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                      disabled={isLocked} />
-                    <button type="button" onClick={() => setShowPw(!showPw)}
-                      style={{ color: '#93BAD0', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
-                      {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-
-                  {error && (
-                    <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
-                  )}
-                  {success && (
-                    <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5">{success}</p>
-                  )}
-
-                  {/* Reenviar confirmación */}
-                  {showResend && mode === 'login' && (
-                    <button type="button" onClick={handleResendConfirmation} disabled={loading}
-                      className="text-xs font-semibold text-center"
-                      style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ¿No recibiste el correo? Reenviar confirmación
-                    </button>
-                  )}
-
-                  <button onClick={handleSubmit as any} disabled={btnDisabled}
-                    className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                    style={BTN_STYLE(btnDisabled)}>
-                    {loading ? SPINNER
-                      : isLocked ? `Bloqueado · ${countdown}s`
-                      : mode === 'login' ? 'Iniciar sesión →' : 'Crear cuenta →'}
-                  </button>
-
-                  {mode === 'login' && !isLocked && (
-                    <button type="button" onClick={() => { setMode('forgot'); setError(''); setSuccess('') }}
-                      className="text-center text-sm font-semibold"
-                      style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ¿Olvidaste tu contraseña?
-                    </button>
-                  )}
-                </>)}
-
-                {/* ── Recuperar contraseña ───────────────────────────── */}
-                {mode === 'forgot' && !resetSent && (<>
-                  <p className="text-sm text-gray-500 leading-relaxed pb-1">
-                    Ingresá tu correo y te enviamos un enlace para restablecer tu contraseña.
-                  </p>
-                  <div className="field">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                    </svg>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="Correo electrónico" autoComplete="email" />
-                  </div>
-                  {error && (
-                    <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
-                  )}
-                  <button onClick={handleForgot as any} disabled={loading}
-                    className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                    style={BTN_STYLE(loading)}>
-                    {loading ? SPINNER : 'Enviar instrucciones →'}
-                  </button>
-                  <button type="button" onClick={() => switchMode('login')}
-                    className="text-center text-sm font-medium text-gray-400"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    ← Volver al login
-                  </button>
-                </>)}
-
-                {/* ── Email enviado ──────────────────────────────────── */}
-                {mode === 'forgot' && resetSent && (
-                  <div className="text-center py-4">
-                    <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-                      style={{ background: '#EEF4FF' }}>
-                      🔑
-                    </div>
-                    <h3 className="text-lg font-extrabold text-gray-900 mb-2">Revisá tu correo</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed mb-1">Enviamos instrucciones a</p>
-                    <p className="text-sm font-bold mb-5" style={{ color: '#1B6DD4' }}>{email}</p>
-                    <p className="text-xs text-gray-400 mb-6">El enlace expira en 1 hora.</p>
-                    <button type="button" onClick={() => switchMode('login')}
-                      className="text-sm font-semibold"
-                      style={{ color: '#1B6DD4', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      ← Volver al login
-                    </button>
+                    <input type="text" value={nameField} onChange={e => setNameField(e.target.value)}
+                      placeholder="Tu nombre" autoComplete="name" maxLength={40} />
                   </div>
                 )}
+
+                <div className="field">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="Correo electrónico" autoComplete="email" disabled={isLocked} />
+                </div>
+
+                <div className="field">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
+                    placeholder={mode === 'signup' ? 'Contraseña (mín. 8 caracteres)' : 'Contraseña'}
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                    disabled={isLocked} />
+                  <button type="button" onClick={() => setShowPw(!showPw)}
+                    style={{ color: '#93BAD0', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
+                    {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+
+                {error && (
+                  <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
+                )}
+
+                <button onClick={handleSubmit as any} disabled={btnDisabled}
+                  className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all"
+                  style={BTN_STYLE(btnDisabled)}>
+                  {loading ? SPINNER
+                    : isLocked ? `Bloqueado · ${countdown}s`
+                    : mode === 'login' ? 'Iniciar sesión →' : 'Crear cuenta →'}
+                </button>
 
               </div>
             </div>
 
             {/* Switch login ↔ signup */}
-            {(mode === 'login' || mode === 'signup') && !signupSent && (
-              <p className="mt-6 text-sm font-medium text-center text-white/60 lg:text-gray-400">
-                {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
-                <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-                  className="font-bold underline underline-offset-2 text-white lg:text-brand-600"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
-                  {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
-                </button>
-              </p>
-            )}
+            <p className="mt-6 text-sm font-medium text-center text-white/60 lg:text-gray-400">
+              {mode === 'login' ? '¿No tienes cuenta? ' : '¿Ya tienes cuenta? '}
+              <button onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+                className="font-bold underline underline-offset-2 text-white lg:text-brand-600"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+                {mode === 'login' ? 'Regístrate' : 'Inicia sesión'}
+              </button>
+            </p>
           </div>
         </div>
 
