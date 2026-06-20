@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, Pencil, Search, ChevronDown, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Check, X, Search, ChevronDown, Loader2, ChevronRight } from 'lucide-react'
 import { cn, isEmoji } from '@/lib/utils'
 import { ICON_OPTIONS, COLORS, getCategoryIconOption, getCategoryIcon } from '@/lib/category-icons'
 import type { Category } from '@/types'
@@ -51,8 +51,8 @@ export default function CategoryManager({ categories: init, userId, expenseCount
   const [formError, setFormError]   = useState('')
 
   // ── Delete state ─────────────────────────────────────────────
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
-  const [deleting, setDeleting]           = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deleting, setDeleting]           = useState(false)
 
   // ── List controls ─────────────────────────────────────────────
   const [search, setSearch]       = useState('')
@@ -91,7 +91,7 @@ export default function CategoryManager({ categories: init, userId, expenseCount
     setEditTarget(c); setFormError(''); setSheetOpen(true)
   }
   function closeSheet() {
-    setSheetOpen(false); setForm(DEFAULT_FORM); setEditTarget(null); setFormError('')
+    setSheetOpen(false); setForm(DEFAULT_FORM); setEditTarget(null); setFormError(''); setDeleteConfirm(false)
   }
   function pickIcon(name: string) {
     const opt = getCategoryIconOption(name)
@@ -121,12 +121,14 @@ export default function CategoryManager({ categories: init, userId, expenseCount
     router.refresh(); closeSheet()
   }
 
-  async function deleteCategory(id: string) {
-    setDeleting(id)
-    const { error: err } = await supabase.from('categories').delete().eq('id', id)
-    if (!err) setCats(prev => prev.filter(c => c.id !== id))
-    setDeleting(null); setPendingDelete(null)
+  async function deleteCategory() {
+    if (!editTarget) return
+    setDeleting(true)
+    const { error: err } = await supabase.from('categories').delete().eq('id', editTarget.id)
+    if (!err) setCats(prev => prev.filter(c => c.id !== editTarget.id))
+    setDeleting(false)
     router.refresh()
+    closeSheet()
   }
 
   // ── Icon renderer ─────────────────────────────────────────────
@@ -234,17 +236,12 @@ export default function CategoryManager({ categories: init, userId, expenseCount
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
           {paginated.map(c => {
-            const count       = expenseCountMap[c.id] ?? 0
-            const isPending   = pendingDelete === c.id
-            const isDeleting  = deleting === c.id
-
+            const count = expenseCountMap[c.id] ?? 0
             return (
-              <div
+              <button
                 key={c.id}
-                className={cn(
-                  'card flex items-center gap-3 px-4 py-3.5 group transition-colors',
-                  isPending && 'bg-red-50/60'
-                )}
+                onClick={() => openEdit(c)}
+                className="card flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/60 active:bg-gray-100/50 w-full"
               >
                 {/* Color accent */}
                 <div className="w-1 h-10 rounded-full flex-shrink-0 -ml-0.5" style={{ backgroundColor: c.color }} />
@@ -260,41 +257,8 @@ export default function CategoryManager({ categories: init, userId, expenseCount
                   </p>
                 </div>
 
-                {/* Actions */}
-                {isPending ? (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs text-red-500 font-semibold">¿Eliminar?</span>
-                    <button onClick={() => setPendingDelete(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => deleteCategory(c.id)}
-                      disabled={isDeleting}
-                      className="p-1.5 rounded-lg text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60"
-                    >
-                      {isDeleting
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <Check className="w-3.5 h-3.5" />
-                      }
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEdit(c)}
-                      className="p-2 text-gray-300 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setPendingDelete(c.id)}
-                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              </button>
             )
           })}
         </div>
@@ -392,10 +356,15 @@ export default function CategoryManager({ categories: init, userId, expenseCount
               setForm={setForm}
               formError={formError}
               saving={saving}
+              deleting={deleting}
+              deleteConfirm={deleteConfirm}
               isEdit={!!editTarget}
               onPickIcon={pickIcon}
               onSave={save}
               onCancel={closeSheet}
+              onDelete={() => setDeleteConfirm(true)}
+              onDeleteConfirm={deleteCategory}
+              onDeleteCancel={() => setDeleteConfirm(false)}
             />
           </div>
         </div>
@@ -406,16 +375,22 @@ export default function CategoryManager({ categories: init, userId, expenseCount
 
 // ── Formulario extraído ────────────────────────────────────────────────────────
 function FormBody({
-  form, setForm, formError, saving, isEdit, onPickIcon, onSave, onCancel,
+  form, setForm, formError, saving, deleting, deleteConfirm, isEdit,
+  onPickIcon, onSave, onCancel, onDelete, onDeleteConfirm, onDeleteCancel,
 }: {
   form: FormState
   setForm: React.Dispatch<React.SetStateAction<FormState>>
   formError: string
   saving: boolean
+  deleting: boolean
+  deleteConfirm: boolean
   isEdit: boolean
   onPickIcon: (name: string) => void
   onSave: () => void
   onCancel: () => void
+  onDelete: () => void
+  onDeleteConfirm: () => void
+  onDeleteCancel: () => void
 }) {
   const chosen     = COLORS[form.colorIdx]
   const previewOpt = getCategoryIconOption(form.iconName)
@@ -499,24 +474,34 @@ function FormBody({
         <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{formError}</p>
       )}
 
-      <div className="flex gap-2">
-        <button
-          onClick={onCancel}
-          className="flex-1 py-2.5 border border-brand-200 text-brand-700 text-sm font-semibold rounded-xl hover:bg-brand-50 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <X className="w-4 h-4" /> Cancelar
-        </button>
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="flex-1 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-        >
-          {saving
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <><Check className="w-4 h-4" />{isEdit ? 'Guardar cambios' : 'Crear categoría'}</>
-          }
-        </button>
-      </div>
+      {deleteConfirm ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-700 text-center">¿Eliminar esta categoría?</p>
+          <p className="text-xs text-gray-400 text-center">Los gastos asociados quedarán sin categoría.</p>
+          <div className="flex gap-2">
+            <button onClick={onDeleteCancel} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={onDeleteConfirm} disabled={deleting} className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Eliminar</>}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          {isEdit && (
+            <button onClick={onDelete} className="p-2.5 border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          <button onClick={onCancel} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={onSave} disabled={saving} className="flex-1 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" />{isEdit ? 'Guardar' : 'Crear categoría'}</>}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
