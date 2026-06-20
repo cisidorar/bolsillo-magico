@@ -135,7 +135,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   async function save() {
     if (!form.name.trim()) { setError('Escribe un nombre'); return }
     const day = parseInt(form.billing_day)
-    if (!day || day < 1 || day > 28) { setError('Día de cobro debe ser entre 1 y 28'); return }
+    if (!day || day < 1 || day > 31) { setError('Día de cobro debe ser entre 1 y 31'); return }
     if (!form.payment_method_id) { setError('Selecciona un método de pago'); return }
 
     let amt: number
@@ -474,7 +474,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
         <input
           type="number" inputMode="numeric" value={form.billing_day}
           onChange={e => set('billing_day', e.target.value)}
-          placeholder="1–28" min="1" max="28"
+          placeholder="1–31" min="1" max="31"
           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
         />
       </div>

@@ -67,7 +67,7 @@ create table if not exists public.recurring_expenses (
   amount              integer not null check (amount > 0),
   category_id         uuid references public.categories(id) on delete set null,
   payment_method_id   uuid references public.payment_methods(id) on delete set null,
-  billing_day         integer not null check (billing_day between 1 and 28),
+  billing_day         integer not null check (billing_day between 1 and 31),
   auto_register       boolean default false,
   is_active           boolean default true,
   notes               text,
