@@ -108,7 +108,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   }, [form.cuotas, form.totalAmount, form.numCuotas])
 
   function openNew() {
-    setForm(DEFAULT); setError(''); setMode('new')
+    const defaultPm = paymentMethods.find(p => p.is_default)
+    setForm({ ...DEFAULT, payment_method_id: defaultPm?.id ?? '' })
+    setError(''); setMode('new')
   }
 
   function openEdit(item: RecurringExpense) {
