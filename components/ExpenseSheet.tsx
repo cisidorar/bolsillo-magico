@@ -733,47 +733,24 @@ export default function ExpenseSheet({
         {/* ── DESKTOP layout ─────────────────────────────────────────── */}
         <div className="hidden lg:block px-6 py-5 space-y-4">
 
-          {/* Fila 1: Descripción + Monto */}
-          <div className="grid grid-cols-[1fr_180px] gap-4 items-end">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">
-                Descripción <span className="font-normal text-gray-400">(opcional)</span>
-              </p>
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
-                <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                <input
-                  autoFocus
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                  placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
-                  className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
-              <div className={cn(
-                'flex items-center gap-2 border rounded-2xl px-4 py-2.5 transition-colors focus-within:border-brand-400 focus-within:bg-white',
-                error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-              )}>
-                <span className="text-sm font-bold text-gray-400 flex-shrink-0">$</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
-                  onChange={e => {
-                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
-                    if (raw.length <= 9) { setAmount(raw); setError('') }
-                  }}
-                  placeholder="0"
-                  className="flex-1 text-xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
-                />
-              </div>
-              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          {/* 1. Descripción — full width, primera para disparar sugerencias */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">
+              Descripción <span className="font-normal text-gray-400">(opcional)</span>
+            </p>
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <input
+                autoFocus
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+                placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
+                className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
+              />
             </div>
           </div>
 
-          {/* Fila 2: Categoría + sugerencia */}
+          {/* 2. Categoría — full width */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-gray-500">Categoría</p>
@@ -783,7 +760,30 @@ export default function ExpenseSheet({
             {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
 
-          {/* Fila 3: Método + Fecha (mitades iguales) */}
+          {/* 3. Monto — full width, grande */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
+            <div className={cn(
+              'flex items-center gap-3 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
+              error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+            )}>
+              <span className="text-lg font-bold text-gray-300 flex-shrink-0">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
+                onChange={e => {
+                  const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
+                  if (raw.length <= 9) { setAmount(raw); setError('') }
+                }}
+                placeholder="0"
+                className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
+              />
+            </div>
+            {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          </div>
+
+          {/* 4. Método + Fecha — 2 cols iguales */}
           <div className="grid grid-cols-2 gap-6">
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
@@ -795,7 +795,7 @@ export default function ExpenseSheet({
             </div>
           </div>
 
-          {/* Guardar */}
+          {/* 5. Guardar */}
           <button
             onClick={save}
             disabled={saving}
