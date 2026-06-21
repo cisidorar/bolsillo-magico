@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { X, Delete, CalendarDays, ChevronDown, Trash2, Check, FileText, SlidersHorizontal, CreditCard } from 'lucide-react'
+import { X, Delete, CalendarDays, ChevronDown, Trash2, Check, FileText, SlidersHorizontal, CreditCard, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
+import { suggestCategory, recordCategoryRule, type CategorySuggestion } from '@/app/actions/suggest-category'
 import type { Category, PaymentMethod, ExpenseWithRelations } from '@/types'
 
 interface Props {
@@ -72,6 +73,11 @@ export default function ExpenseSheet({
   const [topCatIds, setTopCatIds] = useState<string[]>([])
   const [catsExpanded, setCatsExpanded] = useState(false)
   const [catPickerOpen, setCatPickerOpen] = useState(false)
+
+  // Sugerencia de categoría
+  const [suggestion, setSuggestion] = useState<CategorySuggestion | null>(null)
+  const [autoSelectedByAI, setAutoSelectedByAI] = useState(false)
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Indica si el usuario eligió el método manualmente (evita que el autoselect sobreescriba)
   const pmUserPicked = useRef(false)
@@ -147,9 +153,40 @@ export default function ExpenseSheet({
     }
   }, [pms, isEditing])
 
+  // Sugerencia de categoría basada en descripción (debounced 500ms)
+  useEffect(() => {
+    if (isEditing) return
+    if (suggestTimer.current) clearTimeout(suggestTimer.current)
+
+    if (desc.trim().length < 2) {
+      setSuggestion(null)
+      return
+    }
+
+    suggestTimer.current = setTimeout(async () => {
+      const result = await suggestCategory(desc)
+      if (result) {
+        setSuggestion(result)
+        // Auto-select solo si el usuario no ha elegido categoría todavía
+        if (!catId) {
+          setCatId(result.categoryId)
+          setAutoSelectedByAI(true)
+        }
+      } else {
+        setSuggestion(null)
+      }
+    }, 500)
+
+    return () => {
+      if (suggestTimer.current) clearTimeout(suggestTimer.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [desc, isEditing])
+
   const close = useCallback(() => {
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
     setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false)
+    setSuggestion(null); setAutoSelectedByAI(false)
     pmUserPicked.current = false
     if (onClose) onClose()
     else setInternalOpen(false)
@@ -215,6 +252,11 @@ export default function ExpenseSheet({
 
       setSaving(false)
       if (err) { setError('Error al guardar. Intenta de nuevo.'); return }
+
+      // Aprender de esta categorización para sugerencias futuras
+      if (desc && catId) {
+        recordCategoryRule(desc, catId, 'manual').catch(() => {})
+      }
     }
 
     router.refresh()
@@ -527,13 +569,40 @@ export default function ExpenseSheet({
 
         {/* Categories */}
         <div className="px-5 pt-3">
-          <p className="text-xs font-medium text-gray-400 mb-2">Categoría</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-gray-400">Categoría</p>
+            {/* Suggestion badge */}
+            {suggestion && (() => {
+              const sugCat = cats.find(c => c.id === suggestion.categoryId)
+              if (!sugCat) return null
+              const isSame = suggestion.categoryId === catId
+              const sourceLabel =
+                suggestion.source === 'rule_exact' ? 'regla guardada' :
+                suggestion.source === 'embedding'  ? 'IA'             : 'historial'
+              return isSame ? (
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Sugerido por {sourceLabel}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setCatId(suggestion.categoryId); setAutoSelectedByAI(true) }}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors"
+                >
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Usar: {sugCat.name}
+                </button>
+              )
+            })()}
+          </div>
           {(() => {
+            const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
             if (topCatIds.length === 0) {
               return (
                 <div className="flex flex-wrap gap-2">
                   {cats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />
                   ))}
                 </div>
               )
@@ -545,7 +614,7 @@ export default function ExpenseSheet({
               <>
                 <div className="flex flex-wrap gap-2">
                   {pinnedCats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={id => { setCatId(id); setError('') }} />
+                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />
                   ))}
                   {!catsExpanded && selInOther && (() => {
                     const selCat = otherCats.find(c => c.id === catId)
@@ -558,7 +627,7 @@ export default function ExpenseSheet({
                       <div className="flex flex-wrap gap-2 mt-2">
                         {otherCats.map(c => (
                           <CatChip key={c.id} c={c} selected={catId === c.id}
-                            onSelect={id => { setCatId(id); setError(''); setCatsExpanded(false) }} />
+                            onSelect={id => { selectCat(id); setCatsExpanded(false) }} />
                         ))}
                       </div>
                     )}

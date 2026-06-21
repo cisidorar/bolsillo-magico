@@ -178,3 +178,30 @@ begin
   -- Sin métodos de pago por defecto — el usuario los agrega manualmente
 end;
 $$;
+
+-- =============================================
+-- category_rules: sugerencia de categorías
+-- =============================================
+create table if not exists public.category_rules (
+  id           uuid        primary key default gen_random_uuid(),
+  user_id      uuid        not null references auth.users(id) on delete cascade,
+  merchant_key text        not null,
+  category_id  uuid        not null references public.categories(id) on delete cascade,
+  confidence   smallint    not null default 90 check (confidence between 0 and 100),
+  source       text        not null default 'manual' check (source in ('manual', 'history', 'ai')),
+  hit_count    integer     not null default 1,
+  embedding    float8[]    null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (user_id, merchant_key)
+);
+
+alter table public.category_rules enable row level security;
+
+create policy "Users can manage their category rules"
+  on public.category_rules for all
+  using  (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create index if not exists idx_category_rules_user
+  on public.category_rules (user_id);
