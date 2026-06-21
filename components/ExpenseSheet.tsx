@@ -62,6 +62,9 @@ export default function ExpenseSheet({
   const [pmId, setPmId]       = useState<string | null>(null)
   const [dateStr, setDateStr] = useState(todayStr)
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [calOpen, setCalOpen]       = useState(false)
+  const [calViewYear, setCalViewYear]   = useState(() => new Date().getFullYear())
+  const [calViewMonth, setCalViewMonth] = useState(() => new Date().getMonth())
   const [desc, setDesc]       = useState('')
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -93,9 +96,6 @@ export default function ExpenseSheet({
       setDateStr(editExpense.date)
       setDesc(editExpense.description ?? '')
       setError('')
-      // if date isn't a quick option, show picker
-      const quick = [todayStr, yesterdayStr, dayBeforeStr]
-      setShowDatePicker(!quick.includes(editExpense.date))
     }
   }, [isOpen, editExpense, todayStr, yesterdayStr, dayBeforeStr])
 
@@ -187,6 +187,7 @@ export default function ExpenseSheet({
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
     setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false)
     setSuggestion(null); setAutoSelectedByAI(false)
+    setCalOpen(false); setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth())
     pmUserPicked.current = false
     if (onClose) onClose()
     else setInternalOpen(false)
@@ -283,33 +284,151 @@ export default function ExpenseSheet({
     </div>
   )
 
+  // Mini-calendar helpers
+  const nowObj     = new Date()
+  const calDaysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate()
+  const calOffset      = (new Date(calViewYear, calViewMonth, 1).getDay() + 6) % 7 // Mon=0
+  const calAtMaxMonth  = calViewYear === nowObj.getFullYear() && calViewMonth === nowObj.getMonth()
+
+  function navCalMonth(delta: number) {
+    let m = calViewMonth + delta, y = calViewYear
+    if (m < 0)  { m = 11; y-- }
+    if (m > 11) { m = 0;  y++ }
+    setCalViewMonth(m); setCalViewYear(y)
+  }
+
+  function pickCalDate(day: number) {
+    const d = `${calViewYear}-${String(calViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    setDateStr(d)
+    setCalOpen(false)
+  }
+
+  const CAL_DAYS = ['Lu','Ma','Mi','Ju','Vi','Sá','Do']
+  const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+
+  const selectedDateLabel = !isQuickDate
+    ? (() => {
+        try {
+          const d = new Date(dateStr + 'T12:00:00')
+          const s = d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+          return s.charAt(0).toUpperCase() + s.slice(1)
+        } catch { return dateStr }
+      })()
+    : null
+
   const dateChips = (
-    <>
+    <div className="space-y-2">
+      {/* Quick chips + Más antiguo */}
       <div className="flex flex-wrap gap-1.5">
         {quickDates.map(d => (
           <button key={d.value}
-            onClick={() => { setDateStr(d.value); setShowDatePicker(false) }}
+            onClick={() => { setDateStr(d.value); setCalOpen(false) }}
             className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-              dateStr === d.value && !showDatePicker
+              dateStr === d.value && isQuickDate
                 ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
                 : 'border-gray-200 bg-gray-50 text-gray-600')}
           >{d.label}</button>
         ))}
         <button
-          onClick={() => setShowDatePicker(v => !v)}
-          className={cn('px-2.5 py-1.5 rounded-full text-xs border transition-all',
-            showDatePicker || !isQuickDate
+          onClick={() => {
+            setCalOpen(v => !v)
+            if (!calOpen) {
+              // Reset calendar view to current month when opening
+              setCalViewYear(nowObj.getFullYear())
+              setCalViewMonth(nowObj.getMonth())
+            }
+          }}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
+            calOpen || !isQuickDate
               ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-              : 'border-gray-200 bg-gray-50 text-gray-600')}
-        ><CalendarDays className="w-3.5 h-3.5" /></button>
+              : 'border-gray-200 bg-gray-50 text-gray-600'
+          )}
+        >
+          <CalendarDays className="w-3 h-3" />
+          Más antiguo
+        </button>
       </div>
-      {(showDatePicker || !isQuickDate) && (
-        <input type="date" value={dateStr} max={todayStr}
-          onChange={e => { setDateStr(e.target.value); setShowDatePicker(false) }}
-          className="mt-2 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-800 outline-none focus:border-brand-400"
-        />
+
+      {/* Selected non-quick date pill */}
+      {!isQuickDate && selectedDateLabel && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-brand-50 border border-brand-200 w-fit">
+          <CalendarDays className="w-3 h-3 text-brand-600 flex-shrink-0" />
+          <span className="text-xs font-semibold text-brand-800 leading-tight">{selectedDateLabel}</span>
+          <button
+            onClick={() => { setDateStr(todayStr); setCalOpen(false) }}
+            className="text-brand-400 hover:text-brand-700 transition-colors ml-0.5"
+            aria-label="Borrar fecha"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
       )}
-    </>
+
+      {/* Mini calendar */}
+      {calOpen && (
+        <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+          {/* Month nav */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
+            <button
+              onClick={() => navCalMonth(-1)}
+              className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+            </button>
+            <span className="text-xs font-semibold text-gray-700 capitalize">
+              {MONTHS_ES[calViewMonth]} {calViewYear}
+            </span>
+            <button
+              onClick={() => navCalMonth(1)}
+              disabled={calAtMaxMonth}
+              className={cn(
+                'p-1 rounded-lg transition-colors',
+                calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200'
+              )}
+            >
+              <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+            </button>
+          </div>
+
+          {/* Grid */}
+          <div className="p-2">
+            {/* Day headers */}
+            <div className="grid grid-cols-7 mb-1">
+              {CAL_DAYS.map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+            {/* Day cells */}
+            <div className="grid grid-cols-7 gap-0.5">
+              {Array.from({ length: calOffset }).map((_, i) => <div key={`e-${i}`} />)}
+              {Array.from({ length: calDaysInMonth }, (_, i) => i + 1).map(day => {
+                const dStr = `${calViewYear}-${String(calViewMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                const isFuture  = dStr > todayStr
+                const isToday   = dStr === todayStr
+                const isSelected = dStr === dateStr
+                return (
+                  <button
+                    key={day}
+                    disabled={isFuture}
+                    onClick={() => pickCalDate(day)}
+                    className={cn(
+                      'w-full aspect-square flex items-center justify-center rounded-full text-[11px] font-medium transition-colors',
+                      isSelected ? 'bg-brand-600 text-white font-bold' :
+                      isToday   ? 'bg-brand-50 text-brand-700 font-bold' :
+                      isFuture  ? 'text-gray-300 cursor-default' :
+                      'text-gray-700 hover:bg-gray-100'
+                    )}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 
   // ─── EDIT MODE — layout compacto, sin numpad ──────────────────────────────
@@ -454,26 +573,7 @@ export default function ExpenseSheet({
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha del gasto</p>
-                {/* Muestra la fecha actual; tap para cambiarla */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById('edit-date-input') as HTMLInputElement | null
-                    el?.showPicker?.() ?? el?.click()
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-2xl text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:border-brand-400 hover:bg-brand-50 transition-all text-left"
-                >
-                  <CalendarDays className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-                  <span className="truncate">{formattedDate}</span>
-                </button>
-                <input
-                  id="edit-date-input"
-                  type="date"
-                  value={dateStr}
-                  max={todayStr}
-                  onChange={e => setDateStr(e.target.value)}
-                  className="sr-only"
-                />
+                {dateChips}
               </div>
             </div>
 
