@@ -422,245 +422,6 @@ export default function ExpenseSheet({
     </div>
   )
 
-  // ─── EDIT MODE — layout compacto, sin numpad ──────────────────────────────
-  if (isEditing) {
-    const selectedCat = cats.find(c => c.id === catId)
-    const selectedPm  = pms.find(p => p.id === pmId)
-
-    const isCustom = dateStr !== todayStr && dateStr !== yesterdayStr
-
-    const formattedDate = (() => {
-      try {
-        return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', {
-          day: 'numeric', month: 'long', year: 'numeric',
-        })
-      } catch { return dateStr }
-    })()
-
-    return (
-      <div
-        className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-        onClick={e => { if (e.target === e.currentTarget) close() }}
-      >
-        <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl">
-          {/* Handle */}
-          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-2 pb-3 border-b border-gray-100">
-            <h2 className="text-base font-bold text-gray-900">Editar gasto</h2>
-            <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors" aria-label="Cerrar">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="px-5 pt-4 space-y-4" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
-
-            {/* Amount */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
-              <div className={cn(
-                'flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
-                error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-              )}>
-                <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <span className="text-base font-bold text-gray-400">$</span>
-                </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
-                  onChange={e => {
-                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
-                    if (raw.length <= 9) { setAmount(raw); setError('') }
-                  }}
-                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0"
-                  placeholder="0"
-                />
-              </div>
-              {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
-            </div>
-
-            {/* Category */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Categoría</p>
-              <div className="flex gap-2">
-                {/* Selector principal — tappable */}
-                <button
-                  type="button"
-                  onClick={() => setCatPickerOpen(v => !v)}
-                  className={cn(
-                    'flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border transition-all text-left',
-                    catPickerOpen
-                      ? 'border-brand-400 bg-brand-50'
-                      : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                  )}
-                >
-                  {selectedCat ? (
-                    <>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: selectedCat.bg_color }}>
-                        {isEmoji(selectedCat.icon)
-                          ? <span className="text-sm">{selectedCat.icon}</span>
-                          : (() => { const I = getCategoryIcon(selectedCat.icon); return <I className="w-4 h-4" style={{ color: selectedCat.color }} /> })()
-                        }
-                      </div>
-                      <span className="flex-1 text-sm font-semibold text-gray-800 truncate">{selectedCat.name}</span>
-                    </>
-                  ) : (
-                    <span className="flex-1 text-sm text-gray-400">Sin categoría</span>
-                  )}
-                  <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform', catPickerOpen && 'rotate-180')} />
-                </button>
-                {/* Botón cambiar */}
-                <button
-                  type="button"
-                  onClick={() => setCatPickerOpen(v => !v)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border text-sm font-semibold transition-all',
-                    catPickerOpen
-                      ? 'border-brand-400 bg-brand-50 text-brand-700'
-                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
-                  )}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Cambiar
-                </button>
-              </div>
-              {catPickerOpen && (
-                <div className="mt-2.5 p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                  {cats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id}
-                      onSelect={id => { setCatId(id); setError(''); setCatPickerOpen(false) }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Method + Date — 2 cols de chips, date field full-width abajo */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => { pmUserPicked.current = true; setPmId(null) }}
-                    className={cn('px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                      pmId === null ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-gray-200 bg-white text-gray-600')}
-                  >Efectivo</button>
-                  {pms.map(pm => (
-                    <button key={pm.id}
-                      onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
-                      className={cn('flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                        pmId === pm.id ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-gray-200 bg-white text-gray-600')}
-                    >
-                      {pm.card_type === 'credit' || pm.card_type === 'debit'
-                        ? <CreditCard className="w-3 h-3 flex-shrink-0" />
-                        : null
-                      }
-                      {pm.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha del gasto</p>
-                {dateChips}
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">
-                Descripción <span className="font-normal text-gray-400">(opcional)</span>
-              </p>
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
-                <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                <input
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                  placeholder="Ej: Pizza con pareja"
-                  className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1.5">Agrega un detalle para recordar mejor este gasto.</p>
-            </div>
-
-            {/* Actions */}
-            {deleteConfirm ? (
-              <div className="pt-1 space-y-2">
-                <p className="text-sm text-center text-gray-500">¿Seguro que quieres eliminar este gasto?</p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setDeleteConfirm(false)}
-                    className="flex-1 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    {deleting ? 'Eliminando...' : 'Sí, eliminar'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setDeleteConfirm(true)}
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 bg-red-50 border border-red-100 rounded-2xl hover:bg-red-100 transition-colors flex-shrink-0"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Eliminar gasto
-                </button>
-                <button
-                  onClick={save}
-                  disabled={saving || deleting}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors"
-                  style={{ backgroundColor: '#1B6DD4' }}
-                >
-                  {saving
-                    ? 'Guardando...'
-                    : <><Check className="w-4 h-4" /> Guardar cambios</>
-                  }
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ─── Shared: category chips renderer ─────────────────────────────────────
-  const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
-
-  const suggestionBadge = suggestion && (() => {
-    const sugCat = cats.find(c => c.id === suggestion.categoryId)
-    if (!sugCat) return null
-    const isSame = suggestion.categoryId === catId
-    const sourceLabel =
-      suggestion.source === 'rule_exact' ? 'regla guardada' :
-      suggestion.source === 'embedding'  ? 'IA'             : 'historial'
-    return isSame ? (
-      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-        <Sparkles className="w-2.5 h-2.5" />
-        Sugerido por {sourceLabel}
-      </span>
-    ) : (
-      <button
-        type="button"
-        onClick={() => { setCatId(suggestion.categoryId); setAutoSelectedByAI(true) }}
-        className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors"
-      >
-        <Sparkles className="w-2.5 h-2.5" />
-        Usar: {sugCat.name}
-      </button>
-    )
-  })()
-
   const catChips = (() => {
     if (topCatIds.length === 0) {
       return (
@@ -701,6 +462,177 @@ export default function ExpenseSheet({
           </>
         )}
       </>
+    )
+  })()
+
+  // ─── EDIT MODE ────────────────────────────────────────────────────────────
+  if (isEditing) {
+    const selectedCat = cats.find(c => c.id === catId)
+    const selectedPm  = pms.find(p => p.id === pmId)
+
+    const isCustom = dateStr !== todayStr && dateStr !== yesterdayStr
+
+    const formattedDate = (() => {
+      try {
+        return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', {
+          day: 'numeric', month: 'long', year: 'numeric',
+        })
+      } catch { return dateStr }
+    })()
+
+    // Botones de acción compartidos
+    const editActions = deleteConfirm ? (
+      <div className="space-y-2">
+        <p className="text-sm text-center text-gray-500">¿Seguro que quieres eliminar este gasto?</p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60">
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div className="flex gap-3">
+        <button onClick={() => setDeleteConfirm(true)} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 bg-red-50 border border-red-100 rounded-2xl hover:bg-red-100 transition-colors flex-shrink-0">
+          <Trash2 className="w-4 h-4" />
+          Eliminar
+        </button>
+        <button onClick={save} disabled={saving || deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors" style={{ backgroundColor: '#1B6DD4' }}>
+          {saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar cambios</>}
+        </button>
+      </div>
+    )
+
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
+        onClick={e => { if (e.target === e.currentTarget) close() }}
+      >
+        <div className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
+          {/* Handle */}
+          <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
+            <h2 className="text-base font-bold text-gray-900">Editar gasto</h2>
+            <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors" aria-label="Cerrar">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* ── DESKTOP layout ──────────────────────────────────────────── */}
+          <div className="hidden lg:block px-6 pt-4 pb-5 space-y-4">
+            {/* Descripción */}
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción (opcional) — Ej: Pizza con pareja..." className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none" />
+            </div>
+            {/* Monto */}
+            <div>
+              <div className={cn('flex items-center gap-2 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
+                <span className="text-2xl font-bold text-gray-300">$</span>
+                <input type="text" inputMode="numeric" value={amount ? parseInt(amount).toLocaleString('es-CL') : ''} onChange={e => { const raw = e.target.value.replace(/\./g, '').replace(/\D/g, ''); if (raw.length <= 9) { setAmount(raw); setError('') } }} placeholder="0" className="flex-1 text-3xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums" />
+              </div>
+              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            </div>
+            {/* Categoría */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">Categoría</p>
+              {catChips}
+              {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+            </div>
+            {/* Método + Fecha */}
+            <div className="flex items-start gap-6">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>Efectivo</button>
+                  {pms.map(pm => (
+                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>{pm.name}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
+                {dateChips}
+              </div>
+            </div>
+            {/* Acciones */}
+            {editActions}
+          </div>
+
+          {/* ── MOBILE layout ───────────────────────────────────────────── */}
+          <div className="lg:hidden px-5 pt-4 space-y-4" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
+            {/* Monto */}
+            <div>
+              <div className={cn('flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
+                <span className="text-xl font-bold text-gray-300">$</span>
+                <input type="text" inputMode="numeric" value={amount ? parseInt(amount).toLocaleString('es-CL') : ''} onChange={e => { const raw = e.target.value.replace(/\./g, '').replace(/\D/g, ''); if (raw.length <= 9) { setAmount(raw); setError('') } }} placeholder="0" className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums" />
+              </div>
+              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            </div>
+            {/* Categoría */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-2">Categoría</p>
+              {catChips}
+              {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+            </div>
+            {/* Método + Fecha */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>Efectivo</button>
+                  {pms.map(pm => (
+                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>{pm.name}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
+                {dateChips}
+              </div>
+            </div>
+            {/* Descripción */}
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción (opcional)..." className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none" />
+            </div>
+            {/* Acciones */}
+            {editActions}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Shared: category chips renderer ─────────────────────────────────────
+  const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
+
+  const suggestionBadge = suggestion && (() => {
+    const sugCat = cats.find(c => c.id === suggestion.categoryId)
+    if (!sugCat) return null
+    const isSame = suggestion.categoryId === catId
+    const sourceLabel =
+      suggestion.source === 'rule_exact' ? 'regla guardada' :
+      suggestion.source === 'embedding'  ? 'IA'             : 'historial'
+    return isSame ? (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+        <Sparkles className="w-2.5 h-2.5" />
+        Sugerido por {sourceLabel}
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={() => { setCatId(suggestion.categoryId); setAutoSelectedByAI(true) }}
+        className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors"
+      >
+        <Sparkles className="w-2.5 h-2.5" />
+        Usar: {sugCat.name}
+      </button>
     )
   })()
 
