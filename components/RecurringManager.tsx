@@ -285,16 +285,15 @@ export default function RecurringManager({ items: init, categories, paymentMetho
           onClick={closeSheet}
         >
           <div
-            className="relative w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl px-5 pt-5 pb-10 lg:pb-6 max-h-[92vh] overflow-y-auto"
-            style={{ boxShadow: '0 -8px 40px rgba(0,0,0,.15)' }}
+            className="w-full lg:max-w-lg bg-white rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Drag handle mobile */}
-            <div className="w-8 h-1 bg-gray-200 rounded-full mx-auto mb-5 lg:hidden" />
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-extrabold text-gray-900">
+            <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">
                 {editTarget ? 'Editar recurrente' : 'Nuevo recurrente'}
               </h2>
               <button onClick={closeSheet} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
@@ -302,7 +301,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               </button>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="px-5 pt-4 pb-5 lg:px-6 flex flex-col gap-4">
               {/* Preview */}
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
                 <ServiceLogo domain={previewDomain} name={form.name || '?'} size={44} />

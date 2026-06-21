@@ -334,16 +334,15 @@ export default function CategoryManager({ categories: init, userId, expenseCount
           onClick={closeSheet}
         >
           <div
-            className="relative w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl px-5 pt-5 pb-10 lg:pb-6 max-h-[90vh] overflow-y-auto"
-            style={{ boxShadow: '0 -8px 40px rgba(0,0,0,.15)' }}
+            className="w-full lg:max-w-lg bg-white rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Drag handle (mobile only) */}
-            <div className="w-8 h-1 bg-gray-200 rounded-full mx-auto mb-5 lg:hidden" />
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 
-            {/* Sheet header */}
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-extrabold text-brand-900">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-900">
                 {editTarget ? 'Editar categoría' : 'Nueva categoría'}
               </h2>
               <button onClick={closeSheet} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
@@ -351,6 +350,7 @@ export default function CategoryManager({ categories: init, userId, expenseCount
               </button>
             </div>
 
+            <div className="px-5 pt-4 pb-5 lg:px-6">
             <FormBody
               form={form}
               setForm={setForm}
@@ -366,6 +366,7 @@ export default function CategoryManager({ categories: init, userId, expenseCount
               onDeleteConfirm={deleteCategory}
               onDeleteCancel={() => setDeleteConfirm(false)}
             />
+            </div>
           </div>
         </div>
       )}
@@ -416,7 +417,7 @@ function FormBody({
 
       {/* Nombre */}
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">Nombre</label>
+        <label className="text-xs font-semibold text-gray-500 block mb-1.5">Nombre</label>
         <input
           type="text"
           value={form.name}
@@ -430,7 +431,7 @@ function FormBody({
 
       {/* Ícono */}
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Ícono</label>
+        <label className="text-xs font-semibold text-gray-500 block mb-2">Ícono</label>
         <div className="grid grid-cols-8 gap-1.5">
           {ICON_OPTIONS.map(opt => {
             const Icon = opt.icon
@@ -455,7 +456,7 @@ function FormBody({
 
       {/* Color */}
       <div>
-        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Color</label>
+        <label className="text-xs font-semibold text-gray-500 block mb-2">Color</label>
         <div className="flex flex-wrap gap-2">
           {COLORS.map((c, i) => (
             <button
