@@ -425,6 +425,40 @@ export default function ExpenseSheet({
     </div>
   )
 
+  // Edit mode: solo muestra la fecha actual + botón calendario para cambiar
+  const editDateChips = (
+    <div className="relative">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Fecha seleccionada como chip */}
+        <button
+          onClick={() => {
+            setCalOpen(v => !v)
+            if (!calOpen) { setCalViewYear(nowObj.getFullYear()); setCalViewMonth(nowObj.getMonth()) }
+          }}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
+            calOpen
+              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+              : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+          )}
+        >
+          <CalendarDays className="w-3 h-3 flex-shrink-0" />
+          {selectedDateLabel ?? (dateStr === todayStr ? 'Hoy' : dateStr)}
+        </button>
+        {/* Atajo Hoy si la fecha no es hoy */}
+        {dateStr !== todayStr && (
+          <button
+            onClick={() => { setDateStr(todayStr); setCalOpen(false) }}
+            className="px-3 py-1.5 rounded-full text-xs border border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 transition-all"
+          >
+            Hoy
+          </button>
+        )}
+      </div>
+      {calendarPopover}
+    </div>
+  )
+
   const catChips = (() => {
     if (topCatIds.length === 0) {
       return (
@@ -596,7 +630,7 @@ export default function ExpenseSheet({
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
-                {dateChips}
+                {editDateChips}
               </div>
             </div>
             {/* Acciones */}
@@ -660,7 +694,7 @@ export default function ExpenseSheet({
               </div>
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
-                {dateChips}
+                {editDateChips}
               </div>
             </div>
             {/* Descripción */}
