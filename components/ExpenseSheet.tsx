@@ -316,6 +316,61 @@ export default function ExpenseSheet({
       })()
     : null
 
+  // Mini-calendar JSX (shared, used inside popovers)
+  const calendarPopover = calOpen ? (
+    <div className="absolute top-full left-0 mt-1 z-50 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-lg w-[240px]">
+      {/* Month nav */}
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+        <button onClick={() => navCalMonth(-1)} className="p-0.5 rounded text-gray-500 hover:bg-gray-200 transition-colors">
+          <ChevronDown className="w-3 h-3 rotate-90" />
+        </button>
+        <span className="text-[11px] font-semibold text-gray-700 capitalize">
+          {MONTHS_ES[calViewMonth]} {calViewYear}
+        </span>
+        <button
+          onClick={() => navCalMonth(1)}
+          disabled={calAtMaxMonth}
+          className={cn('p-0.5 rounded transition-colors', calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200')}
+        >
+          <ChevronDown className="w-3 h-3 -rotate-90" />
+        </button>
+      </div>
+      {/* Grid */}
+      <div className="p-1.5">
+        <div className="grid grid-cols-7 mb-0.5">
+          {CAL_DAYS.map(d => (
+            <div key={d} className="text-center text-[9px] font-bold text-gray-400 py-0.5">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px">
+          {Array.from({ length: calOffset }).map((_, i) => <div key={`e-${i}`} />)}
+          {Array.from({ length: calDaysInMonth }, (_, i) => i + 1).map(day => {
+            const dStr = `${calViewYear}-${String(calViewMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+            const isFuture   = dStr > todayStr
+            const isToday    = dStr === todayStr
+            const isSelected = dStr === dateStr
+            return (
+              <button
+                key={day}
+                disabled={isFuture}
+                onClick={() => pickCalDate(day)}
+                className={cn(
+                  'w-full aspect-square flex items-center justify-center rounded-full text-[10px] font-medium transition-colors',
+                  isSelected ? 'bg-brand-600 text-white font-bold' :
+                  isToday    ? 'bg-brand-50 text-brand-700 font-bold' :
+                  isFuture   ? 'text-gray-300 cursor-default' :
+                  'text-gray-700 hover:bg-gray-100'
+                )}
+              >
+                {day}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  ) : null
+
   const dateChips = (
     <div className="space-y-2">
       {/* Quick chips + Más antiguo */}
@@ -329,25 +384,25 @@ export default function ExpenseSheet({
                 : 'border-gray-200 bg-gray-50 text-gray-600')}
           >{d.label}</button>
         ))}
-        <button
-          onClick={() => {
-            setCalOpen(v => !v)
-            if (!calOpen) {
-              // Reset calendar view to current month when opening
-              setCalViewYear(nowObj.getFullYear())
-              setCalViewMonth(nowObj.getMonth())
-            }
-          }}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
-            calOpen || !isQuickDate
-              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-              : 'border-gray-200 bg-gray-50 text-gray-600'
-          )}
-        >
-          <CalendarDays className="w-3 h-3" />
-          Más antiguo
-        </button>
+        {/* Más antiguo — anchor for popover */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setCalOpen(v => !v)
+              if (!calOpen) { setCalViewYear(nowObj.getFullYear()); setCalViewMonth(nowObj.getMonth()) }
+            }}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
+              calOpen || !isQuickDate
+                ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+                : 'border-gray-200 bg-gray-50 text-gray-600'
+            )}
+          >
+            <CalendarDays className="w-3 h-3" />
+            Más antiguo
+          </button>
+          {calendarPopover}
+        </div>
       </div>
 
       {/* Selected non-quick date pill */}
@@ -362,70 +417,6 @@ export default function ExpenseSheet({
           >
             <X className="w-3 h-3" />
           </button>
-        </div>
-      )}
-
-      {/* Mini calendar */}
-      {calOpen && (
-        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm max-w-[260px]">
-          {/* Month nav */}
-          <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 bg-gray-50">
-            <button
-              onClick={() => navCalMonth(-1)}
-              className="p-0.5 rounded text-gray-500 hover:bg-gray-200 transition-colors"
-            >
-              <ChevronDown className="w-3 h-3 rotate-90" />
-            </button>
-            <span className="text-[11px] font-semibold text-gray-700 capitalize">
-              {MONTHS_ES[calViewMonth]} {calViewYear}
-            </span>
-            <button
-              onClick={() => navCalMonth(1)}
-              disabled={calAtMaxMonth}
-              className={cn(
-                'p-0.5 rounded transition-colors',
-                calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200'
-              )}
-            >
-              <ChevronDown className="w-3 h-3 -rotate-90" />
-            </button>
-          </div>
-
-          {/* Grid */}
-          <div className="p-1.5">
-            {/* Day headers */}
-            <div className="grid grid-cols-7 mb-0.5">
-              {CAL_DAYS.map(d => (
-                <div key={d} className="text-center text-[9px] font-bold text-gray-400 py-0.5">{d}</div>
-              ))}
-            </div>
-            {/* Day cells */}
-            <div className="grid grid-cols-7 gap-px">
-              {Array.from({ length: calOffset }).map((_, i) => <div key={`e-${i}`} />)}
-              {Array.from({ length: calDaysInMonth }, (_, i) => i + 1).map(day => {
-                const dStr = `${calViewYear}-${String(calViewMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-                const isFuture  = dStr > todayStr
-                const isToday   = dStr === todayStr
-                const isSelected = dStr === dateStr
-                return (
-                  <button
-                    key={day}
-                    disabled={isFuture}
-                    onClick={() => pickCalDate(day)}
-                    className={cn(
-                      'w-full aspect-square flex items-center justify-center rounded-full text-[10px] font-medium transition-colors',
-                      isSelected ? 'bg-brand-600 text-white font-bold' :
-                      isToday   ? 'bg-brand-50 text-brand-700 font-bold' :
-                      isFuture  ? 'text-gray-300 cursor-default' :
-                      'text-gray-700 hover:bg-gray-100'
-                    )}
-                  >
-                    {day}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -731,61 +722,57 @@ export default function ExpenseSheet({
         </div>
 
         {/* ── DESKTOP layout ─────────────────────────────────────────── */}
-        <div className="hidden lg:block px-6 py-5 space-y-4">
+        <div className="hidden lg:block px-6 pt-4 pb-5 space-y-4">
 
-          {/* 1. Descripción — full width, primera para disparar sugerencias */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">
-              Descripción <span className="font-normal text-gray-400">(opcional)</span>
-            </p>
-            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
-              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              <input
-                autoFocus
-                value={desc}
-                onChange={e => setDesc(e.target.value)}
-                placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
-                className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
-              />
-            </div>
+          {/* 1. Descripción */}
+          <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+            <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+            <input
+              autoFocus
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="Descripción (opcional) — Ej: Netflix, Almuerzo, Metro..."
+              className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
+            />
           </div>
 
-          {/* 2. Categoría — full width */}
+          {/* 2. Monto — protagonista */}
+          <div>
+            <div className={cn(
+              'flex items-center gap-2 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
+              error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+            )}>
+              <span className="text-2xl font-bold text-gray-300">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
+                onChange={e => {
+                  const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
+                  if (raw.length <= 9) { setAmount(raw); setError('') }
+                }}
+                placeholder="0"
+                className="flex-1 text-3xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
+              />
+            </div>
+            {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          </div>
+
+          {/* 3. Categoría */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500">Categoría</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</p>
               {suggestionBadge}
             </div>
             {catChips}
             {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
 
-          {/* 3. Monto + Método de pago — misma fila */}
-          <div className="grid grid-cols-[1fr_auto] gap-5 items-start">
+          {/* 4. Método + Fecha — misma fila, calendário como popover */}
+          <div className="flex items-start gap-6">
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
-              <div className={cn(
-                'flex items-center gap-3 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
-                error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-              )}>
-                <span className="text-lg font-bold text-gray-300 flex-shrink-0">$</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
-                  onChange={e => {
-                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
-                    if (raw.length <= 9) { setAmount(raw); setError('') }
-                  }}
-                  placeholder="0"
-                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
-                />
-              </div>
-              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
-              <div className="flex flex-row flex-wrap gap-1.5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Método</p>
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => { pmUserPicked.current = true; setPmId(null) }}
                   className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
@@ -800,12 +787,10 @@ export default function ExpenseSheet({
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* 4. Fecha — full width para que el calendario tenga espacio */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
-            {dateChips}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fecha</p>
+              {dateChips}
+            </div>
           </div>
 
           {/* 5. Guardar */}
