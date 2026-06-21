@@ -445,15 +445,6 @@ export default function ExpenseSheet({
           <CalendarDays className="w-3 h-3 flex-shrink-0" />
           {selectedDateLabel ?? (dateStr === todayStr ? 'Hoy' : dateStr)}
         </button>
-        {/* Atajo Hoy si la fecha no es hoy */}
-        {dateStr !== todayStr && (
-          <button
-            onClick={() => { setDateStr(todayStr); setCalOpen(false) }}
-            className="px-3 py-1.5 rounded-full text-xs border border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 transition-all"
-          >
-            Hoy
-          </button>
-        )}
       </div>
       {calendarPopover}
     </div>
