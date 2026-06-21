@@ -367,40 +367,40 @@ export default function ExpenseSheet({
 
       {/* Mini calendar */}
       {calOpen && (
-        <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm max-w-[260px]">
           {/* Month nav */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
+          <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 bg-gray-50">
             <button
               onClick={() => navCalMonth(-1)}
-              className="p-1 rounded-lg text-gray-500 hover:bg-gray-200 transition-colors"
+              className="p-0.5 rounded text-gray-500 hover:bg-gray-200 transition-colors"
             >
-              <ChevronDown className="w-3.5 h-3.5 rotate-90" />
+              <ChevronDown className="w-3 h-3 rotate-90" />
             </button>
-            <span className="text-xs font-semibold text-gray-700 capitalize">
+            <span className="text-[11px] font-semibold text-gray-700 capitalize">
               {MONTHS_ES[calViewMonth]} {calViewYear}
             </span>
             <button
               onClick={() => navCalMonth(1)}
               disabled={calAtMaxMonth}
               className={cn(
-                'p-1 rounded-lg transition-colors',
+                'p-0.5 rounded transition-colors',
                 calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200'
               )}
             >
-              <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+              <ChevronDown className="w-3 h-3 -rotate-90" />
             </button>
           </div>
 
           {/* Grid */}
-          <div className="p-2">
+          <div className="p-1.5">
             {/* Day headers */}
-            <div className="grid grid-cols-7 mb-1">
+            <div className="grid grid-cols-7 mb-0.5">
               {CAL_DAYS.map(d => (
-                <div key={d} className="text-center text-[10px] font-bold text-gray-400 py-1">{d}</div>
+                <div key={d} className="text-center text-[9px] font-bold text-gray-400 py-0.5">{d}</div>
               ))}
             </div>
             {/* Day cells */}
-            <div className="grid grid-cols-7 gap-0.5">
+            <div className="grid grid-cols-7 gap-px">
               {Array.from({ length: calOffset }).map((_, i) => <div key={`e-${i}`} />)}
               {Array.from({ length: calDaysInMonth }, (_, i) => i + 1).map(day => {
                 const dStr = `${calViewYear}-${String(calViewMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
@@ -413,7 +413,7 @@ export default function ExpenseSheet({
                     disabled={isFuture}
                     onClick={() => pickCalDate(day)}
                     className={cn(
-                      'w-full aspect-square flex items-center justify-center rounded-full text-[11px] font-medium transition-colors',
+                      'w-full aspect-square flex items-center justify-center rounded-full text-[10px] font-medium transition-colors',
                       isSelected ? 'bg-brand-600 text-white font-bold' :
                       isToday   ? 'bg-brand-50 text-brand-700 font-bold' :
                       isFuture  ? 'text-gray-300 cursor-default' :
