@@ -543,145 +543,161 @@ export default function ExpenseSheet({
     )
   }
 
-  // ─── NEW EXPENSE MODE — layout con numpad ─────────────────────────────────
+  // ─── Shared: category chips renderer ─────────────────────────────────────
+  const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
+
+  const suggestionBadge = suggestion && (() => {
+    const sugCat = cats.find(c => c.id === suggestion.categoryId)
+    if (!sugCat) return null
+    const isSame = suggestion.categoryId === catId
+    const sourceLabel =
+      suggestion.source === 'rule_exact' ? 'regla guardada' :
+      suggestion.source === 'embedding'  ? 'IA'             : 'historial'
+    return isSame ? (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+        <Sparkles className="w-2.5 h-2.5" />
+        Sugerido por {sourceLabel}
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={() => { setCatId(suggestion.categoryId); setAutoSelectedByAI(true) }}
+        className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors"
+      >
+        <Sparkles className="w-2.5 h-2.5" />
+        Usar: {sugCat.name}
+      </button>
+    )
+  })()
+
+  const catChips = (() => {
+    if (topCatIds.length === 0) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {cats.map(c => <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />)}
+        </div>
+      )
+    }
+    const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
+    const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
+    const selInOther = catId && otherCats.some(c => c.id === catId)
+    return (
+      <>
+        <div className="flex flex-wrap gap-2">
+          {pinnedCats.map(c => <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />)}
+          {!catsExpanded && selInOther && (() => {
+            const selCat = otherCats.find(c => c.id === catId)
+            return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
+          })()}
+        </div>
+        {otherCats.length > 0 && (
+          <>
+            {catsExpanded && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {otherCats.map(c => (
+                  <CatChip key={c.id} c={c} selected={catId === c.id}
+                    onSelect={id => { selectCat(id); setCatsExpanded(false) }} />
+                ))}
+              </div>
+            )}
+            {!catsExpanded && (
+              <button type="button" onClick={() => setCatsExpanded(true)}
+                className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors">
+                <ChevronDown className="w-3.5 h-3.5" />
+                Ver {otherCats.length} más
+              </button>
+            )}
+          </>
+        )}
+      </>
+    )
+  })()
+
+  // ─── NEW EXPENSE MODE ─────────────────────────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
       onClick={e => { if (e.target === e.currentTarget) close() }}
     >
-      <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
+      <div className="w-full lg:max-w-xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
+
         {/* Handle + header */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3 lg:hidden" />
-          <h2 className="text-base font-semibold text-gray-900 mt-2">Nuevo gasto</h2>
+          <h2 className="text-base font-semibold text-gray-900 mt-2 lg:mt-0">Nuevo gasto</h2>
           <button onClick={close} className="p-2 -mr-2 text-gray-400 hover:text-gray-600" aria-label="Cerrar">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Amount display */}
-        <div className="text-center py-3 px-5 border-b border-gray-100">
-          <p className={cn('text-4xl font-semibold transition-colors', error && !amount ? 'text-red-500' : 'text-gray-900')}>
-            {displayAmount}
-          </p>
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-        </div>
+        {/* ── DESKTOP layout ─────────────────────────────────────────── */}
+        <div className="hidden lg:block px-6 py-5 space-y-5">
 
-        {/* Categories */}
-        <div className="px-5 pt-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-gray-400">Categoría</p>
-            {/* Suggestion badge */}
-            {suggestion && (() => {
-              const sugCat = cats.find(c => c.id === suggestion.categoryId)
-              if (!sugCat) return null
-              const isSame = suggestion.categoryId === catId
-              const sourceLabel =
-                suggestion.source === 'rule_exact' ? 'regla guardada' :
-                suggestion.source === 'embedding'  ? 'IA'             : 'historial'
-              return isSame ? (
-                <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Sugerido por {sourceLabel}
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => { setCatId(suggestion.categoryId); setAutoSelectedByAI(true) }}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors"
-                >
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Usar: {sugCat.name}
-                </button>
-              )
-            })()}
-          </div>
-          {(() => {
-            const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
-            if (topCatIds.length === 0) {
-              return (
-                <div className="flex flex-wrap gap-2">
-                  {cats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />
-                  ))}
-                </div>
-              )
-            }
-            const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
-            const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
-            const selInOther = catId && otherCats.some(c => c.id === catId)
-            return (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {pinnedCats.map(c => (
-                    <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCat} />
-                  ))}
-                  {!catsExpanded && selInOther && (() => {
-                    const selCat = otherCats.find(c => c.id === catId)
-                    return selCat ? <CatChip key={selCat.id} c={selCat} selected onSelect={() => {}} /> : null
-                  })()}
-                </div>
-                {otherCats.length > 0 && (
-                  <>
-                    {catsExpanded && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {otherCats.map(c => (
-                          <CatChip key={c.id} c={c} selected={catId === c.id}
-                            onSelect={id => { selectCat(id); setCatsExpanded(false) }} />
-                        ))}
-                      </div>
-                    )}
-                    {!catsExpanded && (
-                      <button type="button" onClick={() => setCatsExpanded(true)}
-                        className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors">
-                        <ChevronDown className="w-3.5 h-3.5" />
-                        Ver {otherCats.length} más
-                      </button>
-                    )}
-                  </>
-                )}
-              </>
-            )
-          })()}
-        </div>
-
-        {/* Payment + date */}
-        <div className="px-5 pt-3 grid grid-cols-2 gap-3">
+          {/* Descripción — primera porque dispara la sugerencia */}
           <div>
-            <p className="text-xs font-medium text-gray-400 mb-2">Método</p>
-            {methodChips}
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Descripción <span className="font-normal text-gray-400">(opcional)</span></p>
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+              <input
+                autoFocus
+                value={desc}
+                onChange={e => setDesc(e.target.value)}
+                placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
+                className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
+              />
+            </div>
           </div>
+
+          {/* Categoría + sugerencia */}
           <div>
-            <p className="text-xs font-medium text-gray-400 mb-2">Fecha</p>
-            {dateChips}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500">Categoría</p>
+              {suggestionBadge}
+            </div>
+            {catChips}
+            {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
-        </div>
 
-        {/* Description */}
-        <div className="px-5 pt-3">
-          <input
-            value={desc}
-            onChange={e => setDesc(e.target.value)}
-            placeholder="Descripción (opcional)..."
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
-          />
-        </div>
+          {/* Monto + Método + Fecha en fila */}
+          <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-start">
 
-        {/* Numpad */}
-        <div className="mt-2 border-t border-gray-100 grid grid-cols-3">
-          {['1','2','3','4','5','6','7','8','9','000','0','del'].map(k => (
-            <button key={k}
-              onClick={() => k === 'del' ? numpad('del') : numpad(k)}
-              className={cn('py-3 text-lg text-gray-800 font-medium active:bg-gray-100 transition-colors border-r border-b border-gray-100',
-                k === 'del' && 'text-gray-400')}
-            >
-              {k === 'del' ? <Delete className="w-5 h-5 mx-auto" /> : k}
-            </button>
-          ))}
-        </div>
+            {/* Monto */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
+              <div className={cn(
+                'flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
+                error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+              )}>
+                <span className="text-sm font-bold text-gray-400">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
+                    if (raw.length <= 9) { setAmount(raw); setError('') }
+                  }}
+                  placeholder="0"
+                  className="flex-1 text-xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
+                />
+              </div>
+              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            </div>
 
-        {/* Save button */}
-        <div className="px-5 pt-2" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 16px))' }}>
+            {/* Método */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Método</p>
+              {methodChips}
+            </div>
+
+            {/* Fecha */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
+              {dateChips}
+            </div>
+          </div>
+
+          {/* Guardar */}
           <button
             onClick={save}
             disabled={saving}
@@ -691,6 +707,75 @@ export default function ExpenseSheet({
             {saving ? 'Guardando...' : 'Guardar gasto'}
           </button>
         </div>
+
+        {/* ── MOBILE layout (numpad) ──────────────────────────────────── */}
+        <div className="lg:hidden">
+
+          {/* Amount display */}
+          <div className="text-center py-3 px-5 border-b border-gray-100">
+            <p className={cn('text-4xl font-semibold transition-colors', error && !amount ? 'text-red-500' : 'text-gray-900')}>
+              {displayAmount}
+            </p>
+            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          </div>
+
+          {/* Categories */}
+          <div className="px-5 pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-400">Categoría</p>
+              {suggestionBadge}
+            </div>
+            {catChips}
+          </div>
+
+          {/* Payment + date */}
+          <div className="px-5 pt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium text-gray-400 mb-2">Método</p>
+              {methodChips}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-400 mb-2">Fecha</p>
+              {dateChips}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="px-5 pt-3">
+            <input
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="Descripción (opcional)..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
+            />
+          </div>
+
+          {/* Numpad */}
+          <div className="mt-2 border-t border-gray-100 grid grid-cols-3">
+            {['1','2','3','4','5','6','7','8','9','000','0','del'].map(k => (
+              <button key={k}
+                onClick={() => k === 'del' ? numpad('del') : numpad(k)}
+                className={cn('py-3 text-lg text-gray-800 font-medium active:bg-gray-100 transition-colors border-r border-b border-gray-100',
+                  k === 'del' && 'text-gray-400')}
+              >
+                {k === 'del' ? <Delete className="w-5 h-5 mx-auto" /> : k}
+              </button>
+            ))}
+          </div>
+
+          {/* Save button */}
+          <div className="px-5 pt-2" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 16px))' }}>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="w-full py-3.5 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
+              style={{ backgroundColor: '#1B6DD4' }}
+            >
+              {saving ? 'Guardando...' : 'Guardar gasto'}
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   )
