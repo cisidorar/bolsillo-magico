@@ -541,10 +541,46 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-            {/* Categoría */}
+            {/* Categoría — comprimida con expand */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">Categoría</p>
-              {catChips}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500">Categoría</p>
+                {!catPickerOpen && (
+                  <button onClick={() => setCatPickerOpen(true)} className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors">
+                    Cambiar
+                  </button>
+                )}
+              </div>
+              {catPickerOpen ? (
+                <div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {catChips}
+                  </div>
+                  <button onClick={() => setCatPickerOpen(false)} className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+                    ↑ Colapsar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const selCat = cats.find(c => c.id === catId)
+                    if (!selCat) return (
+                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-brand-400 hover:text-brand-600 transition-colors">
+                        + Elegir categoría
+                      </button>
+                    )
+                    return (
+                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+                        {isEmoji(selCat.icon)
+                          ? <span>{selCat.icon}</span>
+                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3 h-3" style={{ color: selCat.color }} /> })()
+                        }
+                        {selCat.name}
+                      </button>
+                    )
+                  })()}
+                </div>
+              )}
               {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
             </div>
             {/* Método + Fecha */}
@@ -577,10 +613,38 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-            {/* Categoría */}
+            {/* Categoría — comprimida con expand */}
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">Categoría</p>
-              {catChips}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500">Categoría</p>
+                {!catPickerOpen && (
+                  <button onClick={() => setCatPickerOpen(true)} className="text-xs font-semibold text-brand-600">Cambiar</button>
+                )}
+              </div>
+              {catPickerOpen ? (
+                <div>
+                  <div className="max-h-36 overflow-y-auto">{catChips}</div>
+                  <button onClick={() => setCatPickerOpen(false)} className="mt-2 text-xs font-semibold text-gray-400">↑ Colapsar</button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(() => {
+                    const selCat = cats.find(c => c.id === catId)
+                    if (!selCat) return (
+                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-dashed border-gray-300 text-gray-400">+ Elegir categoría</button>
+                    )
+                    return (
+                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+                        {isEmoji(selCat.icon)
+                          ? <span>{selCat.icon}</span>
+                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3 h-3" style={{ color: selCat.color }} /> })()
+                        }
+                        {selCat.name}
+                      </button>
+                    )
+                  })()}
+                </div>
+              )}
               {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
             </div>
             {/* Método + Fecha */}
