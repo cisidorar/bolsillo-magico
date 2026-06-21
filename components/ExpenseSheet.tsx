@@ -318,7 +318,7 @@ export default function ExpenseSheet({
 
   // Mini-calendar JSX (shared, used inside popovers)
   const calendarPopover = calOpen ? (
-    <div className="absolute top-full left-0 mt-1 z-50 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-lg w-[240px]">
+    <div className="absolute bottom-full left-0 mb-1 z-50 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-lg w-[240px]">
       {/* Month nav */}
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 bg-gray-50">
         <button onClick={() => navCalMonth(-1)} className="p-0.5 rounded text-gray-500 hover:bg-gray-200 transition-colors">
@@ -710,7 +710,7 @@ export default function ExpenseSheet({
       className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
       onClick={e => { if (e.target === e.currentTarget) close() }}
     >
-      <div className="w-full lg:max-w-xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
+      <div className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
 
         {/* Handle + header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
