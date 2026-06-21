@@ -760,10 +760,9 @@ export default function ExpenseSheet({
             {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
 
-          {/* 3. Monto + Método + Fecha — misma fila */}
-          <div className="flex gap-5 items-start">
-            {/* Monto — crece para llenar el espacio */}
-            <div className="flex-1 min-w-0">
+          {/* 3. Monto + Método de pago — misma fila */}
+          <div className="grid grid-cols-[1fr_auto] gap-5 items-start">
+            <div>
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
               <div className={cn(
                 'flex items-center gap-3 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
@@ -784,18 +783,29 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-
-            {/* Método de pago */}
-            <div className="flex-shrink-0">
+            <div>
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
-              {methodChips}
+              <div className="flex flex-row flex-wrap gap-1.5">
+                <button
+                  onClick={() => { pmUserPicked.current = true; setPmId(null) }}
+                  className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                    pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                >Efectivo</button>
+                {pms.map(pm => (
+                  <button key={pm.id}
+                    onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
+                    className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                      pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                  >{pm.name}</button>
+                ))}
+              </div>
             </div>
+          </div>
 
-            {/* Fecha */}
-            <div className="flex-shrink-0">
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
-              {dateChips}
-            </div>
+          {/* 4. Fecha — full width para que el calendario tenga espacio */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
+            {dateChips}
           </div>
 
           {/* 5. Guardar */}
