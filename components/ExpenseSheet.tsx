@@ -731,44 +731,32 @@ export default function ExpenseSheet({
         </div>
 
         {/* ── DESKTOP layout ─────────────────────────────────────────── */}
-        <div className="hidden lg:block px-6 py-5 space-y-5">
+        <div className="hidden lg:block px-6 py-5 space-y-4">
 
-          {/* Descripción — primera porque dispara la sugerencia */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Descripción <span className="font-normal text-gray-400">(opcional)</span></p>
-            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
-              <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              <input
-                autoFocus
-                value={desc}
-                onChange={e => setDesc(e.target.value)}
-                placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
-                className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
-              />
+          {/* Fila 1: Descripción + Monto */}
+          <div className="grid grid-cols-[1fr_180px] gap-4 items-end">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">
+                Descripción <span className="font-normal text-gray-400">(opcional)</span>
+              </p>
+              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+                <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                <input
+                  autoFocus
+                  value={desc}
+                  onChange={e => setDesc(e.target.value)}
+                  placeholder="Ej: Netflix, Almuerzo trabajo, Metro..."
+                  className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none"
+                />
+              </div>
             </div>
-          </div>
-
-          {/* Categoría + sugerencia */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500">Categoría</p>
-              {suggestionBadge}
-            </div>
-            {catChips}
-            {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
-          </div>
-
-          {/* Monto + Método + Fecha en fila */}
-          <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-start">
-
-            {/* Monto */}
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
               <div className={cn(
-                'flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
+                'flex items-center gap-2 border rounded-2xl px-4 py-2.5 transition-colors focus-within:border-brand-400 focus-within:bg-white',
                 error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
               )}>
-                <span className="text-sm font-bold text-gray-400">$</span>
+                <span className="text-sm font-bold text-gray-400 flex-shrink-0">$</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -783,14 +771,24 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
+          </div>
 
-            {/* Método */}
+          {/* Fila 2: Categoría + sugerencia */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500">Categoría</p>
+              {suggestionBadge}
+            </div>
+            {catChips}
+            {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+          </div>
+
+          {/* Fila 3: Método + Fecha (mitades iguales) */}
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">Método</p>
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
               {methodChips}
             </div>
-
-            {/* Fecha */}
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
               {dateChips}
@@ -801,7 +799,7 @@ export default function ExpenseSheet({
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-3.5 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
+            className="w-full py-3 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
             style={{ backgroundColor: '#1B6DD4' }}
           >
             {saving ? 'Guardando...' : 'Guardar gasto'}
