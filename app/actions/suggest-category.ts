@@ -5,7 +5,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 /** Normalize a description into a stable merchant key */
-export function normalizeMerchant(text: string): string {
+function normalizeMerchant(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
