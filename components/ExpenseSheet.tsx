@@ -761,7 +761,7 @@ export default function ExpenseSheet({
           {/* 3. Categoría */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</p>
+              <p className="text-xs font-semibold text-gray-500">Categoría</p>
               {suggestionBadge}
             </div>
             {catChips}
@@ -771,7 +771,7 @@ export default function ExpenseSheet({
           {/* 4. Método + Fecha — misma fila, calendário como popover */}
           <div className="flex items-start gap-6">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Método</p>
+              <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   onClick={() => { pmUserPicked.current = true; setPmId(null) }}
@@ -788,7 +788,7 @@ export default function ExpenseSheet({
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fecha</p>
+              <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
               {dateChips}
             </div>
           </div>
