@@ -760,36 +760,39 @@ export default function ExpenseSheet({
             {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
 
-          {/* 3. Monto — full width, grande */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
-            <div className={cn(
-              'flex items-center gap-3 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
-              error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-            )}>
-              <span className="text-lg font-bold text-gray-300 flex-shrink-0">$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
-                onChange={e => {
-                  const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
-                  if (raw.length <= 9) { setAmount(raw); setError('') }
-                }}
-                placeholder="0"
-                className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
-              />
+          {/* 3. Monto + Método + Fecha — misma fila */}
+          <div className="flex gap-5 items-start">
+            {/* Monto — crece para llenar el espacio */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-500 mb-1.5">Monto</p>
+              <div className={cn(
+                'flex items-center gap-3 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white',
+                error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+              )}>
+                <span className="text-lg font-bold text-gray-300 flex-shrink-0">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={amount ? parseInt(amount).toLocaleString('es-CL') : ''}
+                  onChange={e => {
+                    const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
+                    if (raw.length <= 9) { setAmount(raw); setError('') }
+                  }}
+                  placeholder="0"
+                  className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums"
+                />
+              </div>
+              {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-            {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
-          </div>
 
-          {/* 4. Método + Fecha — 2 cols iguales */}
-          <div className="grid grid-cols-2 gap-6">
-            <div>
+            {/* Método de pago */}
+            <div className="flex-shrink-0">
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Método de pago</p>
               {methodChips}
             </div>
-            <div>
+
+            {/* Fecha */}
+            <div className="flex-shrink-0">
               <p className="text-xs font-semibold text-gray-500 mb-1.5">Fecha</p>
               {dateChips}
             </div>
