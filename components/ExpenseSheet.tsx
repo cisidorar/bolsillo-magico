@@ -284,6 +284,9 @@ export default function ExpenseSheet({
     </div>
   )
 
+  // selectCat must be defined before catChips (which is used in both edit and new modes)
+  const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
+
   // Mini-calendar helpers
   const nowObj     = new Date()
   const calDaysInMonth = new Date(calViewYear, calViewMonth + 1, 0).getDate()
@@ -608,9 +611,6 @@ export default function ExpenseSheet({
       </div>
     )
   }
-
-  // ─── Shared: category chips renderer ─────────────────────────────────────
-  const selectCat = (id: string) => { setCatId(id); setError(''); setAutoSelectedByAI(false) }
 
   const suggestionBadge = suggestion && (() => {
     const sugCat = cats.find(c => c.id === suggestion.categoryId)
