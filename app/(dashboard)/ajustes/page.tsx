@@ -57,7 +57,8 @@ export default async function AjustesPage() {
               <SettingsRow
                 href="/presupuesto"
                 icon={
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
                     <Target className="w-5 h-5" style={{ color: '#1B6DD4' }} />
                   </div>
                 }
@@ -108,7 +109,8 @@ export default async function AjustesPage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F0FDF4' }}>
+                      <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
                         <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
                       </div>
                     )}
@@ -121,7 +123,8 @@ export default async function AjustesPage() {
               <SettingsRow
                 href="/recurrentes"
                 icon={
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDFA' }}>
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#F0FDFA', '--cat-color': '#0D9488' } as React.CSSProperties}>
                     <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
                   </div>
                 }
@@ -154,7 +157,8 @@ export default async function AjustesPage() {
                 download
                 className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50/70 transition-colors group"
               >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+                <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
                   <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
                 </div>
                 <div className="flex-1 min-w-0">

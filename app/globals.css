@@ -186,7 +186,7 @@
   background: var(--cat-bg, #EEF4FF);
 }
 .dark .cat-icon-bg {
-  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 10%, #0f172a) !important;
+  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 16%, #0f172a) !important;
 }
 
 /* ── Dark mode — brand text ──────────────────────────────────────────────── */
@@ -234,7 +234,8 @@
 .dark .divide-gray-50 > :not([hidden]) ~ :not([hidden])  { border-color: #1e3a5f !important; }
 .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1e3a5f !important; }
 
-.dark .hover\:bg-gray-50:hover      { background-color: rgba(59, 104, 156, 0.15) !important; }
+.dark .hover\:bg-gray-50:hover           { background-color: rgba(59, 104, 156, 0.15) !important; }
+.dark .hover\:bg-brand-50\/40:hover      { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-gray-50\/50:hover  { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-gray-50\/60:hover  { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-gray-50\/70:hover  { background-color: rgba(59, 104, 156, 0.18) !important; }
