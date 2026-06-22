@@ -16,15 +16,41 @@ export default async function PresupuestoPage() {
   const month = now.getMonth() + 1
   const year = now.getFullYear()
 
-  const [{ data: categories }, { data: budgets }] = await Promise.all([
+  // Mes anterior para el ordenamiento por gasto
+  const prevMonth = month === 1 ? 12 : month - 1
+  const prevYear  = month === 1 ? year - 1 : year
+  const prevMonthKey = String(prevMonth).padStart(2, '0')
+  const nextOfPrev   = prevMonth === 12 ? 1 : prevMonth + 1
+  const nextYearOfPrev = prevMonth === 12 ? prevYear + 1 : prevYear
+
+  const [{ data: categories }, { data: budgets }, { data: lastMonthExpenses }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
+    supabase
+      .from('expenses')
+      .select('category_id, amount')
+      .eq('user_id', user.id)
+      .gte('date', `${prevYear}-${prevMonthKey}-01`)
+      .lt('date', `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`),
   ])
+
+  // Mapa de gasto por categoría del mes anterior
+  const spendingMap = new Map<string, number>()
+  for (const e of lastMonthExpenses ?? []) {
+    if (e.category_id) {
+      spendingMap.set(e.category_id, (spendingMap.get(e.category_id) ?? 0) + e.amount)
+    }
+  }
+
+  // Ordenar categorías de mayor a menor gasto del mes pasado
+  const sortedCategories = [...(categories ?? [])].sort(
+    (a, b) => (spendingMap.get(b.id) ?? 0) - (spendingMap.get(a.id) ?? 0)
+  )
 
   const typedBudgets = (budgets ?? []) as CategoryBudget[]
   const totalBudgeted = typedBudgets.reduce((s, b) => s + b.amount, 0)
   const budgetsWithLimit = typedBudgets.length
-  const totalCategories = (categories ?? []).length
+  const totalCategories = sortedCategories.length
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
@@ -39,7 +65,7 @@ export default async function PresupuestoPage() {
 
         {/* Lista de categorías */}
         <CategoryBudgetManager
-          categories={categories ?? []}
+          categories={sortedCategories}
           budgets={typedBudgets}
           userId={user.id}
           month={month}
