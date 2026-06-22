@@ -164,9 +164,9 @@ export default async function AnalisisPage({
     if (totalSelected === 0) return ''
     const parts: string[] = []
 
-    // Solo destacar la categoría principal si NO es 100% recurrente (si es suscripciones fijas, no es útil)
+    // Solo destacar la categoría principal si no es mayormente recurrente (≥70% fijo = no útil como insight)
     const topCatRecurring = topCat ? (recurringByCat[topCat.id] ?? 0) : 0
-    const topCatIsAllRecurring = topCat && topCatRecurring >= topCat.total
+    const topCatIsAllRecurring = topCat && topCat.total > 0 && (topCatRecurring / topCat.total) >= 0.7
     if (topCat && !topCatIsAllRecurring) {
       parts.push(`${topCat.name} fue tu categoría principal (${topCatPct}% del total).`)
     } else if (catSummary.length > 1) {
@@ -490,7 +490,7 @@ export default async function AnalisisPage({
                       ? `+${formatCLP(c.total - limit!)} sobre el límite`
                       : limit
                         ? `${formatCLP(limit - c.total)} restante`
-                        : `${sharePct}% del mes`
+                        : 'Sin límite'
 
                   const statusColor = isAllRecurring && over
                     ? 'text-gray-400'
