@@ -162,8 +162,9 @@
   color: var(--cat-color, #1B6DD4);
 }
 .dark .cat-badge {
-  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 14%, #0f172a) !important;
-  color: color-mix(in srgb, var(--cat-color, #4D8FFF) 90%, #ffffff) !important;
+  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 22%, #0f172a) !important;
+  color: color-mix(in srgb, var(--cat-color, #4D8FFF) 100%, #ffffff) !important;
+  border: 1px solid color-mix(in srgb, var(--cat-color, #4D8FFF) 40%, transparent) !important;
 }
 
 /* ── Category icon container — dark-aware ────────────────────────────────── */
