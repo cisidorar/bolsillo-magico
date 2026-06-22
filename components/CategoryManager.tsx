@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Check, X, Search, ChevronDown, Loader2, ChevronRight } from 'lucide-react'
@@ -135,14 +135,16 @@ export default function CategoryManager({ categories: init, userId, expenseCount
   function CatIcon({ c, size = 40 }: { c: Category; size?: number }) {
     const sz = `${size}px`
     if (isEmoji(c.icon)) return (
-      <div className="rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ width: sz, height: sz, backgroundColor: c.bg_color }}>
+      <div className="cat-icon-bg rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+        style={{ width: sz, height: sz, '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
         {c.icon}
       </div>
     )
     const Icon = getCategoryIcon(c.icon)
     const iconSize = Math.round(size * 0.48)
     return (
-      <div className="rounded-xl flex items-center justify-center flex-shrink-0" style={{ width: sz, height: sz, backgroundColor: c.bg_color }}>
+      <div className="cat-icon-bg rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ width: sz, height: sz, '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
         <Icon style={{ width: iconSize, height: iconSize, color: c.color }} />
       </div>
     )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Check, X } from 'lucide-react'
@@ -118,8 +118,8 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
                 const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
                 return (
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                    style={{ background: c.bg_color }}
+                    className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                    style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                   >
                     {isEmoji(c.icon)
                       ? <span className="leading-none">{c.icon}</span>

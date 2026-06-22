@@ -1,3 +1,4 @@
+import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isEmoji } from '@/lib/utils'
@@ -73,8 +74,8 @@ export default async function AjustesPage() {
                         {(categories ?? []).slice(0, 3).map(c => (
                           <div
                             key={c.id}
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
-                            style={{ background: c.bg_color }}
+                            className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
+                            style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                           >
                             {isEmoji(c.icon)
                               ? <span className="text-base">{c.icon}</span>
