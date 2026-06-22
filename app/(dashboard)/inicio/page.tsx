@@ -439,9 +439,11 @@ export default async function DashboardPage() {
 
               {/* Desktop: compact ranked list */}
               <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
-                {catSummary.map((c, idx) => {
+                {(() => {
+                  const maxCatTotal = catSummary[0]?.total ?? 1
+                  return catSummary.map((c, idx) => {
                   const limit        = catBudgetMap.get(c.id) ?? null
-                  const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round(pct(c.total, total))
+                  const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
                   const over         = limit ? c.total > limit : false
                   const recurringAmt = recurringByCatInicio[c.id] ?? 0
                   const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
@@ -491,14 +493,15 @@ export default async function DashboardPage() {
                                 ? `+${formatCLP(c.total - limit!)} sobre`
                                 : limit
                                   ? `${catPct}% de ${formatCLP(limit)}`
-                                  : `${catPct}% del total`
+                                  : `${pct(c.total, total)}% del total`
                             }
                           </p>
                         </div>
                       </div>
                     </Link>
                   )
-                })}
+                  })
+                })()}
               </div>
             </div>
           )}
