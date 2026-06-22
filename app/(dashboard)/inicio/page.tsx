@@ -187,8 +187,8 @@ export default async function DashboardPage() {
       const label   = isToday ? 'Hoy' : daysUntil === 1 ? 'Mañana' : `${d} ${monthName(m).slice(0, 3)}`
       return { id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysUntil, label, isToday }
     })
+    .filter(r => r.daysUntil <= 7)
     .sort((a, b) => a.daysUntil - b.daysUntil)
-    .slice(0, 4)
 
   // ─────────────────────────────────────────────────────────────────────────
 
