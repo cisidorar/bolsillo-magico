@@ -220,9 +220,11 @@
 .dark .divide-gray-50 > :not([hidden]) ~ :not([hidden])  { border-color: #1e3a5f !important; }
 .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1e3a5f !important; }
 
-.dark .hover\:bg-gray-50:hover  { background-color: #1e3a5f !important; }
-.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
-.dark .hover\:bg-gray-200:hover { background-color: #475569 !important; }
+.dark .hover\:bg-gray-50:hover      { background-color: #1e3a5f !important; }
+.dark .hover\:bg-gray-50\/50:hover  { background-color: rgba(59, 104, 156, 0.18) !important; }
+.dark .hover\:bg-gray-100:hover     { background-color: #334155 !important; }
+.dark .hover\:bg-gray-200:hover     { background-color: #475569 !important; }
+.dark .active\:bg-gray-100\/60:active { background-color: rgba(59, 104, 156, 0.28) !important; }
 
 .dark .focus-within\:bg-white:focus-within { background-color: #1e3a5f !important; }
 .dark .focus-within\:border-brand-400:focus-within { border-color: #4D8FFF !important; }

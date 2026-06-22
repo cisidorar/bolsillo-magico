@@ -114,7 +114,7 @@ export default function StatementView({ expenses, categories, paymentMethods }: 
                                 ? <span className="text-[9px]">{e.category.icon}</span>
                                 : (() => { const CatIcon = getCategoryIcon(e.category!.icon); return <CatIcon className="w-2.5 h-2.5 flex-shrink-0" /> })()
                               }
-                              <span className="truncate max-w-[72px]">{e.category.name}</span>
+                              <span>{e.category.name}</span>
                             </span>
                           )}
                         </div>

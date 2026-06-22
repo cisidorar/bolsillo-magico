@@ -82,7 +82,7 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                         ? <span className="text-[9px] leading-none">{e.category.icon}</span>
                         : (() => { const CatIcon = getCategoryIcon(e.category!.icon); return <CatIcon className="w-2.5 h-2.5 flex-shrink-0" /> })()
                       }
-                      <span className="truncate max-w-[72px]">{e.category.name}</span>
+                      <span>{e.category.name}</span>
                     </span>
                   )}
                   {e.payment_method && (
