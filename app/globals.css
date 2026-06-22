@@ -227,6 +227,12 @@
 .tab-active { background-color: #ffffff; }
 .dark .tab-active { background-color: #334155 !important; }
 
+/* ── Recurring chip (presupuesto) ────────────────────────────────────────── */
+.recurring-chip     { background: #F3F4F6; color: #9CA3AF; }
+.dark .recurring-chip { background: #1e293b !important; color: #64748b !important; }
+.recurring-chip-warn { background: #FEF2F2; color: #EF4444; }
+.dark .recurring-chip-warn { background: color-mix(in srgb, #EF4444 15%, #0f172a) !important; color: #FCA5A5 !important; }
+
 /* ── Logout button ───────────────────────────────────────────────────────── */
 .logout-btn { background: rgba(254,242,242,0.6); border-color: #fee2e2; }
 .dark .logout-btn { background: rgba(239,68,68,0.06) !important; border-color: rgba(239,68,68,0.2) !important; }

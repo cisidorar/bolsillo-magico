@@ -3,7 +3,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
 import { formatCLP } from '@/lib/utils'
-import { PiggyBank, Target } from 'lucide-react'
+import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +23,7 @@ export default async function PresupuestoPage() {
   const nextOfPrev   = prevMonth === 12 ? 1 : prevMonth + 1
   const nextYearOfPrev = prevMonth === 12 ? prevYear + 1 : prevYear
 
-  const [{ data: categories }, { data: budgets }, { data: lastMonthExpenses }] = await Promise.all([
+  const [{ data: categories }, { data: budgets }, { data: lastMonthExpenses }, { data: recurring }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
@@ -32,6 +32,11 @@ export default async function PresupuestoPage() {
       .eq('user_id', user.id)
       .gte('date', `${prevYear}-${prevMonthKey}-01`)
       .lt('date', `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`),
+    supabase
+      .from('recurring_expenses')
+      .select('category_id, amount')
+      .eq('user_id', user.id)
+      .eq('is_active', true),
   ])
 
   // Mapa de gasto por categoría del mes anterior
@@ -41,6 +46,15 @@ export default async function PresupuestoPage() {
       spendingMap.set(e.category_id, (spendingMap.get(e.category_id) ?? 0) + e.amount)
     }
   }
+
+  // Mapa de recurrentes activos por categoría
+  const recurringByCategory: Record<string, number> = {}
+  for (const r of recurring ?? []) {
+    if (r.category_id) {
+      recurringByCategory[r.category_id] = (recurringByCategory[r.category_id] ?? 0) + r.amount
+    }
+  }
+  const totalRecurring = Object.values(recurringByCategory).reduce((s, v) => s + v, 0)
 
   // Ordenar categorías de mayor a menor gasto del mes pasado
   const sortedCategories = [...(categories ?? [])].sort(
@@ -67,6 +81,7 @@ export default async function PresupuestoPage() {
         <CategoryBudgetManager
           categories={sortedCategories}
           budgets={typedBudgets}
+          recurringByCategory={recurringByCategory}
           userId={user.id}
           month={month}
           year={year}
@@ -109,6 +124,23 @@ export default async function PresupuestoPage() {
                   </p>
                 </div>
               </div>
+
+              {totalRecurring > 0 && (
+                <div className="flex items-center gap-3">
+                  <div
+                    className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#FFF7ED', '--cat-color': '#EA580C' } as React.CSSProperties}
+                  >
+                    <RefreshCw className="w-4 h-4" style={{ color: '#EA580C' }} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-gray-400 font-medium leading-tight">Recurrentes comprometidos</p>
+                    <p className="text-base font-extrabold text-gray-900 tabular-nums">
+                      {formatCLP(totalRecurring)}
+                    </p>
+                  </div>
+                </div>
+              )}
 
             </div>
 

@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Check } from 'lucide-react'
+import { Check, RefreshCw, AlertTriangle } from 'lucide-react'
 import { formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import type { Category, CategoryBudget } from '@/types'
@@ -11,6 +11,7 @@ import type { Category, CategoryBudget } from '@/types'
 interface Props {
   categories: Category[]
   budgets: CategoryBudget[]
+  recurringByCategory: Record<string, number>
   userId: string
   month: number
   year: number
@@ -49,7 +50,7 @@ function buildRows(categories: Category[], budgets: CategoryBudget[]): Row[] {
   }))
 }
 
-export default function CategoryBudgetManager({ categories, budgets, userId, month, year }: Props) {
+export default function CategoryBudgetManager({ categories, budgets, recurringByCategory, userId, month, year }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [rows, setRows] = useState<Row[]>(() => buildRows(categories, budgets))
@@ -122,6 +123,8 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
           const c = row.category
           const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
           const hasBudget = row.current !== null && row.current > 0
+          const recurringAmt = recurringByCategory[c.id] ?? 0
+          const underBudget = hasBudget && recurringAmt > 0 && row.current! < recurringAmt
 
           return (
             <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 relative">
@@ -150,7 +153,7 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
               {/* Name + status */}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
-                <div className="mt-0.5">
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                   {hasBudget ? (
                     <span
                       className="cat-badge inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full"
@@ -160,6 +163,17 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
                     </span>
                   ) : (
                     <span className="text-[11px] text-gray-400 font-medium">Sin límite</span>
+                  )}
+                  {recurringAmt > 0 && (
+                    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                      underBudget ? 'recurring-chip-warn' : 'recurring-chip'
+                    }`}>
+                      {underBudget
+                        ? <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" />
+                        : <RefreshCw className="w-2.5 h-2.5 flex-shrink-0" />
+                      }
+                      {formatCLP(recurringAmt)}
+                    </span>
                   )}
                 </div>
               </div>
