@@ -24,12 +24,26 @@ type Row = {
   saved: boolean
 }
 
+function fmtDraft(n: number): string {
+  return n.toLocaleString('es-CL')
+}
+
+function parseDraft(s: string): number {
+  return parseInt(s.replace(/\./g, '').replace(/,/g, '')) || 0
+}
+
+function formatInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return parseInt(digits).toLocaleString('es-CL')
+}
+
 function buildRows(categories: Category[], budgets: CategoryBudget[]): Row[] {
   const map = new Map(budgets.map(b => [b.category_id, b.amount]))
   return categories.map(c => ({
     category: c,
     current: map.get(c.id) ?? null,
-    draft: map.has(c.id) ? String(map.get(c.id)) : '',
+    draft: map.has(c.id) ? fmtDraft(map.get(c.id)!) : '',
     saving: false,
     saved: false,
   }))
@@ -68,10 +82,10 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
   }
 
   async function save(row: Row) {
-    const amt = parseInt(row.draft)
+    const amt = parseDraft(row.draft)
     const catId = row.category.id
 
-    if (!row.draft.trim() || !amt || amt <= 0) {
+    if (!row.draft.trim() || amt <= 0) {
       if (row.current !== null) {
         updateRow(catId, { saving: true })
         await supabase.from('category_budgets').delete()
@@ -90,7 +104,7 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
       { user_id: userId, category_id: catId, amount: amt },
       { onConflict: 'user_id,category_id' }
     )
-    updateRow(catId, { saving: false, current: amt, draft: String(amt) })
+    updateRow(catId, { saving: false, current: amt, draft: fmtDraft(amt) })
     flashSaved(catId)
     await syncMonthlyBudget(catId, amt)
     router.refresh()
@@ -155,14 +169,13 @@ export default function CategoryBudgetManager({ categories, budgets, userId, mon
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400 pointer-events-none select-none">$</span>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     value={row.draft}
-                    onChange={e => updateRow(c.id, { draft: e.target.value })}
+                    onChange={e => updateRow(c.id, { draft: formatInput(e.target.value) })}
                     onBlur={() => save(row)}
                     onKeyDown={e => e.key === 'Enter' && save(row)}
                     placeholder="0"
-                    min="0"
                     className="w-32 pl-7 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-brand-600 transition-colors text-right tabular-nums"
                   />
                 </div>
