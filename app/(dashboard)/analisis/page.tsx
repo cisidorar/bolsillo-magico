@@ -448,12 +448,14 @@ export default async function AnalisisPage({
                 Top categorías · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
               </h2>
               <div className="card divide-y divide-gray-50 overflow-hidden">
-                {catSummary.map((c, idx) => {
+                {(() => {
+                  const maxCatTotal = catSummary[0]?.total ?? 1
+                  return catSummary.map((c, idx) => {
                   const limit        = catBudgetMap.get(c.id) ?? null
                   const over         = limit ? c.total > limit : false
                   const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
                   const sharePct     = pct(c.total, totalSelected)
-                  const barWidth     = limit ? budgetPct! : sharePct
+                  const barWidth     = limit ? budgetPct! : Math.round((c.total / maxCatTotal) * 100)
 
                   // Recurring context: don't alarm if overage is entirely from fixed costs
                   const recurringAmt  = recurringByCat[c.id] ?? 0
@@ -536,7 +538,8 @@ export default async function AnalisisPage({
                       </div>
                     </Link>
                   )
-                })}
+                  })
+                })()}
               </div>
             </div>
 
