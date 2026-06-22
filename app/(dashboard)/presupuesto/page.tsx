@@ -85,6 +85,27 @@ export default async function PresupuestoPage() {
               </div>
 
             </div>
+
+            {/* Coverage progress bar */}
+            {totalCategories > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] text-gray-400 font-medium">Cobertura</p>
+                  <p className="text-[11px] font-bold text-gray-500">
+                    {Math.round(budgetsWithLimit / totalCategories * 100)}%
+                  </p>
+                </div>
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.round(budgetsWithLimit / totalCategories * 100)}%`,
+                      background: budgetsWithLimit === 0 ? '#D1D5DB' : '#1B6DD4',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Tip */}
