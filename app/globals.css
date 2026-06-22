@@ -193,8 +193,23 @@
   background: color-mix(in srgb, var(--cat-color, #4D8FFF) 16%, #0f172a) !important;
 }
 
-/* ── Dark mode — brand text ──────────────────────────────────────────────── */
+/* ── Dark mode — brand colors ────────────────────────────────────────────── */
 .dark .text-brand-900  { color: #ffffff !important; }
+.dark .text-brand-600  { color: #60a5fa !important; }
+.dark .text-brand-400  { color: #4D8FFF !important; }
+.dark .text-brand-300  { color: #4D8FFF !important; }
+
+.dark .bg-brand-50     { background-color: #0f172a !important; }
+.dark .bg-brand-100    { background-color: #1e293b !important; }
+
+.dark .border-brand-100 { border-color: #1e293b !important; }
+.dark .border-brand-200 { border-color: #1e3a5f !important; }
+
+.dark .divide-brand-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1e293b !important; }
+.dark .divide-brand-200 > :not([hidden]) ~ :not([hidden]) { border-color: #1e3a5f !important; }
+
+.dark .placeholder-brand-300::placeholder { color: #334155 !important; }
+.dark .focus\:border-brand-600:focus { border-color: #4D8FFF !important; }
 
 /* ── Chart bar colors (dark-aware via CSS classes) ───────────────────────── */
 .bar-inactive { background-color: #D5E6FF; }

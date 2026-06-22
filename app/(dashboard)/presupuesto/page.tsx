@@ -1,3 +1,4 @@
+import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
@@ -54,7 +55,10 @@ export default async function PresupuestoPage() {
             <div className="space-y-4">
 
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+                <div
+                  className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}
+                >
                   <PiggyBank className="w-4 h-4" style={{ color: '#1B6DD4' }} />
                 </div>
                 <div>
@@ -66,7 +70,10 @@ export default async function PresupuestoPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+                <div
+                  className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}
+                >
                   <Target className="w-4 h-4" style={{ color: '#16A34A' }} />
                 </div>
                 <div>
@@ -81,7 +88,7 @@ export default async function PresupuestoPage() {
           </div>
 
           {/* Tip */}
-          <div className="card p-4" style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+          <div className="card insight-card p-4">
             <p className="text-xs font-bold text-amber-800 mb-1">💡 Cómo funciona</p>
             <p className="text-xs text-amber-700 leading-relaxed">
               El total presupuestado se refleja como límite mensual en el dashboard. Deja un campo vacío para no poner límite a esa categoría.
