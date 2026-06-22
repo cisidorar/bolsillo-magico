@@ -9,7 +9,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect('/login')
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#EEF4FF' }}>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-page)' }}>
       <AutoRegister />
       {/* Desktop sidebar */}
       <SideNav />

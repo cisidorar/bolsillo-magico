@@ -23,7 +23,7 @@ export default function SideNav() {
   return (
     <>
       <aside
-        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 bg-white border-r-2 border-blue-100 py-6 px-4"
+        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 bg-white dark:bg-slate-900 border-r-2 border-blue-100 dark:border-slate-700 py-6 px-4"
         style={{ boxShadow: '4px 0 24px rgba(0,0,0,0.08)' }}
       >
         {/* ── Logo ───────────────────────────────────────────── */}
@@ -48,7 +48,7 @@ export default function SideNav() {
                   'flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-150',
                   active
                     ? 'text-white shadow-md'
-                    : 'text-gray-500 hover:bg-brand-50 hover:text-brand-700'
+                    : 'text-gray-500 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-700'
                 )}
                 style={active
                   ? { background: '#1B6DD4', boxShadow: '0 4px 12px rgba(27,109,212,.30)' }
@@ -68,7 +68,7 @@ export default function SideNav() {
         </nav>
 
         {/* ── Divider ────────────────────────────────────────── */}
-        <div className="border-t border-gray-100 mb-4" />
+        <div className="border-t border-gray-100 dark:border-slate-700 mb-4" />
 
         {/* ── Add expense button ──────────────────────────────── */}
         <button

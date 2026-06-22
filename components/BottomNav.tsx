@@ -48,7 +48,7 @@ export default function BottomNav() {
                   'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200',
                   active
                     ? 'text-brand-700'
-                    : 'text-stone-400 hover:text-stone-500'
+                    : 'text-stone-400 dark:text-slate-500 hover:text-stone-500'
                 )}
               >
                 <div className={cn(
@@ -59,7 +59,7 @@ export default function BottomNav() {
                 </div>
                 <span className={cn(
                   'text-[10px] font-medium transition-all',
-                  active ? 'text-brand-700' : 'text-gray-400'
+                  active ? 'text-brand-700' : 'text-gray-400 dark:text-slate-600'
                 )}>
                   {item.label}
                 </span>

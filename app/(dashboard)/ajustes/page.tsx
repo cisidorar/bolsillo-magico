@@ -7,10 +7,11 @@ import ProfileEditor from '@/components/ProfileEditor'
 import Link from 'next/link'
 import {
   ChevronRight, RefreshCw, Tag, CreditCard, Target,
-  Download, Database, Shield, Coins, LogOut,
+  Download, Database, Shield, Coins, LogOut, Palette,
   type LucideIcon,
 } from 'lucide-react'
 import ImportCSV from '@/components/ImportCSV'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,14 @@ export default async function AjustesPage() {
 
         {/* ── Columna derecha ────────────────────────────────────── */}
         <div className="space-y-6">
+
+          {/* Apariencia */}
+          <section>
+            <SectionHeader icon={Palette} label="Apariencia" color="#7C3AED" />
+            <div className="card overflow-hidden">
+              <ThemeToggle />
+            </div>
+          </section>
 
           {/* Datos */}
           <section>
