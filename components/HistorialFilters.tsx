@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import React, { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Search, X, ShoppingCart, CreditCard, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { cn, isEmoji } from '@/lib/utils'
@@ -166,8 +166,8 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             <button
               key={cat.id}
               onClick={() => removeCat(cat.id)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-all hover:opacity-80 flex-shrink-0"
-              style={{ background: cat.bg_color, color: cat.color, borderColor: `${cat.color}40` }}
+              className="cat-badge inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-all hover:opacity-80 flex-shrink-0"
+              style={{ '--cat-bg': cat.bg_color, '--cat-color': cat.color, borderColor: `${cat.color}40` } as React.CSSProperties}
             >
               {isEmoji(cat.icon)
                 ? <span className="text-xs leading-none">{cat.icon}</span>
@@ -212,8 +212,8 @@ export default function HistorialFilters({ categories, month, year }: Props) {
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors text-left"
                   >
                     <div
-                      className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: cat.bg_color }}
+                      className="cat-icon-bg w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': cat.bg_color, '--cat-color': cat.color } as React.CSSProperties}
                     >
                       {isEmoji(cat.icon)
                         ? <span className="text-xs">{cat.icon}</span>

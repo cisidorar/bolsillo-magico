@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight } from 'lucide-react'
@@ -221,8 +221,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       {item.category && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: item.category.bg_color, color: item.category.color }}>
+                        <span className="cat-badge text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ '--cat-bg': item.category.bg_color, '--cat-color': item.category.color } as React.CSSProperties}>
                           {item.category.name}
                         </span>
                       )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { formatCLP, relativeDate, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -57,11 +57,11 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                 />
               ) : (
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: catBg }}
+                  className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
                 >
                   {(() => {
-                    const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+                    const { icon: Icon, color } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
                     return <Icon className="w-5 h-5" style={{ color }} />
                   })()}
                 </div>
@@ -75,8 +75,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   {e.category && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                      style={{ background: e.category.bg_color, color: e.category.color }}
+                      className="cat-badge inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      style={{ '--cat-bg': e.category.bg_color, '--cat-color': e.category.color } as React.CSSProperties}
                     >
                       {isEmoji(e.category.icon)
                         ? <span className="text-[9px] leading-none">{e.category.icon}</span>

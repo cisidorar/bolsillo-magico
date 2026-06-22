@@ -451,8 +451,8 @@ export default async function AnalisisPage({
 
                         {/* Category icon */}
                         <div
-                          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: c.bg_color }}
+                          className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                         >
                           {isEmoji(c.icon)
                             ? <span className="text-sm leading-none">{c.icon}</span>

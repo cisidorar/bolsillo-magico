@@ -155,6 +155,25 @@
 .ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 .ring-offset-2.ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 
+/* ── Category badge — dark-aware ─────────────────────────────────────────── */
+/* Uses CSS custom props --cat-bg and --cat-color set inline from DB values   */
+.cat-badge {
+  background: var(--cat-bg, #EEF4FF);
+  color: var(--cat-color, #1B6DD4);
+}
+.dark .cat-badge {
+  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 14%, #0f172a) !important;
+  color: color-mix(in srgb, var(--cat-color, #4D8FFF) 90%, #ffffff) !important;
+}
+
+/* ── Category icon container — dark-aware ────────────────────────────────── */
+.cat-icon-bg {
+  background: var(--cat-bg, #EEF4FF);
+}
+.dark .cat-icon-bg {
+  background: color-mix(in srgb, var(--cat-color, #4D8FFF) 10%, #0f172a) !important;
+}
+
 /* ── Dark mode — brand text ──────────────────────────────────────────────── */
 .dark .text-brand-900  { color: #ffffff !important; }
 

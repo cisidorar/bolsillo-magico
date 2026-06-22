@@ -82,12 +82,11 @@ export default async function CategoriaDetallePage({
         {/* Ícono + nombre */}
         <div className="flex items-center gap-2.5 flex-1 min-w-0">
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: category.bg_color }}
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/20"
           >
             {isEmoji(category.icon)
               ? <span className="text-lg">{category.icon}</span>
-              : CatIcon && <CatIcon className="w-5 h-5" style={{ color: category.color }} />
+              : CatIcon && <CatIcon className="w-5 h-5 text-white" />
             }
           </div>
           <div className="min-w-0">

@@ -400,8 +400,8 @@ export default async function DashboardPage() {
                     >
                       <div className="flex items-center gap-2.5 mb-3">
                         <div
-                          className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: c.bg_color }}
+                          className="cat-icon-bg w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                         >
                           {isEmoji(c.icon)
                             ? <span className="text-base">{c.icon}</span>
