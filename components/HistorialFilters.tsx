@@ -104,18 +104,58 @@ export default function HistorialFilters({ categories, month, year }: Props) {
 
   return (
     <div className="card overflow-visible">
-      {/* ── Row 1: toggle + search ──────────────────────────────── */}
-      <div className="flex items-center gap-3 p-3 lg:p-4 border-b border-gray-50">
+      {/* ── Mobile: stacked layout ───────────────────────────────── */}
+      <div className="lg:hidden p-3 space-y-2.5 border-b border-gray-50">
+        {/* View toggle — full width */}
+        <div className="flex bg-gray-100 rounded-xl p-1">
+          <button
+            onClick={() => handleView('purchase')}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all',
+              view === 'purchase' ? 'tab-active text-gray-800 shadow-sm' : 'text-gray-500'
+            )}
+          >
+            <ShoppingCart className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Por compra</span>
+          </button>
+          <button
+            onClick={() => handleView('billing')}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all',
+              view === 'billing' ? 'tab-active text-indigo-700 shadow-sm' : 'text-gray-500'
+            )}
+          >
+            <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Por facturación</span>
+          </button>
+        </div>
+        {/* Search — full width */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Buscar gasto o comercio..."
+            className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-300 transition-colors"
+          />
+          {query && (
+            <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
 
+      {/* ── Desktop: single row ──────────────────────────────────── */}
+      <div className="hidden lg:flex items-center gap-3 p-4 border-b border-gray-50">
         {/* View toggle */}
         <div className="flex bg-gray-100 rounded-xl p-1 flex-shrink-0">
           <button
             onClick={() => handleView('purchase')}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-              view === 'purchase'
-                ? 'bg-white text-gray-800 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+              view === 'purchase' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
           >
             <ShoppingCart className="w-3.5 h-3.5 flex-shrink-0" />
@@ -125,16 +165,13 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             onClick={() => handleView('billing')}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-              view === 'billing'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+              view === 'billing' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
           >
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Facturación</span>
           </button>
         </div>
-
         {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -146,10 +183,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-300 focus:bg-white transition-colors"
           />
           {query && (
-            <button
-              onClick={() => handleSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
+            <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               <X className="w-4 h-4" />
             </button>
           )}

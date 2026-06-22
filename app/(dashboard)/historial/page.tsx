@@ -207,80 +207,127 @@ export default async function HistorialPage({
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-4">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-900">Historial</h1>
-          <p className="text-sm text-gray-400 mt-1">Revisa y organiza tus gastos realizados.</p>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-brand-900">Historial</h1>
         <MonthNav month={month} year={year} basePath="/historial" extraParams={isBilling ? { view: 'billing' } : {}} />
       </div>
 
       {/* Stats cards */}
       {totalCount > 0 && (
-        <div className="grid grid-cols-3 gap-2.5 lg:gap-4 mb-5">
-
-          {/* Total del mes / período */}
-          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-              <Wallet className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
+        <>
+          {/* Mobile: total prominente arriba, dos chips abajo */}
+          <div className="lg:hidden mb-4 space-y-2">
+            <div className="card p-4 flex items-center gap-3">
+              <div className="cat-icon-bg w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
+                <Wallet className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                <p className="text-2xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(total)}</p>
+                <p className="text-xs text-gray-400">{totalCount} registros</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">
-                {isBilling ? 'Total del período' : 'Total del mes'}
-              </p>
-              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(total)}</p>
-            </div>
-          </div>
-
-          {/* vs mes anterior */}
-          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div
-              className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{
-                '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
-                '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
-              } as React.CSSProperties}
-            >
-              {delta === null || delta === 0
-                ? <Minus className="w-4 h-4 lg:w-6 lg:h-6 text-gray-400" />
-                : delta > 0
-                  ? <TrendingUp   className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#EF4444' }} />
-                  : <TrendingDown className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#16A34A' }} />
-              }
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">
-                vs mes anterior{isCurrentMonth && !isBilling ? ` · día ${now.getDate()}` : ''}
-              </p>
-              {isBilling || delta === null ? (
-                <p className="text-[13px] lg:text-xl font-extrabold text-gray-400 leading-none">—</p>
-              ) : (
-                <>
-                  <p className={`text-[13px] lg:text-xl font-extrabold tabular-nums leading-none ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                    {delta > 0 ? '+' : ''}{delta}%
+            <div className="grid grid-cols-2 gap-2">
+              {/* vs anterior */}
+              <div className="card p-3.5 flex items-center gap-2.5">
+                <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{
+                    '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
+                    '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
+                  } as React.CSSProperties}>
+                  {delta === null || delta === 0
+                    ? <Minus className="w-4 h-4 text-gray-400" />
+                    : delta > 0
+                      ? <TrendingUp   className="w-4 h-4" style={{ color: '#EF4444' }} />
+                      : <TrendingDown className="w-4 h-4" style={{ color: '#16A34A' }} />
+                  }
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-medium leading-tight">
+                    vs anterior{isCurrentMonth && !isBilling ? ` · d${now.getDate()}` : ''}
                   </p>
-                  <p className={`text-[8px] lg:text-[10px] tabular-nums leading-tight ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
-                    {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
-                  </p>
-                </>
-              )}
+                  {isBilling || delta === null ? (
+                    <p className="text-base font-extrabold text-gray-400">—</p>
+                  ) : (
+                    <>
+                      <p className={`text-base font-extrabold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {delta > 0 ? '+' : ''}{delta}%
+                      </p>
+                      <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                        {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+              {/* Promedio diario */}
+              <div className="card p-3.5 flex items-center gap-2.5">
+                <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
+                  <TrendingUp className="w-4 h-4" style={{ color: '#7C3AED' }} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium leading-tight">Promedio diario</p>
+                  <p className="text-base font-extrabold text-gray-900 tabular-nums">{formatCLP(dailyAvg)}</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Promedio diario */}
-          <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
-              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
+          {/* Desktop: 3 columnas */}
+          <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
+            <div className="card p-4 flex items-center gap-3">
+              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
+                <Wallet className="w-6 h-6" style={{ color: '#1B6DD4' }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(total)}</p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="text-[9px] lg:text-xs text-gray-400 font-medium leading-tight">Promedio diario</p>
-              <p className="text-[13px] lg:text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{
+                  '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
+                  '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
+                } as React.CSSProperties}>
+                {delta === null || delta === 0
+                  ? <Minus className="w-6 h-6 text-gray-400" />
+                  : delta > 0
+                    ? <TrendingUp   className="w-6 h-6" style={{ color: '#EF4444' }} />
+                    : <TrendingDown className="w-6 h-6" style={{ color: '#16A34A' }} />
+                }
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 font-medium">vs mes anterior{isCurrentMonth && !isBilling ? ` · día ${now.getDate()}` : ''}</p>
+                {isBilling || delta === null ? (
+                  <p className="text-xl font-extrabold text-gray-400">—</p>
+                ) : (
+                  <>
+                    <p className={`text-xl font-extrabold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                      {delta > 0 ? '+' : ''}{delta}%
+                    </p>
+                    <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                      {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="card p-4 flex items-center gap-3">
+              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
+                <TrendingUp className="w-6 h-6" style={{ color: '#7C3AED' }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
+                <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(dailyAvg)}</p>
+              </div>
             </div>
           </div>
-
-        </div>
+        </>
       )}
 
       {/* Filters */}
