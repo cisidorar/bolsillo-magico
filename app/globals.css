@@ -233,6 +233,18 @@
 .recurring-chip-warn { background: #FEF2F2; color: #EF4444; }
 .dark .recurring-chip-warn { background: color-mix(in srgb, #EF4444 15%, #0f172a) !important; color: #FCA5A5 !important; }
 
+/* ── Mobile top bar ──────────────────────────────────────────────────────── */
+.mobile-topbar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(213, 230, 255, 0.8);
+}
+.dark .mobile-topbar {
+  background: rgba(15, 23, 42, 0.93) !important;
+  border-bottom-color: rgba(30, 58, 95, 0.7) !important;
+}
+
 /* ── Logout button ───────────────────────────────────────────────────────── */
 .logout-btn { background: rgba(254,242,242,0.6); border-color: #fee2e2; }
 .dark .logout-btn { background: rgba(239,68,68,0.06) !important; border-color: rgba(239,68,68,0.2) !important; }

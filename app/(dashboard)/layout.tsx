@@ -16,11 +16,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Desktop sidebar */}
       <SideNav />
       {/* Mobile top bar */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-12"
-        style={{ backgroundColor: 'var(--bg-page)' }}>
+      <header className="mobile-topbar lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-center h-12">
         <Link href="/inicio" className="flex items-center gap-2">
-          <Image src="/camapana.png" alt="Bolsillo Mágico" width={26} height={26} />
-          <span className="text-[14px] font-extrabold text-[#0A1F44] dark:text-white tracking-tight">
+          <Image src="/camapana.png" alt="Bolsillo Mágico" width={24} height={24} />
+          <span className="text-[15px] font-extrabold tracking-tight text-[#0A1F44] dark:text-white">
             Bolsillo Mágico
           </span>
         </Link>
