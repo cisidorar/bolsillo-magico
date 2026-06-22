@@ -76,6 +76,7 @@ export default function ExpenseSheet({
   const [topCatIds, setTopCatIds] = useState<string[]>([])
   const [catsExpanded, setCatsExpanded] = useState(false)
   const [catPickerOpen, setCatPickerOpen] = useState(false)
+  const [pmPickerOpen, setPmPickerOpen] = useState(false)
 
   // Sugerencia de categoría
   const [suggestion, setSuggestion] = useState<CategorySuggestion | null>(null)
@@ -185,7 +186,7 @@ export default function ExpenseSheet({
 
   const close = useCallback(() => {
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
-    setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false)
+    setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false); setPmPickerOpen(false)
     setSuggestion(null); setAutoSelectedByAI(false)
     setCalOpen(false); setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth())
     pmUserPicked.current = false
@@ -422,6 +423,37 @@ export default function ExpenseSheet({
           </button>
         </div>
       )}
+    </div>
+  )
+
+  // Mobile date chips: only "Hoy" + calendar button (compact, single row)
+  const mobileDateChips = (
+    <div className="flex gap-1.5">
+      <button
+        onClick={() => { setDateStr(todayStr); setCalOpen(false) }}
+        className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+          dateStr === todayStr
+            ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+            : 'border-gray-200 bg-gray-50 text-gray-600'
+        )}
+      >Hoy</button>
+      <div className="relative">
+        <button
+          onClick={() => { setCalOpen(v => !v); if (!calOpen) { setCalViewYear(nowObj.getFullYear()); setCalViewMonth(nowObj.getMonth()) } }}
+          className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
+            calOpen || dateStr !== todayStr
+              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
+              : 'border-gray-200 bg-gray-50 text-gray-600'
+          )}
+        >
+          <CalendarDays className="w-3 h-3" />
+          {dateStr !== todayStr
+            ? (() => { try { return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) } catch { return 'Otro' } })()
+            : 'Antiguo'}
+        </button>
+        {calendarPopover}
+      </div>
     </div>
   )
 
@@ -846,14 +878,43 @@ export default function ExpenseSheet({
           </div>
 
           {/* Payment + date */}
-          <div className="px-5 pt-3 grid grid-cols-2 gap-3">
+          <div className="px-5 pt-3 flex items-start gap-5">
+            {/* Método — colapsable */}
             <div>
               <p className="text-xs font-medium text-gray-400 mb-2">Método</p>
-              {methodChips}
+              {pmPickerOpen ? (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => { pmUserPicked.current = true; setPmId(null); setPmPickerOpen(false) }}
+                    className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                      pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                  >Efectivo</button>
+                  {pms.map(pm => (
+                    <button key={pm.id}
+                      onClick={() => { pmUserPicked.current = true; setPmId(pm.id); setPmPickerOpen(false) }}
+                      className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                        pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+                    >{pm.name}</button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className="px-3 py-1.5 rounded-full text-xs border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+                    {pmId === null ? 'Efectivo' : (pms.find(p => p.id === pmId)?.name ?? 'Efectivo')}
+                  </span>
+                  <button
+                    onClick={() => setPmPickerOpen(true)}
+                    className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
+            {/* Fecha — solo Hoy + calendario */}
             <div>
               <p className="text-xs font-medium text-gray-400 mb-2">Fecha</p>
-              {dateChips}
+              {mobileDateChips}
             </div>
           </div>
 
