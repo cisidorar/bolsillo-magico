@@ -1,3 +1,4 @@
+import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
@@ -220,7 +221,8 @@ export default async function HistorialPage({
 
           {/* Total del mes / período */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+            <div className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
               <Wallet className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#1B6DD4' }} />
             </div>
             <div className="min-w-0">
@@ -234,8 +236,11 @@ export default async function HistorialPage({
           {/* vs mes anterior */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
             <div
-              className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4' }}
+              className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{
+                '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
+                '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
+              } as React.CSSProperties}
             >
               {delta === null || delta === 0
                 ? <Minus className="w-4 h-4 lg:w-6 lg:h-6 text-gray-400" />
@@ -265,7 +270,8 @@ export default async function HistorialPage({
 
           {/* Promedio diario */}
           <div className="card p-3 lg:p-4 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3">
-            <div className="w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+            <div className="cat-icon-bg w-8 h-8 lg:w-12 lg:h-12 rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
               <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" style={{ color: '#7C3AED' }} />
             </div>
             <div className="min-w-0">
