@@ -119,39 +119,39 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
           <p className="text-sm font-bold text-gray-700">Perfil</p>
         </div>
 
-        <div className="flex items-center gap-4 px-5 py-4 flex-wrap gap-y-3">
-          {/* Avatar */}
-          <div className="relative flex-shrink-0">
-            {localAvatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={localAvatar} alt="avatar" className="w-14 h-14 rounded-full object-cover" />
-            ) : (
-              <div
-                className="w-14 h-14 rounded-full flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #1B6DD4 0%, #0A3F84 100%)' }}
-              >
-                <span className="text-white font-bold text-2xl select-none">{initial}</span>
-              </div>
-            )}
-            {uploading && (
-              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-white animate-spin" />
-              </div>
-            )}
+        <div className="px-5 py-4">
+          {/* Fila 1: avatar + nombre */}
+          <div className="flex items-center gap-4 mb-3">
+            <div className="relative flex-shrink-0">
+              {localAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={localAvatar} alt="avatar" className="w-14 h-14 rounded-full object-cover" />
+              ) : (
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center"
+                  style={{ background: 'linear-gradient(135deg, #1B6DD4 0%, #0A3F84 100%)' }}
+                >
+                  <span className="text-white font-bold text-2xl select-none">{initial}</span>
+                </div>
+              )}
+              {uploading && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900 truncate">{displayName || '—'}</p>
+              <p className="text-sm text-gray-400 truncate">{email}</p>
+            </div>
           </div>
 
-          {/* Nombre + email */}
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-gray-900 truncate">{displayName || '—'}</p>
-            <p className="text-sm text-gray-400 truncate">{email}</p>
-          </div>
-
-          {/* Botones */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Fila 2: botones */}
+          <div className="flex items-center gap-2">
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               <Upload className="w-3.5 h-3.5" />
               Subir foto
@@ -159,7 +159,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
             <button
               onClick={() => setEditing(true)}
               disabled={uploading}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-50"
               style={{ backgroundColor: '#1B6DD4' }}
             >
               <Pencil className="w-3.5 h-3.5" />

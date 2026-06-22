@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatCLP } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
@@ -42,8 +42,8 @@ export default function CatExpenseList({ groups, categoryName }: Props) {
                     className="flex items-center gap-3 px-4 py-3.5 w-full text-left hover:bg-gray-50/60 active:bg-brand-50/40 transition-colors"
                   >
                     <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: bg }}
+                      className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
                     >
                       <Icon className="w-4 h-4" style={{ color }} />
                     </div>

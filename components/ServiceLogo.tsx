@@ -39,15 +39,17 @@ export default function ServiceLogo({ domain, name, size = 36, className, fallba
 
   if (confirmedUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={confirmedUrl}
-        alt={name}
-        width={size}
-        height={size}
-        className={`${baseClass} object-contain bg-white p-1`}
+      <div
+        className={`${baseClass} service-logo-bg p-1`}
         style={{ width: size, height: size }}
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={confirmedUrl}
+          alt={name}
+          className="object-contain w-full h-full"
+        />
+      </div>
     )
   }
 

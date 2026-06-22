@@ -155,6 +155,10 @@
 .ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 .ring-offset-2.ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 
+/* ── ServiceLogo container — dark-aware ──────────────────────────────────── */
+.service-logo-bg { background-color: #ffffff; }
+.dark .service-logo-bg { background-color: #1e293b !important; }
+
 /* ── Rank badges en lista de categorías ──────────────────────────────────── */
 .rank-default { background: #F3F4F6; color: #9CA3AF; }
 .dark .rank-default { background: #1e293b !important; color: #64748b !important; outline: 1px solid #334155; }
@@ -236,6 +240,7 @@
 
 .dark .hover\:bg-gray-50:hover           { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-brand-50\/40:hover      { background-color: rgba(59, 104, 156, 0.15) !important; }
+.dark .active\:bg-brand-50\/40:active    { background-color: rgba(59, 104, 156, 0.25) !important; }
 .dark .hover\:bg-gray-50\/50:hover  { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-gray-50\/60:hover  { background-color: rgba(59, 104, 156, 0.15) !important; }
 .dark .hover\:bg-gray-50\/70:hover  { background-color: rgba(59, 104, 156, 0.18) !important; }

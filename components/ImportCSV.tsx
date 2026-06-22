@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, CheckCircle, AlertCircle, X, FileText } from 'lucide-react'
 
@@ -57,7 +57,8 @@ export default function ImportCSV() {
         onClick={() => { setOpen(true); reset() }}
         className="flex items-center gap-4 w-full px-4 py-4 hover:bg-gray-50/70 transition-colors group text-left"
       >
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+        <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
           <Upload className="w-5 h-5" style={{ color: '#1B6DD4' }} />
         </div>
         <div className="flex-1 min-w-0">
