@@ -2,15 +2,15 @@
 
 import { useEffect } from 'react'
 
-/** Aplica/quita la clase 'dark' en <html> según localStorage. */
+/**
+ * Syncs localStorage with whatever theme SSR or the flash-prevention script
+ * applied. Runs after hydration so it never conflicts with server-rendered class.
+ */
 export default function ThemeProvider() {
   useEffect(() => {
-    const stored = localStorage.getItem('theme')
-    if (stored === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    // Write current DOM state to localStorage so ThemeToggle & future reloads stay in sync
+    const isDark = document.documentElement.classList.contains('dark')
+    localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }, [])
 
   return null

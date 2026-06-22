@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Nunito } from 'next/font/google'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
+import { getServerSession, createClient } from '@/lib/supabase/server'
 
 const nunito = Nunito({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
@@ -19,15 +20,33 @@ export const viewport: Viewport = {
   themeColor: '#1B6DD4',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read theme from DB so it syncs across devices (SSR — no flash)
+  let serverTheme: 'dark' | '' = ''
+  try {
+    const user = await getServerSession()
+    if (user) {
+      const supabase = await createClient()
+      const { data } = await supabase
+        .from('profiles')
+        .select('theme')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (data?.theme === 'dark') serverTheme = 'dark'
+    }
+  } catch {
+    // Graceful fallback — ThemeProvider will use localStorage
+  }
+
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={serverTheme} suppressHydrationWarning>
       <head>
-        {/* Prevent dark mode flash — set class before first paint */}
+        {/* Fallback for unauthenticated pages (login, marketing) */}
         <script dangerouslySetInnerHTML={{ __html: `
           try {
-            if (localStorage.getItem('theme') === 'dark') {
-              document.documentElement.classList.add('dark')
+            var hasDark = document.documentElement.classList.contains('dark');
+            if (!hasDark && localStorage.getItem('theme') === 'dark') {
+              document.documentElement.classList.add('dark');
             }
           } catch(e) {}
         `}} />

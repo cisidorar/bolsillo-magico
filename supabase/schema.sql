@@ -97,6 +97,7 @@ create table if not exists public.profiles (
   display_name  text,
   avatar_url    text,
   currency      text default 'CLP',
+  theme         text check (theme in ('light', 'dark')),
   updated_at    timestamptz default now()
 );
 

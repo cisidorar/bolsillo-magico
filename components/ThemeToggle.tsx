@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { saveThemeAction } from '@/app/actions/theme'
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
-    // Sync with the actual DOM state (set by flash-prevention script)
-    const isDark = document.documentElement.classList.contains('dark')
-    setDark(isDark)
+    setDark(document.documentElement.classList.contains('dark'))
 
-    // Watch for external changes (e.g., from ThemeProvider on page load)
     const observer = new MutationObserver(() => {
       setDark(document.documentElement.classList.contains('dark'))
     })
@@ -21,15 +19,19 @@ export default function ThemeToggle() {
 
   function toggle() {
     const html = document.documentElement
-    if (html.classList.contains('dark')) {
-      html.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-      setDark(false)
-    } else {
+    const next: 'light' | 'dark' = html.classList.contains('dark') ? 'light' : 'dark'
+
+    if (next === 'dark') {
       html.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-      setDark(true)
+    } else {
+      html.classList.remove('dark')
     }
+
+    localStorage.setItem('theme', next)
+    setDark(next === 'dark')
+
+    // Persist to Supabase so preference syncs across devices (fire-and-forget)
+    saveThemeAction(next)
   }
 
   return (
