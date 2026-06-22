@@ -155,6 +155,20 @@
 .ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 .ring-offset-2.ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 
+/* ── Rank badges en lista de categorías ──────────────────────────────────── */
+.rank-default { background: #F3F4F6; color: #9CA3AF; }
+.dark .rank-default { background: #1e293b !important; color: #64748b !important; outline: 1px solid #334155; }
+.rank-gold    { background: #FEF3C7; color: #D97706; }
+.dark .rank-gold    { background: color-mix(in srgb, #F59E0B 20%, #0f172a) !important; color: #F59E0B !important; }
+.rank-silver  { background: #F1F5F9; color: #64748B; }
+.dark .rank-silver  { background: #1e293b !important; color: #94a3b8 !important; outline: 1px solid #334155; }
+.rank-bronze  { background: #FEF2F2; color: #92400E; }
+.dark .rank-bronze  { background: color-mix(in srgb, #D97706 18%, #0f172a) !important; color: #D97706 !important; }
+
+/* ── Progress bar track — dark-aware ─────────────────────────────────────── */
+.progress-track { background: color-mix(in srgb, var(--bar-color, #1B6DD4) 15%, transparent); }
+.dark .progress-track { background: color-mix(in srgb, var(--bar-color, #4D8FFF) 28%, #0f172a) !important; }
+
 /* ── Category badge — dark-aware ─────────────────────────────────────────── */
 /* Uses CSS custom props --cat-bg and --cat-color set inline from DB values   */
 .cat-badge {

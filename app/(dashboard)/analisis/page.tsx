@@ -208,7 +208,8 @@ export default async function AnalisisPage({
 
           {/* Total del mes */}
           <div className="card p-3 lg:p-4 flex items-center gap-3">
-            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
+            <div className="cat-icon-bg w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
               <Wallet className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#1B6DD4' }} />
             </div>
             <div className="min-w-0">
@@ -219,7 +220,8 @@ export default async function AnalisisPage({
 
           {/* Promedio diario */}
           <div className="card p-3 lg:p-4 flex items-center gap-3">
-            <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F0FDF4' }}>
+            <div className="cat-icon-bg w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
               <BarChart2 className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#16A34A' }} />
             </div>
             <div className="min-w-0">
@@ -231,8 +233,11 @@ export default async function AnalisisPage({
           {/* vs anterior */}
           <div className="card p-3 lg:p-4 flex items-center gap-3">
             <div
-              className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4' }}
+              className="cat-icon-bg w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{
+                '--cat-bg': delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
+                '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
+              } as React.CSSProperties}
             >
               {delta === null || delta === 0
                 ? <Minus className="w-4 h-4 lg:w-5 lg:h-5 text-gray-400" />
@@ -266,7 +271,8 @@ export default async function AnalisisPage({
               const { icon: Icon, color, bg } = getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
               return (
                 <>
-                  <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: bg }}>
+                  <div className="cat-icon-bg w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}>
                     <Icon className="w-4 h-4 lg:w-5 lg:h-5" style={{ color }} />
                   </div>
                   <div className="min-w-0">
@@ -278,7 +284,8 @@ export default async function AnalisisPage({
               )
             })() : (
               <>
-                <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+                <div className="cat-icon-bg w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
                   <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5" style={{ color: '#7C3AED' }} />
                 </div>
                 <div className="min-w-0">
@@ -420,13 +427,7 @@ export default async function AnalisisPage({
                   const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
                   const sharePct   = pct(c.total, totalSelected)
 
-                  // Rank badge colors for top 3
-                  const rankColors = [
-                    { bg: '#FEF3C7', text: '#D97706' },  // gold
-                    { bg: '#F1F5F9', text: '#64748B' },  // silver
-                    { bg: '#FEF2F2', text: '#B45309' },  // bronze
-                  ]
-                  const rankStyle = idx < 3 ? rankColors[idx] : null
+
 
                   // Use actual category icon
                   const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
@@ -440,11 +441,9 @@ export default async function AnalisisPage({
                       <div className="flex items-center gap-3 mb-1.5">
                         {/* Rank badge */}
                         <div
-                          className="w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
-                          style={rankStyle
-                            ? { background: rankStyle.bg, color: rankStyle.text }
-                            : { background: '#F3F4F6', color: '#9CA3AF' }
-                          }
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                            idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : 'rank-default'
+                          }`}
                         >
                           {idx + 1}
                         </div>
@@ -483,7 +482,7 @@ export default async function AnalisisPage({
                       </div>
 
                       {/* Progress bar with category color */}
-                      <div className="h-1.5 rounded-full overflow-hidden ml-8" style={{ backgroundColor: `${barColor}20` }}>
+                      <div className="progress-track h-1.5 rounded-full overflow-hidden ml-8" style={{ '--bar-color': barColor } as React.CSSProperties}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
                       </div>
                     </Link>

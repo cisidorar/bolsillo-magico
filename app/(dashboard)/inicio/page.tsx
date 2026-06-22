@@ -1,3 +1,4 @@
+import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
@@ -419,8 +420,8 @@ export default async function DashboardPage() {
                         </div>
                       </div>
                       <div
-                        className="h-1.5 rounded-full overflow-hidden"
-                        style={{ backgroundColor: `${barColor}20` }}
+                        className="progress-track h-1.5 rounded-full overflow-hidden"
+                        style={{ '--bar-color': barColor } as React.CSSProperties}
                       >
                         <div
                           className="h-full rounded-full transition-all"
