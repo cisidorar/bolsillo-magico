@@ -7,7 +7,16 @@ export default function ThemeToggle() {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
-    setDark(document.documentElement.classList.contains('dark'))
+    // Sync with the actual DOM state (set by flash-prevention script)
+    const isDark = document.documentElement.classList.contains('dark')
+    setDark(isDark)
+
+    // Watch for external changes (e.g., from ThemeProvider on page load)
+    const observer = new MutationObserver(() => {
+      setDark(document.documentElement.classList.contains('dark'))
+    })
+    observer.observe(document.documentElement, { attributeFilter: ['class'] })
+    return () => observer.disconnect()
   }, [])
 
   function toggle() {

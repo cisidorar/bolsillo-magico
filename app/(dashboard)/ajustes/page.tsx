@@ -73,7 +73,7 @@ export default async function AjustesPage() {
                         {(categories ?? []).slice(0, 3).map(c => (
                           <div
                             key={c.id}
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white flex-shrink-0"
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
                             style={{ background: c.bg_color }}
                           >
                             {isEmoji(c.icon)
@@ -101,7 +101,7 @@ export default async function AjustesPage() {
                     {(paymentMethods ?? []).length > 0 ? (
                       <div className="flex -space-x-2">
                         {(paymentMethods ?? []).slice(0, 3).map(m => (
-                          <div key={m.id} className="ring-2 ring-white rounded-xl flex-shrink-0">
+                          <div key={m.id} className="ring-2 ring-white dark:ring-slate-900 rounded-xl flex-shrink-0">
                             <ServiceLogo domain={m.domain} name={m.name} size={40} />
                           </div>
                         ))}
@@ -174,8 +174,7 @@ export default async function AjustesPage() {
             <form action="/api/auth/signout" method="post">
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-red-500 rounded-2xl border border-red-100 hover:bg-red-50 hover:border-red-200 active:scale-[0.99] transition-all"
-                style={{ background: 'rgba(254,242,242,0.6)' }}
+                className="logout-btn w-full flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-red-500 rounded-2xl border hover:bg-red-50 dark:hover:bg-red-900/10 active:scale-[0.99] transition-all"
               >
                 <LogOut className="w-4 h-4" />
                 Cerrar sesión
