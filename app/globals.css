@@ -155,6 +155,25 @@
 .ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 .ring-offset-2.ring-brand-600 { --tw-ring-color: #1B6DD4 !important; }
 
+/* ── Dark mode — brand text ──────────────────────────────────────────────── */
+.dark .text-brand-900  { color: #ffffff !important; }
+
+/* ── Chart bar colors (dark-aware via CSS classes) ───────────────────────── */
+.bar-inactive { background-color: #D5E6FF; }
+.dark .bar-inactive { background-color: #2d4a6e; }
+.bar-current  { background-color: #75A8FF; }
+.dark .bar-current  { background-color: #4472b0; }
+.bar-weekend  { background-color: #A3BFE8; }
+.dark .bar-weekend  { background-color: #2a4266; }
+
+/* ── Insight card ────────────────────────────────────────────────────────── */
+.insight-card { background: #FFFBEB !important; border-color: #FDE68A !important; }
+.dark .insight-card { background: #1c1a0e !important; border-color: #44390a !important; }
+
+/* ── View toggle active tab ──────────────────────────────────────────────── */
+.tab-active { background-color: #ffffff; }
+.dark .tab-active { background-color: #334155 !important; }
+
 /* ── Dark mode — superficies y texto ──────────────────────────────────────── */
 .dark .bg-white        { background-color: #1e293b !important; }
 .dark .bg-gray-50      { background-color: #0f172a !important; }

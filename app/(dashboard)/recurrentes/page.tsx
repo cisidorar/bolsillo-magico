@@ -178,10 +178,10 @@ export default async function RecurrentesPage({
 
       {/* Toggle móvil */}
       <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-5 lg:hidden">
-        <Link href="/recurrentes" className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${!isCalendar ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}>
+        <Link href="/recurrentes" className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${!isCalendar ? 'tab-active text-gray-800 shadow-sm' : 'text-gray-500'}`}>
           Lista
         </Link>
-        <Link href="/recurrentes?view=calendar" className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${isCalendar ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500'}`}>
+        <Link href="/recurrentes?view=calendar" className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${isCalendar ? 'tab-active text-brand-700 shadow-sm' : 'text-gray-500'}`}>
           Calendario
         </Link>
       </div>

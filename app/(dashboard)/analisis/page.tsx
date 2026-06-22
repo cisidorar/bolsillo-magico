@@ -184,7 +184,7 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isBilling ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'
+            !isBilling ? 'tab-active text-gray-800 shadow-sm' : 'text-gray-500'
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
@@ -193,7 +193,7 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}&view=billing`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'bg-white shadow-sm' : 'text-gray-500'
+            isBilling ? 'tab-active shadow-sm' : 'text-gray-500'
           }`}
           style={isBilling ? { color: '#1B6DD4' } : undefined}
         >
@@ -315,7 +315,7 @@ export default async function AnalisisPage({
                 const isSelected = m.key === selectedKey
                 const isCurrent  = m.key === currentKey
                 const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-                const barColor  = isSelected ? '#1B6DD4' : isCurrent ? '#75A8FF' : '#D5E6FF'
+                const barClass  = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
                 const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
                 const [mYear, mMonth] = m.key.split('-').map(Number)
                 const href = `/analisis?month=${mMonth}&year=${mYear}${viewParam}`
@@ -326,8 +326,8 @@ export default async function AnalisisPage({
                     </span>
                     <div className="w-full flex-1 flex items-end">
                       <div
-                        className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''}`}
-                        style={{ height: `${h}px`, backgroundColor: barColor, opacity: m.total === 0 ? 0.3 : 1 }}
+                        className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''} ${barClass}`}
+                        style={{ height: `${h}px`, ...(isSelected ? { backgroundColor: '#1B6DD4' } : {}), opacity: m.total === 0 ? 0.3 : 1 }}
                       />
                     </div>
                     <span className="text-[10px] capitalize leading-none font-semibold transition-colors" style={{ color: textColor }}>
@@ -349,7 +349,7 @@ export default async function AnalisisPage({
                   const h = day.total > 0 ? Math.max(6, Math.round((day.total / maxWeekday) * 80)) : 3
                   const isPeak = i === peakDowIdx && day.total > 0
                   const isWeekend = i >= 5
-                  const barColor = isPeak ? '#1B6DD4' : isWeekend ? '#A3BFE8' : '#D5E6FF'
+                  const barClass = isPeak ? '' : isWeekend ? 'bar-weekend' : 'bar-inactive'
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
                       {isPeak && (
@@ -359,8 +359,8 @@ export default async function AnalisisPage({
                       )}
                       <div className="w-full flex-1 flex items-end">
                         <div
-                          className="w-full rounded-t-md transition-all"
-                          style={{ height: `${h}px`, backgroundColor: barColor, opacity: day.total === 0 ? 0.25 : 1 }}
+                          className={`w-full rounded-t-md transition-all ${barClass}`}
+                          style={{ height: `${h}px`, ...(isPeak ? { backgroundColor: '#1B6DD4' } : {}), opacity: day.total === 0 ? 0.25 : 1 }}
                         />
                       </div>
                       <span className="text-[9px] font-semibold text-gray-400 leading-none">{weekdayLabels[i]}</span>
@@ -373,7 +373,7 @@ export default async function AnalisisPage({
 
           {/* ── Insight del mes ──────────────────────────────────────────────── */}
           {insight && (
-            <div className="card p-4 flex items-start gap-3" style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+            <div className="card insight-card p-4 flex items-start gap-3">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FEF3C7' }}>
                 <Lightbulb className="w-4 h-4" style={{ color: '#D97706' }} />
               </div>
