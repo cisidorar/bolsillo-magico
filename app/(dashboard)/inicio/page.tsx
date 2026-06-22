@@ -126,6 +126,13 @@ export default async function DashboardPage() {
   }, {})
   const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 6)
 
+  // Recurring amount per category — to avoid false alarms on fixed costs
+  const recurringByCatInicio: Record<string, number> = {}
+  typedExpenses.forEach(e => {
+    if (!e.category || !e.recurring_expense_id) return
+    recurringByCatInicio[e.category.id] = (recurringByCatInicio[e.category.id] ?? 0) + e.amount
+  })
+
   // Saludo + fecha
   const hour        = now.getHours()
   const greeting    = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
@@ -433,10 +440,15 @@ export default async function DashboardPage() {
               {/* Desktop: compact ranked list */}
               <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
                 {catSummary.map((c, idx) => {
-                  const limit    = catBudgetMap.get(c.id) ?? null
-                  const catPct   = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round(pct(c.total, total))
-                  const over     = limit ? c.total > limit : false
-                  const barColor = over ? '#EF4444' : limit && catPct >= 80 ? '#F59E0B' : c.color
+                  const limit        = catBudgetMap.get(c.id) ?? null
+                  const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round(pct(c.total, total))
+                  const over         = limit ? c.total > limit : false
+                  const recurringAmt = recurringByCatInicio[c.id] ?? 0
+                  const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
+                  const barColor = (over && isAllRecurring) ? c.color
+                    : over ? '#EF4444'
+                    : limit && catPct >= 80 ? '#F59E0B'
+                    : c.color
                   return (
                     <Link
                       key={c.id}
@@ -470,14 +482,16 @@ export default async function DashboardPage() {
                           >
                             <div className="h-full rounded-full" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
                           </div>
-                          <p className={`text-[10px] font-semibold flex-shrink-0 w-16 text-right ${
-                            over ? 'text-red-500' : limit && catPct >= 80 ? 'text-amber-500' : 'text-gray-400'
+                          <p className={`text-[10px] font-semibold flex-shrink-0 w-20 text-right ${
+                            over && !isAllRecurring ? 'text-red-500' : limit && catPct >= 80 && !isAllRecurring ? 'text-amber-500' : 'text-gray-400'
                           }`}>
-                            {over
-                              ? `+${formatCLP(c.total - limit!)} sobre`
-                              : limit
-                                ? `${catPct}% de ${formatCLP(limit)}`
-                                : `${catPct}% del total`
+                            {over && isAllRecurring
+                              ? '↻ fijo'
+                              : over
+                                ? `+${formatCLP(c.total - limit!)} sobre`
+                                : limit
+                                  ? `${catPct}% de ${formatCLP(limit)}`
+                                  : `${catPct}% del total`
                             }
                           </p>
                         </div>

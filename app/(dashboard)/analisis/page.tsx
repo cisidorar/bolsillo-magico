@@ -118,6 +118,14 @@ export default async function AnalisisPage({
   })
   const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total)
 
+  // ── Recurring amount per category (from selected month expenses) ───────────
+  // Used to avoid false alarms when "over budget" is entirely from fixed recurring costs
+  const recurringByCat: Record<string, number> = {}
+  selectedExpenses.forEach(e => {
+    if (!e.category || !e.recurring_expense_id) return
+    recurringByCat[e.category.id] = (recurringByCat[e.category.id] ?? 0) + e.amount
+  })
+
   // ── Top single expense ────────────────────────────────────────────────────
   const topExpense = selectedExpenses.length > 0
     ? [...selectedExpenses].sort((a, b) => b.amount - a.amount)[0]
@@ -441,16 +449,38 @@ export default async function AnalisisPage({
               </h2>
               <div className="card divide-y divide-gray-50 overflow-hidden">
                 {catSummary.map((c, idx) => {
-                  const limit      = catBudgetMap.get(c.id) ?? null
-                  const over       = limit ? c.total > limit : false
-                  const budgetPct  = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
-                  const barColor   = over ? '#EF4444' : budgetPct !== null && budgetPct >= 80 ? '#F59E0B' : c.color
-                  const barWidth   = limit ? budgetPct! : pct(c.total, totalSelected)
-                  const sharePct   = pct(c.total, totalSelected)
+                  const limit        = catBudgetMap.get(c.id) ?? null
+                  const over         = limit ? c.total > limit : false
+                  const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
+                  const sharePct     = pct(c.total, totalSelected)
+                  const barWidth     = limit ? budgetPct! : sharePct
 
+                  // Recurring context: don't alarm if overage is entirely from fixed costs
+                  const recurringAmt  = recurringByCat[c.id] ?? 0
+                  const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
+                  const hasRecurring   = recurringAmt > 0 && !isAllRecurring
 
+                  // Bar color: suppress red alarm when all spending is fixed/recurring
+                  const barColor = (over && isAllRecurring)
+                    ? c.color
+                    : over ? '#EF4444'
+                    : budgetPct !== null && budgetPct >= 80 ? '#F59E0B'
+                    : c.color
 
-                  // Use actual category icon
+                  // Status label
+                  const statusLabel = isAllRecurring && over
+                    ? '↻ Gasto fijo'
+                    : over
+                      ? `+${formatCLP(c.total - limit!)} sobre el límite`
+                      : limit
+                        ? `${formatCLP(limit - c.total)} restante`
+                        : `${sharePct}% del total`
+
+                  const statusColor = isAllRecurring && over
+                    ? 'text-gray-400'
+                    : over ? 'text-red-500 font-semibold'
+                    : 'text-gray-400'
+
                   const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
 
                   return (
@@ -461,11 +491,9 @@ export default async function AnalisisPage({
                     >
                       <div className="flex items-center gap-3 mb-1.5">
                         {/* Rank badge */}
-                        <div
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
-                            idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : 'rank-default'
-                          }`}
-                        >
+                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                          idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : 'rank-default'
+                        }`}>
                           {idx + 1}
                         </div>
 
@@ -476,21 +504,21 @@ export default async function AnalisisPage({
                         >
                           {isEmoji(c.icon)
                             ? <span className="text-sm leading-none">{c.icon}</span>
-                            : CatIcon
-                              ? <CatIcon className="w-4 h-4" style={{ color: c.color }} />
-                              : null
+                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null
                           }
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{c.name}</p>
-                          {limit ? (
-                            <p className={`text-xs ${over ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
-                              {over ? `+${formatCLP(c.total - limit)} sobre el límite` : `${formatCLP(limit - c.total)} restante`}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-gray-400">{sharePct}% del total</p>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{c.name}</p>
+                            {isAllRecurring && (
+                              <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">↻ fijo</span>
+                            )}
+                            {hasRecurring && (
+                              <span className="text-[9px] font-semibold text-gray-400 flex-shrink-0">↻ {formatCLP(recurringAmt)}</span>
+                            )}
+                          </div>
+                          <p className={`text-xs ${statusColor}`}>{statusLabel}</p>
                         </div>
 
                         <div className="text-right flex-shrink-0 flex items-center gap-1.5">
@@ -502,7 +530,7 @@ export default async function AnalisisPage({
                         </div>
                       </div>
 
-                      {/* Progress bar with category color */}
+                      {/* Progress bar */}
                       <div className="progress-track h-1.5 rounded-full overflow-hidden ml-8" style={{ '--bar-color': barColor } as React.CSSProperties}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
                       </div>
