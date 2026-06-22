@@ -482,6 +482,72 @@ export default function ExpenseSheet({
     </div>
   )
 
+  // selectCat for mobile new mode — also closes picker and collapses
+  const selectCatMobile = (id: string) => { selectCat(id); setCatPickerOpen(false); setCatsExpanded(false) }
+
+  // Mobile category section — collapses to selected chip once a category is chosen
+  const mobileCatSection = (() => {
+    const selectedCat = cats.find(c => c.id === catId)
+
+    // Collapsed: a category is selected and picker is not open
+    if (selectedCat && !catPickerOpen) {
+      return (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+            {isEmoji(selectedCat.icon)
+              ? <span className="text-base leading-none">{selectedCat.icon}</span>
+              : (() => { const Icon = getCategoryIcon(selectedCat.icon); return <Icon className="w-4 h-4" style={{ color: selectedCat.color }} /> })()
+            }
+            {selectedCat.name}
+          </div>
+          <button
+            type="button"
+            onClick={() => setCatPickerOpen(true)}
+            className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+          >
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
+      )
+    }
+
+    // Expanded: full category picker
+    if (topCatIds.length === 0) {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {cats.map(c => <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCatMobile} />)}
+        </div>
+      )
+    }
+    const pinnedCats = topCatIds.map(id => cats.find(c => c.id === id)).filter(Boolean) as Category[]
+    const otherCats  = cats.filter(c => !topCatIds.includes(c.id))
+    return (
+      <>
+        <div className="flex flex-wrap gap-2">
+          {pinnedCats.map(c => <CatChip key={c.id} c={c} selected={catId === c.id} onSelect={selectCatMobile} />)}
+        </div>
+        {otherCats.length > 0 && (
+          <>
+            {catsExpanded ? (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {otherCats.map(c => (
+                  <CatChip key={c.id} c={c} selected={catId === c.id}
+                    onSelect={id => { selectCatMobile(id) }} />
+                ))}
+              </div>
+            ) : (
+              <button type="button" onClick={() => setCatsExpanded(true)}
+                className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-700 transition-colors">
+                <ChevronDown className="w-3.5 h-3.5" />
+                Ver {otherCats.length} más
+              </button>
+            )}
+          </>
+        )}
+      </>
+    )
+  })()
+
   const catChips = (() => {
     if (topCatIds.length === 0) {
       return (
@@ -865,16 +931,27 @@ export default function ExpenseSheet({
             <p className={cn('text-4xl font-semibold transition-colors', error && !amount ? 'text-red-500' : 'text-gray-900')}>
               {displayAmount}
             </p>
-            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+            {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
 
-          {/* Categories */}
+          {/* Description — right after amount */}
+          <div className="px-5 pt-3">
+            <input
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="Descripción (opcional)..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
+            />
+          </div>
+
+          {/* Categories — collapses after selection */}
           <div className="px-5 pt-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-gray-400">Categoría</p>
               {suggestionBadge}
             </div>
-            {catChips}
+            {mobileCatSection}
+            {error && !catId && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
           </div>
 
           {/* Payment + date */}
@@ -916,16 +993,6 @@ export default function ExpenseSheet({
               <p className="text-xs font-medium text-gray-400 mb-2">Fecha</p>
               {mobileDateChips}
             </div>
-          </div>
-
-          {/* Description */}
-          <div className="px-5 pt-3">
-            <input
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="Descripción (opcional)..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
-            />
           </div>
 
           {/* Numpad */}
