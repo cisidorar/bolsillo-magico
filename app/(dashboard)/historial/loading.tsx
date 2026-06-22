@@ -1,6 +1,6 @@
 export default function LoadingHistorial() {
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-4 animate-pulse">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8 space-y-4 animate-pulse">
       <div className="h-5 w-20 bg-gray-200 rounded-full" />
       {/* Search bar */}
       <div className="h-11 bg-gray-100 rounded-2xl" />

@@ -107,7 +107,7 @@ export default async function RecurrentesPage({
   const yearlyEstimate = totalMonthly * 12
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 mb-6">

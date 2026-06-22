@@ -1,6 +1,6 @@
 export default function LoadingRecurrentes() {
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-4 animate-pulse">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8 space-y-4 animate-pulse">
       <div className="h-5 w-32 bg-gray-200 rounded-full" />
       <div className="rounded-3xl overflow-hidden bg-white divide-y divide-gray-50">
         {Array.from({ length: 6 }).map((_, i) => (

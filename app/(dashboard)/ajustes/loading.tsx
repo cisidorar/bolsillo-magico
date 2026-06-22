@@ -1,6 +1,6 @@
 export default function LoadingAjustes() {
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-4 animate-pulse">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8 space-y-4 animate-pulse">
       <div className="h-5 w-20 bg-gray-200 rounded-full" />
       {[1,2,3].map(i => (
         <div key={i} className="rounded-3xl overflow-hidden bg-white divide-y divide-gray-50">

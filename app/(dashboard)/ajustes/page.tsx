@@ -27,7 +27,7 @@ export default async function AjustesPage() {
   ])
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-10">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-10">
 
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="mb-6">

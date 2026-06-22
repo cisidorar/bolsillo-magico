@@ -202,7 +202,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-2 lg:grid lg:grid-cols-[3fr,2fr] lg:gap-6 lg:items-start">
+      <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-2 lg:grid lg:grid-cols-[3fr,2fr] lg:gap-6 lg:items-start">
 
         {/* ══ LEFT COLUMN ══════════════════════════════════════════════ */}
         <div className="space-y-4">

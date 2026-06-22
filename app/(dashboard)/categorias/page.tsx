@@ -28,7 +28,7 @@ export default async function CategoriasPage() {
   }, {})
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-6">
+    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-6">
       <CategoryManager
         categories={categories ?? []}
         userId={user.id}
