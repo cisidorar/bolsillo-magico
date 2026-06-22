@@ -27,12 +27,12 @@ export default function SideNav() {
         style={{ boxShadow: '4px 0 24px rgba(0,0,0,0.08)' }}
       >
         {/* ── Logo ───────────────────────────────────────────── */}
-        <a href="/inicio" className="flex items-center gap-2.5 mb-7 px-1 hover:opacity-80 transition-opacity">
+        <Link href="/inicio" className="flex items-center gap-2.5 mb-7 px-1 cursor-pointer hover:opacity-80 transition-opacity">
           <Image src="/camapana.png" alt="Bolsillo Mágico" width={32} height={32} />
           <span className="text-[15px] font-extrabold text-brand-900 tracking-tight leading-tight">
             Bolsillo Mágico
           </span>
-        </a>
+        </Link>
 
         {/* ── Nav items ──────────────────────────────────────── */}
         <nav className="flex flex-col gap-0.5 flex-1">
