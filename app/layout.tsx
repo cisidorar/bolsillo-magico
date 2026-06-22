@@ -40,17 +40,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="es" className={serverTheme} suppressHydrationWarning>
-      <head>
-        {/* Fallback for unauthenticated pages (login, marketing) */}
-        <script dangerouslySetInnerHTML={{ __html: `
-          try {
-            var hasDark = document.documentElement.classList.contains('dark');
-            if (!hasDark && localStorage.getItem('theme') === 'dark') {
-              document.documentElement.classList.add('dark');
-            }
-          } catch(e) {}
-        `}} />
-      </head>
       <body className={nunito.className} suppressHydrationWarning>
         <ThemeProvider />
         {children}

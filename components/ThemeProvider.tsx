@@ -3,12 +3,13 @@
 import { useEffect } from 'react'
 
 /**
- * Syncs localStorage with whatever theme SSR or the flash-prevention script
- * applied. Runs after hydration so it never conflicts with server-rendered class.
+ * Syncs localStorage to match whatever class SSR applied.
+ * Does NOT override the server-rendered class — that prevents dark mode
+ * from bleeding into unauthenticated pages like login.
  */
 export default function ThemeProvider() {
   useEffect(() => {
-    // Write current DOM state to localStorage so ThemeToggle & future reloads stay in sync
+    // Write SSR state to localStorage so ThemeToggle stays in sync
     const isDark = document.documentElement.classList.contains('dark')
     localStorage.setItem('theme', isDark ? 'dark' : 'light')
   }, [])

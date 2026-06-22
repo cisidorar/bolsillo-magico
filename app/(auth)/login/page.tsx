@@ -62,6 +62,11 @@ function LoginForm() {
   }, [lockedUntil])
 
   useEffect(() => {
+    // Login page is always light mode — remove dark class if present from prior navigation
+    document.documentElement.classList.remove('dark')
+  }, [])
+
+  useEffect(() => {
     if (searchParams.get('error')) {
       setError('El enlace de autenticación expiró o no es válido. Intenta de nuevo.')
     }
