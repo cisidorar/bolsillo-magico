@@ -5,6 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import { CreditCard, Calendar } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import ServiceLogo from '@/components/ServiceLogo'
+import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod } from '@/types'
 
@@ -123,7 +124,7 @@ export default async function DashboardPage() {
     acc[id].total += e.amount
     return acc
   }, {})
-  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 4)
+  const catSummary = Object.values(byCat).sort((a, b) => b.total - a.total).slice(0, 6)
 
   // Saludo + fecha
   const hour        = now.getHours()
@@ -387,8 +388,10 @@ export default async function DashboardPage() {
                   Ver análisis
                 </Link>
               </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {catSummary.map(c => {
+
+              {/* Mobile: 2x2 grid / Desktop: compact list */}
+              <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+                {catSummary.slice(0, 4).map(c => {
                   const limit    = catBudgetMap.get(c.id) ?? null
                   const catPct   = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
                   const over     = limit ? c.total > limit : false
@@ -411,35 +414,74 @@ export default async function DashboardPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-gray-400 truncate">{c.name}</p>
-                          <p className="text-sm font-extrabold text-gray-900 tabular-nums leading-tight">
-                            {formatCLP(c.total)}
-                          </p>
-                          {limit && (
-                            <p className="text-[10px] text-gray-400 leading-tight">de {formatCLP(limit)}</p>
-                          )}
+                          <p className="text-sm font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(c.total)}</p>
+                          {limit && <p className="text-[10px] text-gray-400 leading-tight">de {formatCLP(limit)}</p>}
                         </div>
                       </div>
-                      <div
-                        className="progress-track h-1.5 rounded-full overflow-hidden"
-                        style={{ '--bar-color': barColor } as React.CSSProperties}
-                      >
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${limit ? catPct : pct(c.total, total)}%`,
-                            backgroundColor: barColor,
-                          }}
-                        />
+                      <div className="progress-track h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${limit ? catPct : pct(c.total, total)}%`, backgroundColor: barColor }} />
                       </div>
-                      {limit ? (
-                        <p className={`text-[10px] mt-1 font-semibold ${over ? 'text-red-500' : catPct !== null && catPct >= 80 ? 'text-amber-500' : 'text-gray-400'}`}>
-                          {over ? `+${formatCLP(c.total - limit)} sobre` : `${catPct}% usado`}
-                        </p>
-                      ) : (
-                        <p className="text-[10px] mt-1 font-semibold text-gray-400">
-                          {pct(c.total, total)}% del total
-                        </p>
-                      )}
+                      {limit
+                        ? <p className={`text-[10px] mt-1 font-semibold ${over ? 'text-red-500' : catPct !== null && catPct >= 80 ? 'text-amber-500' : 'text-gray-400'}`}>{over ? `+${formatCLP(c.total - limit)} sobre` : `${catPct}% usado`}</p>
+                        : <p className="text-[10px] mt-1 font-semibold text-gray-400">{pct(c.total, total)}% del total</p>
+                      }
+                    </Link>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: compact ranked list */}
+              <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
+                {catSummary.map((c, idx) => {
+                  const limit    = catBudgetMap.get(c.id) ?? null
+                  const catPct   = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round(pct(c.total, total))
+                  const over     = limit ? c.total > limit : false
+                  const barColor = over ? '#EF4444' : limit && catPct >= 80 ? '#F59E0B' : c.color
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 active:bg-brand-50/40 transition-colors"
+                    >
+                      {/* Rank */}
+                      <span className="text-[11px] font-bold text-gray-300 w-4 flex-shrink-0 tabular-nums text-center">{idx + 1}</span>
+
+                      {/* Icon */}
+                      <div
+                        className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
+                      >
+                        {isEmoji(c.icon)
+                          ? <span className="text-sm">{c.icon}</span>
+                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-3.5 h-3.5" style={{ color: c.color }} /> })()
+                        }
+                      </div>
+
+                      {/* Name + bar */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                          <p className="text-sm font-semibold text-gray-700 truncate">{c.name}</p>
+                          <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(c.total)}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="progress-track flex-1 h-1 rounded-full overflow-hidden"
+                            style={{ '--bar-color': barColor } as React.CSSProperties}
+                          >
+                            <div className="h-full rounded-full" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
+                          </div>
+                          <p className={`text-[10px] font-semibold flex-shrink-0 w-16 text-right ${
+                            over ? 'text-red-500' : limit && catPct >= 80 ? 'text-amber-500' : 'text-gray-400'
+                          }`}>
+                            {over
+                              ? `+${formatCLP(c.total - limit!)} sobre`
+                              : limit
+                                ? `${catPct}% de ${formatCLP(limit)}`
+                                : `${catPct}% del total`
+                            }
+                          </p>
+                        </div>
+                      </div>
                     </Link>
                   )
                 })}
@@ -452,6 +494,43 @@ export default async function DashboardPage() {
 
         {/* ══ RIGHT COLUMN ════════════════════════════════════════════ */}
         <div className="space-y-4 mt-4 lg:mt-0">
+
+          {/* ── Últimos gastos (desktop only) ──────────────────────────── */}
+          {typedExpenses.length > 0 && (
+            <div className="hidden lg:block">
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm font-bold text-gray-600">Últimos gastos</h2>
+                <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
+                  Ver todo
+                </Link>
+              </div>
+              <div className="card divide-y divide-gray-50 overflow-hidden">
+                {typedExpenses.slice(0, 7).map(e => {
+                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+                  const dateLabel = new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                  return (
+                    <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                      <div
+                        className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
+                      >
+                        <Icon className="w-3.5 h-3.5" style={{ color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {e.description || e.category?.name || '—'}
+                        </p>
+                        <p className="text-[11px] text-gray-400 truncate">
+                          {e.category?.name && e.description ? `${e.category.name} · ` : ''}{dateLabel}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(e.amount)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Próximos pagos */}
           {proximosPagos.length > 0 && (
