@@ -163,12 +163,26 @@ export default async function AnalisisPage({
   function buildInsight(): string {
     if (totalSelected === 0) return ''
     const parts: string[] = []
-    if (topCat) parts.push(`${topCat.name} fue tu categoría principal (${topCatPct}% del total).`)
-    if (byWeekday[peakDowIdx].total > 0) parts.push(`Gastaste más los ${weekdayLabels[peakDowIdx]}.`)
-    if (weekendPct >= 30) parts.push(`El fin de semana representó el ${weekendPct}% de tus gastos.`)
-    else if (weekdayTotal > 0) parts.push(`La mayoría de tus gastos fueron entre semana.`)
+
+    // Solo destacar la categoría principal si NO es 100% recurrente (si es suscripciones fijas, no es útil)
+    const topCatRecurring = topCat ? (recurringByCat[topCat.id] ?? 0) : 0
+    const topCatIsAllRecurring = topCat && topCatRecurring >= topCat.total
+    if (topCat && !topCatIsAllRecurring) {
+      parts.push(`${topCat.name} fue tu categoría principal (${topCatPct}% del total).`)
+    } else if (catSummary.length > 1) {
+      // Destacar la primera categoría no-100%-recurrente
+      const firstDiscretionary = catSummary.slice(1).find(c => (recurringByCat[c.id] ?? 0) < c.total)
+      if (firstDiscretionary) {
+        const discretionaryPct = pct(firstDiscretionary.total, totalSelected)
+        parts.push(`${firstDiscretionary.name} fue tu mayor gasto discrecional (${discretionaryPct}% del total).`)
+      }
+    }
+
     if (delta !== null && delta < -10) parts.push(`Redujiste tus gastos un ${Math.abs(delta)}% vs el mes anterior. ¡Bien hecho!`)
     else if (delta !== null && delta > 20) parts.push(`Tus gastos subieron un ${delta}% vs el mes anterior.`)
+    if (parts.length < 2 && byWeekday[peakDowIdx].total > 0) parts.push(`Gastaste más los ${weekdayLabels[peakDowIdx]}.`)
+    if (parts.length < 2 && weekendPct >= 30) parts.push(`El fin de semana representó el ${weekendPct}% de tus gastos.`)
+
     return parts.slice(0, 2).join(' ')
   }
   const insight = buildInsight()
@@ -476,7 +490,7 @@ export default async function AnalisisPage({
                       ? `+${formatCLP(c.total - limit!)} sobre el límite`
                       : limit
                         ? `${formatCLP(limit - c.total)} restante`
-                        : `${sharePct}% del total`
+                        : `${sharePct}% del mes`
 
                   const statusColor = isAllRecurring && over
                     ? 'text-gray-400'

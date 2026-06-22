@@ -493,7 +493,7 @@ export default async function DashboardPage() {
                                 ? `+${formatCLP(c.total - limit!)} sobre`
                                 : limit
                                   ? `${catPct}% de ${formatCLP(limit)}`
-                                  : `${pct(c.total, total)}% del total`
+                                  : `${pct(c.total, total)}% del mes`
                             }
                           </p>
                         </div>
