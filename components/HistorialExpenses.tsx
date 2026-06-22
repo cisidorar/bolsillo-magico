@@ -252,7 +252,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                         <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
                           {e.description ?? e.category?.name ?? 'Gasto'}
                         </p>
-                        <p className="text-xs text-gray-400 truncate mt-0.5">
+                        <p className="text-xs text-gray-400 truncate lg:overflow-visible lg:whitespace-normal mt-0.5">
                           {[e.category?.name, e.payment_method?.name].filter(Boolean).join(' · ')}
                         </p>
                       </div>
