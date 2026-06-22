@@ -29,7 +29,7 @@ export default function SideNav() {
         {/* ── Logo ───────────────────────────────────────────── */}
         <Link href="/inicio" className="flex items-center gap-2.5 mb-7 px-1 cursor-pointer hover:opacity-80 transition-opacity">
           <Image src="/camapana.png" alt="Bolsillo Mágico" width={32} height={32} />
-          <span className="text-[15px] font-extrabold text-brand-900 tracking-tight leading-tight">
+          <span className="text-[15px] font-extrabold text-brand-900 dark:text-slate-100 tracking-tight leading-tight">
             Bolsillo Mágico
           </span>
         </Link>

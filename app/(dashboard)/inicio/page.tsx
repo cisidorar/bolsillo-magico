@@ -200,10 +200,10 @@ export default async function DashboardPage() {
 
           {/* ── Desktop header ────────────────────────────────────────── */}
           <div className="hidden lg:block mb-1">
-            <h1 className="text-xl font-bold text-brand-900">
+            <h1 className="text-xl font-bold text-brand-900 dark:text-slate-100">
               ¡{greeting}, {displayName}! {greetEmoji}
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5">{dateLabel}</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">{dateLabel}</p>
           </div>
 
           {/* ── Hero card ─────────────────────────────────────────────── */}
