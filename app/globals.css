@@ -70,7 +70,8 @@
     box-shadow: 0 4px 20px rgba(27, 109, 212, 0.09);
   }
   .dark .card {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+    border-color: #1e3a5f;
   }
 
   .card-brand {
@@ -192,6 +193,12 @@
 .dark .cat-icon-bg {
   background: color-mix(in srgb, var(--cat-color, #4D8FFF) 16%, #0f172a) !important;
 }
+
+/* ── Over-budget row hover states ────────────────────────────────────────── */
+.dark .hover\:bg-red-50\/30:hover    { background-color: rgba(239,68,68,0.06) !important; }
+.dark .hover\:bg-amber-50\/30:hover  { background-color: rgba(245,158,11,0.06) !important; }
+.dark .hover\:bg-red-950\/20:hover   { background-color: rgba(239,68,68,0.08) !important; }
+.dark .hover\:bg-amber-950\/20:hover { background-color: rgba(245,158,11,0.07) !important; }
 
 /* ── Dark mode — brand colors ────────────────────────────────────────────── */
 .dark .text-brand-900  { color: #ffffff !important; }

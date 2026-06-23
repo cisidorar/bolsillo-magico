@@ -441,33 +441,53 @@ export default async function DashboardPage() {
               <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
                 {(() => {
                   const maxCatTotal = catSummary[0]?.total ?? 1
+                  const rankBadge = ['🥇','🥈','🥉']
                   return catSummary.map((c, idx) => {
-                  const limit        = catBudgetMap.get(c.id) ?? null
-                  const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
-                  const over         = limit ? c.total > limit : false
-                  const recurringAmt = recurringByCatInicio[c.id] ?? 0
+                  const limit          = catBudgetMap.get(c.id) ?? null
+                  const catPct         = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
+                  const over           = limit ? c.total > limit : false
+                  const overPct        = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
+                  const recurringAmt   = recurringByCatInicio[c.id] ?? 0
                   const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
-                  const barColor = (over && isAllRecurring) ? c.color
-                    : over ? '#EF4444'
+                  // Over by <15% = amber warning, >15% = red alarm
+                  const mildOver  = over && !isAllRecurring && overPct < 15
+                  const hardOver  = over && !isAllRecurring && overPct >= 15
+                  const barColor  = isAllRecurring && over ? c.color
+                    : hardOver  ? '#EF4444'
+                    : mildOver  ? '#F59E0B'
                     : limit && catPct >= 80 ? '#F59E0B'
                     : c.color
+
                   return (
                     <Link
                       key={c.id}
                       href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 active:bg-brand-50/40 transition-colors"
+                      className={`flex items-center gap-3 px-4 py-3.5 transition-colors relative ${
+                        hardOver ? 'hover:bg-red-50/30 dark:hover:bg-red-950/20'
+                        : mildOver ? 'hover:bg-amber-50/30 dark:hover:bg-amber-950/20'
+                        : 'hover:bg-gray-50/60'
+                      }`}
                     >
-                      {/* Rank */}
-                      <span className="text-[11px] font-bold text-gray-300 w-4 flex-shrink-0 tabular-nums text-center">{idx + 1}</span>
+                      {/* Left accent for over-budget */}
+                      {(hardOver || mildOver) && (
+                        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
+                          style={{ background: hardOver ? '#EF4444' : '#F59E0B' }} />
+                      )}
+
+                      {/* Rank badge */}
+                      {idx < 3
+                        ? <span className="text-base flex-shrink-0 w-5 text-center leading-none">{rankBadge[idx]}</span>
+                        : <span className="text-[11px] font-bold text-gray-300 w-5 flex-shrink-0 tabular-nums text-center">{idx + 1}</span>
+                      }
 
                       {/* Icon */}
                       <div
-                        className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                         style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                       >
                         {isEmoji(c.icon)
                           ? <span className="text-sm">{c.icon}</span>
-                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-3.5 h-3.5" style={{ color: c.color }} /> })()
+                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
                         }
                       </div>
 
@@ -479,21 +499,23 @@ export default async function DashboardPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <div
-                            className="progress-track flex-1 h-1 rounded-full overflow-hidden"
+                            className="progress-track flex-1 h-1.5 rounded-full overflow-hidden"
                             style={{ '--bar-color': barColor } as React.CSSProperties}
                           >
-                            <div className="h-full rounded-full" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
+                            <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
                           </div>
-                          <p className={`text-[10px] font-semibold flex-shrink-0 w-20 text-right ${
-                            over && !isAllRecurring ? 'text-red-500' : limit && catPct >= 80 && !isAllRecurring ? 'text-amber-500' : 'text-gray-400'
+                          <p className={`text-[10px] font-semibold flex-shrink-0 w-24 text-right ${
+                            hardOver ? 'text-red-500' : mildOver ? 'text-amber-500' : 'text-gray-400'
                           }`}>
-                            {over && isAllRecurring
+                            {isAllRecurring && over
                               ? '↻ fijo'
-                              : over
+                              : hardOver
                                 ? `+${formatCLP(c.total - limit!)} sobre`
-                                : limit
-                                  ? `${catPct}% de ${formatCLP(limit)}`
-                                  : 'Sin límite'
+                                : mildOver
+                                  ? `+${overPct}% · cuidado`
+                                  : limit
+                                    ? `${catPct}% de ${formatCLP(limit)}`
+                                    : 'Sin límite'
                             }
                           </p>
                         </div>
@@ -521,12 +543,21 @@ export default async function DashboardPage() {
                   Ver todo
                 </Link>
               </div>
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {typedExpenses.slice(0, 7).map(e => {
+              <div className="card overflow-hidden">
+                {typedExpenses.slice(0, 7).map((e, i) => {
                   const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
-                  const dateLabel = new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                  const d = new Date(e.date + 'T12:00:00')
+                  const now2 = new Date()
+                  const isToday = e.date === now2.toISOString().split('T')[0]
+                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
+                  const dayLabel = isToday ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
                   return (
-                    <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                    <div key={e.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors ${i > 0 ? 'border-t border-gray-50' : ''}`}>
+                      {/* Category color bar */}
+                      {e.category && (
+                        <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70"
+                          style={{ background: e.category.color }} />
+                      )}
                       <div
                         className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                         style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
@@ -534,12 +565,17 @@ export default async function DashboardPage() {
                         <Icon className="w-3.5 h-3.5" style={{ color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
+                        <p className="text-sm font-semibold text-gray-800 truncate leading-tight">
                           {e.description || e.category?.name || '—'}
                         </p>
-                        <p className="text-[11px] text-gray-400 truncate">
-                          {e.category?.name && e.description ? `${e.category.name} · ` : ''}{dateLabel}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {e.category && (
+                            <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>
+                              {e.category.name}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-gray-400">· {dayLabel}</span>
+                        </div>
                       </div>
                       <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(e.amount)}</p>
                     </div>
