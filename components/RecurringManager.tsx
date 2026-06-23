@@ -303,7 +303,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
             <div className="px-5 pt-4 pb-5 lg:px-6 flex flex-col gap-4">
               {/* Preview */}
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-[#1a2744]">
                 <ServiceLogo domain={previewDomain} name={form.name || '?'} size={44} />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm truncate">{form.name || 'Nombre del servicio'}</p>
@@ -321,14 +321,14 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   type="text" value={form.name}
                   onChange={e => set('name', e.target.value)}
                   placeholder="ej: Netflix, Arriendo, Gimnasio…" maxLength={40} autoFocus
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
+                  className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
                 />
               </div>
 
               {/* Toggle cuotas */}
               <button
                 onClick={() => set('cuotas', !form.cuotas)}
-                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.cuotas ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200')}
+                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.cuotas ? 'sheet-toggle-active' : 'sheet-toggle')}
               >
                 <CreditCard className={cn('w-4 h-4 flex-shrink-0', form.cuotas ? 'text-brand-600' : 'text-gray-300')} />
                 <div>
@@ -350,7 +350,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         value={form.totalAmount ? fmtNum(form.totalAmount) : ''}
                         onChange={e => set('totalAmount', e.target.value.replace(/\D/g, ''))}
                         placeholder="0"
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
                       />
                     </div>
                     <div>
@@ -358,7 +358,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       <input type="number" inputMode="numeric" value={form.numCuotas}
                         onChange={e => set('numCuotas', e.target.value)}
                         placeholder="ej: 12" min="2" max="120"
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
                       />
                     </div>
                   </div>
@@ -376,7 +376,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     value={form.amount ? fmtNum(form.amount) : ''}
                     onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
                     placeholder="0"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                    className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
                   />
                 </div>
               )}
@@ -387,7 +387,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 <input type="number" inputMode="numeric" value={form.billing_day}
                   onChange={e => set('billing_day', e.target.value)}
                   placeholder="1–31" min="1" max="31"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                  className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
                 />
               </div>
 
@@ -395,20 +395,24 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               <div>
                 <label className="text-xs font-semibold text-gray-500 block mb-2">Categoría</label>
                 <div className="flex flex-wrap gap-2">
-                  {categories.map(c => (
-                    <button key={c.id}
-                      onClick={() => set('category_id', form.category_id === c.id ? '' : c.id)}
-                      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
-                        form.category_id === c.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-semibold' : 'border-gray-200 bg-gray-50 text-gray-600'
-                      )}
-                    >
-                      {isEmoji(c.icon)
-                        ? <span className="text-base">{c.icon}</span>
-                        : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-3.5 h-3.5" style={{ color: form.category_id === c.id ? c.color : '#9CA3AF' }} /> })()
-                      }
-                      {c.name}
-                    </button>
-                  ))}
+                  {categories.map(c => {
+                    const selected = form.category_id === c.id
+                    return (
+                      <button key={c.id}
+                        onClick={() => set('category_id', selected ? '' : c.id)}
+                        className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
+                          selected ? 'cat-badge border-transparent font-semibold' : 'sheet-chip'
+                        )}
+                        style={selected ? { '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties : undefined}
+                      >
+                        {isEmoji(c.icon)
+                          ? <span className="text-base">{c.icon}</span>
+                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-3.5 h-3.5" style={{ color: selected ? c.color : undefined }} /> })()
+                        }
+                        {c.name}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -428,7 +432,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       <button key={p.id}
                         onClick={() => set('payment_method_id', form.payment_method_id === p.id ? '' : p.id)}
                         className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-                          form.payment_method_id === p.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-semibold' : 'border-gray-200 bg-gray-50 text-gray-600'
+                          form.payment_method_id === p.id ? 'sheet-chip-active' : 'sheet-chip'
                         )}
                       >
                         {p.name}
@@ -442,7 +446,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {!form.cuotas && (
                 <button
                   onClick={() => set('auto_register', !form.auto_register)}
-                  className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.auto_register ? 'bg-brand-50 border-brand-200' : 'bg-gray-50 border-gray-200')}
+                  className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.auto_register ? 'sheet-toggle-active' : 'sheet-toggle')}
                 >
                   <RefreshCw className={cn('w-4 h-4 flex-shrink-0', form.auto_register ? 'text-brand-600' : 'text-gray-300')} />
                   <div>
@@ -463,7 +467,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 return (
                   <button
                     onClick={() => set('is_active', !form.is_active)}
-                    className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', !form.is_active ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200')}
+                    className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', !form.is_active ? 'sheet-toggle-warn' : 'sheet-toggle')}
                   >
                     {form.is_active
                       ? <Pause className="w-4 h-4 flex-shrink-0 text-gray-300" />
@@ -500,7 +504,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               ) : (
                 <div className="flex gap-2">
                   {editTarget && (
-                    <button onClick={() => setDeleteConfirm(true)} className="p-2.5 border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-colors">
+                    <button onClick={() => setDeleteConfirm(true)} className="logout-btn p-2.5 border text-red-400 rounded-xl transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}

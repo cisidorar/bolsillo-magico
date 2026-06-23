@@ -410,7 +410,7 @@ function FormBody({
           <PreviewIcon className="w-6 h-6" style={{ color: chosen.color }} />
         </div>
         <div>
-          <p className="font-bold text-gray-900 text-sm leading-tight">
+          <p className="font-bold text-gray-800 text-sm leading-tight">
             {form.name || 'Nueva categoría'}
           </p>
           <p className="text-xs mt-0.5" style={{ color: chosen.color }}>{previewOpt.label}</p>
@@ -427,7 +427,7 @@ function FormBody({
           placeholder="ej: Mascotas, Gimnasio, Viajes…"
           maxLength={24}
           autoFocus
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-400 focus:bg-white transition-colors"
+          className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-brand-400 focus:bg-white transition-colors"
         />
       </div>
 
@@ -493,7 +493,7 @@ function FormBody({
       ) : (
         <div className="flex gap-2">
           {isEdit && (
-            <button onClick={onDelete} className="p-2.5 border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-colors">
+            <button onClick={onDelete} className="logout-btn p-2.5 border text-red-400 rounded-xl transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
