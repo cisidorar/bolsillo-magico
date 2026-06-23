@@ -105,14 +105,14 @@ export default function HistorialFilters({ categories, month, year }: Props) {
   return (
     <div className="card overflow-visible">
       {/* ── Mobile: stacked layout ───────────────────────────────── */}
-      <div className="lg:hidden p-3 space-y-2.5 border-b border-gray-50">
+      <div className="lg:hidden p-3 space-y-2 border-b border-gray-50">
         {/* View toggle — full width */}
-        <div className="flex bg-gray-100 rounded-xl p-1">
+        <div className="view-toggle-wrap flex rounded-xl p-1">
           <button
             onClick={() => handleView('purchase')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all',
-              view === 'purchase' ? 'tab-active text-gray-800 shadow-sm' : 'text-gray-500'
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              view === 'purchase' ? 'view-toggle-active-purchase' : 'view-toggle-btn'
             )}
           >
             <ShoppingCart className="w-3.5 h-3.5 flex-shrink-0" />
@@ -121,8 +121,8 @@ export default function HistorialFilters({ categories, month, year }: Props) {
           <button
             onClick={() => handleView('billing')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all',
-              view === 'billing' ? 'tab-active text-indigo-700 shadow-sm' : 'text-gray-500'
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              view === 'billing' ? 'view-toggle-active-billing' : 'view-toggle-btn'
             )}
           >
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
@@ -148,14 +148,14 @@ export default function HistorialFilters({ categories, month, year }: Props) {
       </div>
 
       {/* ── Desktop: single row ──────────────────────────────────── */}
-      <div className="hidden lg:flex items-center gap-3 p-4 border-b border-gray-50">
+      <div className="hidden lg:flex items-center gap-3 px-3 py-2.5 border-b border-gray-50">
         {/* View toggle */}
-        <div className="flex bg-gray-100 rounded-xl p-1 flex-shrink-0">
+        <div className="view-toggle-wrap flex rounded-xl p-0.5 flex-shrink-0">
           <button
             onClick={() => handleView('purchase')}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-              view === 'purchase' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              view === 'purchase' ? 'view-toggle-active-purchase' : 'view-toggle-btn'
             )}
           >
             <ShoppingCart className="w-3.5 h-3.5 flex-shrink-0" />
@@ -165,7 +165,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
             onClick={() => handleView('billing')}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
-              view === 'billing' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              view === 'billing' ? 'view-toggle-active-billing' : 'view-toggle-btn'
             )}
           >
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
@@ -191,7 +191,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
       </div>
 
       {/* ── Row 2: active chips + Filtros button ─────────────────── */}
-      <div className="flex items-center gap-2 px-3 lg:px-4 py-2.5 flex-wrap min-h-[44px]">
+      <div className="flex items-center gap-2 px-3 py-2 flex-wrap min-h-[38px]">
 
         {/* Active category chips */}
         {activeCatObjs.map(cat => {
