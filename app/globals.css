@@ -194,6 +194,46 @@
   background: color-mix(in srgb, var(--cat-color, #4D8FFF) 16%, #0f172a) !important;
 }
 
+/* ── Sheet / modal chips ─────────────────────────────────────────────────── */
+.sheet-chip {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #4b5563;
+}
+.dark .sheet-chip {
+  background: #1e3a5f !important;
+  border-color: #2d4f7a !important;
+  color: #94a3b8 !important;
+}
+.sheet-chip-active {
+  background: #EEF4FF;
+  border-color: #1B6DD4;
+  color: #155BB0;
+  font-weight: 600;
+}
+.dark .sheet-chip-active {
+  background: #1e3a5f !important;
+  border-color: #4D8FFF !important;
+  color: #93c5fd !important;
+}
+/* Input field inside dark modal */
+.dark .sheet-input {
+  background: #0f172a !important;
+  border-color: #2d4f7a !important;
+  color: #f1f5f9 !important;
+}
+.dark .sheet-input:focus-within {
+  border-color: #4D8FFF !important;
+}
+.dark .sheet-input input,
+.dark .sheet-input textarea {
+  color: #f1f5f9 !important;
+}
+.dark .sheet-input input::placeholder,
+.dark .sheet-input textarea::placeholder {
+  color: #475569 !important;
+}
+
 /* ── Over-budget row hover states ────────────────────────────────────────── */
 .dark .hover\:bg-red-50\/30:hover    { background-color: rgba(239,68,68,0.06) !important; }
 .dark .hover\:bg-amber-50\/30:hover  { background-color: rgba(245,158,11,0.06) !important; }

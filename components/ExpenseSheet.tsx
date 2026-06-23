@@ -25,14 +25,16 @@ function CatChip({ c, selected, onSelect }: { c: Category; selected: boolean; on
       onClick={() => onSelect(c.id)}
       className={cn(
         'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all',
-        selected
-          ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-          : 'border-gray-200 bg-gray-50 text-gray-600'
+        selected ? 'cat-badge border-transparent font-semibold' : 'sheet-chip'
       )}
+      style={selected
+        ? { '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties
+        : undefined
+      }
     >
       {isEmoji(c.icon)
         ? <span className="text-base">{c.icon}</span>
-        : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: selected ? c.color : '#9CA3AF' }} /> })()
+        : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: selected ? c.color : undefined }} /> })()
       }
       {c.name}
     </button>
@@ -273,13 +275,13 @@ export default function ExpenseSheet({
       <button
         onClick={() => { pmUserPicked.current = true; setPmId(null) }}
         className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-          pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+          pmId === null ? 'sheet-chip-active' : 'sheet-chip')}
       >Efectivo</button>
       {pms.map(pm => (
         <button key={pm.id}
           onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
           className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-            pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
+            pmId === pm.id ? 'sheet-chip-active' : 'sheet-chip')}
         >{pm.name}</button>
       ))}
     </div>
@@ -383,9 +385,7 @@ export default function ExpenseSheet({
           <button key={d.value}
             onClick={() => { setDateStr(d.value); setCalOpen(false) }}
             className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-              dateStr === d.value && isQuickDate
-                ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-                : 'border-gray-200 bg-gray-50 text-gray-600')}
+              dateStr === d.value && isQuickDate ? 'sheet-chip-active' : 'sheet-chip')}
           >{d.label}</button>
         ))}
         {/* Más antiguo — anchor for popover */}
@@ -397,9 +397,7 @@ export default function ExpenseSheet({
             }}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
-              calOpen || !isQuickDate
-                ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-                : 'border-gray-200 bg-gray-50 text-gray-600'
+              calOpen || !isQuickDate ? 'sheet-chip-active' : 'sheet-chip'
             )}
           >
             <CalendarDays className="w-3 h-3" />
@@ -432,9 +430,7 @@ export default function ExpenseSheet({
       <button
         onClick={() => { setDateStr(todayStr); setCalOpen(false) }}
         className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-          dateStr === todayStr
-            ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-            : 'border-gray-200 bg-gray-50 text-gray-600'
+          dateStr === todayStr ? 'sheet-chip-active' : 'sheet-chip'
         )}
       >Hoy</button>
       <div className="relative">
@@ -442,9 +438,7 @@ export default function ExpenseSheet({
           onClick={() => { setCalOpen(v => !v); if (!calOpen) { setCalViewYear(nowObj.getFullYear()); setCalViewMonth(nowObj.getMonth()) } }}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
-            calOpen || dateStr !== todayStr
-              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-              : 'border-gray-200 bg-gray-50 text-gray-600'
+            calOpen || dateStr !== todayStr ? 'sheet-chip-active' : 'sheet-chip'
           )}
         >
           <CalendarDays className="w-3 h-3" />
@@ -469,9 +463,7 @@ export default function ExpenseSheet({
           }}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all',
-            calOpen
-              ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium'
-              : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+            calOpen ? 'sheet-chip-active' : 'sheet-chip'
           )}
         >
           <CalendarDays className="w-3 h-3 flex-shrink-0" />
@@ -622,7 +614,7 @@ export default function ExpenseSheet({
       </div>
     ) : (
       <div className="flex gap-3">
-        <button onClick={() => setDeleteConfirm(true)} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 bg-red-50 border border-red-100 rounded-2xl hover:bg-red-100 transition-colors flex-shrink-0">
+        <button onClick={() => setDeleteConfirm(true)} className="logout-btn flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 border rounded-2xl transition-colors flex-shrink-0">
           <Trash2 className="w-4 h-4" />
           Eliminar
         </button>
@@ -652,19 +644,19 @@ export default function ExpenseSheet({
           {/* ── DESKTOP layout ──────────────────────────────────────────── */}
           <div className="hidden lg:block px-6 pt-4 pb-5 space-y-4">
             {/* Descripción */}
-            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+            <div className="sheet-input flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
               <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción (opcional) — Ej: Pizza con pareja..." className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none" />
+              <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción (opcional)…" className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none" />
             </div>
             {/* Monto */}
             <div>
-              <div className={cn('flex items-center gap-2 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
+              <div className={cn('sheet-input flex items-center gap-2 border rounded-2xl px-5 py-3 transition-colors focus-within:border-brand-400', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
                 <span className="text-2xl font-bold text-gray-300">$</span>
                 <input type="text" inputMode="numeric" value={amount ? parseInt(amount).toLocaleString('es-CL') : ''} onChange={e => { const raw = e.target.value.replace(/\./g, '').replace(/\D/g, ''); if (raw.length <= 9) { setAmount(raw); setError('') } }} placeholder="0" className="flex-1 text-3xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums" />
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-            {/* Categoría — comprimida con expand */}
+            {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500">Categoría</p>
@@ -676,9 +668,7 @@ export default function ExpenseSheet({
               </div>
               {catPickerOpen ? (
                 <div>
-                  <div className="max-h-40 overflow-y-auto">
-                    {catChips}
-                  </div>
+                  <div className="max-h-40 overflow-y-auto">{catChips}</div>
                   <button onClick={() => setCatPickerOpen(false)} className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
                     ↑ Colapsar
                   </button>
@@ -693,10 +683,14 @@ export default function ExpenseSheet({
                       </button>
                     )
                     return (
-                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+                      <button
+                        onClick={() => setCatPickerOpen(true)}
+                        className="cat-badge flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border-transparent font-semibold"
+                        style={{ '--cat-bg': selCat.bg_color, '--cat-color': selCat.color } as React.CSSProperties}
+                      >
                         {isEmoji(selCat.icon)
                           ? <span>{selCat.icon}</span>
-                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3 h-3" style={{ color: selCat.color }} /> })()
+                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3.5 h-3.5" style={{ color: selCat.color }} /> })()
                         }
                         {selCat.name}
                       </button>
@@ -711,9 +705,9 @@ export default function ExpenseSheet({
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
                 <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>Efectivo</button>
+                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'sheet-chip-active' : 'sheet-chip')}>Efectivo</button>
                   {pms.map(pm => (
-                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>{pm.name}</button>
+                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'sheet-chip-active' : 'sheet-chip')}>{pm.name}</button>
                   ))}
                 </div>
               </div>
@@ -730,13 +724,13 @@ export default function ExpenseSheet({
           <div className="lg:hidden px-5 pt-4 space-y-4" style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 16px))' }}>
             {/* Monto */}
             <div>
-              <div className={cn('flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400 focus-within:bg-white', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
+              <div className={cn('sheet-input flex items-center gap-3 border rounded-2xl px-4 py-3 transition-colors focus-within:border-brand-400', error && !amount ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50')}>
                 <span className="text-xl font-bold text-gray-300">$</span>
                 <input type="text" inputMode="numeric" value={amount ? parseInt(amount).toLocaleString('es-CL') : ''} onChange={e => { const raw = e.target.value.replace(/\./g, '').replace(/\D/g, ''); if (raw.length <= 9) { setAmount(raw); setError('') } }} placeholder="0" className="flex-1 text-2xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums" />
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
-            {/* Categoría — comprimida con expand */}
+            {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500">Categoría</p>
@@ -757,10 +751,14 @@ export default function ExpenseSheet({
                       <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-dashed border-gray-300 text-gray-400">+ Elegir categoría</button>
                     )
                     return (
-                      <button onClick={() => setCatPickerOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border border-brand-600 bg-brand-50 text-brand-800 font-medium">
+                      <button
+                        onClick={() => setCatPickerOpen(true)}
+                        className="cat-badge flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border-transparent font-semibold"
+                        style={{ '--cat-bg': selCat.bg_color, '--cat-color': selCat.color } as React.CSSProperties}
+                      >
                         {isEmoji(selCat.icon)
                           ? <span>{selCat.icon}</span>
-                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3 h-3" style={{ color: selCat.color }} /> })()
+                          : (() => { const I = getCategoryIcon(selCat.icon); return <I className="w-3.5 h-3.5" style={{ color: selCat.color }} /> })()
                         }
                         {selCat.name}
                       </button>
@@ -775,9 +773,9 @@ export default function ExpenseSheet({
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
                 <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>Efectivo</button>
+                  <button onClick={() => { pmUserPicked.current = true; setPmId(null) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === null ? 'sheet-chip-active' : 'sheet-chip')}>Efectivo</button>
                   {pms.map(pm => (
-                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}>{pm.name}</button>
+                    <button key={pm.id} onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }} className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', pmId === pm.id ? 'sheet-chip-active' : 'sheet-chip')}>{pm.name}</button>
                   ))}
                 </div>
               </div>
@@ -787,7 +785,7 @@ export default function ExpenseSheet({
               </div>
             </div>
             {/* Descripción */}
-            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
+            <div className="sheet-input flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 focus-within:border-brand-400 transition-colors">
               <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
               <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción (opcional)..." className="flex-1 text-sm text-gray-800 placeholder-gray-400 bg-transparent outline-none" />
             </div>
