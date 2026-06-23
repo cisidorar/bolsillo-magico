@@ -297,7 +297,7 @@
 }
 .view-toggle-active-purchase {
   background: #ffffff;
-  color: #1e40af;
+  color: #1B6DD4;
   box-shadow: 0 1px 3px rgba(0,0,0,.1);
 }
 .dark .view-toggle-active-purchase {
@@ -307,11 +307,11 @@
 }
 .view-toggle-active-billing {
   background: #ffffff;
-  color: #4338ca;
+  color: #1B6DD4;
   box-shadow: 0 1px 3px rgba(0,0,0,.1);
 }
 .dark .view-toggle-active-billing {
-  background: #4338ca !important;
+  background: #1B6DD4 !important;
   color: #ffffff !important;
   box-shadow: none !important;
 }
