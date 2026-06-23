@@ -340,6 +340,14 @@
   color-scheme: dark;
 }
 
+/* ── Indigo surfaces (dark) ──────────────────────────────────────────────────── */
+.dark .bg-indigo-50      { background-color: rgba(99,102,241,0.08) !important; }
+.dark .border-indigo-100 { border-color: rgba(99,102,241,0.2) !important; }
+.dark .text-indigo-700   { color: #a5b4fc !important; }
+.dark .text-indigo-600   { color: #a5b4fc !important; }
+.dark .text-indigo-500   { color: #818cf8 !important; }
+.dark .text-indigo-400   { color: #818cf8 !important; }
+
 /* ── Status / feedback colors (dark) ────────────────────────────────────────── */
 .dark .bg-red-50        { background-color: rgba(239,68,68,0.08) !important; }
 .dark .border-red-100   { border-color: rgba(239,68,68,0.18) !important; }

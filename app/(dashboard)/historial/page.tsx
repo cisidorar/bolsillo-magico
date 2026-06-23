@@ -277,7 +277,9 @@ export default async function HistorialPage({
 
           {/* Desktop: 3 columnas */}
           <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
-            <div className="card p-4 flex items-center gap-3">
+            {/* Total */}
+            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl" style={{ background: '#1B6DD4' }} />
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
                 <Wallet className="w-6 h-6" style={{ color: '#1B6DD4' }} />
@@ -285,9 +287,15 @@ export default async function HistorialPage({
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
                 <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(total)}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
               </div>
             </div>
-            <div className="card p-4 flex items-center gap-3">
+            {/* vs anterior */}
+            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
+              {delta !== null && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl"
+                  style={{ background: delta > 0 ? '#EF4444' : '#16A34A' }} />
+              )}
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{
                   '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
@@ -316,7 +324,9 @@ export default async function HistorialPage({
                 )}
               </div>
             </div>
-            <div className="card p-4 flex items-center gap-3">
+            {/* Promedio */}
+            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl" style={{ background: '#7C3AED' }} />
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
                 <TrendingUp className="w-6 h-6" style={{ color: '#7C3AED' }} />
@@ -324,6 +334,7 @@ export default async function HistorialPage({
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
                 <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(dailyAvg)}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">por día</p>
               </div>
             </div>
           </div>
@@ -337,39 +348,39 @@ export default async function HistorialPage({
 
       {/* Banners */}
       {isBilling && (
-        <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-indigo-500 text-base">💳</span>
-            <p className="text-xs font-semibold text-indigo-700">
-              Facturación · {monthName(month)} {year}
+        <div className="card mb-4 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-50">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-50">
+              <span className="text-indigo-500 text-sm">💳</span>
+            </div>
+            <p className="text-sm font-bold text-gray-800">
+              Estado de cuenta · {monthName(month)} {year}
             </p>
           </div>
           {cardPeriods.length > 0 ? (
-            <div className="space-y-1 pl-6">
+            <div className="px-4 py-2.5 flex flex-wrap gap-x-6 gap-y-1.5">
               {cardPeriods.map(cp => {
                 const fmt = (s: string) => {
                   const d = new Date(s + 'T12:00:00')
                   return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
                 }
                 return (
-                  <p key={cp.billingDay} className="text-[11px] text-indigo-600">
-                    {cp.name
-                      ? <><span className="font-semibold">{cp.name}:</span> {fmt(cp.start)} – {fmt(cp.end)}</>
-                      : <>{fmt(cp.start)} – {fmt(cp.end)} (corte día {cp.billingDay})</>
-                    }
-                  </p>
+                  <div key={cp.billingDay} className="flex items-center gap-2">
+                    {cp.name && <span className="text-xs font-semibold text-gray-600">{cp.name}</span>}
+                    <span className="text-xs text-gray-400 tabular-nums">{fmt(cp.start)} – {fmt(cp.end)}</span>
+                  </div>
                 )
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-indigo-500 pl-6">
-              Gastos cuyo estado de cuenta cierra en {monthName(month)} {year}, independiente de la fecha de compra.
+            <p className="text-xs text-gray-400 px-4 py-2.5">
+              Gastos cuyo estado de cuenta cierra en {monthName(month)} {year}.
             </p>
           )}
         </div>
       )}
       {isBilling && billingHitLimit && (
-        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-4">
+        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4">
           <span className="text-amber-500 text-base mt-0.5">⚠️</span>
           <p className="text-xs text-amber-700 leading-relaxed">
             Se mostraron los primeros 300 gastos del período. Usa los filtros para acotar los resultados.

@@ -98,13 +98,15 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
 
   if (visibleGroups.length === 0) return null
 
+  const totalExpenses = visibleGroups.reduce((s, g) => s + g.expenses.length, 0)
+
   return (
     <>
-      {/* Select mode toolbar */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-gray-400 font-medium">
-          {visibleGroups.reduce((s, g) => s + g.expenses.length, 0)} registros
-        </p>
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+          {totalExpenses} registro{totalExpenses !== 1 ? 's' : ''}
+        </span>
         <div className="flex items-center gap-3">
           {selectMode ? (
             <>
@@ -125,7 +127,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
           ) : (
             <button
               onClick={() => setSelectMode(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
             >
               <CheckSquare className="w-3.5 h-3.5" />
               Seleccionar
@@ -143,7 +145,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
         return (
           <div key={group.date} className="mb-4">
             {/* Date header */}
-            <div className="flex items-center gap-2 mb-2 px-0.5">
+            <div className="flex items-center gap-2.5 mb-2 px-0.5">
               {/* Checkbox (select mode) */}
               {selectMode && (
                 <button
@@ -163,23 +165,28 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                 </button>
               )}
 
-              {/* Calendar icon */}
-              <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              {/* Left accent */}
+              <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#1B6DD4', opacity: 0.4 }} />
 
               {/* Date label */}
               <span className="text-sm font-bold text-gray-700 capitalize flex-1">
                 {group.label}
               </span>
 
+              {/* Count chip */}
+              <span className="hidden lg:inline text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                {group.expenses.length}
+              </span>
+
               {/* Day total */}
-              <span className="text-sm font-semibold text-gray-500 tabular-nums">
+              <span className="text-sm font-bold text-gray-600 tabular-nums">
                 {formatCLP(group.dayTotal)}
               </span>
 
               {/* Collapse toggle */}
               <button
                 onClick={() => toggleCollapse(group.date)}
-                className="p-0.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                className="p-0.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
                 aria-label={isCollapsed ? 'Expandir' : 'Colapsar'}
               >
                 {isCollapsed

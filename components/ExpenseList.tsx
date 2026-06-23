@@ -43,7 +43,7 @@ export default function ExpenseList({ expenses, showDate }: Props) {
             >
               {/* Category color accent */}
               <div
-                className="w-1 h-8 rounded-full flex-shrink-0 -ml-1 mr-0"
+                className="w-1 h-9 rounded-full flex-shrink-0 -ml-1 mr-0"
                 style={{ backgroundColor: catColor }}
               />
 
@@ -98,11 +98,11 @@ export default function ExpenseList({ expenses, showDate }: Props) {
 
               {/* Amount + date */}
               <div className="text-right flex-shrink-0">
-                <p className="text-base font-bold text-gray-900 tabular-nums">
+                <p className="text-sm font-bold text-gray-900 tabular-nums">
                   {formatCLP(e.amount)}
                 </p>
                 {!showDate && (
-                  <p className="text-xs text-gray-400 mt-0.5">{relativeDate(e.date)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date)}</p>
                 )}
               </div>
             </button>
