@@ -201,146 +201,318 @@ export default async function DashboardPage() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Helpers reutilizables ─────────────────────────────────────────────────
+  const StatementCardList = () => (
+    <div className="card divide-y divide-gray-50 dark:divide-[#1a2744] overflow-hidden">
+      {statementCards.map(card => {
+        const openDate  = new Date(card.opensOn  + 'T12:00:00')
+        const closeDate = new Date(card.closesOn + 'T12:00:00')
+        const fmt = (d: Date) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+        const today0   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const close0   = new Date(closeDate.getFullYear(), closeDate.getMonth(), closeDate.getDate())
+        const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
+        const daysLabel = daysLeft === 0 ? 'Cierra hoy'
+          : daysLeft === 1 ? 'Cierra mañana'
+          : daysLeft > 0   ? `Cierra en ${daysLeft}d`
+          : 'Cerrado'
+        return (
+          <Link
+            key={card.id}
+            href={`/cuenta/${card.id}`}
+            className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/60 dark:hover:bg-white/5 active:bg-gray-100/50 transition-colors"
+          >
+            <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{card.name}</p>
+              <p className="text-xs text-gray-400">{fmt(openDate)} – {fmt(closeDate)}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(card.total)}</p>
+              <p className={`text-[10px] font-semibold ${daysLeft <= 3 && daysLeft >= 0 ? 'text-amber-500' : 'text-gray-400'}`}>{daysLabel}</p>
+            </div>
+            <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        )
+      })}
+    </div>
+  )
+
+  const ProximosPagosList = () => (
+    <div className="card divide-y divide-gray-50 dark:divide-[#1a2744] overflow-hidden">
+      {proximosPagos.map(r => (
+        <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+          <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
+          <p className="flex-1 text-sm font-semibold text-gray-800 dark:text-gray-200 truncate min-w-0">{r.name}</p>
+          <div className="text-right flex-shrink-0">
+            <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(r.amount)}</p>
+            <p className={`text-[10px] font-semibold ${r.isToday ? 'text-red-500' : r.daysUntil <= 3 ? 'text-amber-500' : 'text-gray-400'}`}>
+              {r.label}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <>
-      <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-2 lg:grid lg:grid-cols-[3fr,2fr] lg:gap-6 lg:items-start">
+      <div className="px-4 lg:px-8 pt-2 lg:pt-6 pb-2">
 
-        {/* ══ LEFT COLUMN ══════════════════════════════════════════════ */}
-        <div className="space-y-4">
+        {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}
 
-          {/* ── Desktop header ────────────────────────────────────────── */}
-          <div className="hidden lg:block mb-1">
+        {/* ── Header desktop ── */}
+        <div className="hidden lg:flex items-baseline justify-between mb-5">
+          <div>
             <h1 className="text-xl font-bold text-brand-900 dark:text-slate-100 flex items-center gap-2">
               ¡{greeting}, {displayName}!
               <GreetIcon className="w-4 h-4 flex-shrink-0" style={{ color: greetIconColor }} />
             </h1>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">{dateLabel}</p>
           </div>
+        </div>
 
-          {/* ── Hero card ─────────────────────────────────────────────── */}
-          <div className="hero-gradient rounded-3xl p-6 lg:p-5 text-white overflow-hidden relative">
-            <div className="lg:flex lg:gap-5 lg:items-start">
-
-              {/* LEFT: monto + presupuesto */}
-              <div className="lg:flex-1">
-                {/* Saludo mobile */}
-                <p className="text-sm text-white font-bold mb-3 lg:hidden flex items-center gap-1.5">
-                  {greeting}, {displayName}
-                  <GreetIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: greetIconColor }} />
+        {/* ── Hero desktop — compacto full-width ── */}
+        <div className="hidden lg:block hero-gradient rounded-3xl px-7 py-5 text-white mb-5">
+          {/* Fila superior: monto + te quedan */}
+          <div className="flex items-start justify-between gap-8 mb-4">
+            <div>
+              <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1.5">Gastado este mes</p>
+              <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
+              {budgetAmount && <p className="text-xs text-white/45 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>}
+            </div>
+            {budgetAmount && (
+              <div className="text-right flex-shrink-0">
+                <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1.5">
+                  {isOver ? 'Sobre el límite' : 'Te quedan'}
                 </p>
-
-                <p className="text-[10px] text-white/65 font-semibold uppercase tracking-wide mb-1">
-                  Gastado este mes
+                <p className={`text-3xl font-extrabold leading-none ${isOver ? 'text-red-300' : 'text-emerald-300'}`}>
+                  {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
                 </p>
-                <p
-                  className="font-extrabold text-white tracking-tight leading-none"
-                  style={{ fontSize: 'clamp(28px, 7vw, 44px)' }}
-                >
-                  {formatCLP(total)}
-                </p>
-                {budgetAmount && (
-                  <p className="text-xs text-white/50 mt-1.5">
-                    de {formatCLP(budgetAmount)} presupuestado
-                  </p>
-                )}
-
-                {/* Barra de progreso */}
-                {budgetAmount && (
-                  <div className="mt-4">
-                    <div className="h-2 bg-white/15 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, progressPct)}%`,
-                          backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#fbbf24' : 'rgba(255,255,255,0.85)',
-                        }}
-                      />
-                    </div>
-                    <div className="flex justify-between mt-1.5">
-                      <span className="text-[10px] text-white/45">{progressPct}% del presupuesto</span>
-                      <span className="text-[10px] text-white/45">
-                        {isOver
-                          ? `+${formatCLP(total - budgetAmount)} sobre el límite`
-                          : `Quedan ${formatCLP(budgetAmount - total)}`}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* vs mes anterior */}
-                {deltaVsLast !== null && (
-                  <div className="mt-3 inline-flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                    <span className={`text-[10px] font-bold flex items-center gap-1 ${deltaVsLast <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                      {deltaVsLast <= 0
-                        ? <TrendingDown className="w-3 h-3 flex-shrink-0" />
-                        : <TrendingUp   className="w-3 h-3 flex-shrink-0" />}
-                      {Math.abs(deltaVsLast)}%{' '}
-                      {deltaVsLast <= 0 ? 'menos' : 'más'} que {monthName(prevM).slice(0, 3).toLowerCase()}
-                    </span>
-                    <span className="text-[10px] text-white/35">· al día {todayDate}: {formatCLP(prevTotal)}</span>
-                  </div>
-                )}
+                <p className="text-[10px] text-white/35 mt-1">para fin de mes</p>
               </div>
+            )}
+          </div>
 
-              {/* Separador desktop */}
-              <div className="hidden lg:block w-px bg-white/15 self-stretch flex-shrink-0" />
+          {/* Barra de presupuesto */}
+          {budgetAmount && (
+            <div className="mb-4">
+              <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, progressPct)}%`,
+                    backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#fbbf24' : 'rgba(255,255,255,0.85)',
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
-              {/* RIGHT: Te quedan + stats */}
-              <div className="mt-5 lg:mt-0 lg:flex-shrink-0 lg:w-48">
+          {/* Fila inferior: chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {deltaVsLast !== null && (
+              <div className="inline-flex items-center gap-1.5 bg-white/12 rounded-xl px-2.5 py-1.5">
+                <span className={`text-[10px] font-bold flex items-center gap-1 ${deltaVsLast <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {deltaVsLast <= 0 ? <TrendingDown className="w-3 h-3 flex-shrink-0" /> : <TrendingUp className="w-3 h-3 flex-shrink-0" />}
+                  {Math.abs(deltaVsLast)}% {deltaVsLast <= 0 ? 'menos' : 'más'} que {monthName(prevM).slice(0, 3).toLowerCase()}
+                </span>
+                <span className="text-[10px] text-white/30">· día {todayDate}: {formatCLP(prevTotal)}</span>
+              </div>
+            )}
+            <div className="flex-1" />
+            <div className="bg-white/12 rounded-xl px-3 py-1.5 flex items-center gap-2">
+              <span className="text-[10px] text-white/50 font-semibold">Por día</span>
+              <span className="text-[11px] font-extrabold text-white tabular-nums">{formatCLP(dailyAvg)}</span>
+            </div>
+            <div className={`rounded-xl px-3 py-1.5 flex items-center gap-1.5 ${budgetAmount && projection > budgetAmount ? 'bg-red-500/20' : 'bg-white/12'}`}>
+              <span className="text-[10px] text-white/50 font-semibold">Proyección</span>
+              <span className={`text-[11px] font-extrabold tabular-nums ${budgetAmount && projection > budgetAmount ? 'text-red-300' : 'text-white'}`}>
+                {total > 0 ? formatCLP(projection) : '–'}
+              </span>
+              {budgetAmount && projection > budgetAmount && <AlertTriangle className="w-3 h-3 text-red-300 flex-shrink-0" />}
+            </div>
+          </div>
+        </div>
 
-                {/* "Te quedan" — desktop */}
-                {budgetAmount && (
-                  <div className="hidden lg:block mb-4">
-                    <p className="text-[10px] text-white/55 font-semibold uppercase tracking-wide mb-0.5">
-                      Te quedan
-                    </p>
-                    <p className={`text-2xl font-extrabold leading-none ${isOver ? 'text-red-300' : 'text-emerald-300'}`}>
-                      {isOver
-                        ? `–${formatCLP(total - budgetAmount)}`
-                        : formatCLP(budgetAmount - total)}
-                    </p>
-                    <p className="text-[10px] text-white/40 mt-0.5">para finalizar el mes</p>
-                    {budgetAmount && projection > budgetAmount && (
-                      <div className="mt-2.5 flex items-center gap-1.5 bg-red-500/20 border border-red-400/20 rounded-xl px-2.5 py-1.5">
-                        <AlertTriangle className="w-3 h-3 text-red-200 flex-shrink-0" />
-                        <span className="text-[10px] font-semibold text-red-200">
-                          Riesgo: superar presupuesto
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
+        {/* ── Grid 3 columnas desktop ── */}
+        <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1.3fr 1fr 240px' }}>
 
-                {/* Stat chips */}
-                <div className="flex gap-2 lg:flex-col lg:gap-2">
-                  {[
-                    { label: 'Por día',    value: formatCLP(dailyAvg) },
-                    {
-                      label: 'Proyección',
-                      value: total > 0 ? formatCLP(projection) : '–',
-                      warn: budgetAmount != null && projection > budgetAmount,
-                    },
-                  ].map(chip => (
-                    <div
-                      key={chip.label}
-                      className="flex-1 bg-white/15 rounded-2xl px-3 py-2.5 lg:flex lg:items-center lg:justify-between"
-                    >
-                      <p className="text-[10px] text-white/65 font-semibold mb-1 lg:mb-0">{chip.label}</p>
-                      <p
-                        className={`font-extrabold tabular-nums leading-none ${chip.warn ? 'text-red-300' : 'text-white'}`}
-                        style={{ fontSize: 'clamp(12px, 3.5vw, 15px)' }}
+          {/* Col 1 — Categorías */}
+          {catSummary.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400">Por categoría</h2>
+                <Link href="/analisis" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver análisis</Link>
+              </div>
+              <div className="card overflow-hidden divide-y divide-gray-50 dark:divide-[#1a2744]">
+                {(() => {
+                  const maxCatTotal = catSummary[0]?.total ?? 1
+                  return catSummary.map((c, idx) => {
+                    const limit          = catBudgetMap.get(c.id) ?? null
+                    const catPct         = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
+                    const over           = limit ? c.total > limit : false
+                    const overPct        = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
+                    const recurringAmt   = recurringByCatInicio[c.id] ?? 0
+                    const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
+                    const mildOver       = over && !isAllRecurring && overPct < 15
+                    const hardOver       = over && !isAllRecurring && overPct >= 15
+                    const barColor       = isAllRecurring && over ? c.color : hardOver ? '#EF4444' : mildOver ? '#F59E0B' : limit && catPct >= 80 ? '#F59E0B' : c.color
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                        className={`flex items-center gap-3 px-4 py-3.5 transition-colors relative ${hardOver ? 'hover:bg-red-50/30 dark:hover:bg-red-950/20' : mildOver ? 'hover:bg-amber-50/30 dark:hover:bg-amber-950/20' : 'hover:bg-gray-50/60 dark:hover:bg-white/5'}`}
                       >
-                        {chip.value}
-                      </p>
+                        {(hardOver || mildOver) && <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full" style={{ background: hardOver ? '#EF4444' : '#F59E0B' }} />}
+                        <span className={`text-[12px] font-extrabold w-5 flex-shrink-0 tabular-nums text-center ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-slate-400' : idx === 2 ? 'text-orange-400' : 'text-gray-300 dark:text-gray-600'}`}>{idx + 1}</span>
+                        <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                          {isEmoji(c.icon) ? <span className="text-sm">{c.icon}</span> : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{c.name}</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums flex-shrink-0">{formatCLP(c.total)}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
+                              <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
+                            </div>
+                            <p className={`text-[10px] font-semibold flex-shrink-0 w-24 text-right ${hardOver ? 'text-red-500' : mildOver ? 'text-amber-500' : 'text-gray-400'}`}>
+                              {isAllRecurring && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Col 2 — Últimos gastos */}
+          {typedExpenses.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400">Últimos gastos</h2>
+                <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver todo</Link>
+              </div>
+              <div className="card overflow-hidden">
+                {typedExpenses.slice(0, 8).map((e, i) => {
+                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+                  const d = new Date(e.date + 'T12:00:00')
+                  const now2 = new Date()
+                  const isToday2    = e.date === now2.toISOString().split('T')[0]
+                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
+                  const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                  return (
+                    <div key={e.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors ${i > 0 ? 'border-t border-gray-50 dark:border-[#1a2744]' : ''}`}>
+                      {e.category && <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70" style={{ background: e.category.color }} />}
+                      <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}>
+                        <Icon className="w-3.5 h-3.5" style={{ color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate leading-tight">{e.description || e.category?.name || '—'}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {e.category && <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>{e.category.name}</span>}
+                          <span className="text-[10px] text-gray-400">· {dayLabel}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums flex-shrink-0">{formatCLP(e.amount)}</p>
                     </div>
-                  ))}
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Col 3 — Estado de cuenta + Próximos pagos */}
+          <div className="space-y-4">
+            {statementCards.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+                    Estado de cuenta
+                  </h2>
+                  <Link href="/historial?view=billing" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver detalle</Link>
+                </div>
+                <StatementCardList />
+              </div>
+            )}
+            {proximosPagos.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-brand-500" />
+                    Próximos pagos
+                  </h2>
+                  <Link href="/recurrentes?view=calendar" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver calendario</Link>
+                </div>
+                <ProximosPagosList />
+              </div>
+            )}
+          </div>
+
+        </div>
+        {/* ══ FIN DESKTOP ══ */}
+
+
+        {/* ══════════════════════ MOBILE (< lg) ══════════════════════ */}
+        <div className="lg:hidden space-y-4">
+
+          {/* Hero mobile */}
+          <div className="hero-gradient rounded-3xl p-6 text-white overflow-hidden">
+            <p className="text-sm text-white font-bold mb-3 flex items-center gap-1.5">
+              {greeting}, {displayName}
+              <GreetIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: greetIconColor }} />
+            </p>
+
+            <p className="text-[10px] text-white/65 font-semibold uppercase tracking-wide mb-1">Gastado este mes</p>
+            <p className="font-extrabold text-white tracking-tight leading-none" style={{ fontSize: 'clamp(28px, 7vw, 40px)' }}>
+              {formatCLP(total)}
+            </p>
+            {budgetAmount && <p className="text-xs text-white/50 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>}
+
+            {budgetAmount && (
+              <div className="mt-4">
+                <div className="h-2 bg-white/15 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, progressPct)}%`, backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#fbbf24' : 'rgba(255,255,255,0.85)' }} />
+                </div>
+                <div className="flex justify-between mt-1.5">
+                  <span className="text-[10px] text-white/45">{progressPct}% del presupuesto</span>
+                  <span className="text-[10px] text-white/45">{isOver ? `+${formatCLP(total - budgetAmount)} sobre` : `Quedan ${formatCLP(budgetAmount - total)}`}</span>
                 </div>
               </div>
+            )}
 
+            {deltaVsLast !== null && (
+              <div className="mt-3 inline-flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
+                <span className={`text-[10px] font-bold flex items-center gap-1 ${deltaVsLast <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {deltaVsLast <= 0 ? <TrendingDown className="w-3 h-3 flex-shrink-0" /> : <TrendingUp className="w-3 h-3 flex-shrink-0" />}
+                  {Math.abs(deltaVsLast)}% {deltaVsLast <= 0 ? 'menos' : 'más'} que {monthName(prevM).slice(0, 3).toLowerCase()}
+                </span>
+                <span className="text-[10px] text-white/35">· al día {todayDate}: {formatCLP(prevTotal)}</span>
+              </div>
+            )}
+
+            {/* Stats chips mobile */}
+            <div className="flex gap-2 mt-4">
+              {[
+                { label: 'Por día', value: formatCLP(dailyAvg) },
+                { label: 'Proyección', value: total > 0 ? formatCLP(projection) : '–', warn: budgetAmount != null && projection > budgetAmount },
+              ].map(chip => (
+                <div key={chip.label} className="flex-1 bg-white/15 rounded-2xl px-3 py-2.5">
+                  <p className="text-[10px] text-white/65 font-semibold mb-1">{chip.label}</p>
+                  <p className={`font-extrabold tabular-nums leading-none text-[13px] ${chip.warn ? 'text-red-300' : 'text-white'}`}>{chip.value}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* ── Estado de cuenta ──────────────────────────────────────── */}
+          {/* Estado de cuenta mobile */}
           {statementCards.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
@@ -348,83 +520,30 @@ export default async function DashboardPage() {
                   <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
                   Estado de cuenta
                 </h2>
-                <Link href="/historial?view=billing" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                  Ver detalle
-                </Link>
+                <Link href="/historial?view=billing" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver detalle</Link>
               </div>
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {statementCards.map(card => {
-                  const openDate  = new Date(card.opensOn  + 'T12:00:00')
-                  const closeDate = new Date(card.closesOn + 'T12:00:00')
-                  const fmt = (d: Date) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  const today0   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-                  const close0   = new Date(closeDate.getFullYear(), closeDate.getMonth(), closeDate.getDate())
-                  const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
-                  const daysLabel = daysLeft === 0 ? 'Cierra hoy'
-                    : daysLeft === 1 ? 'Cierra mañana'
-                    : daysLeft > 0   ? `Cierra en ${daysLeft}d`
-                    : 'Cerrado'
-                  return (
-                    <Link
-                      key={card.id}
-                      href={`/cuenta/${card.id}`}
-                      className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50/60 active:bg-gray-100/50 transition-colors"
-                    >
-                      <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{card.name}</p>
-                        <p className="text-xs text-gray-400">
-                          {fmt(openDate)} – {fmt(closeDate)}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(card.total)}</p>
-                        <p className={`text-[10px] font-semibold ${daysLeft <= 3 && daysLeft >= 0 ? 'text-amber-500' : 'text-gray-400'}`}>
-                          {daysLabel}
-                        </p>
-                      </div>
-                      <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
-                  )
-                })}
-              </div>
+              <StatementCardList />
             </div>
           )}
 
-          {/* ── Por categoría ─────────────────────────────────────────── */}
+          {/* Por categoría mobile — 2×2 grid */}
           {catSummary.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold text-gray-600">Por categoría</h2>
-                <Link href="/analisis" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                  Ver análisis
-                </Link>
+                <Link href="/analisis" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver análisis</Link>
               </div>
-
-              {/* Mobile: 2x2 grid / Desktop: compact list */}
-              <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+              <div className="grid grid-cols-2 gap-2.5">
                 {catSummary.slice(0, 4).map(c => {
                   const limit    = catBudgetMap.get(c.id) ?? null
                   const catPct   = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
                   const over     = limit ? c.total > limit : false
                   const barColor = over ? '#EF4444' : catPct !== null && catPct >= 80 ? '#F59E0B' : c.color
                   return (
-                    <Link
-                      key={c.id}
-                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                      className="card p-4 block hover:bg-brand-50/40 transition-colors active:scale-[0.98]"
-                    >
+                    <Link key={c.id} href={`/analisis/${c.id}?month=${month}&year=${year}`} className="card p-4 block hover:bg-brand-50/40 transition-colors active:scale-[0.98]">
                       <div className="flex items-center gap-2.5 mb-3">
-                        <div
-                          className="cat-icon-bg w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                        >
-                          {isEmoji(c.icon)
-                            ? <span className="text-base">{c.icon}</span>
-                            : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
-                          }
+                        <div className="cat-icon-bg w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                          {isEmoji(c.icon) ? <span className="text-base">{c.icon}</span> : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-gray-400 truncate">{c.name}</p>
@@ -443,157 +562,10 @@ export default async function DashboardPage() {
                   )
                 })}
               </div>
-
-              {/* Desktop: compact ranked list */}
-              <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
-                {(() => {
-                  const maxCatTotal = catSummary[0]?.total ?? 1
-                  return catSummary.map((c, idx) => {
-                  const limit          = catBudgetMap.get(c.id) ?? null
-                  const catPct         = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
-                  const over           = limit ? c.total > limit : false
-                  const overPct        = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
-                  const recurringAmt   = recurringByCatInicio[c.id] ?? 0
-                  const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
-                  // Over by <15% = amber warning, >15% = red alarm
-                  const mildOver  = over && !isAllRecurring && overPct < 15
-                  const hardOver  = over && !isAllRecurring && overPct >= 15
-                  const barColor  = isAllRecurring && over ? c.color
-                    : hardOver  ? '#EF4444'
-                    : mildOver  ? '#F59E0B'
-                    : limit && catPct >= 80 ? '#F59E0B'
-                    : c.color
-
-                  return (
-                    <Link
-                      key={c.id}
-                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                      className={`flex items-center gap-3 px-4 py-3.5 transition-colors relative ${
-                        hardOver ? 'hover:bg-red-50/30 dark:hover:bg-red-950/20'
-                        : mildOver ? 'hover:bg-amber-50/30 dark:hover:bg-amber-950/20'
-                        : 'hover:bg-gray-50/60'
-                      }`}
-                    >
-                      {/* Left accent for over-budget */}
-                      {(hardOver || mildOver) && (
-                        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                          style={{ background: hardOver ? '#EF4444' : '#F59E0B' }} />
-                      )}
-
-                      {/* Rank badge */}
-                      <span className={`text-[12px] font-extrabold w-5 flex-shrink-0 tabular-nums text-center ${
-                        idx === 0 ? 'text-amber-500'
-                        : idx === 1 ? 'text-slate-400'
-                        : idx === 2 ? 'text-orange-400'
-                        : 'text-gray-300 dark:text-gray-600'
-                      }`}>{idx + 1}</span>
-
-                      {/* Icon */}
-                      <div
-                        className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                      >
-                        {isEmoji(c.icon)
-                          ? <span className="text-sm">{c.icon}</span>
-                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
-                        }
-                      </div>
-
-                      {/* Name + bar */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                          <p className="text-sm font-semibold text-gray-700 truncate">{c.name}</p>
-                          <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(c.total)}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="progress-track flex-1 h-1.5 rounded-full overflow-hidden"
-                            style={{ '--bar-color': barColor } as React.CSSProperties}
-                          >
-                            <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
-                          </div>
-                          <p className={`text-[10px] font-semibold flex-shrink-0 w-24 text-right ${
-                            hardOver ? 'text-red-500' : mildOver ? 'text-amber-500' : 'text-gray-400'
-                          }`}>
-                            {isAllRecurring && over
-                              ? '↻ fijo'
-                              : hardOver
-                                ? `+${formatCLP(c.total - limit!)} sobre`
-                                : mildOver
-                                  ? `+${overPct}% · cuidado`
-                                  : limit
-                                    ? `${catPct}% de ${formatCLP(limit)}`
-                                    : 'Sin límite'
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  )
-                  })
-                })()}
-              </div>
             </div>
           )}
 
-        </div>
-        {/* ══ END LEFT COLUMN ══ */}
-
-        {/* ══ RIGHT COLUMN ════════════════════════════════════════════ */}
-        <div className="space-y-4 mt-4 lg:mt-0">
-
-          {/* ── Últimos gastos (desktop only) ──────────────────────────── */}
-          {typedExpenses.length > 0 && (
-            <div className="hidden lg:block">
-              <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-sm font-bold text-gray-600">Últimos gastos</h2>
-                <Link href="/historial" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">
-                  Ver todo
-                </Link>
-              </div>
-              <div className="card overflow-hidden">
-                {typedExpenses.slice(0, 7).map((e, i) => {
-                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
-                  const d = new Date(e.date + 'T12:00:00')
-                  const now2 = new Date()
-                  const isToday = e.date === now2.toISOString().split('T')[0]
-                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
-                  const dayLabel = isToday ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  return (
-                    <div key={e.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors ${i > 0 ? 'border-t border-gray-50' : ''}`}>
-                      {/* Category color bar */}
-                      {e.category && (
-                        <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70"
-                          style={{ background: e.category.color }} />
-                      )}
-                      <div
-                        className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
-                      >
-                        <Icon className="w-3.5 h-3.5" style={{ color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate leading-tight">
-                          {e.description || e.category?.name || '—'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {e.category && (
-                            <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>
-                              {e.category.name}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-gray-400">· {dayLabel}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">{formatCLP(e.amount)}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Próximos pagos */}
+          {/* Próximos pagos mobile */}
           {proximosPagos.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
@@ -601,36 +573,14 @@ export default async function DashboardPage() {
                   <Calendar className="w-3.5 h-3.5 text-brand-500" />
                   Próximos pagos
                 </h2>
-                <Link
-                  href="/recurrentes?view=calendar"
-                  className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors"
-                >
-                  Ver calendario
-                </Link>
+                <Link href="/recurrentes?view=calendar" className="text-sm font-semibold text-brand-600 hover:text-brand-700 transition-colors">Ver calendario</Link>
               </div>
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {proximosPagos.map(r => (
-                  <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-                    <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
-                    <p className="flex-1 text-sm font-semibold text-gray-800 truncate min-w-0">{r.name}</p>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(r.amount)}</p>
-                      <p className={`text-[10px] font-semibold ${
-                        r.isToday ? 'text-red-500'
-                        : r.daysUntil <= 3 ? 'text-amber-500'
-                        : 'text-gray-400'
-                      }`}>
-                        {r.label}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ProximosPagosList />
             </div>
           )}
 
         </div>
-        {/* ══ END RIGHT COLUMN ══ */}
+        {/* ══ FIN MOBILE ══ */}
 
       </div>
 
