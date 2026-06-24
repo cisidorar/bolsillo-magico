@@ -247,6 +247,21 @@ export default async function AnalisisPage({
   const peakRow  = pastRows.length > 0 ? pastRows.reduce((a, b) => b.total > a.total ? b : a, pastRows[0]) : null
   const lowRow   = pastRows.length > 1 ? pastRows.reduce((a, b) => b.total < a.total ? b : a, pastRows[0]) : null
   const anualMonthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const anualShortLabels = ['E','F','M','A','M','J','J','A','S','O','N','D']
+
+  // ¿Hay gastos en categorías fuera del top-6?
+  const hasOtros = isAnual && anualRows.some(row => {
+    const catTotal = anualCats.reduce((s, c) => s + (row.byCategory[c.id] ?? 0), 0)
+    return row.total > catTotal
+  })
+
+  // Formato compacto para celdas de tabla
+  function fmtCell(v: number): string {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+    if (v >= 10_000) return `$${Math.round(v / 1_000)}k`
+    if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}k`
+    return `$${v.toLocaleString('es-CL')}`
+  }
 
   const viewParam = isBilling ? '&view=billing' : ''
 
@@ -329,42 +344,81 @@ export default async function AnalisisPage({
             </div>
           ) : (
             <>
-              {/* ── Hero stat + insight ──────────────────────────────────────── */}
+              {/* ── Hero ─────────────────────────────────────────────────────── */}
               <div className="hero-gradient rounded-3xl p-5 text-white">
-                <div className="lg:flex lg:items-start lg:gap-8">
-                  {/* Total */}
-                  <div className="lg:flex-1">
+
+                {/* Fila 1: Total + chips peak/low */}
+                <div className="flex items-start justify-between gap-4">
+                  <div>
                     <p className="text-[10px] text-white/60 font-semibold uppercase tracking-widest mb-1">Total gastado en {year}</p>
                     <p className="text-3xl font-extrabold text-white tabular-nums leading-tight">{formatCLP(anualGrandTotal)}</p>
                     <p className="text-xs text-white/50 mt-1">Promedio mensual: {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
                   </div>
-
-                  {/* Insights anuales */}
                   {(peakRow || lowRow) && (
-                    <div className="mt-4 lg:mt-0 flex gap-3 lg:flex-col lg:gap-2 lg:flex-shrink-0">
+                    <div className="flex gap-2 flex-shrink-0">
                       {peakRow && (
-                        <div className="flex-1 lg:flex-none bg-white/15 rounded-2xl px-3 py-2.5">
+                        <div className="bg-white/15 rounded-2xl px-3 py-2.5 text-right">
                           <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más alto</p>
                           <p className="text-sm font-extrabold text-white leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
-                          <p className="text-xs text-white/60 tabular-nums">{formatCLP(peakRow.total)}</p>
+                          <p className="text-[10px] text-white/60 tabular-nums">{formatCLP(peakRow.total)}</p>
                         </div>
                       )}
                       {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
-                        <div className="flex-1 lg:flex-none bg-white/15 rounded-2xl px-3 py-2.5">
+                        <div className="bg-white/15 rounded-2xl px-3 py-2.5 text-right">
                           <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más bajo</p>
                           <p className="text-sm font-extrabold text-emerald-300 leading-tight">{anualMonthLabels[lowRow.monthNum - 1]}</p>
-                          <p className="text-xs text-white/60 tabular-nums">{formatCLP(lowRow.total)}</p>
+                          <p className="text-[10px] text-white/60 tabular-nums">{formatCLP(lowRow.total)}</p>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Barra de distribución por categoría */}
+                {/* Fila 2: Barras mensuales (rellena el espacio muerto y muestra patrones) */}
+                <div className="mt-5">
+                  <p className="text-[10px] text-white/50 font-semibold mb-2.5">Gasto mes a mes</p>
+                  <div className="flex items-end gap-1" style={{ height: '64px' }}>
+                    {anualRows.map(row => {
+                      const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                      const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                      const isPeakBar    = peakRow?.monthNum === row.monthNum
+                      const maxBarH      = 48
+                      const barH         = row.total > 0
+                        ? Math.max(4, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH))
+                        : 2
+                      const lbl = anualShortLabels[row.monthNum - 1]
+                      return (
+                        <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: '64px' }}>
+                          {isPeakBar && (
+                            <span className="text-[8px] text-white/65 tabular-nums font-bold leading-none mb-0.5">
+                              {row.total >= 1_000_000 ? `${(row.total/1_000_000).toFixed(1)}M` : `${Math.round(row.total/1000)}k`}
+                            </span>
+                          )}
+                          <div
+                            className="w-full rounded-sm transition-all"
+                            style={{
+                              height: `${isFutureBar ? 2 : barH}px`,
+                              backgroundColor: isFutureBar    ? 'rgba(255,255,255,0.08)'
+                                : isPeakBar    ? 'rgba(255,255,255,0.95)'
+                                : isCurrentBar ? 'rgba(255,255,255,0.70)'
+                                : row.total === 0 ? 'rgba(255,255,255,0.12)'
+                                : 'rgba(255,255,255,0.38)',
+                            }}
+                          />
+                          <span className={`text-[9px] leading-none font-medium ${
+                            isCurrentBar ? 'text-white font-bold' : isFutureBar ? 'text-white/20' : 'text-white/45'
+                          }`}>{lbl}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Fila 3: Distribución por categoría */}
                 {anualCats.length > 0 && (
-                  <div className="mt-4">
+                  <div className="mt-4 pt-4 border-t border-white/10">
                     <p className="text-[10px] text-white/50 font-semibold mb-2">Distribución por categoría</p>
-                    <div className="flex h-3 rounded-full overflow-hidden gap-px">
+                    <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
                       {anualCats.map(c => {
                         const pctVal = Math.round((c.total / anualGrandTotal) * 100)
                         return pctVal > 0 ? (
@@ -389,39 +443,30 @@ export default async function AnalisisPage({
 
               {/* ── Tabla mes × categoría ────────────────────────────────────── */}
               <div className="card overflow-hidden">
-                {/* Header de la tabla */}
-                <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">Desglose mensual</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Cada celda muestra cuánto gastaste en esa categoría ese mes.
-                      <span className="ml-1.5 inline-flex items-center gap-1">
-                        Más oscuro
-                        <span className="inline-flex gap-0.5">
-                          {[0.15, 0.35, 0.6, 0.85].map((op, i) => (
-                            <span key={i} className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#1B6DD4', opacity: op }} />
-                          ))}
-                        </span>
-                        = más gasto
-                      </span>
-                    </p>
-                  </div>
+                <div className="px-4 py-3 border-b border-gray-50">
+                  <p className="text-sm font-bold text-gray-800">Desglose mensual</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Toca un mes para ver el detalle · La intensidad del color indica el peso relativo en cada categoría</p>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b-2 border-gray-100 bg-gray-50/50">
-                        <th className="text-left px-4 py-3 font-bold text-gray-500 sticky left-0 bg-gray-50/80 min-w-[72px]">Mes</th>
+                        <th className="text-left px-4 py-3 font-bold text-gray-500 sticky left-0 bg-gray-50/80 min-w-[104px]">Mes</th>
                         {anualCats.map(c => (
-                          <th key={c.id} className="px-3 py-3 text-right min-w-[100px]">
+                          <th key={c.id} className="px-3 py-3 text-right min-w-[88px]">
                             <div className="flex items-center justify-end gap-1.5">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                              <span className="font-bold text-gray-700 truncate max-w-[80px]" title={c.name}>{c.name}</span>
+                              <span className="font-bold text-gray-700 truncate max-w-[68px]" title={c.name}>{c.name}</span>
                             </div>
                           </th>
                         ))}
-                        <th className="px-4 py-3 font-bold text-gray-700 text-right min-w-[100px] border-l border-gray-100">Total mes</th>
+                        {hasOtros && (
+                          <th className="px-3 py-3 text-right min-w-[72px]">
+                            <span className="font-bold text-gray-400">Otros</span>
+                          </th>
+                        )}
+                        <th className="px-4 py-3 font-bold text-gray-700 text-right min-w-[120px] border-l border-gray-100">Total mes</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -430,29 +475,38 @@ export default async function AnalisisPage({
                         const isFuture   = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
                         const isPeak     = peakRow?.monthNum === row.monthNum
                         const isEmpty    = row.total === 0
+                        const catTotal   = anualCats.reduce((s, c) => s + (row.byCategory[c.id] ?? 0), 0)
+                        const otros      = row.total - catTotal
+                        const barPct     = peakRow && peakRow.total > 0 ? Math.round((row.total / peakRow.total) * 100) : 0
+                        const yearPct    = anualGrandTotal > 0 ? Math.round((row.total / anualGrandTotal) * 100) : 0
 
-                        if (isFuture) return null // no mostrar meses futuros
+                        if (isFuture) return null
 
                         return (
                           <tr
                             key={row.monthNum}
                             className={`border-b border-gray-50 last:border-0 transition-colors ${isCurrentM ? 'bg-blue-50/60 dark:bg-blue-950/20' : 'hover:bg-gray-50/50'}`}
                           >
-                            {/* Mes label */}
-                            <td className={`px-4 py-3 font-semibold sticky left-0 text-[13px] ${
-                              isCurrentM ? 'bg-blue-50/80 text-brand-700' : isEmpty ? 'bg-white text-gray-300' : 'bg-white text-gray-700'
+                            {/* Mes — clickable */}
+                            <td className={`px-4 py-3 sticky left-0 text-[13px] ${
+                              isCurrentM ? 'bg-blue-50/80' : 'bg-white dark:bg-[#0d1b2e]'
                             }`}>
-                              <div className="flex items-center gap-1.5">
+                              <Link
+                                href={`/analisis?month=${row.monthNum}&year=${year}`}
+                                className={`flex items-center gap-1.5 font-semibold hover:underline underline-offset-2 ${
+                                  isCurrentM ? 'text-brand-700' : isEmpty ? 'text-gray-300' : 'text-gray-700'
+                                }`}
+                              >
                                 {anualMonthLabels[row.monthNum - 1]}
                                 {isCurrentM && <span className="text-[10px] font-bold text-brand-500 bg-brand-100 px-1.5 py-0.5 rounded-full">Actual</span>}
                                 {isPeak && !isCurrentM && <span className="text-[10px]">🔺</span>}
-                              </div>
+                              </Link>
                             </td>
 
                             {/* Celdas por categoría */}
                             {anualCats.map(c => {
-                              const val     = row.byCategory[c.id] ?? 0
-                              const opacity = val > 0 ? 0.12 + (val / anualColMax[c.id]) * 0.7 : 0
+                              const val       = row.byCategory[c.id] ?? 0
+                              const opacity   = val > 0 ? 0.12 + (val / anualColMax[c.id]) * 0.7 : 0
                               const isColPeak = val > 0 && val === anualColMax[c.id] && pastRows.length > 1
                               return (
                                 <td key={c.id} className="px-3 py-3 text-right tabular-nums" style={{ position: 'relative' }}>
@@ -463,40 +517,65 @@ export default async function AnalisisPage({
                                     />
                                   )}
                                   <span className={`relative font-semibold ${
-                                    val === 0 ? 'text-gray-200'
-                                    : isColPeak ? 'text-gray-900'
-                                    : 'text-gray-700'
+                                    val === 0 ? 'text-gray-200' : isColPeak ? 'text-gray-900' : 'text-gray-700'
                                   }`}>
-                                    {val > 0
-                                      ? (val >= 1_000_000 ? `$${(val/1_000_000).toFixed(1)}M` : `$${Math.round(val/1000)}k`)
-                                      : ''}
+                                    {val > 0 ? fmtCell(val) : ''}
                                   </span>
                                 </td>
                               )
                             })}
 
-                            {/* Total fila */}
-                            <td className={`px-4 py-3 text-right tabular-nums border-l border-gray-100 ${
-                              isEmpty ? 'text-gray-200' : isPeak ? 'text-red-600 font-bold' : 'font-bold text-gray-900'
-                            }`}>
-                              {row.total > 0 ? formatCLP(row.total) : ''}
+                            {/* Otros */}
+                            {hasOtros && (
+                              <td className="px-3 py-3 text-right tabular-nums text-gray-400 font-medium">
+                                {otros > 0 ? fmtCell(otros) : ''}
+                              </td>
+                            )}
+
+                            {/* Total fila + mini barra + % */}
+                            <td className="px-4 py-3 text-right border-l border-gray-100">
+                              {row.total > 0 ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className={`tabular-nums font-bold ${isPeak ? 'text-red-600' : 'text-gray-900'}`}>
+                                    {formatCLP(row.total)}
+                                  </span>
+                                  <div className="w-full h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(0,0,0,0.06)' }}>
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{ width: `${barPct}%`, backgroundColor: isPeak ? '#EF4444' : '#1B6DD4' }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] text-gray-400 tabular-nums">{yearPct}% del año</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-200">—</span>
+                              )}
                             </td>
                           </tr>
                         )
                       })}
                     </tbody>
 
-                    {/* Footer — totales por columna */}
+                    {/* Footer — totales anuales */}
                     <tfoot>
                       <tr className="border-t-2 border-gray-200 bg-gray-50">
                         <td className="px-4 py-3 font-extrabold text-gray-700 sticky left-0 bg-gray-50 text-[13px]">Total año</td>
                         {anualCats.map(c => (
                           <td key={c.id} className="px-3 py-3 text-right font-bold tabular-nums text-gray-900">
-                            {anualCatTotals[c.id] >= 1_000_000
-                              ? `$${(anualCatTotals[c.id]/1_000_000).toFixed(1)}M`
-                              : formatCLP(anualCatTotals[c.id])}
+                            {fmtCell(anualCatTotals[c.id])}
                           </td>
                         ))}
+                        {hasOtros && (
+                          <td className="px-3 py-3 text-right font-bold tabular-nums text-gray-500">
+                            {(() => {
+                              const tot = anualRows.reduce((s, r) => {
+                                const ct = anualCats.reduce((cs, c) => cs + (r.byCategory[c.id] ?? 0), 0)
+                                return s + Math.max(0, r.total - ct)
+                              }, 0)
+                              return tot > 0 ? fmtCell(tot) : '—'
+                            })()}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-right font-extrabold tabular-nums text-base border-l border-gray-200" style={{ color: '#1B6DD4' }}>
                           {formatCLP(anualGrandTotal)}
                         </td>
@@ -505,7 +584,6 @@ export default async function AnalisisPage({
                   </table>
                 </div>
 
-                {/* Nota meses futuros */}
                 {year === now.getFullYear() && now.getMonth() < 11 && (
                   <div className="px-4 py-2.5 border-t border-gray-50 bg-gray-50/40">
                     <p className="text-[11px] text-gray-400">
