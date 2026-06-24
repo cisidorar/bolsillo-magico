@@ -910,8 +910,8 @@ export default async function AnalisisPage({
 
                     {/* Footer — totales anuales */}
                     <tfoot>
-                      <tr className="border-t border-[#D5E6FF] dark:border-[#2d4f7a]" style={{ backgroundColor: '#EEF4FF' }}>
-                        <td className="px-5 py-3.5 font-bold text-gray-600 dark:text-gray-300 sticky left-0 text-[12px] uppercase tracking-wider" style={{ backgroundColor: '#EEF4FF' }}>Total año</td>
+                      <tr className="border-t border-[#D5E6FF] dark:border-[#2d4f7a] bg-[#EEF4FF] dark:bg-[#0d1b2e]">
+                        <td className="px-5 py-3.5 font-bold text-gray-600 dark:text-gray-300 sticky left-0 text-[12px] uppercase tracking-wider bg-[#EEF4FF] dark:bg-[#0d1b2e]">Total año</td>
                         {anualCats.map(c => (
                           <td key={c.id} className="px-2 py-3.5 text-center">
                             <div className="flex flex-col items-center gap-0.5">
