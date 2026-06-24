@@ -5,7 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb, CalendarDays } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -397,7 +397,9 @@ export default async function AnalisisPage({
                     <p className="text-4xl font-extrabold tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
                     {yearDelta !== null && (
                       <div className={`mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
-                        <span>{yearDelta < 0 ? '↗' : '↑'}</span>
+                        {yearDelta < 0
+                          ? <TrendingDown className="w-3.5 h-3.5 flex-shrink-0" />
+                          : <TrendingUp   className="w-3.5 h-3.5 flex-shrink-0" />}
                         <span>{Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}</span>
                       </div>
                     )}
@@ -583,7 +585,7 @@ export default async function AnalisisPage({
               <div className="lg:hidden card p-4">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xl">🏆</span>
+                    <Trophy className="w-5 h-5 text-amber-500" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Ranking del año</p>
@@ -591,7 +593,7 @@ export default async function AnalisisPage({
                   </div>
                   {Object.keys(catSpikes).length > 0 && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 whitespace-nowrap flex-shrink-0">
-                      🚀 {Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
+                      <Zap className="w-3 h-3 flex-shrink-0" />{Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
@@ -612,7 +614,7 @@ export default async function AnalisisPage({
                             : CatIcon ? <CatIcon className="w-3.5 h-3.5" style={{ color: c.color }} /> : null}
                         </div>
                         <span className="flex-1 text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
-                        {spike && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex-shrink-0">🚀 ×{spike.multiple}</span>}
+                        {spike && <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex-shrink-0"><Zap className="w-2.5 h-2.5" />×{spike.multiple}</span>}
                         <span className="text-[10px] text-gray-400 flex-shrink-0">{pctVal}%</span>
                         <span className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums flex-shrink-0">{formatCLP(c.total)}</span>
                       </Link>
@@ -647,7 +649,7 @@ export default async function AnalisisPage({
                   </div>
                   {peakRow && (
                     <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
-                      <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Más alto 🔺</p>
+                      <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5 flex items-center gap-1">Más alto <ArrowUp className="w-2.5 h-2.5" /></p>
                       <p className="text-sm font-extrabold text-white leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
                       <p className="text-[9px] text-white/50 tabular-nums mt-0.5">{formatCLP(peakRow.total)}</p>
                     </div>
@@ -724,7 +726,7 @@ export default async function AnalisisPage({
                   </div>
                   {Object.keys(catSpikes).length > 0 && (
                     <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex-shrink-0">
-                      🚀 {Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
+                      <Zap className="w-3 h-3 flex-shrink-0" />{Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
@@ -749,8 +751,8 @@ export default async function AnalisisPage({
                           <div className="flex items-center gap-2 mb-1.5">
                             <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
                             {spike && (
-                              <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
-                                🚀 ×{spike.multiple} en {anualMonthLabels[spike.monthNum - 1].slice(0, 3)}
+                              <span className="inline-flex items-center gap-0.5 flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+                                <Zap className="w-2.5 h-2.5" />×{spike.multiple} en {anualMonthLabels[spike.monthNum - 1].slice(0, 3)}
                               </span>
                             )}
                           </div>
@@ -827,7 +829,7 @@ export default async function AnalisisPage({
                               >
                                 {anualMonthLabels[row.monthNum - 1]}
                                 {isCurrentM && <span className="text-[10px] font-bold text-brand-600 dark:text-blue-300 bg-brand-100 dark:bg-blue-900/60 px-1.5 py-0.5 rounded-full">Actual</span>}
-                                {isPeak && !isCurrentM && <span className="text-[10px]">🔺</span>}
+                                {isPeak && !isCurrentM && <ArrowUp className="w-3 h-3 text-red-400 flex-shrink-0" />}
                               </Link>
                             </td>
 
@@ -852,7 +854,7 @@ export default async function AnalisisPage({
                                         <span className="absolute inset-0 rounded-lg ring-2 ring-inset ring-orange-400 z-10 pointer-events-none" />
                                       )}
                                       {catSpikes[c.id]?.monthNum === row.monthNum && (
-                                        <span className="absolute top-1 left-1.5 text-[8px] z-10 leading-none">🚀</span>
+                                        <Zap className="absolute top-1 left-1 w-3 h-3 z-10 text-orange-400" />
                                       )}
                                       <span className={`relative font-semibold text-xs tabular-nums ${
                                         isColPeak ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100'
