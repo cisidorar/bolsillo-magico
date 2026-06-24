@@ -402,29 +402,33 @@ export default async function AnalisisPage({
                   )}
                 </div>
 
-                {/* Bar chart: más alto, barras estrechas con tops redondeados */}
-                <div className="flex items-end justify-between" style={{ height: '88px', gap: '3px' }}>
+                {/* Bar chart: barras estrechas + etiquetas verticales con nombre completo */}
+                <div className="flex items-end justify-between" style={{ gap: '3px' }}>
                   {anualRows.map(row => {
                     const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
                     const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
                     const isPeakBar    = peakRow?.monthNum === row.monthNum
-                    const maxBarH      = 64
+                    const maxBarH      = 60
                     const barH         = row.total > 0
                       ? Math.max(5, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH))
                       : 0
-                    const lbl  = anualShortLabels[row.monthNum - 1]
                     const showVal = (isPeakBar || isCurrentBar) && row.total > 0
+                    const labelColor  = isCurrentBar ? 'rgba(255,255,255,1)'
+                      : isPeakBar    ? 'rgba(255,255,255,0.75)'
+                      : isFutureBar  ? 'rgba(255,255,255,0.18)'
+                      : 'rgba(255,255,255,0.40)'
                     return (
-                      <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end" style={{ height: '88px', gap: '4px' }}>
+                      <div key={row.monthNum} className="flex-1 flex flex-col items-center" style={{ gap: '3px' }}>
                         {/* Valor encima (pico y mes actual) */}
                         <span className="text-[8px] tabular-nums font-bold leading-none" style={{
                           color: showVal ? 'rgba(255,255,255,0.72)' : 'transparent',
                           userSelect: 'none',
+                          height: '10px',
                         }}>
-                          {row.total >= 1_000_000 ? `${(row.total/1_000_000).toFixed(1)}M` : `${Math.round(row.total/1000)}k`}
+                          {formatCLP(row.total)}
                         </span>
                         {/* Barra */}
-                        <div className="flex-1 flex items-end w-full">
+                        <div style={{ height: `${maxBarH}px`, display: 'flex', alignItems: 'flex-end', width: '100%' }}>
                           {!isFutureBar ? (
                             <div style={{
                               width: 'min(20px, 100%)',
@@ -441,16 +445,20 @@ export default async function AnalisisPage({
                             <div style={{ width: 'min(20px, 100%)', height: '2px', margin: '0 auto', borderRadius: '2px', backgroundColor: 'rgba(255,255,255,0.07)' }} />
                           )}
                         </div>
-                        {/* Etiqueta mes */}
+                        {/* Etiqueta: nombre completo vertical */}
                         <span style={{
                           fontSize: '9px',
                           lineHeight: 1,
                           fontWeight: isCurrentBar ? 700 : 500,
-                          color: isCurrentBar ? 'rgba(255,255,255,1)'
-                            : isPeakBar    ? 'rgba(255,255,255,0.75)'
-                            : isFutureBar  ? 'rgba(255,255,255,0.18)'
-                            : 'rgba(255,255,255,0.42)',
-                        }}>{lbl}</span>
+                          color: labelColor,
+                          writingMode: 'vertical-rl',
+                          transform: 'rotate(180deg)',
+                          height: '52px',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}>
+                          {anualMonthLabels[row.monthNum - 1]}
+                        </span>
                       </div>
                     )
                   })}
@@ -560,8 +568,8 @@ export default async function AnalisisPage({
                 </div>
               </div>
 
-              {/* ── Tabla mes × categoría ───────────────────────────────────── */}
-              <div className="card overflow-hidden">
+              {/* ── Tabla mes × categoría — solo desktop ────────────────────── */}
+              <div className="hidden lg:block card overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-50 dark:border-[#1a2744]">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Desglose mensual</p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Toca un mes para ver el detalle · La intensidad del color indica el peso relativo en cada categoría</p>
