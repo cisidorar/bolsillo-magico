@@ -5,7 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb, CalendarDays } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -20,6 +20,7 @@ export default async function AnalisisPage({
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
   const isBilling = view === 'billing'
+  const isAnual   = view === 'anual'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
@@ -44,7 +45,7 @@ export default async function AnalisisPage({
     : new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -53,6 +54,15 @@ export default async function AnalisisPage({
       .lt('date', endDate)
       .order('date', { ascending: false }),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
+    // Fetch anual solo cuando se necesita
+    isAnual
+      ? supabase
+          .from('expenses')
+          .select('amount, date, category:categories(id, name, color, bg_color, icon)')
+          .eq('user_id', user!.id)
+          .gte('date', `${year}-01-01`)
+          .lte('date', `${year}-12-31`)
+      : Promise.resolve({ data: null }),
   ])
 
   const catBudgetMap = new Map(
@@ -187,6 +197,51 @@ export default async function AnalisisPage({
   }
   const insight = buildInsight()
 
+  // ── Vista anual: procesamiento ────────────────────────────────────────────
+  type AnualCat = { id: string; name: string; color: string; bg_color: string; icon: string; total: number }
+  type AnualRow = { monthNum: number; label: string; byCategory: Record<string, number>; total: number }
+
+  let anualCats: AnualCat[] = []
+  let anualRows: AnualRow[] = []
+  let anualGrandTotal = 0
+  let anualCatTotals: Record<string, number> = {}
+
+  if (isAnual && anualExpensesRaw) {
+    // Acumular por categoría × mes
+    const catMeta: Record<string, AnualCat> = {}
+    const monthByCat: Record<number, Record<string, number>> = {}
+
+    for (let m = 1; m <= 12; m++) monthByCat[m] = {}
+
+    for (const e of anualExpensesRaw) {
+      const cat = e.category as unknown as { id: string; name: string; color: string; bg_color: string; icon: string } | null
+      if (!cat) continue
+      const m = parseInt(e.date.split('-')[1])
+      if (!catMeta[cat.id]) catMeta[cat.id] = { ...cat, total: 0 }
+      catMeta[cat.id].total += e.amount
+      monthByCat[m][cat.id] = (monthByCat[m][cat.id] ?? 0) + e.amount
+      anualGrandTotal += e.amount
+    }
+
+    anualCats = Object.values(catMeta).sort((a, b) => b.total - a.total).slice(0, 6)
+    anualCats.forEach(c => { anualCatTotals[c.id] = c.total })
+
+    const monthLabels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    anualRows = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1
+      const rowTotal = Object.values(monthByCat[m]).reduce((s, v) => s + v, 0)
+      return { monthNum: m, label: monthLabels[i], byCategory: monthByCat[m], total: rowTotal }
+    })
+  }
+
+  // Max por columna para el heatmap
+  const anualColMax: Record<string, number> = {}
+  if (isAnual) {
+    anualCats.forEach(c => {
+      anualColMax[c.id] = Math.max(...anualRows.map(r => r.byCategory[c.id] ?? 0), 1)
+    })
+  }
+
   const viewParam = isBilling ? '&view=billing' : ''
 
   return (
@@ -198,7 +253,30 @@ export default async function AnalisisPage({
           <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
           <p className="text-sm text-gray-400 mt-0.5">Entiende en qué gastas y detecta oportunidades de ahorro.</p>
         </div>
-        <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
+        {isAnual ? (
+          /* Year nav para vista anual */
+          <div className="flex items-center gap-0.5 bg-white dark:bg-[#1a2744] border border-gray-200 dark:border-[#2d4f7a] rounded-xl shadow-sm dark:shadow-none p-0.5">
+            <Link
+              href={`/analisis?year=${year - 1}&view=anual`}
+              className="p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors"
+              aria-label="Año anterior"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            </Link>
+            <span className="text-xs font-bold text-brand-700 dark:text-blue-300 min-w-[48px] text-center px-1">
+              {year}
+            </span>
+            <Link
+              href={`/analisis?year=${year + 1}&view=anual`}
+              className={`p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
+              aria-label="Año siguiente"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            </Link>
+          </div>
+        ) : (
+          <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
+        )}
       </div>
 
       {/* Toggle */}
@@ -206,7 +284,7 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isBilling ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+            !isBilling && !isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
@@ -221,10 +299,133 @@ export default async function AnalisisPage({
           <CreditCard className="w-3.5 h-3.5" />
           Por facturación
         </Link>
+        <Link
+          href={`/analisis?year=${year}&view=anual`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+          }`}
+        >
+          <CalendarDays className="w-3.5 h-3.5" />
+          Anual
+        </Link>
       </div>
 
+      {/* ── Vista anual ────────────────────────────────────────────────────────── */}
+      {isAnual && (
+        <div>
+          {anualGrandTotal === 0 ? (
+            <div className="card text-center py-14 flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
+                <CalendarDays className="w-7 h-7 text-brand-400" />
+              </div>
+              <p className="text-sm font-bold text-gray-600">Sin gastos en {year}</p>
+              <p className="text-xs text-gray-400">Registra gastos para ver el resumen anual</p>
+            </div>
+          ) : (
+            <>
+              {/* KPI anual */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                <div className="card p-4 col-span-2 lg:col-span-1" style={{ borderColor: '#D5E6FF' }}>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total {year}</p>
+                  <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{formatCLP(anualGrandTotal)}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Promedio {formatCLP(Math.round(anualGrandTotal / 12))} / mes</p>
+                </div>
+                {anualCats.slice(0, 3).map(c => (
+                  <Link
+                    key={c.id}
+                    href={`/analisis/${c.id}?year=${year}`}
+                    className="card p-4 hover:border-brand-200 transition-colors"
+                  >
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 truncate">{c.name}</p>
+                    <p className="text-lg font-extrabold tabular-nums leading-tight" style={{ color: c.color }}>{formatCLP(c.total)}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{Math.round((c.total / anualGrandTotal) * 100)}% del total</p>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Tabla heatmap */}
+              <div className="card overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-50">
+                  <p className="text-sm font-bold text-gray-700">Gasto mensual por categoría · {year}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-50">
+                        <th className="text-left px-4 py-2.5 font-semibold text-gray-400 w-16 sticky left-0 bg-white">Mes</th>
+                        {anualCats.map(c => (
+                          <th key={c.id} className="px-3 py-2.5 font-semibold text-gray-600 text-right min-w-[90px]">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="truncate max-w-[70px]">{c.name}</span>
+                            </div>
+                          </th>
+                        ))}
+                        <th className="px-4 py-2.5 font-bold text-gray-700 text-right min-w-[90px]">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {anualRows.map((row, idx) => {
+                        const isCurrentM = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                        const isFuture   = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                        return (
+                          <tr
+                            key={row.monthNum}
+                            className={`border-b border-gray-50 last:border-0 ${isCurrentM ? 'bg-brand-50/40' : ''} ${isFuture ? 'opacity-35' : ''}`}
+                          >
+                            <td className={`px-4 py-2.5 font-semibold sticky left-0 ${isCurrentM ? 'bg-brand-50/40 text-brand-700' : 'bg-white text-gray-500'}`}>
+                              {row.label}
+                              {isCurrentM && <span className="ml-1 text-[9px] text-brand-400">◀</span>}
+                            </td>
+                            {anualCats.map(c => {
+                              const val      = row.byCategory[c.id] ?? 0
+                              const opacity  = val > 0 ? 0.1 + (val / anualColMax[c.id]) * 0.7 : 0
+                              return (
+                                <td key={c.id} className="px-3 py-2.5 text-right tabular-nums" style={{ position: 'relative' }}>
+                                  {val > 0 && (
+                                    <span
+                                      className="absolute inset-x-1 inset-y-1 rounded-lg"
+                                      style={{ backgroundColor: c.color, opacity }}
+                                    />
+                                  )}
+                                  <span className={`relative font-medium ${val > 0 ? 'text-gray-800' : 'text-gray-200'}`}>
+                                    {val > 0 ? (val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : `${Math.round(val/1000)}k`) : '—'}
+                                  </span>
+                                </td>
+                              )
+                            })}
+                            <td className="px-4 py-2.5 text-right font-bold tabular-nums text-gray-900">
+                              {row.total > 0 ? formatCLP(row.total) : <span className="text-gray-200">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-100 bg-gray-50/60">
+                        <td className="px-4 py-2.5 font-bold text-gray-700 sticky left-0 bg-gray-50/80">Total</td>
+                        {anualCats.map(c => (
+                          <td key={c.id} className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">
+                            {anualCatTotals[c.id] >= 1000000
+                              ? `${(anualCatTotals[c.id]/1000000).toFixed(1)}M`
+                              : formatCLP(anualCatTotals[c.id])}
+                          </td>
+                        ))}
+                        <td className="px-4 py-2.5 text-right font-extrabold tabular-nums" style={{ color: '#1B6DD4' }}>
+                          {formatCLP(anualGrandTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── KPI strip ──────────────────────────────────────────────────────────── */}
-      {totalSelected > 0 && (() => {
+      {!isAnual && totalSelected > 0 && (() => {
         const topExpenseData = topExpense
           ? getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
           : null
@@ -342,7 +543,7 @@ export default async function AnalisisPage({
       })()}
 
       {/* ── Insight — full width, visible without scroll ─────────────────────── */}
-      {insight && (
+      {!isAnual && insight && (
         <div className="card insight-card p-4 flex items-start gap-3 mb-5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FEF3C7' }}>
             <Lightbulb className="w-4 h-4" style={{ color: '#D97706' }} />
@@ -355,7 +556,7 @@ export default async function AnalisisPage({
       )}
 
       {/* ── Responsive 2-col on desktop (asymmetric) ─────────────────────────── */}
-      <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: '2fr 3fr' }}>
+      {!isAnual && <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: '2fr 3fr' }}>
 
         {/* ══ LEFT: tendencia + distribución + insight ═════════════════════════ */}
         <div className="space-y-5">
@@ -591,7 +792,7 @@ export default async function AnalisisPage({
         )}
         {/* ══ END RIGHT ══════════════════════════════════════════════════════ */}
 
-      </div>
+      </div>}
     </div>
   )
 }

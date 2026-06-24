@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import ImportCSV from '@/components/ImportCSV'
 import ThemeToggle from '@/components/ThemeToggle'
+import ExportForm from '@/components/ExportForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -152,21 +153,19 @@ export default async function AjustesPage() {
             <SectionHeader icon={Database} label="Datos" color="#1B6DD4" />
             <div className="card overflow-hidden divide-y divide-gray-50">
 
-              <a
-                href="/api/export"
-                download
-                className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50/70 transition-colors group"
-              >
-                <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                  <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
+              <div>
+                <div className="flex items-center gap-4 px-4 pt-4 pb-2">
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
+                    <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">Exportar gastos</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Descarga tus gastos en CSV.</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">Exportar gastos</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Descarga todos tus gastos en CSV.</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-              </a>
+                <ExportForm />
+              </div>
 
               <ImportCSV />
 
