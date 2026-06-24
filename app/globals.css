@@ -266,6 +266,29 @@
 .bar-weekend  { background-color: #A3BFE8; }
 .dark .bar-weekend  { background-color: #2a4266; }
 
+/* ── Bar chart month label: vertical en móvil, horizontal en sm+ ─────────── */
+.bar-month-label {
+  font-size: 9px;
+  line-height: 1;
+  text-align: center;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  /* Móvil: vertical */
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  height: 44px;
+}
+@media (min-width: 640px) {
+  .bar-month-label {
+    writing-mode: horizontal-tb;
+    transform: none;
+    height: auto;
+    text-overflow: ellipsis;
+  }
+}
+
 /* ── Insight card ────────────────────────────────────────────────────────── */
 .insight-card { background: #FFFBEB !important; border-color: #FDE68A !important; }
 .dark .insight-card { background: #1c1a0e !important; border-color: #44390a !important; }

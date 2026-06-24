@@ -419,8 +419,8 @@ export default async function AnalisisPage({
                       : 'rgba(255,255,255,0.40)'
                     return (
                       <div key={row.monthNum} className="flex-1 flex flex-col items-center" style={{ gap: '3px' }}>
-                        {/* Valor encima (pico y mes actual) */}
-                        <span className="text-[8px] tabular-nums font-bold leading-none" style={{
+                        {/* Valor encima (pico y mes actual) — oculto en móvil para no desbordarse */}
+                        <span className="text-[8px] tabular-nums font-bold leading-none invisible sm:visible" style={{
                           color: showVal ? 'rgba(255,255,255,0.72)' : 'transparent',
                           userSelect: 'none',
                           height: '10px',
@@ -445,18 +445,14 @@ export default async function AnalisisPage({
                             <div style={{ width: 'min(20px, 100%)', height: '2px', margin: '0 auto', borderRadius: '2px', backgroundColor: 'rgba(255,255,255,0.07)' }} />
                           )}
                         </div>
-                        {/* Etiqueta: nombre completo vertical */}
-                        <span style={{
-                          fontSize: '9px',
-                          lineHeight: 1,
-                          fontWeight: isCurrentBar ? 700 : 500,
-                          color: labelColor,
-                          writingMode: 'vertical-rl',
-                          transform: 'rotate(180deg)',
-                          height: '52px',
-                          display: 'flex',
-                          alignItems: 'center',
-                        }}>
+                        {/* Etiqueta: vertical en móvil, horizontal en sm+ */}
+                        <span
+                          className="bar-month-label"
+                          style={{
+                            fontWeight: isCurrentBar ? 700 : 500,
+                            color: labelColor,
+                          }}
+                        >
                           {anualMonthLabels[row.monthNum - 1]}
                         </span>
                       </div>
