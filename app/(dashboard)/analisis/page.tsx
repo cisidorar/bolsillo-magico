@@ -780,23 +780,26 @@ export default async function AnalisisPage({
                       </div>
                     </div>
 
-                    {/* ── Distribución por categoría — ancho completo de la tarjeta ── */}
+                    {/* ── Distribución — barra full-bleed con nombres dentro ── */}
                     {anualCats.length > 0 && (
-                      <div className="mt-5 pt-4 border-t border-white/10 -mx-7 px-7">
-                        <div className="flex rounded-full overflow-hidden" style={{ height: '6px', gap: '2px' }}>
+                      <div className="-mx-7 -mb-6 mt-4 border-t border-white/10">
+                        <div className="flex overflow-hidden rounded-b-3xl" style={{ height: '44px' }}>
                           {anualCats.map(c => {
-                            const pct = anualGrandTotal > 0 ? (c.total / anualGrandTotal) : 0
-                            return pct > 0 ? <div key={c.id} style={{ flex: pct, backgroundColor: c.color, minWidth: '2px' }} title={`${c.name}: ${Math.round(pct * 100)}%`} /> : null
-                          })}
-                        </div>
-                        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
-                          {anualCats.map(c => {
-                            const pct = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
+                            const pct = anualGrandTotal > 0 ? c.total / anualGrandTotal : 0
+                            const pctRounded = Math.round(pct * 100)
+                            if (pct < 0.01) return null
                             return (
-                              <div key={c.id} className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                                <span className="text-[10px] text-white/70 font-semibold">{c.name}</span>
-                                <span className="text-[10px] text-white/35 font-medium">{pct}%</span>
+                              <div
+                                key={c.id}
+                                className="flex items-center justify-center overflow-hidden flex-shrink-0"
+                                style={{ flex: pct, backgroundColor: c.color }}
+                                title={`${c.name}: ${pctRounded}%`}
+                              >
+                                {pctRounded >= 7 && (
+                                  <span className="text-white text-[10px] font-bold whitespace-nowrap px-2 leading-none drop-shadow">
+                                    {c.name} <span className="opacity-70">{pctRounded}%</span>
+                                  </span>
+                                )}
                               </div>
                             )
                           })}
