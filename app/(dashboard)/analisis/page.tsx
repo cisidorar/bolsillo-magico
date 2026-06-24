@@ -785,30 +785,33 @@ export default async function AnalisisPage({
 
               {/* D3 — Tabla mes × categoría — solo desktop */}
               <div className="hidden lg:block card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-50 dark:border-[#1a2744]">
+                <div className="px-5 py-4 flex items-center justify-between border-b border-[#D5E6FF] dark:border-[#1a2744]">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Desglose mensual</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Toca un mes para ver el detalle · La intensidad del color indica el peso relativo en cada categoría</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">La intensidad del color indica el peso relativo en cada categoría</p>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b-2 border-gray-100 dark:border-[#2d4f7a] bg-gray-50/50 dark:bg-[#0d1b2e]">
-                        <th className="text-left px-4 py-3 font-bold text-gray-500 dark:text-gray-400 sticky left-0 bg-gray-50/80 dark:bg-[#0d1b2e] min-w-[104px]">Mes</th>
+                      <tr className="border-b border-[#D5E6FF] dark:border-[#1a2744]">
+                        <th className="text-left px-5 py-3.5 font-semibold text-gray-400 dark:text-gray-500 sticky left-0 bg-white dark:bg-[#0d1b2e] min-w-[110px] text-[11px] uppercase tracking-wider">Mes</th>
                         {anualCats.map(c => (
-                          <th key={c.id} className="px-3 py-3 text-right min-w-[88px]">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <th key={c.id} className="px-2 py-3.5 text-center min-w-[100px]">
+                            <div className="flex flex-col items-center gap-1">
                               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                              <span className="font-bold text-gray-700 dark:text-gray-300 truncate max-w-[68px]" title={c.name}>{c.name}</span>
+                              <span className="font-semibold text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[84px] uppercase tracking-wide" title={c.name}>{c.name}</span>
                             </div>
                           </th>
                         ))}
                         {hasOtros && (
-                          <th className="px-3 py-3 text-right min-w-[72px]">
-                            <span className="font-bold text-gray-400 dark:text-gray-500">Otros</span>
+                          <th className="px-2 py-3.5 text-center min-w-[80px]">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0 bg-gray-300 dark:bg-gray-600" />
+                              <span className="font-semibold text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">Otros</span>
+                            </div>
                           </th>
                         )}
-                        <th className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300 text-right min-w-[120px] border-l border-gray-100 dark:border-[#2d4f7a]">Total mes</th>
+                        <th className="px-5 py-3.5 font-semibold text-[11px] text-gray-400 dark:text-gray-500 text-right min-w-[130px] border-l border-[#D5E6FF] dark:border-[#1a2744] uppercase tracking-wider">Total mes</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -819,7 +822,6 @@ export default async function AnalisisPage({
                         const isEmpty    = row.total === 0
                         const catTotal   = anualCats.reduce((s, c) => s + (row.byCategory[c.id] ?? 0), 0)
                         const otros      = row.total - catTotal
-                        const barPct     = peakRow && peakRow.total > 0 ? Math.round((row.total / peakRow.total) * 100) : 0
                         const yearPct    = anualGrandTotal > 0 ? Math.round((row.total / anualGrandTotal) * 100) : 0
 
                         if (isFuture) return null
@@ -827,20 +829,20 @@ export default async function AnalisisPage({
                         return (
                           <tr
                             key={row.monthNum}
-                            className={`border-b border-gray-50 dark:border-[#1a2744] last:border-0 transition-colors ${isCurrentM ? 'bg-blue-50/60 dark:bg-blue-950/30' : 'hover:bg-gray-50/50 dark:hover:bg-white/5'}`}
+                            className={`border-b border-[#EEF4FF] dark:border-[#1a2744] last:border-0 transition-colors ${isCurrentM ? 'bg-[#EEF4FF] dark:bg-blue-950/20' : 'hover:bg-gray-50/70 dark:hover:bg-white/3'}`}
                           >
                             {/* Mes — clickable */}
-                            <td className={`px-4 py-3 sticky left-0 text-[13px] ${
-                              isCurrentM ? 'bg-blue-50/80 dark:bg-blue-950/50' : 'bg-white dark:bg-[#0d1b2e]'
+                            <td className={`px-5 py-3.5 sticky left-0 ${
+                              isCurrentM ? 'bg-[#EEF4FF] dark:bg-blue-950/30' : 'bg-white dark:bg-[#0d1b2e]'
                             }`}>
                               <Link
                                 href={`/analisis?month=${row.monthNum}&year=${year}`}
-                                className={`flex items-center gap-1.5 font-semibold hover:underline underline-offset-2 ${
-                                  isCurrentM ? 'text-brand-700 dark:text-blue-300' : isEmpty ? 'text-gray-300 dark:text-gray-600' : 'text-gray-700 dark:text-gray-200'
+                                className={`flex items-center gap-2 font-semibold text-[13px] hover:underline underline-offset-2 ${
+                                  isCurrentM ? 'text-[#1B6DD4]' : isEmpty ? 'text-gray-300 dark:text-gray-600' : 'text-gray-700 dark:text-gray-200'
                                 }`}
                               >
                                 {anualMonthLabels[row.monthNum - 1]}
-                                {isCurrentM && <span className="text-[10px] font-bold text-brand-600 dark:text-blue-300 bg-brand-100 dark:bg-blue-900/60 px-1.5 py-0.5 rounded-full">Actual</span>}
+                                {isCurrentM && <span className="text-[9px] font-bold text-[#1B6DD4] bg-[#D5E6FF] dark:bg-blue-900/60 dark:text-blue-300 px-1.5 py-0.5 rounded-full tracking-wide uppercase">Actual</span>}
                                 {isPeak && !isCurrentM && <ArrowUp className="w-3 h-3 text-red-400 flex-shrink-0" />}
                               </Link>
                             </td>
@@ -848,34 +850,30 @@ export default async function AnalisisPage({
                             {/* Celdas por categoría — clicables */}
                             {anualCats.map(c => {
                               const val       = row.byCategory[c.id] ?? 0
-                              const opacity   = val > 0 ? 0.12 + (val / anualColMax[c.id]) * 0.7 : 0
-                              const isColPeak = val > 0 && val === anualColMax[c.id] && pastRows.length > 1
+                              const opacity   = val > 0 ? 0.10 + (val / anualColMax[c.id]) * 0.65 : 0
+                              const isSpike   = catSpikes[c.id]?.monthNum === row.monthNum
                               return (
-                                <td key={c.id} className="p-1.5">
+                                <td key={c.id} className="px-1.5 py-1.5">
                                   {val > 0 ? (
                                     <Link
                                       href={`/analisis/${c.id}?month=${row.monthNum}&year=${year}`}
-                                      className="relative flex items-center justify-end px-2.5 py-2.5 rounded-lg overflow-hidden group min-h-[36px]"
+                                      className="relative flex flex-col items-end justify-center px-3 py-2.5 rounded-xl overflow-hidden group min-h-[40px] gap-0.5"
                                     >
                                       <span
-                                        className="absolute inset-0 rounded-lg transition-opacity group-hover:opacity-80"
+                                        className="absolute inset-0 rounded-xl transition-opacity group-hover:opacity-90"
                                         style={{ backgroundColor: c.color, opacity }}
                                       />
-                                      {/* Spike indicator: ring naranja inset */}
-                                      {catSpikes[c.id]?.monthNum === row.monthNum && (
-                                        <span className="absolute inset-0 rounded-lg ring-2 ring-inset ring-orange-400 z-10 pointer-events-none" />
+                                      {isSpike && (
+                                        <span className="relative flex items-center gap-0.5 text-[9px] font-bold text-orange-500 dark:text-orange-400 leading-none mb-0.5">
+                                          <Zap className="w-2.5 h-2.5" />pico
+                                        </span>
                                       )}
-                                      {catSpikes[c.id]?.monthNum === row.monthNum && (
-                                        <Zap className="absolute top-1 left-1 w-3 h-3 z-10 text-orange-400" />
-                                      )}
-                                      <span className={`relative font-semibold text-xs tabular-nums ${
-                                        isColPeak ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100'
-                                      }`}>
+                                      <span className="relative font-bold text-[12px] tabular-nums text-gray-800 dark:text-gray-100 leading-none">
                                         {formatCLP(val)}
                                       </span>
                                     </Link>
                                   ) : (
-                                    <div className="min-h-[36px]" />
+                                    <div className="min-h-[40px]" />
                                   )}
                                 </td>
                               )
@@ -883,25 +881,23 @@ export default async function AnalisisPage({
 
                             {/* Otros */}
                             {hasOtros && (
-                              <td className="px-3 py-3 text-right tabular-nums text-gray-400 dark:text-gray-500 font-medium">
+                              <td className="px-3 py-3.5 text-right tabular-nums text-gray-400 dark:text-gray-500 font-medium text-[12px]">
                                 {otros > 0 ? formatCLP(otros) : ''}
                               </td>
                             )}
 
-                            {/* Total fila + mini barra + % */}
-                            <td className="px-4 py-3 text-right border-l border-gray-100 dark:border-[#2d4f7a]">
+                            {/* Total fila + % */}
+                            <td className="px-5 py-3.5 text-right border-l border-[#EEF4FF] dark:border-[#1a2744]">
                               {row.total > 0 ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <span className={`tabular-nums font-bold ${isPeak ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className={`tabular-nums font-bold text-[13px] ${isPeak ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
                                     {formatCLP(row.total)}
                                   </span>
-                                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-black/5 dark:bg-white/10">
-                                    <div
-                                      className="h-full rounded-full"
-                                      style={{ width: `${barPct}%`, backgroundColor: isPeak ? '#EF4444' : '#1B6DD4' }}
-                                    />
-                                  </div>
-                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">{yearPct}% del año</span>
+                                  <span className={`text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-full ${
+                                    isPeak
+                                      ? 'text-red-500 bg-red-50 dark:bg-red-950/40'
+                                      : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/8'
+                                  }`}>{yearPct}%</span>
                                 </div>
                               ) : (
                                 <span className="text-gray-300 dark:text-gray-600">—</span>
@@ -914,15 +910,22 @@ export default async function AnalisisPage({
 
                     {/* Footer — totales anuales */}
                     <tfoot>
-                      <tr className="border-t-2 border-gray-200 dark:border-[#2d4f7a] bg-gray-50 dark:bg-[#0d1b2e]">
-                        <td className="px-4 py-3 font-extrabold text-gray-700 dark:text-gray-200 sticky left-0 bg-gray-50 dark:bg-[#0d1b2e] text-[13px]">Total año</td>
+                      <tr className="border-t border-[#D5E6FF] dark:border-[#2d4f7a]" style={{ backgroundColor: '#EEF4FF' }}>
+                        <td className="px-5 py-3.5 font-bold text-gray-600 dark:text-gray-300 sticky left-0 text-[12px] uppercase tracking-wider" style={{ backgroundColor: '#EEF4FF' }}>Total año</td>
                         {anualCats.map(c => (
-                          <td key={c.id} className="px-3 py-3 text-right font-bold tabular-nums text-gray-900 dark:text-gray-100">
-                            {formatCLP(anualCatTotals[c.id])}
+                          <td key={c.id} className="px-2 py-3.5 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="font-bold tabular-nums text-[12px] text-gray-800 dark:text-gray-100">
+                                {formatCLP(anualCatTotals[c.id])}
+                              </span>
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+                                {anualGrandTotal > 0 ? Math.round((anualCatTotals[c.id] / anualGrandTotal) * 100) : 0}%
+                              </span>
+                            </div>
                           </td>
                         ))}
                         {hasOtros && (
-                          <td className="px-3 py-3 text-right font-bold tabular-nums text-gray-500 dark:text-gray-400">
+                          <td className="px-3 py-3.5 text-center font-bold tabular-nums text-[12px] text-gray-500 dark:text-gray-400">
                             {(() => {
                               const tot = anualRows.reduce((s, r) => {
                                 const ct = anualCats.reduce((cs, c) => cs + (r.byCategory[c.id] ?? 0), 0)
@@ -932,8 +935,10 @@ export default async function AnalisisPage({
                             })()}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-right font-extrabold tabular-nums text-base border-l border-gray-200 dark:border-[#2d4f7a]" style={{ color: '#1B6DD4' }}>
-                          {formatCLP(anualGrandTotal)}
+                        <td className="px-5 py-3.5 text-right border-l border-[#D5E6FF] dark:border-[#2d4f7a]">
+                          <span className="font-extrabold tabular-nums text-base" style={{ color: '#1B6DD4' }}>
+                            {formatCLP(anualGrandTotal)}
+                          </span>
                         </td>
                       </tr>
                     </tfoot>
@@ -941,9 +946,9 @@ export default async function AnalisisPage({
                 </div>
 
                 {year === now.getFullYear() && now.getMonth() < 11 && (
-                  <div className="px-4 py-2.5 border-t border-gray-50 dark:border-[#1a2744] bg-gray-50/40 dark:bg-transparent">
+                  <div className="px-5 py-2.5 border-t border-[#EEF4FF] dark:border-[#1a2744]">
                     <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                      Se muestran solo los meses con datos. Los meses restantes de {year} aparecerán cuando los registres.
+                      Los meses restantes de {year} aparecerán cuando los registres.
                     </p>
                   </div>
                 )}
