@@ -2,17 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, List, Settings, Plus, RefreshCw, BarChart2 } from 'lucide-react'
+import { Home, List, Settings, Plus, BarChart2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 
 const navItems = [
-  { href: '/inicio',      icon: Home,      label: 'Inicio'      },
-  { href: '/historial',   icon: List,      label: 'Historial'   },
+  { href: '/inicio',    icon: Home,      label: 'Inicio'    },
+  { href: '/historial', icon: List,      label: 'Historial' },
   null, // FAB
-  { href: '/recurrentes', icon: RefreshCw, label: 'Recurrentes' },
-  { href: '/ajustes',     icon: Settings,  label: 'Ajustes'     },
+  { href: '/analisis',  icon: BarChart2, label: 'Análisis'  },
+  { href: '/ajustes',   icon: Settings,  label: 'Ajustes'   },
 ]
 
 export default function BottomNav() {
