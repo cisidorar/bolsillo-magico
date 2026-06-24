@@ -242,6 +242,12 @@ export default async function AnalisisPage({
     })
   }
 
+  // Insights anuales
+  const pastRows = isAnual ? anualRows.filter(r => r.total > 0) : []
+  const peakRow  = pastRows.length > 0 ? pastRows.reduce((a, b) => b.total > a.total ? b : a, pastRows[0]) : null
+  const lowRow   = pastRows.length > 1 ? pastRows.reduce((a, b) => b.total < a.total ? b : a, pastRows[0]) : null
+  const anualMonthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
   const viewParam = isBilling ? '&view=billing' : ''
 
   return (
@@ -312,7 +318,7 @@ export default async function AnalisisPage({
 
       {/* ── Vista anual ────────────────────────────────────────────────────────── */}
       {isAnual && (
-        <div>
+        <div className="space-y-4">
           {anualGrandTotal === 0 ? (
             <div className="card text-center py-14 flex flex-col items-center gap-3">
               <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
@@ -323,101 +329,190 @@ export default async function AnalisisPage({
             </div>
           ) : (
             <>
-              {/* KPI anual */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                <div className="card p-4 col-span-2 lg:col-span-1" style={{ borderColor: '#D5E6FF' }}>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total {year}</p>
-                  <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{formatCLP(anualGrandTotal)}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Promedio {formatCLP(Math.round(anualGrandTotal / 12))} / mes</p>
+              {/* ── Hero stat + insight ──────────────────────────────────────── */}
+              <div className="hero-gradient rounded-3xl p-5 text-white">
+                <div className="lg:flex lg:items-start lg:gap-8">
+                  {/* Total */}
+                  <div className="lg:flex-1">
+                    <p className="text-[10px] text-white/60 font-semibold uppercase tracking-widest mb-1">Total gastado en {year}</p>
+                    <p className="text-3xl font-extrabold text-white tabular-nums leading-tight">{formatCLP(anualGrandTotal)}</p>
+                    <p className="text-xs text-white/50 mt-1">Promedio mensual: {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                  </div>
+
+                  {/* Insights anuales */}
+                  {(peakRow || lowRow) && (
+                    <div className="mt-4 lg:mt-0 flex gap-3 lg:flex-col lg:gap-2 lg:flex-shrink-0">
+                      {peakRow && (
+                        <div className="flex-1 lg:flex-none bg-white/15 rounded-2xl px-3 py-2.5">
+                          <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más alto</p>
+                          <p className="text-sm font-extrabold text-white leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
+                          <p className="text-xs text-white/60 tabular-nums">{formatCLP(peakRow.total)}</p>
+                        </div>
+                      )}
+                      {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
+                        <div className="flex-1 lg:flex-none bg-white/15 rounded-2xl px-3 py-2.5">
+                          <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más bajo</p>
+                          <p className="text-sm font-extrabold text-emerald-300 leading-tight">{anualMonthLabels[lowRow.monthNum - 1]}</p>
+                          <p className="text-xs text-white/60 tabular-nums">{formatCLP(lowRow.total)}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {anualCats.slice(0, 3).map(c => (
-                  <Link
-                    key={c.id}
-                    href={`/analisis/${c.id}?year=${year}`}
-                    className="card p-4 hover:border-brand-200 transition-colors"
-                  >
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 truncate">{c.name}</p>
-                    <p className="text-lg font-extrabold tabular-nums leading-tight" style={{ color: c.color }}>{formatCLP(c.total)}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{Math.round((c.total / anualGrandTotal) * 100)}% del total</p>
-                  </Link>
-                ))}
+
+                {/* Barra de distribución por categoría */}
+                {anualCats.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-[10px] text-white/50 font-semibold mb-2">Distribución por categoría</p>
+                    <div className="flex h-3 rounded-full overflow-hidden gap-px">
+                      {anualCats.map(c => {
+                        const pctVal = Math.round((c.total / anualGrandTotal) * 100)
+                        return pctVal > 0 ? (
+                          <div key={c.id} style={{ width: `${pctVal}%`, backgroundColor: c.color }} title={`${c.name}: ${pctVal}%`} />
+                        ) : null
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                      {anualCats.map(c => {
+                        const pctVal = Math.round((c.total / anualGrandTotal) * 100)
+                        return (
+                          <div key={c.id} className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                            <span className="text-[10px] text-white/70 font-medium">{c.name} {pctVal}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Tabla heatmap */}
+              {/* ── Tabla mes × categoría ────────────────────────────────────── */}
               <div className="card overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-50">
-                  <p className="text-sm font-bold text-gray-700">Gasto mensual por categoría · {year}</p>
+                {/* Header de la tabla */}
+                <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Desglose mensual</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Cada celda muestra cuánto gastaste en esa categoría ese mes.
+                      <span className="ml-1.5 inline-flex items-center gap-1">
+                        Más oscuro
+                        <span className="inline-flex gap-0.5">
+                          {[0.15, 0.35, 0.6, 0.85].map((op, i) => (
+                            <span key={i} className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#1B6DD4', opacity: op }} />
+                          ))}
+                        </span>
+                        = más gasto
+                      </span>
+                    </p>
+                  </div>
                 </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-gray-50">
-                        <th className="text-left px-4 py-2.5 font-semibold text-gray-400 w-16 sticky left-0 bg-white">Mes</th>
+                      <tr className="border-b-2 border-gray-100 bg-gray-50/50">
+                        <th className="text-left px-4 py-3 font-bold text-gray-500 sticky left-0 bg-gray-50/80 min-w-[72px]">Mes</th>
                         {anualCats.map(c => (
-                          <th key={c.id} className="px-3 py-2.5 font-semibold text-gray-600 text-right min-w-[90px]">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                              <span className="truncate max-w-[70px]">{c.name}</span>
+                          <th key={c.id} className="px-3 py-3 text-right min-w-[100px]">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="font-bold text-gray-700 truncate max-w-[80px]" title={c.name}>{c.name}</span>
                             </div>
                           </th>
                         ))}
-                        <th className="px-4 py-2.5 font-bold text-gray-700 text-right min-w-[90px]">Total</th>
+                        <th className="px-4 py-3 font-bold text-gray-700 text-right min-w-[100px] border-l border-gray-100">Total mes</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {anualRows.map((row, idx) => {
+                      {anualRows.map(row => {
                         const isCurrentM = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
                         const isFuture   = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                        const isPeak     = peakRow?.monthNum === row.monthNum
+                        const isEmpty    = row.total === 0
+
+                        if (isFuture) return null // no mostrar meses futuros
+
                         return (
                           <tr
                             key={row.monthNum}
-                            className={`border-b border-gray-50 last:border-0 ${isCurrentM ? 'bg-brand-50/40' : ''} ${isFuture ? 'opacity-35' : ''}`}
+                            className={`border-b border-gray-50 last:border-0 transition-colors ${isCurrentM ? 'bg-blue-50/60 dark:bg-blue-950/20' : 'hover:bg-gray-50/50'}`}
                           >
-                            <td className={`px-4 py-2.5 font-semibold sticky left-0 ${isCurrentM ? 'bg-brand-50/40 text-brand-700' : 'bg-white text-gray-500'}`}>
-                              {row.label}
-                              {isCurrentM && <span className="ml-1 text-[9px] text-brand-400">◀</span>}
+                            {/* Mes label */}
+                            <td className={`px-4 py-3 font-semibold sticky left-0 text-[13px] ${
+                              isCurrentM ? 'bg-blue-50/80 text-brand-700' : isEmpty ? 'bg-white text-gray-300' : 'bg-white text-gray-700'
+                            }`}>
+                              <div className="flex items-center gap-1.5">
+                                {anualMonthLabels[row.monthNum - 1]}
+                                {isCurrentM && <span className="text-[10px] font-bold text-brand-500 bg-brand-100 px-1.5 py-0.5 rounded-full">Actual</span>}
+                                {isPeak && !isCurrentM && <span className="text-[10px]">🔺</span>}
+                              </div>
                             </td>
+
+                            {/* Celdas por categoría */}
                             {anualCats.map(c => {
-                              const val      = row.byCategory[c.id] ?? 0
-                              const opacity  = val > 0 ? 0.1 + (val / anualColMax[c.id]) * 0.7 : 0
+                              const val     = row.byCategory[c.id] ?? 0
+                              const opacity = val > 0 ? 0.12 + (val / anualColMax[c.id]) * 0.7 : 0
+                              const isColPeak = val > 0 && val === anualColMax[c.id] && pastRows.length > 1
                               return (
-                                <td key={c.id} className="px-3 py-2.5 text-right tabular-nums" style={{ position: 'relative' }}>
+                                <td key={c.id} className="px-3 py-3 text-right tabular-nums" style={{ position: 'relative' }}>
                                   {val > 0 && (
                                     <span
-                                      className="absolute inset-x-1 inset-y-1 rounded-lg"
+                                      className="absolute inset-x-1.5 inset-y-1 rounded-lg"
                                       style={{ backgroundColor: c.color, opacity }}
                                     />
                                   )}
-                                  <span className={`relative font-medium ${val > 0 ? 'text-gray-800' : 'text-gray-200'}`}>
-                                    {val > 0 ? (val >= 1000000 ? `${(val/1000000).toFixed(1)}M` : `${Math.round(val/1000)}k`) : '—'}
+                                  <span className={`relative font-semibold ${
+                                    val === 0 ? 'text-gray-200'
+                                    : isColPeak ? 'text-gray-900'
+                                    : 'text-gray-700'
+                                  }`}>
+                                    {val > 0
+                                      ? (val >= 1_000_000 ? `$${(val/1_000_000).toFixed(1)}M` : `$${Math.round(val/1000)}k`)
+                                      : ''}
                                   </span>
                                 </td>
                               )
                             })}
-                            <td className="px-4 py-2.5 text-right font-bold tabular-nums text-gray-900">
-                              {row.total > 0 ? formatCLP(row.total) : <span className="text-gray-200">—</span>}
+
+                            {/* Total fila */}
+                            <td className={`px-4 py-3 text-right tabular-nums border-l border-gray-100 ${
+                              isEmpty ? 'text-gray-200' : isPeak ? 'text-red-600 font-bold' : 'font-bold text-gray-900'
+                            }`}>
+                              {row.total > 0 ? formatCLP(row.total) : ''}
                             </td>
                           </tr>
                         )
                       })}
                     </tbody>
+
+                    {/* Footer — totales por columna */}
                     <tfoot>
-                      <tr className="border-t-2 border-gray-100 bg-gray-50/60">
-                        <td className="px-4 py-2.5 font-bold text-gray-700 sticky left-0 bg-gray-50/80">Total</td>
+                      <tr className="border-t-2 border-gray-200 bg-gray-50">
+                        <td className="px-4 py-3 font-extrabold text-gray-700 sticky left-0 bg-gray-50 text-[13px]">Total año</td>
                         {anualCats.map(c => (
-                          <td key={c.id} className="px-3 py-2.5 text-right font-bold tabular-nums text-gray-900">
-                            {anualCatTotals[c.id] >= 1000000
-                              ? `${(anualCatTotals[c.id]/1000000).toFixed(1)}M`
+                          <td key={c.id} className="px-3 py-3 text-right font-bold tabular-nums text-gray-900">
+                            {anualCatTotals[c.id] >= 1_000_000
+                              ? `$${(anualCatTotals[c.id]/1_000_000).toFixed(1)}M`
                               : formatCLP(anualCatTotals[c.id])}
                           </td>
                         ))}
-                        <td className="px-4 py-2.5 text-right font-extrabold tabular-nums" style={{ color: '#1B6DD4' }}>
+                        <td className="px-4 py-3 text-right font-extrabold tabular-nums text-base border-l border-gray-200" style={{ color: '#1B6DD4' }}>
                           {formatCLP(anualGrandTotal)}
                         </td>
                       </tr>
                     </tfoot>
                   </table>
                 </div>
+
+                {/* Nota meses futuros */}
+                {year === now.getFullYear() && now.getMonth() < 11 && (
+                  <div className="px-4 py-2.5 border-t border-gray-50 bg-gray-50/40">
+                    <p className="text-[11px] text-gray-400">
+                      Se muestran solo los meses con datos. Los meses restantes de {year} aparecerán cuando los registres.
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}
