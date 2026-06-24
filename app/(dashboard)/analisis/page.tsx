@@ -318,7 +318,6 @@ export default async function AnalisisPage({
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Entiende en qué gastas y detecta oportunidades de ahorro.</p>
         </div>
         {isAnual ? (
           /* Year nav para vista anual */
@@ -409,16 +408,16 @@ export default async function AnalisisPage({
                   </div>
                   {/* Círculo de progreso del año */}
                   <div className="flex-shrink-0">
-                    <div className="relative w-[80px] h-[80px]">
-                      <svg width="80" height="80" viewBox="0 0 80 80">
-                        <circle cx="40" cy="40" r="32" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" strokeWidth="6" />
-                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="6"
-                          strokeDasharray={`${(yearElapsedPct / 100) * 201} 201`}
-                          strokeLinecap="round" transform="rotate(-90 40 40)" />
+                    <div className="relative w-[100px] h-[100px]">
+                      <svg width="100" height="100" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" strokeWidth="7" />
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="7"
+                          strokeDasharray={`${(yearElapsedPct / 100) * 264} 264`}
+                          strokeLinecap="round" transform="rotate(-90 50 50)" />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                        <span className="text-[17px] font-extrabold leading-none">{yearElapsedPct}%</span>
-                        <span className="text-[7px] text-white/45 leading-tight text-center">del año<br/>transcurrido</span>
+                        <span className="text-[22px] font-extrabold leading-none">{yearElapsedPct}%</span>
+                        <span className="text-[8px] text-white/45 leading-tight text-center">del año<br/>transcurrido</span>
                       </div>
                     </div>
                   </div>
@@ -429,8 +428,8 @@ export default async function AnalisisPage({
               <div className="lg:hidden card p-4">
                 <div className="grid grid-cols-2 gap-2.5">
                   {/* Promedio mensual */}
-                  <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.12) 0%, rgba(109,40,217,0.06) 100%)', border: '1px solid rgba(139,92,246,0.15)' }}>
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(139,92,246,0.18)' }}>
+                  <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ backgroundColor: 'rgba(139,92,246,0.14)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(139,92,246,0.22)' }}>
                       <TrendingUp className="w-4 h-4" style={{ color: '#a78bfa' }} />
                     </div>
                     <div>
@@ -440,8 +439,8 @@ export default async function AnalisisPage({
                     </div>
                   </div>
                   {/* Meses con datos */}
-                  <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(29,78,216,0.06) 100%)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(59,130,246,0.18)' }}>
+                  <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ backgroundColor: 'rgba(59,130,246,0.14)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(59,130,246,0.22)' }}>
                       <CalendarDays className="w-4 h-4" style={{ color: '#60a5fa' }} />
                     </div>
                     <div>
@@ -456,8 +455,8 @@ export default async function AnalisisPage({
                   </div>
                   {/* Mes más alto */}
                   {peakRow && (
-                    <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(185,28,28,0.06) 100%)', border: '1px solid rgba(239,68,68,0.15)' }}>
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.18)' }}>
+                    <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ backgroundColor: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.22)' }}>
                         <ArrowUp className="w-4 h-4" style={{ color: '#f87171' }} />
                       </div>
                       <div>
@@ -469,8 +468,8 @@ export default async function AnalisisPage({
                   )}
                   {/* Proyección */}
                   {anualProjection && (
-                    <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(180,83,9,0.06) 100%)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(245,158,11,0.18)' }}>
+                    <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.14)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(245,158,11,0.22)' }}>
                         <BarChart2 className="w-4 h-4" style={{ color: '#fbbf24' }} />
                       </div>
                       <div>
