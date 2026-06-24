@@ -398,11 +398,11 @@ export default async function AnalisisPage({
                             className="w-full rounded-sm transition-all"
                             style={{
                               height: `${isFutureBar ? 2 : barH}px`,
-                              backgroundColor: isFutureBar    ? 'rgba(255,255,255,0.08)'
-                                : isPeakBar    ? 'rgba(255,255,255,0.95)'
-                                : isCurrentBar ? 'rgba(255,255,255,0.70)'
-                                : row.total === 0 ? 'rgba(255,255,255,0.12)'
-                                : 'rgba(255,255,255,0.38)',
+                              backgroundColor: isFutureBar    ? 'rgba(255,255,255,0.07)'
+                                : isPeakBar    ? 'rgba(255,255,255,0.58)'
+                                : isCurrentBar ? 'rgba(255,255,255,0.42)'
+                                : row.total === 0 ? 'rgba(255,255,255,0.10)'
+                                : 'rgba(255,255,255,0.28)',
                             }}
                           />
                           <span className={`text-[9px] leading-none font-medium ${
@@ -503,24 +503,31 @@ export default async function AnalisisPage({
                               </Link>
                             </td>
 
-                            {/* Celdas por categoría */}
+                            {/* Celdas por categoría — clicables */}
                             {anualCats.map(c => {
                               const val       = row.byCategory[c.id] ?? 0
                               const opacity   = val > 0 ? 0.12 + (val / anualColMax[c.id]) * 0.7 : 0
                               const isColPeak = val > 0 && val === anualColMax[c.id] && pastRows.length > 1
                               return (
-                                <td key={c.id} className="px-3 py-3 text-right tabular-nums" style={{ position: 'relative' }}>
-                                  {val > 0 && (
-                                    <span
-                                      className="absolute inset-x-1.5 inset-y-1 rounded-lg"
-                                      style={{ backgroundColor: c.color, opacity }}
-                                    />
+                                <td key={c.id} className="p-1.5">
+                                  {val > 0 ? (
+                                    <Link
+                                      href={`/analisis/${c.id}?month=${row.monthNum}&year=${year}`}
+                                      className="relative flex items-center justify-end px-2.5 py-2.5 rounded-lg overflow-hidden group min-h-[36px]"
+                                    >
+                                      <span
+                                        className="absolute inset-0 rounded-lg transition-opacity group-hover:opacity-80"
+                                        style={{ backgroundColor: c.color, opacity }}
+                                      />
+                                      <span className={`relative font-semibold text-xs tabular-nums ${
+                                        isColPeak ? 'text-gray-900' : 'text-gray-700'
+                                      }`}>
+                                        {formatCLP(val)}
+                                      </span>
+                                    </Link>
+                                  ) : (
+                                    <div className="min-h-[36px]" />
                                   )}
-                                  <span className={`relative font-semibold ${
-                                    val === 0 ? 'text-gray-200' : isColPeak ? 'text-gray-900' : 'text-gray-700'
-                                  }`}>
-                                    {val > 0 ? fmtCell(val) : ''}
-                                  </span>
                                 </td>
                               )
                             })}
@@ -528,7 +535,7 @@ export default async function AnalisisPage({
                             {/* Otros */}
                             {hasOtros && (
                               <td className="px-3 py-3 text-right tabular-nums text-gray-400 font-medium">
-                                {otros > 0 ? fmtCell(otros) : ''}
+                                {otros > 0 ? formatCLP(otros) : ''}
                               </td>
                             )}
 
@@ -562,7 +569,7 @@ export default async function AnalisisPage({
                         <td className="px-4 py-3 font-extrabold text-gray-700 sticky left-0 bg-gray-50 text-[13px]">Total año</td>
                         {anualCats.map(c => (
                           <td key={c.id} className="px-3 py-3 text-right font-bold tabular-nums text-gray-900">
-                            {fmtCell(anualCatTotals[c.id])}
+                            {formatCLP(anualCatTotals[c.id])}
                           </td>
                         ))}
                         {hasOtros && (
@@ -572,7 +579,7 @@ export default async function AnalisisPage({
                                 const ct = anualCats.reduce((cs, c) => cs + (r.byCategory[c.id] ?? 0), 0)
                                 return s + Math.max(0, r.total - ct)
                               }, 0)
-                              return tot > 0 ? fmtCell(tot) : '—'
+                              return tot > 0 ? formatCLP(tot) : '—'
                             })()}
                           </td>
                         )}
