@@ -366,94 +366,114 @@ export default async function AnalisisPage({
           ) : (
             <>
               {/* ── Hero ─────────────────────────────────────────────────────── */}
-              <div className="hero-gradient rounded-3xl p-5 text-white">
+              <div className="hero-gradient rounded-3xl px-6 pt-6 pb-5 text-white">
 
-                {/* Fila 1: Total + chips peak/low */}
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] text-white/60 font-semibold uppercase tracking-widest mb-1">Total gastado en {year}</p>
-                    <p className="text-3xl font-extrabold text-white tabular-nums leading-tight">{formatCLP(anualGrandTotal)}</p>
-                    <p className="text-xs text-white/50 mt-1">Promedio mensual: {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                {/* Total prominente */}
+                <div className="mb-5">
+                  <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-1.5">Total gastado en {year}</p>
+                  <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
+                </div>
+
+                {/* Stat strip: 4 chips horizontales scrollables */}
+                <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5">
+                  <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
+                    <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Promedio</p>
+                    <p className="text-sm font-extrabold text-white tabular-nums">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                    <p className="text-[9px] text-white/35 mt-0.5">por mes</p>
                   </div>
-                  {(peakRow || lowRow) && (
-                    <div className="flex gap-2 flex-shrink-0">
-                      {peakRow && (
-                        <div className="bg-white/15 rounded-2xl px-3 py-2.5 text-right">
-                          <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más alto</p>
-                          <p className="text-sm font-extrabold text-white leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
-                          <p className="text-[10px] text-white/60 tabular-nums">{formatCLP(peakRow.total)}</p>
-                        </div>
-                      )}
-                      {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
-                        <div className="bg-white/15 rounded-2xl px-3 py-2.5 text-right">
-                          <p className="text-[9px] text-white/55 font-bold uppercase tracking-widest mb-0.5">Mes más bajo</p>
-                          <p className="text-sm font-extrabold text-emerald-300 leading-tight">{anualMonthLabels[lowRow.monthNum - 1]}</p>
-                          <p className="text-[10px] text-white/60 tabular-nums">{formatCLP(lowRow.total)}</p>
-                        </div>
-                      )}
+                  <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
+                    <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Meses</p>
+                    <p className="text-sm font-extrabold text-white">{pastRows.length} <span className="text-white/35 text-xs font-medium">/ 12</span></p>
+                    <p className="text-[9px] text-white/35 mt-0.5">con datos</p>
+                  </div>
+                  {peakRow && (
+                    <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
+                      <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Más alto 🔺</p>
+                      <p className="text-sm font-extrabold text-white leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
+                      <p className="text-[9px] text-white/50 tabular-nums mt-0.5">{formatCLP(peakRow.total)}</p>
+                    </div>
+                  )}
+                  {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
+                    <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
+                      <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Más bajo</p>
+                      <p className="text-sm font-extrabold text-emerald-300 leading-tight">{anualMonthLabels[lowRow.monthNum - 1]}</p>
+                      <p className="text-[9px] text-white/50 tabular-nums mt-0.5">{formatCLP(lowRow.total)}</p>
                     </div>
                   )}
                 </div>
 
-                {/* Fila 2: Barras mensuales (rellena el espacio muerto y muestra patrones) */}
-                <div className="mt-5">
-                  <p className="text-[10px] text-white/50 font-semibold mb-2.5">Gasto mes a mes</p>
-                  <div className="flex items-end gap-1" style={{ height: '64px' }}>
-                    {anualRows.map(row => {
-                      const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                      const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
-                      const isPeakBar    = peakRow?.monthNum === row.monthNum
-                      const maxBarH      = 48
-                      const barH         = row.total > 0
-                        ? Math.max(4, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH))
-                        : 2
-                      const lbl = anualShortLabels[row.monthNum - 1]
-                      return (
-                        <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: '64px' }}>
-                          {isPeakBar && (
-                            <span className="text-[8px] text-white/65 tabular-nums font-bold leading-none mb-0.5">
-                              {row.total >= 1_000_000 ? `${(row.total/1_000_000).toFixed(1)}M` : `${Math.round(row.total/1000)}k`}
-                            </span>
+                {/* Bar chart: más alto, barras estrechas con tops redondeados */}
+                <div className="flex items-end justify-between" style={{ height: '88px', gap: '3px' }}>
+                  {anualRows.map(row => {
+                    const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                    const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                    const isPeakBar    = peakRow?.monthNum === row.monthNum
+                    const maxBarH      = 64
+                    const barH         = row.total > 0
+                      ? Math.max(5, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH))
+                      : 0
+                    const lbl  = anualShortLabels[row.monthNum - 1]
+                    const showVal = (isPeakBar || isCurrentBar) && row.total > 0
+                    return (
+                      <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end" style={{ height: '88px', gap: '4px' }}>
+                        {/* Valor encima (pico y mes actual) */}
+                        <span className="text-[8px] tabular-nums font-bold leading-none" style={{
+                          color: showVal ? 'rgba(255,255,255,0.72)' : 'transparent',
+                          userSelect: 'none',
+                        }}>
+                          {row.total >= 1_000_000 ? `${(row.total/1_000_000).toFixed(1)}M` : `${Math.round(row.total/1000)}k`}
+                        </span>
+                        {/* Barra */}
+                        <div className="flex-1 flex items-end w-full">
+                          {!isFutureBar ? (
+                            <div style={{
+                              width: 'min(20px, 100%)',
+                              height: barH > 0 ? `${barH}px` : '2px',
+                              margin: '0 auto',
+                              borderRadius: '4px 4px 2px 2px',
+                              backgroundColor: isPeakBar    ? 'rgba(255,255,255,0.88)'
+                                : isCurrentBar ? 'rgba(255,255,255,0.60)'
+                                : barH === 0   ? 'rgba(255,255,255,0.08)'
+                                : 'rgba(255,255,255,0.32)',
+                              transition: 'height 0.2s ease',
+                            }} />
+                          ) : (
+                            <div style={{ width: 'min(20px, 100%)', height: '2px', margin: '0 auto', borderRadius: '2px', backgroundColor: 'rgba(255,255,255,0.07)' }} />
                           )}
-                          <div
-                            className="w-full rounded-sm transition-all"
-                            style={{
-                              height: `${isFutureBar ? 2 : barH}px`,
-                              backgroundColor: isFutureBar    ? 'rgba(255,255,255,0.07)'
-                                : isPeakBar    ? 'rgba(255,255,255,0.58)'
-                                : isCurrentBar ? 'rgba(255,255,255,0.42)'
-                                : row.total === 0 ? 'rgba(255,255,255,0.10)'
-                                : 'rgba(255,255,255,0.28)',
-                            }}
-                          />
-                          <span className={`text-[9px] leading-none font-medium ${
-                            isCurrentBar ? 'text-white font-bold' : isFutureBar ? 'text-white/20' : 'text-white/45'
-                          }`}>{lbl}</span>
                         </div>
-                      )
-                    })}
-                  </div>
+                        {/* Etiqueta mes */}
+                        <span style={{
+                          fontSize: '9px',
+                          lineHeight: 1,
+                          fontWeight: isCurrentBar ? 700 : 500,
+                          color: isCurrentBar ? 'rgba(255,255,255,1)'
+                            : isPeakBar    ? 'rgba(255,255,255,0.75)'
+                            : isFutureBar  ? 'rgba(255,255,255,0.18)'
+                            : 'rgba(255,255,255,0.42)',
+                        }}>{lbl}</span>
+                      </div>
+                    )
+                  })}
                 </div>
 
-                {/* Fila 3: Distribución por categoría */}
+                {/* Distribución por categoría */}
                 {anualCats.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <p className="text-[10px] text-white/50 font-semibold mb-2">Distribución por categoría</p>
-                    <div className="flex h-2.5 rounded-full overflow-hidden gap-px">
+                  <div className="mt-5 pt-4 border-t border-white/10">
+                    <div className="flex h-3 rounded-full overflow-hidden" style={{ gap: '2px' }}>
                       {anualCats.map(c => {
                         const pctVal = Math.round((c.total / anualGrandTotal) * 100)
                         return pctVal > 0 ? (
-                          <div key={c.id} style={{ width: `${pctVal}%`, backgroundColor: c.color }} title={`${c.name}: ${pctVal}%`} />
+                          <div key={c.id} style={{ flex: pctVal, backgroundColor: c.color }} title={`${c.name}: ${pctVal}%`} />
                         ) : null
                       })}
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
                       {anualCats.map(c => {
                         const pctVal = Math.round((c.total / anualGrandTotal) * 100)
                         return (
-                          <div key={c.id} className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                            <span className="text-[10px] text-white/70 font-medium">{c.name} {pctVal}%</span>
+                          <div key={c.id} className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                            <span className="text-[10px] text-white/65 font-semibold">{c.name} <span className="text-white/40">{pctVal}%</span></span>
                           </div>
                         )
                       })}
