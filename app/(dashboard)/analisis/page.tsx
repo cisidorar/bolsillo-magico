@@ -643,113 +643,169 @@ export default async function AnalisisPage({
               {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}
 
               {/* D1 — Hero completo */}
-              <div className="hidden lg:block hero-gradient rounded-3xl px-7 pt-6 pb-6 text-white">
-                <div className="grid gap-8" style={{ gridTemplateColumns: '280px 1fr' }}>
+              {(() => {
+                const peakVal  = peakRow?.total ?? 0
+                const niceStep = peakVal > 0 ? Math.ceil(peakVal / 4 / 100000) * 100000 : 350000
+                const niceMax  = niceStep * 4
+                const yTicks   = [niceMax, niceStep * 3, niceStep * 2, niceStep, 0]
+                const chartH   = 130 // px — bar area only
+                return (
+                  <div className="hidden lg:block hero-gradient rounded-3xl px-7 pt-6 pb-6 text-white">
+                    <div className="grid gap-8" style={{ gridTemplateColumns: '260px 1fr' }}>
 
-                  {/* ── Columna izquierda: total + KPIs ── */}
-                  <div className="flex flex-col">
-                    <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-2">Total gastado en {year}</p>
-                    <p className="text-[clamp(28px,3.2vw,44px)] font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
-                    {yearDelta !== null && (
-                      <div className={`mt-2.5 inline-flex items-center gap-1 self-start px-2 py-1 rounded-lg text-[11px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
-                        {yearDelta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                        {Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}
+                      {/* ── Columna izquierda: total + KPIs ── */}
+                      <div className="flex flex-col">
+                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-2">Total gastado en {year}</p>
+                        <p className="text-[clamp(26px,3vw,42px)] font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
+                        {yearDelta !== null && (
+                          <div className={`mt-2.5 inline-flex items-center gap-1 self-start px-2 py-1 rounded-lg text-[11px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
+                            {yearDelta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                            {Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}
+                          </div>
+                        )}
+
+                        {/* KPI 2×2 con iconos */}
+                        <div className="grid grid-cols-2 gap-2 mt-auto pt-5">
+                          <div className="bg-white/10 rounded-2xl px-3.5 py-3">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <BarChart2 className="w-3 h-3 text-white/50" />
+                              <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Promedio</p>
+                            </div>
+                            <p className="text-[15px] font-extrabold text-white tabular-nums leading-none">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                            <p className="text-[9px] text-white/35 mt-1">por mes</p>
+                          </div>
+                          <div className="bg-white/10 rounded-2xl px-3.5 py-3">
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <CalendarDays className="w-3 h-3 text-white/50" />
+                              <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Meses</p>
+                            </div>
+                            <p className="text-[15px] font-extrabold text-white leading-none">{pastRows.length}<span className="text-white/35 text-xs font-medium"> / 12</span></p>
+                            <p className="text-[9px] text-white/35 mt-1">con datos</p>
+                          </div>
+                          {peakRow && (
+                            <div className="bg-white/10 rounded-2xl px-3.5 py-3">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <ArrowUp className="w-3 h-3 text-white/50" />
+                                <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Más alto</p>
+                              </div>
+                              <p className="text-[15px] font-extrabold text-white leading-none">{anualMonthLabels[peakRow.monthNum - 1]}</p>
+                              <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(peakRow.total)}</p>
+                            </div>
+                          )}
+                          {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
+                            <div className="bg-white/10 rounded-2xl px-3.5 py-3">
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <ArrowDown className="w-3 h-3 text-white/50" />
+                                <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Más bajo</p>
+                              </div>
+                              <p className="text-[15px] font-extrabold text-emerald-300 leading-none">{anualMonthLabels[lowRow.monthNum - 1]}</p>
+                              <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(lowRow.total)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── Columna derecha: gráfico con eje Y ── */}
+                      <div className="flex flex-col">
+                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3">Gasto mensual en {year}</p>
+
+                        {/* Área del gráfico: eje Y + barras */}
+                        <div className="flex gap-2 flex-1">
+                          {/* Eje Y */}
+                          <div className="flex flex-col justify-between text-right flex-shrink-0" style={{ width: '68px', height: `${chartH + 20}px`, paddingBottom: '20px' }}>
+                            {yTicks.map(tick => (
+                              <span key={tick} className="text-[8px] text-white/40 tabular-nums leading-none">
+                                {tick === 0 ? '$0' : `$${(tick / 1000000).toFixed(tick % 1000000 === 0 ? 0 : 1)}M`}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Zona de barras con gridlines */}
+                          <div className="flex-1 relative">
+                            {/* Gridlines horizontales */}
+                            {yTicks.map((_, i) => (
+                              <div
+                                key={i}
+                                className="absolute left-0 right-0 pointer-events-none"
+                                style={{ top: `${(i / (yTicks.length - 1)) * chartH}px`, borderTop: i === yTicks.length - 1 ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(255,255,255,0.08)' }}
+                              />
+                            ))}
+
+                            {/* Barras */}
+                            <div className="absolute left-0 right-0 flex items-end justify-between" style={{ top: 0, height: `${chartH}px`, gap: '4px' }}>
+                              {anualRows.map(row => {
+                                const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                                const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                                const isPeakBar    = peakRow?.monthNum === row.monthNum
+                                const barH = row.total > 0 ? Math.max(4, Math.round((row.total / niceMax) * chartH)) : 0
+                                const showVal = (isPeakBar || isCurrentBar) && row.total > 0
+                                const labelOpacity = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
+                                return (
+                                  <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end" style={{ height: `${chartH}px`, gap: 0 }}>
+                                    {/* Valor encima de la barra */}
+                                    <span className="text-[8px] tabular-nums font-bold leading-none mb-1" style={{ color: showVal ? 'rgba(255,255,255,0.75)' : 'transparent', userSelect: 'none' }}>
+                                      {formatCLP(row.total)}
+                                    </span>
+                                    {!isFutureBar ? (
+                                      <div style={{
+                                        width: 'min(36px, 100%)',
+                                        height: barH > 0 ? `${barH}px` : '3px',
+                                        borderRadius: '5px 5px 2px 2px',
+                                        backgroundColor: isPeakBar ? 'rgba(255,255,255,0.92)' : isCurrentBar ? 'rgba(255,255,255,0.62)' : barH === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.28)',
+                                      }} />
+                                    ) : (
+                                      <div style={{ width: 'min(36px, 100%)', height: '16px', borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.15)' }} />
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+
+                            {/* Labels de mes */}
+                            <div className="absolute left-0 right-0 flex justify-between" style={{ top: `${chartH + 6}px`, gap: '4px' }}>
+                              {anualRows.map(row => {
+                                const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                                const isPeakBar    = peakRow?.monthNum === row.monthNum
+                                const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                                const labelOpacity = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
+                                return (
+                                  <span key={row.monthNum} className="flex-1 text-center text-[9px] font-medium leading-none" style={{ color: `rgba(255,255,255,${labelOpacity})`, fontWeight: isCurrentBar ? 700 : 500 }}>
+                                    {anualMonthLabels[row.monthNum - 1].slice(0, 3)}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Distribución por categoría — full width ── */}
+                    {anualCats.length > 0 && (
+                      <div className="mt-5 pt-4 border-t border-white/10">
+                        <div className="flex rounded-full overflow-hidden" style={{ height: '6px', gap: '2px' }}>
+                          {anualCats.map(c => {
+                            const pct = anualGrandTotal > 0 ? (c.total / anualGrandTotal) : 0
+                            return pct > 0 ? <div key={c.id} style={{ flex: pct, backgroundColor: c.color, minWidth: '2px' }} title={`${c.name}: ${Math.round(pct * 100)}%`} /> : null
+                          })}
+                        </div>
+                        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+                          {anualCats.map(c => {
+                            const pct = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
+                            return (
+                              <div key={c.id} className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                                <span className="text-[10px] text-white/70 font-semibold">{c.name}</span>
+                                <span className="text-[10px] text-white/35 font-medium">{pct}%</span>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
-
-                    {/* KPI 2×2 */}
-                    <div className="grid grid-cols-2 gap-2 mt-auto pt-5">
-                      <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                        <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-1.5">Promedio</p>
-                        <p className="text-[15px] font-extrabold text-white tabular-nums leading-none">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
-                        <p className="text-[9px] text-white/35 mt-1">por mes</p>
-                      </div>
-                      <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                        <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-1.5">Meses</p>
-                        <p className="text-[15px] font-extrabold text-white leading-none">{pastRows.length}<span className="text-white/35 text-xs font-medium"> / 12</span></p>
-                        <p className="text-[9px] text-white/35 mt-1">con datos</p>
-                      </div>
-                      {peakRow && (
-                        <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                          <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-1.5 flex items-center gap-1">Más alto <ArrowUp className="w-2.5 h-2.5" /></p>
-                          <p className="text-[15px] font-extrabold text-white leading-none">{anualMonthLabels[peakRow.monthNum - 1]}</p>
-                          <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(peakRow.total)}</p>
-                        </div>
-                      )}
-                      {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
-                        <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                          <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-1.5">Más bajo</p>
-                          <p className="text-[15px] font-extrabold text-emerald-300 leading-none">{anualMonthLabels[lowRow.monthNum - 1]}</p>
-                          <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(lowRow.total)}</p>
-                        </div>
-                      )}
-                    </div>
                   </div>
-
-                  {/* ── Columna derecha: gráfico de barras ── */}
-                  <div className="flex flex-col justify-end">
-                    <div className="flex items-end justify-between" style={{ gap: '5px', height: '110px' }}>
-                      {anualRows.map(row => {
-                        const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                        const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
-                        const isPeakBar    = peakRow?.monthNum === row.monthNum
-                        const maxBarH      = 88
-                        const barH = row.total > 0 ? Math.max(6, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH)) : 0
-                        const showVal = (isPeakBar || isCurrentBar) && row.total > 0
-                        const labelOpacity = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.40
-                        return (
-                          <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end" style={{ gap: '4px', height: '110px' }}>
-                            <span className="text-[8px] tabular-nums font-bold leading-none" style={{ color: showVal ? 'rgba(255,255,255,0.7)' : 'transparent', userSelect: 'none' }}>
-                              {formatCLP(row.total)}
-                            </span>
-                            {!isFutureBar ? (
-                              <div style={{
-                                width: 'min(32px, 100%)',
-                                height: barH > 0 ? `${barH}px` : '3px',
-                                borderRadius: '6px 6px 3px 3px',
-                                backgroundColor: isPeakBar ? 'rgba(255,255,255,0.90)' : isCurrentBar ? 'rgba(255,255,255,0.62)' : barH === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.30)',
-                              }} />
-                            ) : (
-                              <div style={{ width: 'min(32px, 100%)', height: '3px', borderRadius: '3px', border: '1.5px dashed rgba(255,255,255,0.15)' }} />
-                            )}
-                            <span className="text-[9px] font-medium text-center leading-none" style={{ color: `rgba(255,255,255,${labelOpacity})` }}>
-                              {anualMonthLabels[row.monthNum - 1].slice(0, 3)}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Distribución por categoría — full width ── */}
-                {anualCats.length > 0 && (
-                  <div className="mt-5 pt-4 border-t border-white/10">
-                    {/* Barra segmentada */}
-                    <div className="flex rounded-full overflow-hidden" style={{ height: '8px', gap: '2px' }}>
-                      {anualCats.map(c => {
-                        const pct = anualGrandTotal > 0 ? (c.total / anualGrandTotal) : 0
-                        return pct > 0 ? (
-                          <div key={c.id} style={{ flex: pct, backgroundColor: c.color, minWidth: '2px' }} title={`${c.name}: ${Math.round(pct * 100)}%`} />
-                        ) : null
-                      })}
-                    </div>
-                    {/* Leyenda */}
-                    <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
-                      {anualCats.map(c => {
-                        const pct = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
-                        return (
-                          <div key={c.id} className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                            <span className="text-[10px] text-white/70 font-semibold">{c.name}</span>
-                            <span className="text-[10px] text-white/35 font-medium">{pct}%</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+                )
+              })()}
 
               {/* D2 — Ranking completo */}
               <div className="hidden lg:block card p-5">
