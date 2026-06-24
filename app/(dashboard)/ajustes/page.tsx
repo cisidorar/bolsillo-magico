@@ -198,7 +198,7 @@ function SectionHeader({ icon: Icon, label, color }: { icon: LucideIcon; label: 
   return (
     <div className="flex items-center gap-2 mb-3 px-0.5">
       <Icon className="w-4 h-4 flex-shrink-0" style={{ color }} />
-      <p className="text-sm font-bold text-gray-700">{label}</p>
+      <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</p>
     </div>
   )
 }
@@ -221,7 +221,7 @@ function SettingsRow({
     >
       {icon}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</p>
         <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
       </div>
       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors flex-shrink-0" />

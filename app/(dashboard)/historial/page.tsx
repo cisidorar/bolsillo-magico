@@ -4,7 +4,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, billingPeriodRange, formatCLP, monthName } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -224,7 +224,7 @@ export default async function HistorialPage({
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                <p className="text-2xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(total)}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(total)}</p>
                 <p className="text-xs text-gray-400">{totalCount} registros</p>
               </div>
             </div>
@@ -269,7 +269,7 @@ export default async function HistorialPage({
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-medium leading-tight">Promedio diario</p>
-                  <p className="text-base font-extrabold text-gray-900 tabular-nums">{formatCLP(dailyAvg)}</p>
+                  <p className="text-base font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(dailyAvg)}</p>
                 </div>
               </div>
             </div>
@@ -286,7 +286,7 @@ export default async function HistorialPage({
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(total)}</p>
+                <p className="text-xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(total)}</p>
                 <p className="text-[10px] text-gray-400 mt-0.5">{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
               </div>
             </div>
@@ -333,7 +333,7 @@ export default async function HistorialPage({
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
-                <p className="text-xl font-extrabold text-gray-900 tabular-nums">{formatCLP(dailyAvg)}</p>
+                <p className="text-xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(dailyAvg)}</p>
                 <p className="text-[10px] text-gray-400 mt-0.5">por día</p>
               </div>
             </div>
@@ -351,7 +351,7 @@ export default async function HistorialPage({
         <div className="card mb-4 overflow-hidden">
           <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-50">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-50">
-              <span className="text-indigo-500 text-sm">💳</span>
+              <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
             </div>
             <p className="text-sm font-bold text-gray-800">
               Estado de cuenta · {monthName(month)} {year}
@@ -381,7 +381,7 @@ export default async function HistorialPage({
       )}
       {isBilling && billingHitLimit && (
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4">
-          <span className="text-amber-500 text-base mt-0.5">⚠️</span>
+          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700 leading-relaxed">
             Se mostraron los primeros 300 gastos del período. Usa los filtros para acotar los resultados.
           </p>

@@ -170,7 +170,7 @@ export default async function RecurrentesPage({
             </div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto anual estimado</p>
             <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(yearlyEstimate)}</p>
-            <p className="text-[11px] text-gray-400 mt-1">vs. gastos no recurrentes</p>
+            <p className="text-[11px] text-gray-400 mt-1">en base a carga mensual actual</p>
           </div>
 
         </div>

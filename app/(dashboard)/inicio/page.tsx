@@ -2,7 +2,7 @@ import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
-import { CreditCard, Calendar } from 'lucide-react'
+import { CreditCard, Calendar, Sun, Moon, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import { getExpenseIcon } from '@/lib/expense-icons'
@@ -136,7 +136,8 @@ export default async function DashboardPage() {
   // Saludo + fecha
   const hour        = now.getHours()
   const greeting    = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
-  const greetEmoji  = hour < 12 ? '🌤️' : hour < 19 ? '☀️' : '🌙'
+  const GreetIcon      = hour < 19 ? Sun : Moon
+  const greetIconColor = hour < 12 ? '#FBBF24' : hour < 19 ? '#F59E0B' : '#818CF8'
   const rawName     = profile?.display_name ?? user!.email ?? ''
   const displayName = rawName.includes('@') ? rawName.split('@')[0] : rawName
   const dateLabelRaw = now.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -209,8 +210,9 @@ export default async function DashboardPage() {
 
           {/* ── Desktop header ────────────────────────────────────────── */}
           <div className="hidden lg:block mb-1">
-            <h1 className="text-xl font-bold text-brand-900 dark:text-slate-100">
-              ¡{greeting}, {displayName}! {greetEmoji}
+            <h1 className="text-xl font-bold text-brand-900 dark:text-slate-100 flex items-center gap-2">
+              ¡{greeting}, {displayName}!
+              <GreetIcon className="w-4 h-4 flex-shrink-0" style={{ color: greetIconColor }} />
             </h1>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">{dateLabel}</p>
           </div>
@@ -222,8 +224,9 @@ export default async function DashboardPage() {
               {/* LEFT: monto + presupuesto */}
               <div className="lg:flex-1">
                 {/* Saludo mobile */}
-                <p className="text-sm text-white font-bold mb-3 lg:hidden">
-                  {greeting}, {displayName} {greetEmoji}
+                <p className="text-sm text-white font-bold mb-3 lg:hidden flex items-center gap-1.5">
+                  {greeting}, {displayName}
+                  <GreetIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: greetIconColor }} />
                 </p>
 
                 <p className="text-[10px] text-white/65 font-semibold uppercase tracking-wide mb-1">
@@ -267,8 +270,11 @@ export default async function DashboardPage() {
                 {/* vs mes anterior */}
                 {deltaVsLast !== null && (
                   <div className="mt-3 inline-flex items-center gap-1.5 bg-white/15 rounded-xl px-2.5 py-1.5">
-                    <span className={`text-[10px] font-bold ${deltaVsLast <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                      {deltaVsLast <= 0 ? '↓' : '↑'} {Math.abs(deltaVsLast)}%{' '}
+                    <span className={`text-[10px] font-bold flex items-center gap-1 ${deltaVsLast <= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {deltaVsLast <= 0
+                        ? <TrendingDown className="w-3 h-3 flex-shrink-0" />
+                        : <TrendingUp   className="w-3 h-3 flex-shrink-0" />}
+                      {Math.abs(deltaVsLast)}%{' '}
                       {deltaVsLast <= 0 ? 'menos' : 'más'} que {monthName(prevM).slice(0, 3).toLowerCase()}
                     </span>
                     <span className="text-[10px] text-white/35">· al día {todayDate}: {formatCLP(prevTotal)}</span>
@@ -296,8 +302,9 @@ export default async function DashboardPage() {
                     <p className="text-[10px] text-white/40 mt-0.5">para finalizar el mes</p>
                     {budgetAmount && projection > budgetAmount && (
                       <div className="mt-2.5 flex items-center gap-1.5 bg-red-500/20 border border-red-400/20 rounded-xl px-2.5 py-1.5">
+                        <AlertTriangle className="w-3 h-3 text-red-200 flex-shrink-0" />
                         <span className="text-[10px] font-semibold text-red-200">
-                          ⚠ Riesgo: superar presupuesto
+                          Riesgo: superar presupuesto
                         </span>
                       </div>
                     )}
@@ -441,7 +448,6 @@ export default async function DashboardPage() {
               <div className="hidden lg:block card overflow-hidden divide-y divide-gray-50">
                 {(() => {
                   const maxCatTotal = catSummary[0]?.total ?? 1
-                  const rankBadge = ['🥇','🥈','🥉']
                   return catSummary.map((c, idx) => {
                   const limit          = catBudgetMap.get(c.id) ?? null
                   const catPct         = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
@@ -475,10 +481,12 @@ export default async function DashboardPage() {
                       )}
 
                       {/* Rank badge */}
-                      {idx < 3
-                        ? <span className="text-base flex-shrink-0 w-5 text-center leading-none">{rankBadge[idx]}</span>
-                        : <span className="text-[11px] font-bold text-gray-300 w-5 flex-shrink-0 tabular-nums text-center">{idx + 1}</span>
-                      }
+                      <span className={`text-[12px] font-extrabold w-5 flex-shrink-0 tabular-nums text-center ${
+                        idx === 0 ? 'text-amber-500'
+                        : idx === 1 ? 'text-slate-400'
+                        : idx === 2 ? 'text-orange-400'
+                        : 'text-gray-300 dark:text-gray-600'
+                      }`}>{idx + 1}</span>
 
                       {/* Icon */}
                       <div
