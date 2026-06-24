@@ -249,6 +249,27 @@ export default async function AnalisisPage({
   const anualMonthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const anualShortLabels = ['E','F','M','A','M','J','J','A','S','O','N','D']
 
+  // Spike detection: mes donde la categoría gastó ≥2.2× su propio promedio mensual
+  const catSpikes: Record<string, { monthNum: number; val: number; multiple: number }> = {}
+  if (isAnual && anualCats.length > 0) {
+    anualCats.forEach(c => {
+      const activePast = anualRows.filter(r => {
+        const isFut = year === now.getFullYear() && r.monthNum > now.getMonth() + 1
+        return !isFut && (r.byCategory[c.id] ?? 0) > 0
+      })
+      if (activePast.length < 2) return
+      const avg = activePast.reduce((s, r) => s + (r.byCategory[c.id] ?? 0), 0) / activePast.length
+      const top = [...activePast].sort((a, b) => (b.byCategory[c.id] ?? 0) - (a.byCategory[c.id] ?? 0))[0]
+      if (top && (top.byCategory[c.id] ?? 0) > avg * 2.2) {
+        catSpikes[c.id] = {
+          monthNum: top.monthNum,
+          val: top.byCategory[c.id] ?? 0,
+          multiple: Math.round((top.byCategory[c.id] ?? 0) / avg),
+        }
+      }
+    })
+  }
+
   // ¿Hay gastos en categorías fuera del top-6?
   const hasOtros = isAnual && anualRows.some(row => {
     const catTotal = anualCats.reduce((s, c) => s + (row.byCategory[c.id] ?? 0), 0)
@@ -441,7 +462,85 @@ export default async function AnalisisPage({
                 )}
               </div>
 
-              {/* ── Tabla mes × categoría ────────────────────────────────────── */}
+              {/* ── Ranking por categoría ───────────────────────────────────── */}
+              <div className="card p-5">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Ranking del año</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Toca una categoría para ver su historial mes a mes</p>
+                  </div>
+                  {Object.keys(catSpikes).length > 0 && (
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex-shrink-0">
+                      🚀 {Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Rows */}
+                <div className="mt-3 space-y-0.5">
+                  {anualCats.map((c, idx) => {
+                    const pctVal  = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
+                    const barW    = anualCats[0].total > 0 ? Math.round((c.total / anualCats[0].total) * 100) : 0
+                    const spike   = catSpikes[c.id]
+                    const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+                    const rankColors = ['text-amber-500', 'text-slate-400', 'text-orange-400', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600']
+
+                    return (
+                      <Link
+                        key={c.id}
+                        href={spike
+                          ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}`
+                          : `/analisis/${c.id}?year=${year}`}
+                        className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                      >
+                        {/* Rank */}
+                        <span className={`w-4 text-center text-[11px] font-extrabold flex-shrink-0 ${rankColors[idx] ?? 'text-gray-300 dark:text-gray-600'}`}>
+                          {idx + 1}
+                        </span>
+
+                        {/* Icon */}
+                        <div
+                          className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
+                        >
+                          {isEmoji(c.icon)
+                            ? <span className="text-base leading-none">{c.icon}</span>
+                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
+                        </div>
+
+                        {/* Bar + spike badge */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
+                            {spike && (
+                              <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+                                🚀 ×{spike.multiple} en {anualMonthLabels[spike.monthNum - 1].slice(0, 3)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-white/10">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${barW}%`, backgroundColor: c.color }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Amount + % */}
+                        <div className="text-right flex-shrink-0 pl-2 min-w-[100px]">
+                          <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(c.total)}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">{pctVal}% del año</p>
+                        </div>
+
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-400 transition-colors flex-shrink-0" />
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── Tabla mes × categoría ───────────────────────────────────── */}
               <div className="card overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-50 dark:border-[#1a2744]">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Desglose mensual</p>
@@ -519,6 +618,13 @@ export default async function AnalisisPage({
                                         className="absolute inset-0 rounded-lg transition-opacity group-hover:opacity-80"
                                         style={{ backgroundColor: c.color, opacity }}
                                       />
+                                      {/* Spike indicator: ring naranja inset */}
+                                      {catSpikes[c.id]?.monthNum === row.monthNum && (
+                                        <span className="absolute inset-0 rounded-lg ring-2 ring-inset ring-orange-400 z-10 pointer-events-none" />
+                                      )}
+                                      {catSpikes[c.id]?.monthNum === row.monthNum && (
+                                        <span className="absolute top-1 left-1.5 text-[8px] z-10 leading-none">🚀</span>
+                                      )}
                                       <span className={`relative font-semibold text-xs tabular-nums ${
                                         isColPeak ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-100'
                                       }`}>
