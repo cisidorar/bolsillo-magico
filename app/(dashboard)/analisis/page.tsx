@@ -202,11 +202,11 @@ export default async function AnalisisPage({
       </div>
 
       {/* Toggle */}
-      <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1 mb-5">
+      <div className="view-toggle-wrap flex items-center gap-1.5 rounded-xl p-1 mb-5">
         <Link
           href={`/analisis?month=${month}&year=${year}`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isBilling ? 'tab-active text-gray-800 shadow-sm' : 'text-gray-500'
+            !isBilling ? 'view-toggle-active-purchase' : 'view-toggle-btn'
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
@@ -215,9 +215,8 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}&view=billing`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'tab-active shadow-sm' : 'text-gray-500'
+            isBilling ? 'view-toggle-active-billing' : 'view-toggle-btn'
           }`}
-          style={isBilling ? { color: '#1B6DD4' } : undefined}
         >
           <CreditCard className="w-3.5 h-3.5" />
           Por facturación

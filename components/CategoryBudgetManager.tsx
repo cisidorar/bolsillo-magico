@@ -190,7 +190,7 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
                     onBlur={() => save(row)}
                     onKeyDown={e => e.key === 'Enter' && save(row)}
                     placeholder="0"
-                    className="w-32 pl-7 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-brand-600 transition-colors text-right tabular-nums"
+                    className="sheet-input w-32 pl-7 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 placeholder-gray-400 outline-none focus:border-brand-600 transition-colors text-right tabular-nums"
                   />
                 </div>
 

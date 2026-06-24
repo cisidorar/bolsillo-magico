@@ -47,7 +47,7 @@ export default function BudgetForm({ userId, month, year, current }: Props) {
           value={value}
           onChange={e => setValue(e.target.value)}
           placeholder="ej: 1000000"
-          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
+          className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-400 transition-colors"
         />
         {displayNum > 0 && (
           <p className="text-xs text-gray-400 mt-1">{formatCLP(displayNum)}</p>
