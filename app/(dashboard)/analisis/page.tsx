@@ -648,10 +648,11 @@ export default async function AnalisisPage({
                 const niceStep = peakVal > 0 ? Math.ceil(peakVal / 4 / 100000) * 100000 : 350000
                 const niceMax  = niceStep * 4
                 const yTicks   = [niceMax, niceStep * 3, niceStep * 2, niceStep, 0]
-                const chartH   = 130 // px — bar area only
+                const fmtAxis  = (v: number) => v === 0 ? '$0' : v >= 1000000 ? `$${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M` : `$${Math.round(v / 1000)}k`
                 return (
                   <div className="hidden lg:block hero-gradient rounded-3xl px-7 pt-6 pb-6 text-white">
-                    <div className="grid gap-8" style={{ gridTemplateColumns: '260px 1fr' }}>
+                    {/* Grid: ambas columnas con la misma altura */}
+                    <div className="grid gap-8 items-stretch" style={{ gridTemplateColumns: '260px 1fr' }}>
 
                       {/* ── Columna izquierda: total + KPIs ── */}
                       <div className="flex flex-col">
@@ -663,8 +664,7 @@ export default async function AnalisisPage({
                             {Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}
                           </div>
                         )}
-
-                        {/* KPI 2×2 con iconos */}
+                        {/* KPI 2×2 */}
                         <div className="grid grid-cols-2 gap-2 mt-auto pt-5">
                           <div className="bg-white/10 rounded-2xl px-3.5 py-3">
                             <div className="flex items-center gap-1.5 mb-2">
@@ -705,71 +705,71 @@ export default async function AnalisisPage({
                         </div>
                       </div>
 
-                      {/* ── Columna derecha: gráfico con eje Y ── */}
-                      <div className="flex flex-col">
-                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3">Gasto mensual en {year}</p>
+                      {/* ── Columna derecha: gráfico flex que ocupa toda la altura ── */}
+                      <div className="flex flex-col min-h-0">
+                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3 flex-shrink-0">Gasto mensual en {year}</p>
 
-                        {/* Área del gráfico: eje Y + barras */}
-                        <div className="flex gap-2 flex-1">
-                          {/* Eje Y */}
-                          <div className="flex flex-col justify-between text-right flex-shrink-0" style={{ width: '68px', height: `${chartH + 20}px`, paddingBottom: '20px' }}>
+                        {/* Eje Y + zona de barras — ocupa el resto de la columna */}
+                        <div className="flex gap-2 flex-1 min-h-0">
+
+                          {/* Eje Y: justify-between sobre toda la altura disponible */}
+                          <div className="flex flex-col justify-between flex-shrink-0 pb-5" style={{ width: '52px' }}>
                             {yTicks.map(tick => (
-                              <span key={tick} className="text-[8px] text-white/40 tabular-nums leading-none">
-                                {tick === 0 ? '$0' : `$${(tick / 1000000).toFixed(tick % 1000000 === 0 ? 0 : 1)}M`}
+                              <span key={tick} className="text-[8px] text-white/40 tabular-nums leading-none text-right block">
+                                {fmtAxis(tick)}
                               </span>
                             ))}
                           </div>
 
-                          {/* Zona de barras con gridlines */}
-                          <div className="flex-1 relative">
-                            {/* Gridlines horizontales */}
-                            {yTicks.map((_, i) => (
-                              <div
-                                key={i}
-                                className="absolute left-0 right-0 pointer-events-none"
-                                style={{ top: `${(i / (yTicks.length - 1)) * chartH}px`, borderTop: i === yTicks.length - 1 ? '1px solid rgba(255,255,255,0.20)' : '1px solid rgba(255,255,255,0.08)' }}
-                              />
-                            ))}
+                          {/* Zona de barras: ocupa todo el ancho y alto restante */}
+                          <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                            {/* Área de barras con gridlines — flex-1 */}
+                            <div className="flex-1 relative min-h-0">
+                              {/* Gridlines: top % sobre el área de barras */}
+                              {yTicks.map((_, i) => (
+                                <div key={i} className="absolute left-0 right-0 pointer-events-none"
+                                  style={{ top: `${(i / (yTicks.length - 1)) * 100}%`, borderTop: i === yTicks.length - 1 ? '1px solid rgba(255,255,255,0.22)' : '1px solid rgba(255,255,255,0.08)' }}
+                                />
+                              ))}
 
-                            {/* Barras */}
-                            <div className="absolute left-0 right-0 flex items-end justify-between" style={{ top: 0, height: `${chartH}px`, gap: '4px' }}>
-                              {anualRows.map(row => {
-                                const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                                const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
-                                const isPeakBar    = peakRow?.monthNum === row.monthNum
-                                const barH = row.total > 0 ? Math.max(4, Math.round((row.total / niceMax) * chartH)) : 0
-                                const showVal = (isPeakBar || isCurrentBar) && row.total > 0
-                                const labelOpacity = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
-                                return (
-                                  <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end" style={{ height: `${chartH}px`, gap: 0 }}>
-                                    {/* Valor encima de la barra */}
-                                    <span className="text-[8px] tabular-nums font-bold leading-none mb-1" style={{ color: showVal ? 'rgba(255,255,255,0.75)' : 'transparent', userSelect: 'none' }}>
-                                      {formatCLP(row.total)}
-                                    </span>
-                                    {!isFutureBar ? (
-                                      <div style={{
-                                        width: 'min(36px, 100%)',
-                                        height: barH > 0 ? `${barH}px` : '3px',
-                                        borderRadius: '5px 5px 2px 2px',
-                                        backgroundColor: isPeakBar ? 'rgba(255,255,255,0.92)' : isCurrentBar ? 'rgba(255,255,255,0.62)' : barH === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.28)',
-                                      }} />
-                                    ) : (
-                                      <div style={{ width: 'min(36px, 100%)', height: '16px', borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.15)' }} />
-                                    )}
-                                  </div>
-                                )
-                              })}
+                              {/* Barras: absolute inset, altura en % */}
+                              <div className="absolute inset-0 flex items-end justify-between" style={{ gap: '4px' }}>
+                                {anualRows.map(row => {
+                                  const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                                  const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                                  const isPeakBar    = peakRow?.monthNum === row.monthNum
+                                  const barPct       = row.total > 0 ? Math.min(90, (row.total / niceMax) * 100) : 0
+                                  const showVal      = (isPeakBar || isCurrentBar) && row.total > 0
+                                  return (
+                                    <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end h-full">
+                                      <span className="text-[8px] tabular-nums font-bold leading-none mb-1 block" style={{ color: showVal ? 'rgba(255,255,255,0.75)' : 'transparent', userSelect: 'none' }}>
+                                        {formatCLP(row.total)}
+                                      </span>
+                                      {!isFutureBar ? (
+                                        <div style={{
+                                          width: 'min(36px, 100%)',
+                                          height: barPct > 0 ? `${barPct}%` : '3px',
+                                          borderRadius: '5px 5px 2px 2px',
+                                          backgroundColor: isPeakBar ? 'rgba(255,255,255,0.92)' : isCurrentBar ? 'rgba(255,255,255,0.62)' : barPct === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.28)',
+                                        }} />
+                                      ) : (
+                                        <div style={{ width: 'min(36px, 100%)', height: '18px', borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.15)' }} />
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
                             </div>
 
-                            {/* Labels de mes */}
-                            <div className="absolute left-0 right-0 flex justify-between" style={{ top: `${chartH + 6}px`, gap: '4px' }}>
+                            {/* Labels de mes — altura fija debajo de las barras */}
+                            <div className="flex justify-between flex-shrink-0 pt-1.5" style={{ gap: '4px' }}>
                               {anualRows.map(row => {
                                 const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
                                 const isPeakBar    = peakRow?.monthNum === row.monthNum
                                 const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                                const labelOpacity = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
+                                const op = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
                                 return (
-                                  <span key={row.monthNum} className="flex-1 text-center text-[9px] font-medium leading-none" style={{ color: `rgba(255,255,255,${labelOpacity})`, fontWeight: isCurrentBar ? 700 : 500 }}>
+                                  <span key={row.monthNum} className="flex-1 text-center text-[9px] leading-none" style={{ color: `rgba(255,255,255,${op})`, fontWeight: isCurrentBar ? 700 : 500 }}>
                                     {anualMonthLabels[row.monthNum - 1].slice(0, 3)}
                                   </span>
                                 )
@@ -780,9 +780,9 @@ export default async function AnalisisPage({
                       </div>
                     </div>
 
-                    {/* ── Distribución por categoría — full width ── */}
+                    {/* ── Distribución por categoría — ancho completo de la tarjeta ── */}
                     {anualCats.length > 0 && (
-                      <div className="mt-5 pt-4 border-t border-white/10">
+                      <div className="mt-5 pt-4 border-t border-white/10 -mx-7 px-7">
                         <div className="flex rounded-full overflow-hidden" style={{ height: '6px', gap: '2px' }}>
                           {anualCats.map(c => {
                             const pct = anualGrandTotal > 0 ? (c.total / anualGrandTotal) : 0
