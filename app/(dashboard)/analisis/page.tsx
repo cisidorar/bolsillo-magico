@@ -13,9 +13,9 @@ export const revalidate = 0
 export default async function AnalisisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; view?: string }>
+  searchParams: Promise<{ month?: string; year?: string; view?: string; bm?: string }>
 }) {
-  const { month: monthStr, year: yearStr, view } = await searchParams
+  const { month: monthStr, year: yearStr, view, bm } = await searchParams
   const now   = new Date()
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
@@ -45,7 +45,7 @@ export default async function AnalisisPage({
     : new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -62,6 +62,15 @@ export default async function AnalisisPage({
           .eq('user_id', user!.id)
           .gte('date', `${year}-01-01`)
           .lte('date', `${year}-12-31`)
+      : Promise.resolve({ data: null }),
+    // Año anterior para comparación
+    isAnual
+      ? supabase
+          .from('expenses')
+          .select('amount')
+          .eq('user_id', user!.id)
+          .gte('date', `${year - 1}-01-01`)
+          .lte('date', `${year - 1}-12-31`)
       : Promise.resolve({ data: null }),
   ])
 
@@ -276,6 +285,19 @@ export default async function AnalisisPage({
     return row.total > catTotal
   })
 
+  // ── Métricas móvil ───────────────────────────────────────────────────────
+  const barMode = bm === 'pct' ? 'pct' : 'amt'
+  const prevYearTotal = isAnual ? ((prevYearExpensesRaw ?? []) as { amount: number }[]).reduce((s, e) => s + e.amount, 0) : 0
+  const yearElapsedPct = year === now.getFullYear()
+    ? Math.round(((now.getMonth() + 1) / 12) * 100)
+    : 100
+  const yearDelta = prevYearTotal > 0 ? Math.round(((anualGrandTotal - prevYearTotal) / prevYearTotal) * 100) : null
+  const anualProjection = year === now.getFullYear() && now.getMonth() > 0
+    ? Math.round((anualGrandTotal / (now.getMonth() + 1)) * 12)
+    : null
+  const firstPastMonth = pastRows.length > 0 ? anualMonthLabels[pastRows[0].monthNum - 1] : null
+  const lastPastMonth  = pastRows.length > 0 ? anualMonthLabels[pastRows[pastRows.length - 1].monthNum - 1] : null
+
   // Formato compacto para celdas de tabla
   function fmtCell(v: number): string {
     if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
@@ -365,16 +387,253 @@ export default async function AnalisisPage({
             </div>
           ) : (
             <>
-              {/* ── Hero ─────────────────────────────────────────────────────── */}
-              <div className="hero-gradient rounded-3xl px-6 pt-6 pb-5 text-white">
+              {/* ══════════════════════ MOBILE (< lg) ══════════════════════ */}
 
-                {/* Total prominente */}
+              {/* M1 — Hero: total + año anterior + círculo de progreso */}
+              <div className="lg:hidden hero-gradient rounded-3xl px-5 pt-5 pb-5 text-white">
+                <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3">Total gastado en {year}</p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-4xl font-extrabold tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
+                    {yearDelta !== null && (
+                      <div className={`mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
+                        <span>{yearDelta < 0 ? '↗' : '↑'}</span>
+                        <span>{Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0">
+                    <div className="relative w-[76px] h-[76px]">
+                      <svg width="76" height="76" viewBox="0 0 76 76">
+                        <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="7" />
+                        <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="7"
+                          strokeDasharray={`${(yearElapsedPct / 100) * 188.5} 188.5`}
+                          strokeLinecap="round" transform="rotate(-90 38 38)" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-lg font-extrabold leading-none">{yearElapsedPct}%</span>
+                        <span className="text-[8px] text-white/50 leading-tight text-center mt-0.5">del año<br/>transcurrido</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* M2 — Stats: 2×2 grid */}
+              <div className="lg:hidden card p-4">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-3 flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+                      <TrendingUp className="w-3.5 h-3.5 text-purple-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wide leading-none mb-1">Promedio mensual</p>
+                      <p className="text-[13px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">por mes</p>
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-3 flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                      <CalendarDays className="w-3.5 h-3.5 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wide leading-none mb-1">Meses con datos</p>
+                      <p className="text-[13px] font-extrabold text-gray-900 dark:text-gray-100 leading-tight">
+                        {pastRows.length} <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">/ 12</span>
+                      </p>
+                      {firstPastMonth && lastPastMonth && pastRows.length > 1 && (
+                        <p className="text-[9px] text-gray-400 mt-0.5">{firstPastMonth.slice(0,3)} – {lastPastMonth.slice(0,3)}</p>
+                      )}
+                    </div>
+                  </div>
+                  {peakRow && (
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl p-3 flex items-start gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                        <TrendingUp className="w-3.5 h-3.5 text-red-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wide leading-none mb-1">Mes más alto</p>
+                        <p className="text-[13px] font-extrabold text-gray-900 dark:text-gray-100 leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
+                        <p className="text-[9px] text-gray-400 tabular-nums mt-0.5">{formatCLP(peakRow.total)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {anualProjection && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-3 flex items-start gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                        <BarChart2 className="w-3.5 h-3.5 text-amber-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-wide leading-none mb-1">Proyección {year}</p>
+                        <p className="text-[13px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(anualProjection)}</p>
+                        <p className="text-[9px] text-gray-400 mt-0.5">estimado</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* M3 — Gráfico de barras con toggle $ / % */}
+              <div className="lg:hidden card p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Gasto por mes</p>
+                  <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-[#1a2744] rounded-lg p-0.5">
+                    <Link href={`/analisis?year=${year}&view=anual`}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${barMode === 'amt' ? 'bg-white dark:bg-[#0d1b2e] text-brand-600 shadow-sm' : 'text-gray-400'}`}>
+                      $
+                    </Link>
+                    <Link href={`/analisis?year=${year}&view=anual&bm=pct`}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${barMode === 'pct' ? 'bg-white dark:bg-[#0d1b2e] text-brand-600 shadow-sm' : 'text-gray-400'}`}>
+                      %
+                    </Link>
+                  </div>
+                </div>
+                <div className="flex items-end justify-between gap-1">
+                  {anualRows.map(row => {
+                    const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                    const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                    const isPeakBar    = peakRow?.monthNum === row.monthNum
+                    const maxBarH = 80
+                    const barH = row.total > 0 ? Math.max(6, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH)) : 0
+                    const valLabel = barMode === 'pct'
+                      ? `${Math.round((row.total / anualGrandTotal) * 100)}%`
+                      : formatCLP(row.total)
+                    return (
+                      <div key={row.monthNum} className="flex-1 flex flex-col items-center gap-1">
+                        <div style={{ height: `${maxBarH}px`, display: 'flex', alignItems: 'flex-end', width: '100%', position: 'relative' }}>
+                          {!isFutureBar ? (
+                            <div style={{
+                              width: 'min(18px, 100%)', height: barH > 0 ? `${barH}px` : '3px',
+                              margin: '0 auto', borderRadius: '4px 4px 2px 2px',
+                              backgroundColor: isPeakBar ? '#1B6DD4' : isCurrentBar ? '#4D8FFF' : '#D5E6FF',
+                              transition: 'height 0.2s ease', position: 'relative',
+                            }}>
+                              {isPeakBar && row.total > 0 && (
+                                <div style={{
+                                  position: 'absolute', bottom: '100%', left: '50%',
+                                  transform: 'translateX(-50%)', marginBottom: '6px',
+                                  backgroundColor: '#0A1F44', color: 'white',
+                                  borderRadius: '8px', padding: '3px 7px',
+                                  fontSize: '10px', fontWeight: 700,
+                                  whiteSpace: 'nowrap', zIndex: 10,
+                                }}>{valLabel}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{
+                              width: 'min(18px, 100%)', height: '30px', margin: '0 auto',
+                              borderRadius: '4px', border: '1.5px dashed #D5E6FF',
+                            }} />
+                          )}
+                        </div>
+                        <span style={{
+                          fontSize: '9px', fontWeight: isCurrentBar ? 700 : 400,
+                          color: isCurrentBar ? '#1B6DD4' : '#94a3b8',
+                          textAlign: 'center', display: 'block', width: '100%',
+                        }}>{row.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-4 mt-3 justify-center">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-1.5 rounded-full bg-[#D5E6FF] dark:bg-[#2d4f7a]" />
+                    <span className="text-[9px] text-gray-400">Real</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-0 border border-dashed border-[#D5E6FF] dark:border-[#2d4f7a]" />
+                    <span className="text-[9px] text-gray-400">Proyectado</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* M4 — Gasto por categoría */}
+              {anualCats.length > 0 && (
+                <div className="lg:hidden card p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Gasto por categoría</p>
+                    <Link href={`/analisis?year=${year}&view=anual`} className="text-xs font-semibold text-brand-600 flex items-center gap-0.5">
+                      Ver detalle <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                  <div className="flex h-2.5 rounded-full overflow-hidden mb-3" style={{ gap: '2px' }}>
+                    {anualCats.map(c => {
+                      const pctVal = Math.round((c.total / anualGrandTotal) * 100)
+                      return pctVal > 0 ? <div key={c.id} style={{ flex: pctVal, backgroundColor: c.color }} /> : null
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {anualCats.map(c => {
+                      const pctVal = Math.round((c.total / anualGrandTotal) * 100)
+                      return (
+                        <Link key={c.id} href={`/analisis/${c.id}?year=${year}`}
+                          className="flex items-center gap-1.5 bg-gray-50 dark:bg-white/5 rounded-xl px-2.5 py-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.name}</span>
+                          <span className="text-[10px] text-gray-400">{pctVal}%</span>
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 tabular-nums">{formatCLP(c.total)}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* M5 — Ranking colapsado con top 3 preview */}
+              <div className="lg:hidden card p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xl">🏆</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Ranking del año</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Toca una categoría para ver su historial mes a mes</p>
+                  </div>
+                  {Object.keys(catSpikes).length > 0 && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 whitespace-nowrap flex-shrink-0">
+                      🚀 {Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-0.5">
+                  {anualCats.slice(0, 3).map((c, idx) => {
+                    const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+                    const pctVal  = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
+                    const spike   = catSpikes[c.id]
+                    const rankColors = ['text-amber-500', 'text-slate-400', 'text-orange-400']
+                    return (
+                      <Link key={c.id}
+                        href={spike ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}` : `/analisis/${c.id}?year=${year}`}
+                        className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                        <span className={`w-4 text-center text-[11px] font-extrabold flex-shrink-0 ${rankColors[idx]}`}>{idx + 1}</span>
+                        <div className="cat-icon-bg w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                          {isEmoji(c.icon) ? <span className="text-sm leading-none">{c.icon}</span>
+                            : CatIcon ? <CatIcon className="w-3.5 h-3.5" style={{ color: c.color }} /> : null}
+                        </div>
+                        <span className="flex-1 text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
+                        {spike && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-500 flex-shrink-0">🚀 ×{spike.multiple}</span>}
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">{pctVal}%</span>
+                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums flex-shrink-0">{formatCLP(c.total)}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+                {anualCats.length > 3 && (
+                  <p className="text-center text-xs text-gray-400 mt-2 pt-2 border-t border-gray-50 dark:border-[#1a2744]">
+                    +{anualCats.length - 3} categorías más
+                  </p>
+                )}
+              </div>
+
+              {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}
+
+              {/* D1 — Hero completo */}
+              <div className="hidden lg:block hero-gradient rounded-3xl px-6 pt-6 pb-5 text-white">
                 <div className="mb-5">
                   <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-1.5">Total gastado en {year}</p>
                   <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
                 </div>
-
-                {/* Stat strip: 4 chips horizontales scrollables */}
                 <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5">
                   <div className="flex-shrink-0 bg-white/12 rounded-xl px-3.5 py-2.5">
                     <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide mb-0.5">Promedio</p>
@@ -401,74 +660,44 @@ export default async function AnalisisPage({
                     </div>
                   )}
                 </div>
-
-                {/* Bar chart: barras estrechas + etiquetas verticales con nombre completo */}
                 <div className="flex items-end justify-between" style={{ gap: '3px' }}>
                   {anualRows.map(row => {
                     const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
                     const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
                     const isPeakBar    = peakRow?.monthNum === row.monthNum
-                    const maxBarH      = 60
-                    const barH         = row.total > 0
-                      ? Math.max(5, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH))
-                      : 0
+                    const maxBarH = 60
+                    const barH = row.total > 0 ? Math.max(5, Math.round((row.total / (peakRow?.total ?? 1)) * maxBarH)) : 0
                     const showVal = (isPeakBar || isCurrentBar) && row.total > 0
-                    const labelColor  = isCurrentBar ? 'rgba(255,255,255,1)'
-                      : isPeakBar    ? 'rgba(255,255,255,0.75)'
-                      : isFutureBar  ? 'rgba(255,255,255,0.18)'
-                      : 'rgba(255,255,255,0.40)'
+                    const labelColor = isCurrentBar ? 'rgba(255,255,255,1)' : isPeakBar ? 'rgba(255,255,255,0.75)' : isFutureBar ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.40)'
                     return (
                       <div key={row.monthNum} className="flex-1 flex flex-col items-center" style={{ gap: '3px' }}>
-                        {/* Valor encima (pico y mes actual) — oculto en móvil para no desbordarse */}
-                        <span className="text-[8px] tabular-nums font-bold leading-none invisible sm:visible" style={{
-                          color: showVal ? 'rgba(255,255,255,0.72)' : 'transparent',
-                          userSelect: 'none',
-                          height: '10px',
-                        }}>
+                        <span className="text-[8px] tabular-nums font-bold leading-none" style={{ color: showVal ? 'rgba(255,255,255,0.72)' : 'transparent', userSelect: 'none', height: '10px' }}>
                           {formatCLP(row.total)}
                         </span>
-                        {/* Barra */}
                         <div style={{ height: `${maxBarH}px`, display: 'flex', alignItems: 'flex-end', width: '100%' }}>
                           {!isFutureBar ? (
                             <div style={{
-                              width: 'min(20px, 100%)',
-                              height: barH > 0 ? `${barH}px` : '2px',
-                              margin: '0 auto',
-                              borderRadius: '4px 4px 2px 2px',
-                              backgroundColor: isPeakBar    ? 'rgba(255,255,255,0.88)'
-                                : isCurrentBar ? 'rgba(255,255,255,0.60)'
-                                : barH === 0   ? 'rgba(255,255,255,0.08)'
-                                : 'rgba(255,255,255,0.32)',
-                              transition: 'height 0.2s ease',
+                              width: 'min(20px, 100%)', height: barH > 0 ? `${barH}px` : '2px', margin: '0 auto',
+                              borderRadius: '4px 4px 2px 2px', transition: 'height 0.2s ease',
+                              backgroundColor: isPeakBar ? 'rgba(255,255,255,0.88)' : isCurrentBar ? 'rgba(255,255,255,0.60)' : barH === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.32)',
                             }} />
                           ) : (
                             <div style={{ width: 'min(20px, 100%)', height: '2px', margin: '0 auto', borderRadius: '2px', backgroundColor: 'rgba(255,255,255,0.07)' }} />
                           )}
                         </div>
-                        {/* Etiqueta: vertical en móvil, horizontal en sm+ */}
-                        <span
-                          className="bar-month-label"
-                          style={{
-                            fontWeight: isCurrentBar ? 700 : 500,
-                            color: labelColor,
-                          }}
-                        >
+                        <span className="bar-month-label" style={{ fontWeight: isCurrentBar ? 700 : 500, color: labelColor }}>
                           {anualMonthLabels[row.monthNum - 1]}
                         </span>
                       </div>
                     )
                   })}
                 </div>
-
-                {/* Distribución por categoría */}
                 {anualCats.length > 0 && (
                   <div className="mt-5 pt-4 border-t border-white/10">
                     <div className="flex h-3 rounded-full overflow-hidden" style={{ gap: '2px' }}>
                       {anualCats.map(c => {
                         const pctVal = Math.round((c.total / anualGrandTotal) * 100)
-                        return pctVal > 0 ? (
-                          <div key={c.id} style={{ flex: pctVal, backgroundColor: c.color }} title={`${c.name}: ${pctVal}%`} />
-                        ) : null
+                        return pctVal > 0 ? <div key={c.id} style={{ flex: pctVal, backgroundColor: c.color }} title={`${c.name}: ${pctVal}%`} /> : null
                       })}
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
@@ -486,9 +715,8 @@ export default async function AnalisisPage({
                 )}
               </div>
 
-              {/* ── Ranking por categoría ───────────────────────────────────── */}
-              <div className="card p-5">
-                {/* Header */}
+              {/* D2 — Ranking completo */}
+              <div className="hidden lg:block card p-5">
                 <div className="flex items-center justify-between mb-1">
                   <div>
                     <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Ranking del año</p>
@@ -500,8 +728,6 @@ export default async function AnalisisPage({
                     </span>
                   )}
                 </div>
-
-                {/* Rows */}
                 <div className="mt-3 space-y-0.5">
                   {anualCats.map((c, idx) => {
                     const pctVal  = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
@@ -509,31 +735,16 @@ export default async function AnalisisPage({
                     const spike   = catSpikes[c.id]
                     const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
                     const rankColors = ['text-amber-500', 'text-slate-400', 'text-orange-400', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600']
-
                     return (
-                      <Link
-                        key={c.id}
-                        href={spike
-                          ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}`
-                          : `/analisis/${c.id}?year=${year}`}
-                        className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
-                      >
-                        {/* Rank */}
-                        <span className={`w-4 text-center text-[11px] font-extrabold flex-shrink-0 ${rankColors[idx] ?? 'text-gray-300 dark:text-gray-600'}`}>
-                          {idx + 1}
-                        </span>
-
-                        {/* Icon */}
-                        <div
-                          className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                        >
-                          {isEmoji(c.icon)
-                            ? <span className="text-base leading-none">{c.icon}</span>
+                      <Link key={c.id}
+                        href={spike ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}` : `/analisis/${c.id}?year=${year}`}
+                        className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                        <span className={`w-4 text-center text-[11px] font-extrabold flex-shrink-0 ${rankColors[idx] ?? 'text-gray-300 dark:text-gray-600'}`}>{idx + 1}</span>
+                        <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                          {isEmoji(c.icon) ? <span className="text-base leading-none">{c.icon}</span>
                             : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
                         </div>
-
-                        {/* Bar + spike badge */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1.5">
                             <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
@@ -544,27 +755,21 @@ export default async function AnalisisPage({
                             )}
                           </div>
                           <div className="h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-white/10">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${barW}%`, backgroundColor: c.color }}
-                            />
+                            <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, backgroundColor: c.color }} />
                           </div>
                         </div>
-
-                        {/* Amount + % */}
                         <div className="text-right flex-shrink-0 pl-2 min-w-[100px]">
                           <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(c.total)}</p>
                           <p className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">{pctVal}% del año</p>
                         </div>
-
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 dark:group-hover:text-gray-400 transition-colors flex-shrink-0" />
+                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
                       </Link>
                     )
                   })}
                 </div>
               </div>
 
-              {/* ── Tabla mes × categoría — solo desktop ────────────────────── */}
+              {/* D3 — Tabla mes × categoría — solo desktop */}
               <div className="hidden lg:block card overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-50 dark:border-[#1a2744]">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Desglose mensual</p>
