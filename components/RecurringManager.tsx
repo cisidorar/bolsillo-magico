@@ -184,6 +184,34 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     router.refresh()
   }
 
+  // "Registrar ahora" — per-item state: null | 'loading' | 'done'
+  const [registerState, setRegisterState] = useState<Record<string, 'loading' | 'done'>>({})
+
+  async function registerNow(item: RecurringExpense, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (registerState[item.id]) return
+    setRegisterState(prev => ({ ...prev, [item.id]: 'loading' }))
+
+    const today     = new Date()
+    const dateStr   = today.toISOString().split('T')[0]
+
+    await supabase.from('expenses').insert({
+      user_id:              userId,
+      amount:               item.amount,
+      category_id:          item.category_id ?? null,
+      payment_method_id:    item.payment_method_id ?? null,
+      recurring_expense_id: item.id,
+      description:          item.name,
+      date:                 dateStr,
+    })
+
+    setRegisterState(prev => ({ ...prev, [item.id]: 'done' }))
+    router.refresh()
+    setTimeout(() => setRegisterState(prev => {
+      const next = { ...prev }; delete next[item.id]; return next
+    }), 2500)
+  }
+
   const previewDomain = detectDomain(form.name) ?? null
   const previewAmount = form.cuotas ? (computedMonthly ?? 0) : (parseInt(form.amount) || 0)
 
@@ -204,13 +232,18 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             const progress    = isCuotas
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
               : null
+            const regState    = registerState[item.id] ?? null
+            const canRegister = item.is_active && !isCompleted
 
             return (
-              <button
+              <div
                 key={item.id}
                 onClick={() => openEdit(item)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && openEdit(item)}
                 className={cn(
-                  'w-full px-4 py-4 text-left transition-colors hover:bg-gray-50/60 active:bg-gray-100/50',
+                  'w-full px-4 py-4 text-left transition-colors hover:bg-gray-50/60 active:bg-gray-100/50 cursor-pointer',
                   !item.is_active && 'opacity-60'
                 )}
               >
@@ -242,6 +275,31 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : '/ mes'}</p>
                   </div>
 
+                  {/* Botón "Registrar ahora" */}
+                  {canRegister && (
+                    <button
+                      onClick={e => registerNow(item, e)}
+                      disabled={!!regState}
+                      title="Registrar gasto hoy"
+                      className={cn(
+                        'hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold border transition-all flex-shrink-0',
+                        regState === 'done'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          : regState === 'loading'
+                            ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
+                            : 'bg-white border-gray-200 text-gray-500 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50'
+                      )}
+                    >
+                      {regState === 'done' ? (
+                        <><Check className="w-3 h-3" /> Registrado</>
+                      ) : regState === 'loading' ? (
+                        <><RefreshCw className="w-3 h-3 animate-spin" /> Guardando</>
+                      ) : (
+                        <><Plus className="w-3 h-3" /> Registrar</>
+                      )}
+                    </button>
+                  )}
+
                   <span className={cn(
                     'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
                     item.is_active && !isCompleted ? 'bg-emerald-50 text-emerald-700'
@@ -264,7 +322,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     </span>
                   </div>
                 )}
-              </button>
+              </div>
             )
           })}
         </div>
