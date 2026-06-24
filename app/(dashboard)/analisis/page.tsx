@@ -780,32 +780,6 @@ export default async function AnalisisPage({
                       </div>
                     </div>
 
-                    {/* ── Distribución — barra full-bleed con nombres dentro ── */}
-                    {anualCats.length > 0 && (
-                      <div className="-mx-7 -mb-6 mt-4 border-t border-white/10">
-                        <div className="flex overflow-hidden rounded-b-3xl" style={{ height: '44px' }}>
-                          {anualCats.map(c => {
-                            const pct = anualGrandTotal > 0 ? c.total / anualGrandTotal : 0
-                            const pctRounded = Math.round(pct * 100)
-                            if (pct < 0.01) return null
-                            return (
-                              <div
-                                key={c.id}
-                                className="flex items-center justify-center overflow-hidden flex-shrink-0"
-                                style={{ flex: pct, backgroundColor: c.color }}
-                                title={`${c.name}: ${pctRounded}%`}
-                              >
-                                {pctRounded >= 7 && (
-                                  <span className="text-white text-[10px] font-bold whitespace-nowrap px-2 leading-none drop-shadow">
-                                    {c.name} <span className="opacity-70">{pctRounded}%</span>
-                                  </span>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )
               })()}
