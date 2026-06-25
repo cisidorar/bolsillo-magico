@@ -185,7 +185,10 @@
 
 /* Dark mode brand overrides */
 .dark .text-brand-900  { color: var(--ink) !important; }
+.dark .text-brand-800  { color: var(--ink) !important; }
+.dark .text-brand-700  { color: var(--primary) !important; }
 .dark .text-brand-600  { color: var(--primary) !important; }
+.dark .text-brand-500  { color: var(--primary) !important; }
 .dark .text-brand-400  { color: var(--primary) !important; }
 .dark .text-brand-300  { color: var(--primary) !important; }
 

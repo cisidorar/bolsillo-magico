@@ -455,7 +455,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
             <div className="px-5 pt-4 pb-5 lg:px-6 flex flex-col gap-4">
               {/* Preview */}
-              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-50">
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                 <ServiceLogo domain={previewDomain} name={form.name || '?'} size={44} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm truncate">{form.name || 'Nombre del servicio'}</p>
@@ -514,31 +514,36 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-gray-500 block mb-1.5">N° de cuotas</label>
-                      <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden h-[42px]">
+                      <div className="flex items-center rounded-xl overflow-hidden h-[42px]" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
                         <button
                           type="button"
                           onClick={() => set('numCuotas', String(Math.max(2, (parseInt(form.numCuotas) || 3) - 1)))}
-                          className="w-10 h-full flex items-center justify-center text-brand-600 font-bold text-lg hover:bg-brand-50 transition-colors flex-shrink-0"
+                          className="w-10 h-full flex items-center justify-center font-bold text-lg transition-colors flex-shrink-0"
+                          style={{ color: 'var(--primary)' }}
                         >−</button>
-                        <span className="flex-1 text-center text-sm font-extrabold text-gray-900 tabular-nums">
+                        <span className="flex-1 text-center text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
                           {parseInt(form.numCuotas) || 3}
                         </span>
                         <button
                           type="button"
                           onClick={() => set('numCuotas', String(Math.min(120, (parseInt(form.numCuotas) || 3) + 1)))}
-                          className="w-10 h-full flex items-center justify-center text-brand-600 font-bold text-lg hover:bg-brand-50 transition-colors flex-shrink-0"
+                          className="w-10 h-full flex items-center justify-center font-bold text-lg transition-colors flex-shrink-0"
+                          style={{ color: 'var(--primary)' }}
                         >+</button>
                       </div>
                     </div>
                   </div>
 
                   {/* Cuota mensual calculada */}
-                  <div className={cn(
-                    'flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all',
-                    computedMonthly != null ? 'bg-brand-50 border-brand-100' : 'bg-gray-50 border-gray-100'
-                  )}>
-                    <span className={cn('text-xs font-semibold', computedMonthly != null ? 'text-brand-700' : 'text-gray-400')}>Cuota mensual</span>
-                    <span className={cn('text-sm font-bold tabular-nums', computedMonthly != null ? 'text-brand-900' : 'text-gray-300')}>
+                  <div
+                    className="flex items-center justify-between px-4 py-2.5 rounded-xl transition-all"
+                    style={computedMonthly != null
+                      ? { background: 'var(--primary-soft)', border: '1px solid var(--primary)', borderColor: 'color-mix(in srgb, var(--primary) 40%, transparent)' }
+                      : { background: 'var(--surface-2)', border: '1px solid var(--border)' }
+                    }
+                  >
+                    <span className="text-xs font-semibold" style={{ color: computedMonthly != null ? 'var(--primary)' : 'var(--ink-3)' }}>Cuota mensual</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: computedMonthly != null ? 'var(--ink)' : 'var(--ink-3)' }}>
                       {computedMonthly != null ? formatCLP(computedMonthly) : '—'}
                     </span>
                   </div>
@@ -546,14 +551,18 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   {/* Día de cobro — auto (bloqueado) */}
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
-                    <div className={cn(
-                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border',
-                      chargeDay ? 'bg-brand-50/60 border-brand-200' : 'bg-gray-50 border-gray-200'
-                    )}>
-                      <span className={cn('flex-1 text-sm font-semibold', chargeDay ? 'text-brand-700' : 'text-gray-400')}>
+                    <div
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl"
+                      style={chargeDay
+                        ? { background: 'var(--primary-soft)', border: '1px solid color-mix(in srgb, var(--primary) 35%, transparent)' }
+                        : { background: 'var(--bg)', border: '1px solid var(--border)' }
+                      }
+                    >
+                      <span className="flex-1 text-sm font-semibold" style={{ color: chargeDay ? 'var(--primary)' : 'var(--ink-3)' }}>
                         {chargeDay ? `Día ${chargeDay} de cada mes` : 'Selecciona una tarjeta primero'}
                       </span>
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-brand-500 bg-brand-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ color: 'var(--primary)', background: 'color-mix(in srgb, var(--primary) 15%, var(--surface-2))' }}>
                         <Lock className="w-2.5 h-2.5" /> auto
                       </span>
                     </div>
@@ -561,10 +570,13 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
                   {/* Info box */}
                   {chargeDay != null && parseInt(form.numCuotas) >= 2 && (
-                    <div className="flex items-start gap-2.5 px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl">
-                      <Info className="w-4 h-4 text-brand-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-brand-700 leading-relaxed">
-                        El cobro se registrará automáticamente el <strong>día {chargeDay} de cada mes</strong>, durante <strong>{form.numCuotas} meses</strong>.
+                    <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl"
+                      style={{ background: 'var(--primary-soft)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)' }}>
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                        El cobro se registrará automáticamente el{' '}
+                        <strong style={{ color: 'var(--primary)' }}>día {chargeDay} de cada mes</strong>, durante{' '}
+                        <strong style={{ color: 'var(--primary)' }}>{form.numCuotas} meses</strong>.{' '}
                         Basado en el corte de {selectedCard?.name ?? 'la tarjeta'} (día {autoBillingDay}).
                       </p>
                     </div>
@@ -703,35 +715,37 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 const total = parseInt(form.numCuotas) || 0
                 const past  = parseInt(form.pastCuotas) || 0
                 return (
-                  <div className="rounded-2xl border border-brand-200 overflow-hidden">
-                    <div className="px-4 pt-3 pb-3">
-                      <p className="text-sm font-bold text-gray-800">¿Cuántas cuotas ya fueron cobradas?</p>
-                      <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                  <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                    <div className="px-4 pt-3 pb-3" style={{ background: 'var(--surface-2)' }}>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>¿Cuántas cuotas ya fueron cobradas?</p>
+                      <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                         Se registrarán en los estados de facturación anteriores.
                       </p>
                     </div>
-                    <div className="flex items-center border-t border-brand-100">
+                    <div className="flex items-center" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
                       <button
                         type="button"
                         onClick={() => set('pastCuotas', String(Math.max(0, past - 1)))}
-                        className="w-14 h-12 flex items-center justify-center text-brand-600 font-bold text-xl hover:bg-brand-50 transition-colors flex-shrink-0"
+                        className="w-14 h-12 flex items-center justify-center font-bold text-xl transition-colors flex-shrink-0"
+                        style={{ color: 'var(--primary)' }}
                       >−</button>
                       <div className="flex-1 text-center">
-                        <span className="text-3xl font-extrabold text-brand-700 tabular-nums">{past}</span>
+                        <span className="text-3xl font-extrabold tabular-nums" style={{ color: 'var(--primary)' }}>{past}</span>
                         {total > 0 && (
-                          <span className="text-xs text-gray-400 ml-1.5">de {total}</span>
+                          <span className="text-xs ml-1.5" style={{ color: 'var(--ink-3)' }}>de {total}</span>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => set('pastCuotas', String(Math.min(total > 0 ? total - 1 : 99, past + 1)))}
-                        className="w-14 h-12 flex items-center justify-center text-brand-600 font-bold text-xl hover:bg-brand-50 transition-colors flex-shrink-0"
+                        className="w-14 h-12 flex items-center justify-center font-bold text-xl transition-colors flex-shrink-0"
+                        style={{ color: 'var(--primary)' }}
                       >+</button>
                     </div>
                     {past > 0 && (
-                      <p className="text-[11px] font-semibold text-brand-600 text-center px-4 py-2 bg-brand-50 border-t border-brand-100">
+                      <p className="text-[11px] font-semibold text-center px-4 py-2" style={{ color: 'var(--primary)', background: 'var(--primary-soft)', borderTop: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)' }}>
                         Se crearán {past} gasto{past > 1 ? 's' : ''} en estado{past > 1 ? 's' : ''} anterior{past > 1 ? 'es' : ''}
-      	              </p>
+                      </p>
                     )}
                   </div>
                 )
