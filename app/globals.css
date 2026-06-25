@@ -80,8 +80,11 @@
 @layer utilities {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
 
-  /* Hero — color fijo, no cambia con dark mode */
+  /* Hero */
   .hero-gradient {
+    background: #4D93FF;
+  }
+  .dark .hero-gradient {
     background: #2256C8;
   }
 
