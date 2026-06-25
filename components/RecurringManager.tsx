@@ -498,44 +498,50 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {/* Monto */}
               {form.cuotas ? (
                 <div className="flex flex-col gap-3">
-                  {/* Monto total */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto total</label>
-                    <input type="text" inputMode="numeric"
-                      value={form.totalAmount ? fmtNum(form.totalAmount) : ''}
-                      onChange={e => set('totalAmount', e.target.value.replace(/\D/g, ''))}
-                      placeholder="0"
-                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                    />
-                  </div>
-
-                  {/* N° de cuotas — stepper */}
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">N° de cuotas</label>
-                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2">
-                      <button
-                        type="button"
-                        onClick={() => set('numCuotas', String(Math.max(2, (parseInt(form.numCuotas) || 3) - 1)))}
-                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-base leading-none flex-shrink-0 shadow-sm"
-                      >−</button>
-                      <span className="flex-1 text-center text-base font-bold text-gray-900 tabular-nums">
-                        {parseInt(form.numCuotas) || 3}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => set('numCuotas', String(Math.min(120, (parseInt(form.numCuotas) || 3) + 1)))}
-                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-base leading-none flex-shrink-0 shadow-sm"
-                      >+</button>
+                  {/* Monto total + N° cuotas en misma fila */}
+                  <div className="grid grid-cols-[1fr_160px] gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto total</label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
+                        <input type="text" inputMode="numeric"
+                          value={form.totalAmount ? fmtNum(form.totalAmount) : ''}
+                          onChange={e => set('totalAmount', e.target.value.replace(/\D/g, ''))}
+                          placeholder="0"
+                          className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">N° de cuotas</label>
+                      <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl overflow-hidden h-[42px]">
+                        <button
+                          type="button"
+                          onClick={() => set('numCuotas', String(Math.max(2, (parseInt(form.numCuotas) || 3) - 1)))}
+                          className="w-10 h-full flex items-center justify-center text-brand-600 font-bold text-lg hover:bg-brand-50 transition-colors flex-shrink-0"
+                        >−</button>
+                        <span className="flex-1 text-center text-sm font-extrabold text-gray-900 tabular-nums">
+                          {parseInt(form.numCuotas) || 3}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => set('numCuotas', String(Math.min(120, (parseInt(form.numCuotas) || 3) + 1)))}
+                          className="w-10 h-full flex items-center justify-center text-brand-600 font-bold text-lg hover:bg-brand-50 transition-colors flex-shrink-0"
+                        >+</button>
+                      </div>
                     </div>
                   </div>
 
                   {/* Cuota mensual calculada */}
-                  {computedMonthly != null && (
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-50 border border-brand-100 rounded-xl">
-                      <span className="text-xs font-semibold text-brand-700">Cuota mensual</span>
-                      <span className="text-sm font-bold text-brand-900 tabular-nums">{formatCLP(computedMonthly)}</span>
-                    </div>
-                  )}
+                  <div className={cn(
+                    'flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all',
+                    computedMonthly != null ? 'bg-brand-50 border-brand-100' : 'bg-gray-50 border-gray-100'
+                  )}>
+                    <span className={cn('text-xs font-semibold', computedMonthly != null ? 'text-brand-700' : 'text-gray-400')}>Cuota mensual</span>
+                    <span className={cn('text-sm font-bold tabular-nums', computedMonthly != null ? 'text-brand-900' : 'text-gray-300')}>
+                      {computedMonthly != null ? formatCLP(computedMonthly) : '—'}
+                    </span>
+                  </div>
 
                   {/* Día de cobro — auto (bloqueado) */}
                   <div>
@@ -569,12 +575,15 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 <div className="grid grid-cols-[1fr_120px] gap-3">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto mensual</label>
-                    <input type="text" inputMode="numeric"
-                      value={form.amount ? fmtNum(form.amount) : ''}
-                      onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
-                      placeholder="$ 0"
-                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                    />
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
+                      <input type="text" inputMode="numeric"
+                        value={form.amount ? fmtNum(form.amount) : ''}
+                        onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
+                        placeholder="0"
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
@@ -694,33 +703,35 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 const total = parseInt(form.numCuotas) || 0
                 const past  = parseInt(form.pastCuotas) || 0
                 return (
-                  <div className="px-4 py-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40">
-                    <p className="text-sm font-semibold text-gray-800 mb-1">¿Cuántas cuotas ya fueron cobradas?</p>
-                    <p className="text-xs text-gray-400 mb-3">
-                      La app registrará las cuotas pasadas en los estados anteriores y las próximas automáticamente.
-                    </p>
-                    <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-brand-200 overflow-hidden">
+                    <div className="px-4 pt-3 pb-3">
+                      <p className="text-sm font-bold text-gray-800">¿Cuántas cuotas ya fueron cobradas?</p>
+                      <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                        Se registrarán en los estados de facturación anteriores.
+                      </p>
+                    </div>
+                    <div className="flex items-center border-t border-brand-100">
                       <button
                         type="button"
                         onClick={() => set('pastCuotas', String(Math.max(0, past - 1)))}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg leading-none"
+                        className="w-14 h-12 flex items-center justify-center text-brand-600 font-bold text-xl hover:bg-brand-50 transition-colors flex-shrink-0"
                       >−</button>
                       <div className="flex-1 text-center">
-                        <span className="text-2xl font-extrabold text-brand-700">{past}</span>
+                        <span className="text-3xl font-extrabold text-brand-700 tabular-nums">{past}</span>
                         {total > 0 && (
-                          <span className="text-sm text-gray-400 ml-1">de {total} cuotas</span>
+                          <span className="text-xs text-gray-400 ml-1.5">de {total}</span>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => set('pastCuotas', String(Math.min(total > 0 ? total - 1 : 99, past + 1)))}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg leading-none"
+                        className="w-14 h-12 flex items-center justify-center text-brand-600 font-bold text-xl hover:bg-brand-50 transition-colors flex-shrink-0"
                       >+</button>
                     </div>
                     {past > 0 && (
-                      <p className="text-[11px] text-brand-500 mt-2 text-center">
+                      <p className="text-[11px] font-semibold text-brand-600 text-center px-4 py-2 bg-brand-50 border-t border-brand-100">
                         Se crearán {past} gasto{past > 1 ? 's' : ''} en estado{past > 1 ? 's' : ''} anterior{past > 1 ? 'es' : ''}
-                      </p>
+      	              </p>
                     )}
                   </div>
                 )
