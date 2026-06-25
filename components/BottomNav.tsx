@@ -21,8 +21,8 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 glass-nav safe-bottom max-w-lg mx-auto lg:hidden">
-        <div className="flex items-center justify-around py-2 px-1">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 glass-nav safe-bottom lg:hidden">
+        <div className="flex items-center justify-around py-2 px-1 max-w-lg mx-auto">
           {navItems.map((item, i) => {
             if (!item) {
               return (
@@ -32,35 +32,33 @@ export default function BottomNav() {
                   aria-label="Agregar gasto"
                   className="w-14 h-14 -mt-7 fab-gradient rounded-full flex items-center justify-center active:scale-95 transition-transform"
                 >
-                  <Plus className="w-7 h-7 text-white" strokeWidth={2.5} />
+                  <Plus className="w-7 h-7" style={{ color: 'var(--primary-ink)' }} strokeWidth={2.5} />
                 </button>
               )
             }
 
-            const Icon = item.icon
+            const Icon   = item.icon
             const active = pathname === item.href
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200',
-                  active
-                    ? 'text-brand-700'
-                    : 'text-stone-400 dark:text-slate-500 hover:text-stone-500'
-                )}
+                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200"
               >
-                <div className={cn(
-                  'p-1.5 rounded-xl transition-all',
-                  active ? 'bg-brand-50' : ''
-                )}>
-                  <Icon className={cn('w-5 h-5', active ? 'text-brand-700' : '')} />
+                <div
+                  className="p-1.5 rounded-xl transition-all"
+                  style={active ? { background: 'var(--primary-soft)' } : {}}
+                >
+                  <Icon
+                    className="w-5 h-5"
+                    style={{ color: active ? 'var(--primary)' : 'var(--ink-3)' }}
+                  />
                 </div>
-                <span className={cn(
-                  'text-[10px] font-medium transition-all',
-                  active ? 'text-brand-700' : 'text-gray-400 dark:text-slate-600'
-                )}>
+                <span
+                  className="text-[10px] font-semibold transition-all"
+                  style={{ color: active ? 'var(--primary)' : 'var(--ink-3)' }}
+                >
                   {item.label}
                 </span>
               </Link>

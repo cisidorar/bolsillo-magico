@@ -13,9 +13,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
-const SITE_URL       = Deno.env.get('SITE_URL') ?? 'https://gstos.app'
+const SITE_URL       = Deno.env.get('SITE_URL') ?? 'https://bolsillomagico.com'
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -117,7 +117,7 @@ Deno.serve(async () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Gstos <noreply@gstos.app>',
+        from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
         subject: `Tu tarjeta ${method.name} cierra ${daysUntil === 1 ? 'mañana' : 'en 2 días'}`,
         html: billingEmailHtml({

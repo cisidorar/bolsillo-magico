@@ -11,24 +11,32 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50:  '#EEF4FF',   // azul muy claro
-          100: '#D5E6FF',
-          200: '#A8C8FF',
-          300: '#75A8FF',
-          400: '#4D8FFF',
-          500: '#3079E0',
-          600: '#1B6DD4',   // azul royal — CTA
-          700: '#155BB0',   // hover
-          800: '#0F4489',   // active / dark
-          900: '#0A1F44',   // azul marino profundo
+          50:  '#EAF2FE',
+          100: '#BDDAFD',
+          200: '#90BFFB',
+          300: '#63A4F9',
+          400: '#4D93FF',
+          500: '#3B85F7',
+          600: '#2B7CF6',   // primary — CTA
+          700: '#1E69D8',   // hover
+          800: '#1553B0',   // active / dark
+          900: '#0E2A52',   // ink profundo
         },
-        accent: {
-          yellow: '#FFCC00', // amarillo campana
-          red:    '#E63B3B', // rojo collar
-        },
+        mint:  { DEFAULT: '#1FBE8D', dark: '#34D6A2' },
+        coral: { DEFAULT: '#FF6F61', dark: '#FF8478' },
+        gold:  { DEFAULT: '#FFC23C', dark: '#FFD166' },
       },
       fontFamily: {
-        sans: ['Nunito', 'system-ui', 'sans-serif'],
+        sans:    ['var(--font-jakarta)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-fredoka)', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        'card': '18px',
+        'panel': '22px',
+      },
+      boxShadow: {
+        'card':   '0 8px 18px rgba(14,42,82,0.10)',
+        'button': '0 8px 18px rgba(43,124,246,0.35)',
       },
     },
   },
