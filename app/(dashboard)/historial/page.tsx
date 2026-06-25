@@ -278,41 +278,41 @@ export default async function HistorialPage({
           {/* Desktop: 3 columnas */}
           <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
             {/* Total */}
-            <div className="card p-4 flex items-center gap-3">
-              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+            <div className="card p-5 flex items-center gap-4">
+              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#4D93FF' } as React.CSSProperties}>
-                <Wallet className="w-6 h-6" style={{ color: '#4D93FF' }} />
+                <Wallet className="w-7 h-7" style={{ color: '#4D93FF' }} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                <p className="text-xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(total)}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(total)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
               </div>
             </div>
             {/* vs anterior */}
-            <div className="card p-4 flex items-center gap-3">
-              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+            <div className="card p-5 flex items-center gap-4">
+              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{
                   '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
                   '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
                 } as React.CSSProperties}>
                 {delta === null || delta === 0
-                  ? <Minus className="w-6 h-6 text-gray-400" />
+                  ? <Minus className="w-7 h-7 text-gray-400" />
                   : delta > 0
-                    ? <TrendingUp   className="w-6 h-6" style={{ color: '#EF4444' }} />
-                    : <TrendingDown className="w-6 h-6" style={{ color: '#16A34A' }} />
+                    ? <TrendingUp   className="w-7 h-7" style={{ color: '#EF4444' }} />
+                    : <TrendingDown className="w-7 h-7" style={{ color: '#16A34A' }} />
                 }
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">vs mes anterior{isCurrentMonth && !isBilling ? ` · día ${now.getDate()}` : ''}</p>
                 {isBilling || delta === null ? (
-                  <p className="text-xl font-extrabold text-gray-400">—</p>
+                  <p className="text-2xl font-extrabold text-gray-400 leading-tight">—</p>
                 ) : (
                   <>
-                    <p className={`text-xl font-extrabold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    <p className={`text-2xl font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
                       {delta > 0 ? '+' : ''}{delta}%
                     </p>
-                    <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                    <p className={`text-xs tabular-nums mt-0.5 ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
                       {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
                     </p>
                   </>
@@ -320,15 +320,15 @@ export default async function HistorialPage({
               </div>
             </div>
             {/* Promedio */}
-            <div className="card p-4 flex items-center gap-3">
-              <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+            <div className="card p-5 flex items-center gap-4">
+              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
-                <TrendingUp className="w-6 h-6" style={{ color: '#FFC23C' }} />
+                <TrendingUp className="w-7 h-7" style={{ color: '#FFC23C' }} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
-                <p className="text-xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(dailyAvg)}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">por día</p>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">por día</p>
               </div>
             </div>
           </div>
@@ -336,7 +336,7 @@ export default async function HistorialPage({
       )}
 
       {/* Filters */}
-      <div className="mb-5">
+      <div className="mb-4">
         <HistorialFilters categories={categories ?? []} month={month} year={year} />
       </div>
 
