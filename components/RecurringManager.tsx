@@ -33,13 +33,14 @@ type Form = {
   cuotas: boolean
   totalAmount: string
   numCuotas: string
+  pastCuotas: string   // cuotas ya cobradas antes de hoy (para backfill)
 }
 
 const DEFAULT: Form = {
   name: '', amount: '', billing_day: '',
   category_id: '', payment_method_id: '',
   auto_register: false, is_active: true,
-  cuotas: false, totalAmount: '', numCuotas: '',
+  cuotas: false, totalAmount: '', numCuotas: '', pastCuotas: '0',
 }
 
 function nextBillingDate(billingDay: number): Date {
@@ -103,6 +104,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       cuotas: isCuotas,
       totalAmount: isCuotas ? String(item.amount * (item.total_installments ?? 0)) : '',
       numCuotas: isCuotas ? String(item.total_installments) : '',
+      pastCuotas: '0', // en edición no se retroactúa
     })
     setEditTarget(item); setError(''); setDeleteConfirm(false); setSheetOpen(true)
   }
@@ -133,13 +135,15 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     }
 
     setSaving(true); setError('')
+    const past = form.cuotas ? Math.max(0, Math.min(parseInt(form.pastCuotas) || 0, (totalInstallments ?? 1) - 1)) : 0
+
     const payload = {
       name: form.name.trim(),
       amount: amt,
       billing_day: day,
       category_id: form.category_id || null,
       payment_method_id: form.payment_method_id || null,
-      auto_register: form.cuotas ? false : form.auto_register,
+      auto_register: form.auto_register,
       is_active: form.is_active,
       domain: detectDomain(form.name.trim()) ?? null,
       total_installments: totalInstallments,
@@ -148,11 +152,45 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     if (!editTarget) {
       const { data, error: err } = await supabase
         .from('recurring_expenses')
-        .insert({ user_id: userId, ...payload, paid_installments: 0 })
+        .insert({ user_id: userId, ...payload, paid_installments: past })
         .select('*, category:categories(*), payment_method:payment_methods(*)')
         .single()
       setSaving(false)
       if (err) { setError(`Error: ${err.message}`); return }
+
+      // Retroactuar cuotas ya cobradas en períodos anteriores
+      if (past > 0 && data) {
+        const today     = new Date()
+        const todayDay  = today.getDate()
+        // Mes del estado cerrado más reciente
+        let closedMonth = today.getMonth() + 1
+        let closedYear  = today.getFullYear()
+        if (todayDay <= day) {
+          closedMonth = closedMonth === 1 ? 12 : closedMonth - 1
+          if (closedMonth === 12) closedYear--
+        }
+        const backfillExpenses = []
+        for (let i = past - 1; i >= 0; i--) {
+          let m = closedMonth - i
+          let y = closedYear
+          while (m <= 0) { m += 12; y-- }
+          const { billingPeriodRange } = await import('@/lib/utils')
+          const { end } = billingPeriodRange(m, y, day)
+          backfillExpenses.push({
+            user_id:              userId,
+            amount:               amt,
+            category_id:          form.category_id || null,
+            payment_method_id:    form.payment_method_id || null,
+            recurring_expense_id: data.id,
+            description:          form.name.trim(),
+            date:                 end,
+          })
+        }
+        if (backfillExpenses.length > 0) {
+          await supabase.from('expenses').insert(backfillExpenses)
+        }
+      }
+
       setItems(prev => [...prev, data].sort((a, b) => a.billing_day - b.billing_day))
     } else {
       const { error: err } = await supabase
@@ -518,6 +556,43 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   <div className={cn('absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform', form.auto_register ? 'bg-white translate-x-4' : 'bg-white translate-x-0.5')} />
                 </div>
               </button>
+
+              {/* Cuotas ya cobradas — solo en creación de cuotas con auto_register */}
+              {form.cuotas && form.auto_register && !editTarget && (() => {
+                const total = parseInt(form.numCuotas) || 0
+                const past  = parseInt(form.pastCuotas) || 0
+                return (
+                  <div className="px-4 py-3 rounded-xl border border-dashed border-brand-200 bg-brand-50/40">
+                    <p className="text-sm font-semibold text-gray-800 mb-1">¿Cuántas cuotas ya fueron cobradas?</p>
+                    <p className="text-xs text-gray-400 mb-3">
+                      La app registrará las cuotas pasadas en los estados anteriores y las próximas automáticamente.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => set('pastCuotas', String(Math.max(0, past - 1)))}
+                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg leading-none"
+                      >−</button>
+                      <div className="flex-1 text-center">
+                        <span className="text-2xl font-extrabold text-brand-700">{past}</span>
+                        {total > 0 && (
+                          <span className="text-sm text-gray-400 ml-1">de {total} cuotas</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => set('pastCuotas', String(Math.min(total > 0 ? total - 1 : 99, past + 1)))}
+                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 font-bold text-lg leading-none"
+                      >+</button>
+                    </div>
+                    {past > 0 && (
+                      <p className="text-[11px] text-brand-500 mt-2 text-center">
+                        Se crearán {past} gasto{past > 1 ? 's' : ''} en estado{past > 1 ? 's' : ''} anterior{past > 1 ? 'es' : ''}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Pausar/Reactivar (solo edición) */}
               {editTarget && (() => {
