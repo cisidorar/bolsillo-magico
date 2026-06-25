@@ -9,14 +9,7 @@ import type { ExpenseWithRelations } from '@/types'
 import ExpenseSheet from './ExpenseSheet'
 import ServiceLogo from './ServiceLogo'
 import { cn } from '@/lib/utils'
-import { CreditCard, Landmark, Smartphone, Banknote } from 'lucide-react'
-
-function PaymentIcon({ cardType }: { cardType: string }) {
-  if (cardType === 'credit')  return <CreditCard  className="w-3 h-3 flex-shrink-0" />
-  if (cardType === 'digital') return <Smartphone  className="w-3 h-3 flex-shrink-0" />
-  if (cardType === 'cash')    return <Banknote    className="w-3 h-3 flex-shrink-0" />
-  return                             <Landmark    className="w-3 h-3 flex-shrink-0" />
-}
+import { PaymentIcon } from './PaymentIcon'
 
 interface Props {
   expenses: ExpenseWithRelations[]

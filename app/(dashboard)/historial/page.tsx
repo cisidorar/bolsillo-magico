@@ -47,15 +47,41 @@ export default async function HistorialPage({
 }) {
   const { month: monthStr, year: yearStr, q, cats, page: pageStr, view } = await searchParams
   const now   = new Date()
-  const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
-  const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
-  const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const isBilling = view === 'billing'
-
-  // Multi-category filter
+  const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const catIds = cats ? cats.split(',').filter(Boolean) : []
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+
+  // Cuando se carga billing sin mes explícito, determinar el período de estado ABIERTO.
+  // Un período ya cerrado (billing_day < hoy) corresponde al mes siguiente.
+  // Ejemplo: hoy=25 jun, billing_day=24 → billingPeriod('2026-06-25', 24) = julio → mostrar julio.
+  let month: number
+  let year: number
+  if (isBilling && !monthStr) {
+    // Primero buscar la tarjeta favorita (is_default=true), si no existe tomar la primera por sort_order
+    const { data: cards } = await supabase
+      .from('payment_methods')
+      .select('billing_day, is_default')
+      .eq('user_id', user!.id)
+      .eq('card_type', 'credit')
+      .not('billing_day', 'is', null)
+      .order('is_default', { ascending: false })
+      .order('sort_order',  { ascending: true })
+      .limit(5)
+    const defaultCard = cards?.find(c => c.is_default) ?? cards?.[0]
+    if (defaultCard?.billing_day) {
+      const bp = billingPeriod(now.toISOString().slice(0, 10), defaultCard.billing_day as number)
+      month = bp.month
+      year  = bp.year
+    } else {
+      month = now.getMonth() + 1
+      year  = now.getFullYear()
+    }
+  } else {
+    month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
+    year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
+  }
 
   let expenses: ExpenseWithRelations[]
   let totalCount = 0
@@ -84,7 +110,6 @@ export default async function HistorialPage({
 
     const { data } = await billingQuery
     const all = (data ?? []) as ExpenseWithRelations[]
-    billingHitLimit = all.length === 300
 
     expenses = all.filter(e => {
       const pm = e.payment_method as { billing_day?: number | null } | null
@@ -95,6 +120,8 @@ export default async function HistorialPage({
 
     totalCount = expenses.length
     totalPages = 1
+    // Advertir solo si el raw fetch llegó al límite Y los gastos filtrados son muchos (probablemente incompletos)
+    billingHitLimit = all.length === 300 && expenses.length >= 100
   } else {
     const nextM = month === 12 ? 1       : month + 1
     const nextY = month === 12 ? year + 1 : year

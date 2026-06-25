@@ -1,11 +1,11 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { billingPeriod, formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -22,20 +22,27 @@ export default async function AnalisisPage({
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
+  // En modo billing: buscar siempre la tarjeta favorita (needed para mes default y para daysElapsed)
+  let defaultCard: { billing_day: number | null; is_default: boolean } | null | undefined = null
+  if (isBilling) {
+    const { data: cards } = await supabase
+      .from('payment_methods')
+      .select('billing_day, is_default')
+      .eq('user_id', user!.id)
+      .eq('card_type', 'credit')
+      .not('billing_day', 'is', null)
+      .order('is_default', { ascending: false })
+      .order('sort_order',  { ascending: true })
+      .limit(5)
+    defaultCard = cards?.find(c => c.is_default) ?? cards?.[0] ?? null
+  }
+
   // Cuando se carga billing sin mes explícito, usar el período de estado ABIERTO.
   let month: number
   let year: number
   if (isBilling && !monthStr) {
-    const { data: cards } = await supabase
-      .from('payment_methods')
-      .select('billing_day')
-      .eq('user_id', user!.id)
-      .eq('card_type', 'credit')
-      .not('billing_day', 'is', null)
-      .order('billing_day', { ascending: true })
-      .limit(1)
-    if (cards?.[0]?.billing_day) {
-      const bp = billingPeriod(now.toISOString().slice(0, 10), cards[0].billing_day as number)
+    if (defaultCard?.billing_day) {
+      const bp = billingPeriod(now.toISOString().slice(0, 10), defaultCard.billing_day as number)
       month = bp.month
       year  = bp.year
     } else {
@@ -130,8 +137,25 @@ export default async function AnalisisPage({
   const totalSelected    = selectedExpenses.reduce((s, e) => s + e.amount, 0)
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
-  const daysElapsed    = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
-  const dailyAvg       = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
+
+  // En modo billing: usar la duración real del período de facturación de la tarjeta favorita
+  let daysElapsed: number
+  if (isBilling && defaultCard?.billing_day) {
+    const range = billingPeriodRange(month, year, defaultCard.billing_day as number)
+    const start = new Date(range.start + 'T12:00:00')
+    const end   = new Date(range.end   + 'T12:00:00')
+    const periodDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
+    // Si el período aún no terminó, contar solo hasta hoy
+    const today = new Date(now.toISOString().slice(0, 10) + 'T12:00:00')
+    if (today < end) {
+      daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1)
+    } else {
+      daysElapsed = periodDays
+    }
+  } else {
+    daysElapsed = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
+  }
+  const dailyAvg = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
 
   // vs previous month — comparación al mismo día cuando es el mes actual
   const prevMonthNum  = month === 1 ? 12 : month - 1
@@ -1161,7 +1185,7 @@ export default async function AnalisisPage({
       {!isAnual && insight && (
         <div className="card insight-card px-5 py-4 flex items-start gap-4 mb-5">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#FEF3C7' }}>
-            <span style={{ color: '#D97706', fontSize: 18, lineHeight: 1 }}>✦</span>
+            <Sparkles className="w-5 h-5" style={{ color: '#D97706' }} />
           </div>
           <div>
             <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Insight del mes</p>

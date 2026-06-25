@@ -6,16 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCLP, cn } from '@/lib/utils'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
-import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown, CreditCard, Landmark, Smartphone, Banknote } from 'lucide-react'
+import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
 import { isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
-
-function PaymentIcon({ cardType }: { cardType: string }) {
-  if (cardType === 'credit')  return <CreditCard  className="w-3 h-3 flex-shrink-0" />
-  if (cardType === 'digital') return <Smartphone  className="w-3 h-3 flex-shrink-0" />
-  if (cardType === 'cash')    return <Banknote    className="w-3 h-3 flex-shrink-0" />
-  return                             <Landmark    className="w-3 h-3 flex-shrink-0" />
-}
+import { PaymentIcon } from './PaymentIcon'
 import ExpenseList from './ExpenseList'
 import ServiceLogo from './ServiceLogo'
 import type { ExpenseWithRelations } from '@/types'

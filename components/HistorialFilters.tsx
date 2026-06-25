@@ -27,8 +27,9 @@ export default function HistorialFilters({ categories, month, year }: Props) {
   const [catIds,  setCatIds]  = useState<string[]>(initialCats)
   const [view,    setView]    = useState<'purchase' | 'billing'>(initialView)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dropdownRef  = useRef<HTMLDivElement>(null)
+  const debounceRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mobileDropdownRef  = useRef<HTMLDivElement>(null)
+  const desktopDropdownRef = useRef<HTMLDivElement>(null)
 
   // Sync state if searchParams change externally (e.g., MonthNav navigation)
   useEffect(() => {
@@ -37,12 +38,18 @@ export default function HistorialFilters({ categories, month, year }: Props) {
     setView((searchParams.get('view') ?? 'purchase') as 'purchase' | 'billing')
   }, [searchParams])
 
-  // Close dropdown on outside click
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [])
+
+  // Close dropdown on outside click (handles both mobile and desktop refs)
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
+      const t = e.target as Node
+      const inMobile  = mobileDropdownRef.current?.contains(t)
+      const inDesktop = desktopDropdownRef.current?.contains(t)
+      if (!inMobile && !inDesktop) setDropdownOpen(false)
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
@@ -80,15 +87,13 @@ export default function HistorialFilters({ categories, month, year }: Props) {
   }
 
   function clearAll() {
-    setQuery(''); setCatIds([]); setView('purchase')
+    setQuery(''); setCatIds([])
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    const params = new URLSearchParams()
-    params.set('month', String(month))
-    params.set('year',  String(year))
-    startTransition(() => router.push(`${pathname}?${params.toString()}`))
+    pushParams('', [], view)
   }
 
   const hasFilters = query.length > 0 || catIds.length > 0 || view === 'billing'
+  const hasCatOrQuery = query.length > 0 || catIds.length > 0
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]))
 
   return (
@@ -135,7 +140,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
               </button>
             )}
           </div>
-          <div className="relative flex-shrink-0" ref={dropdownRef}>
+          <div className="relative flex-shrink-0" ref={mobileDropdownRef}>
             <button
               onClick={() => setDropdownOpen(o => !o)}
               className={cn(
@@ -176,7 +181,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
                     </button>
                   )
                 })}
-                {hasFilters && (
+                {hasCatOrQuery && (
                   <div className="border-t border-gray-50 mt-1 pt-1 px-3.5 pb-1">
                     <button onClick={() => { clearAll(); setDropdownOpen(false) }}
                       className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors py-1">
@@ -234,7 +239,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
         </div>
 
         {/* Filter button + dropdown */}
-        <div className="relative flex-shrink-0" ref={dropdownRef}>
+        <div className="relative flex-shrink-0" ref={desktopDropdownRef}>
           <button
             onClick={() => setDropdownOpen(o => !o)}
             className={cn(
