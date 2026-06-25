@@ -291,29 +291,29 @@ export default async function DashboardPage() {
         <div className="hidden lg:grid gap-4 mb-5" style={{ gridTemplateColumns: '1fr 300px' }}>
 
           {/* Hero card */}
-          <div className="hero-gradient rounded-3xl px-7 py-6 text-white">
+          <div className="hero-gradient rounded-3xl px-8 py-7 text-white flex flex-col justify-between" style={{ minHeight: '160px' }}>
             {/* Top row: gastado + te quedan */}
-            <div className="flex items-start justify-between gap-6 mb-5">
+            <div className="flex items-start justify-between gap-6">
               <div>
-                <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1.5">Gastado este mes</p>
-                <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
-                {budgetAmount && <p className="text-xs text-white/45 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>}
+                <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
+                <p className="text-5xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
+                {budgetAmount && <p className="text-sm text-white/45 mt-2">de {formatCLP(budgetAmount)} presupuestado</p>}
               </div>
               {budgetAmount && (
                 <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1.5">
+                  <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
                     {isOver ? 'Sobre el límite' : 'Te quedan'}
                   </p>
-                  <p className="text-3xl font-extrabold leading-none" style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
+                  <p className="text-4xl font-extrabold leading-none" style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
                     {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Barra de presupuesto */}
+            {/* Barra de presupuesto — al fondo de la tarjeta */}
             {budgetAmount && (
-              <div className="mb-3">
+              <div className="mt-6">
                 <div className="h-2 bg-white/15 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
@@ -324,8 +324,8 @@ export default async function DashboardPage() {
                   />
                 </div>
                 <div className="flex justify-between mt-1.5">
-                  <span className="text-[10px] text-white/45">{progressPct}% usado</span>
-                  <span className="text-[10px] text-white/45">{daysRemaining} días restantes</span>
+                  <span className="text-xs text-white/45">{progressPct}% usado</span>
+                  <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                 </div>
               </div>
             )}
