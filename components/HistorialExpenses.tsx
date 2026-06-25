@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCLP, cn } from '@/lib/utils'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
-import { Square, CheckSquare, Trash2, X, Loader2, Calendar, ChevronUp, ChevronDown } from 'lucide-react'
+import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
+import { isEmoji } from '@/lib/utils'
+import { getCategoryIcon } from '@/lib/category-icons'
 import ExpenseList from './ExpenseList'
 import ServiceLogo from './ServiceLogo'
 import type { ExpenseWithRelations } from '@/types'
@@ -174,7 +176,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
               </span>
 
               {/* Count chip */}
-              <span className="hidden lg:inline text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                 {group.expenses.length}
               </span>
 
@@ -201,7 +203,8 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
               <div className="card overflow-hidden">
                 {group.expenses.map((e, idx) => {
                   const isSelected  = selectedIds.has(e.id)
-                  const catColor    = e.category?.color ?? '#1B6DD4'
+                  const catColor    = e.category?.color ?? '#4D93FF'
+                  const catBg       = e.category?.bg_color ?? '#EEF4FF'
 
                   const recurDomain = e.recurring_expense?.domain
                   const descDomain  = e.description ? detectDomain(e.description) : null
@@ -231,12 +234,6 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                         }
                       </div>
 
-                      {/* Category color accent */}
-                      <div
-                        className="w-1 h-8 rounded-full flex-shrink-0 -ml-1"
-                        style={{ backgroundColor: catColor }}
-                      />
-
                       {/* Icon */}
                       {logoDomain ? (
                         <ServiceLogo
@@ -247,8 +244,8 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                         />
                       ) : (
                         <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: bg }}
+                          className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
                         >
                           <Icon className="w-5 h-5" style={{ color }} />
                         </div>
@@ -256,17 +253,34 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
 
                       {/* Text */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
+                        <p className="text-[14px] font-semibold text-gray-900 truncate">
                           {e.description ?? e.category?.name ?? 'Gasto'}
                         </p>
-                        <p className="text-xs text-gray-400 truncate lg:overflow-visible lg:whitespace-normal mt-0.5">
-                          {[e.category?.name, e.payment_method?.name].filter(Boolean).join(' · ')}
-                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {e.category && (
+                            <span
+                              className="cat-badge inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                              style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
+                            >
+                              {isEmoji(e.category.icon)
+                                ? <span className="text-[9px] leading-none">{e.category.icon}</span>
+                                : (() => { const CatIcon = getCategoryIcon(e.category!.icon); return <CatIcon className="w-2.5 h-2.5 flex-shrink-0" /> })()
+                              }
+                              <span>{e.category.name}</span>
+                            </span>
+                          )}
+                          {e.payment_method && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <span>{e.payment_method.card_type === 'credit' ? '💳' : e.payment_method.card_type === 'digital' ? '📱' : e.payment_method.card_type === 'cash' ? '💵' : '🏦'}</span>
+                              {e.payment_method.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Amount */}
-                      <p className="text-base font-bold text-gray-900 tabular-nums flex-shrink-0">
-                        {formatCLP(e.amount)}
+                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>
+                        −{formatCLP(e.amount)}
                       </p>
                     </button>
                   )

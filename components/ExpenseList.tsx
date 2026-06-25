@@ -24,8 +24,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
     <>
       <div className="card overflow-hidden">
         {expenses.map((e, idx) => {
-          const catColor = e.category?.color ?? '#1B6DD4'
           const catBg    = e.category?.bg_color ?? '#EEF4FF'
+          const catColor = e.category?.color ?? '#4D93FF'
 
           const recurringDomain = e.recurring_expense?.domain
           const descDomain = e.description ? detectDomain(e.description) : null
@@ -41,12 +41,6 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                 idx > 0 && 'border-t border-gray-50'
               )}
             >
-              {/* Category color accent */}
-              <div
-                className="w-1 h-9 rounded-full flex-shrink-0 -ml-1 mr-0"
-                style={{ backgroundColor: catColor }}
-              />
-
               {/* Icon */}
               {logoDomain ? (
                 <ServiceLogo
@@ -86,7 +80,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                     </span>
                   )}
                   {e.payment_method && (
-                    <span className="text-[10px] text-gray-400 truncate">
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      <span>{e.payment_method.card_type === 'credit' ? '💳' : e.payment_method.card_type === 'digital' ? '📱' : e.payment_method.card_type === 'cash' ? '💵' : '🏦'}</span>
                       {e.payment_method.name}
                     </span>
                   )}
@@ -98,8 +93,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
 
               {/* Amount + date */}
               <div className="text-right flex-shrink-0">
-                <p className="text-sm font-bold text-gray-900 tabular-nums">
-                  {formatCLP(e.amount)}
+                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
+                  −{formatCLP(e.amount)}
                 </p>
                 {!showDate && (
                   <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date)}</p>

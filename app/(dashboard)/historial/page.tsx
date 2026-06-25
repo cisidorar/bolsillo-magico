@@ -264,8 +264,8 @@ export default async function HistorialPage({
               {/* Promedio diario */}
               <div className="card p-3.5 flex items-center gap-2.5">
                 <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
-                  <TrendingUp className="w-4 h-4" style={{ color: '#7C3AED' }} />
+                  style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
+                  <TrendingUp className="w-4 h-4" style={{ color: '#FFC23C' }} />
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-medium leading-tight">Promedio diario</p>
@@ -278,11 +278,10 @@ export default async function HistorialPage({
           {/* Desktop: 3 columnas */}
           <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
             {/* Total */}
-            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl" style={{ background: '#1B6DD4' }} />
+            <div className="card p-4 flex items-center gap-3">
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                <Wallet className="w-6 h-6" style={{ color: '#1B6DD4' }} />
+                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#4D93FF' } as React.CSSProperties}>
+                <Wallet className="w-6 h-6" style={{ color: '#4D93FF' }} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
@@ -291,11 +290,7 @@ export default async function HistorialPage({
               </div>
             </div>
             {/* vs anterior */}
-            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
-              {delta !== null && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl"
-                  style={{ background: delta > 0 ? '#EF4444' : '#16A34A' }} />
-              )}
+            <div className="card p-4 flex items-center gap-3">
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
                 style={{
                   '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
@@ -325,11 +320,10 @@ export default async function HistorialPage({
               </div>
             </div>
             {/* Promedio */}
-            <div className="card p-4 flex items-center gap-3 relative overflow-hidden">
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-3xl" style={{ background: '#7C3AED' }} />
+            <div className="card p-4 flex items-center gap-3">
               <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
-                <TrendingUp className="w-6 h-6" style={{ color: '#7C3AED' }} />
+                style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
+                <TrendingUp className="w-6 h-6" style={{ color: '#FFC23C' }} />
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
