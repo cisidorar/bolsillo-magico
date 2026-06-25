@@ -14,6 +14,8 @@ import {
 import ImportCSV from '@/components/ImportCSV'
 import ThemeToggle from '@/components/ThemeToggle'
 import ExportForm from '@/components/ExportForm'
+import NotificationPrefs from '@/components/NotificationPrefs'
+import { Bell } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -139,6 +141,17 @@ export default async function AjustesPage() {
 
         {/* ── Columna derecha ────────────────────────────────────── */}
         <div className="space-y-6">
+
+          {/* Notificaciones */}
+          <section>
+            <SectionHeader icon={Bell} label="Notificaciones por email" color="#1B6DD4" />
+            <NotificationPrefs
+              userId={user.id}
+              notifyBilling={profile?.notify_billing ?? true}
+              notifyBudget={profile?.notify_budget ?? true}
+              notifyMonthly={profile?.notify_monthly ?? false}
+            />
+          </section>
 
           {/* Apariencia */}
           <section>
