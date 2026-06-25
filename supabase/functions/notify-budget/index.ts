@@ -3,11 +3,8 @@
  *
  * Corre diariamente (pg_cron). Detecta usuarios que superaron el 80% o el 100%
  * de su presupuesto mensual y les envía una alerta por email.
- * Usa idempotencia: no envía la misma alerta dos veces en el mismo mes.
  *
- * Requiere variables de entorno:
- *   RESEND_API_KEY
- *   SITE_URL
+ * Requiere: RESEND_API_KEY, SITE_URL, DB_SERVICE_KEY
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -20,12 +17,11 @@ const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
-  const now   = new Date()
-  const month = now.getMonth() + 1
-  const year  = now.getFullYear()
+  const now      = new Date()
+  const month    = now.getMonth() + 1
+  const year     = now.getFullYear()
   const monthStr = `${year}-${String(month).padStart(2, '0')}`
 
-  // Obtener presupuestos del mes actual
   const { data: budgets, error: bErr } = await supabase
     .from('budgets')
     .select('user_id, amount')
@@ -37,7 +33,6 @@ Deno.serve(async () => {
 
   const userIds = budgets.map(b => b.user_id)
 
-  // Total gastado este mes por cada usuario
   const { data: expenses } = await supabase
     .from('expenses')
     .select('user_id, amount')
@@ -50,7 +45,6 @@ Deno.serve(async () => {
     totalByUser.set(e.user_id, (totalByUser.get(e.user_id) ?? 0) + e.amount)
   }
 
-  // Perfiles con notify_budget = true
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, display_name, notify_budget')
@@ -59,7 +53,6 @@ Deno.serve(async () => {
 
   const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
 
-  // Emails
   const { data: authUsers } = await supabase.auth.admin.listUsers()
   const emailMap = new Map((authUsers?.users ?? []).map(u => [u.id, u.email]))
 
@@ -72,29 +65,29 @@ Deno.serve(async () => {
     const email = emailMap.get(budget.user_id)
     if (!email) { skipped++; continue }
 
-    const total   = totalByUser.get(budget.user_id) ?? 0
-    const pct     = Math.round((total / budget.amount) * 100)
-    const fmtCLP  = (n: number) => '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 })
+    const total  = totalByUser.get(budget.user_id) ?? 0
+    const pct    = Math.round((total / budget.amount) * 100)
+    const fmtCLP = (n: number) => '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 })
 
-    // Determinar el nivel de alerta
     let alertType: 'budget_80' | 'budget_100' | null = null
-    if (pct >= 100) alertType = 'budget_100'
+    if (pct >= 100)     alertType = 'budget_100'
     else if (pct >= 80) alertType = 'budget_80'
 
     if (!alertType) { skipped++; continue }
 
-    // Idempotencia por mes (una alerta de cada tipo por mes)
     const refKey = `${monthStr}:${alertType}:${budget.user_id}`
     const { error: logErr } = await supabase
       .from('notification_log')
       .insert({ user_id: budget.user_id, type: alertType, ref_key: refKey })
-      .select()
-      .single()
+      .select().single()
 
-    if (logErr) { skipped++; continue }   // ya enviado este mes
+    if (logErr) { skipped++; continue }
 
     const displayName = profile.display_name ?? 'Usuario'
     const remaining   = budget.amount - total
+    const monthName   = new Date(year, month - 1, 1)
+      .toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+    const monthCap    = monthName.charAt(0).toUpperCase() + monthName.slice(1)
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -106,8 +99,8 @@ Deno.serve(async () => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
         subject: alertType === 'budget_100'
-          ? '🚨 Superaste tu presupuesto mensual'
-          : '⚠️ Llevas el 80% de tu presupuesto',
+          ? `🚨 Superaste tu presupuesto de ${monthCap}`
+          : `⚠️ Llevas el 80% de tu presupuesto de ${monthCap}`,
         html: budgetEmailHtml({
           displayName,
           alertType,
@@ -117,8 +110,7 @@ Deno.serve(async () => {
           remaining,
           fmtCLP,
           siteUrl: SITE_URL,
-          month,
-          year,
+          monthLabel: monthCap,
         }),
       }),
     })
@@ -143,8 +135,7 @@ function budgetEmailHtml({
   remaining,
   fmtCLP,
   siteUrl,
-  month,
-  year,
+  monthLabel,
 }: {
   displayName: string
   alertType: 'budget_80' | 'budget_100'
@@ -154,73 +145,136 @@ function budgetEmailHtml({
   remaining: number
   fmtCLP: (n: number) => string
   siteUrl: string
-  month: number
-  year: number
+  monthLabel: string
 }) {
-  const isOver    = alertType === 'budget_100'
-  const accentClr = isOver ? '#EF4444' : '#F59E0B'
-  const barPct    = Math.min(100, pct)
-  const monthName = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
-  const title     = isOver ? '¡Superaste tu presupuesto!' : 'Llevas el 80% de tu presupuesto'
-  const subtitle  = isOver
-    ? `Ya gastaste <strong style="color:${accentClr}">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas este mes.`
-    : `Te quedan <strong style="color:#1B6DD4">${fmtCLP(remaining)}</strong> para lo que resta del mes.`
+  const isOver     = alertType === 'budget_100'
+  const barPct     = Math.min(100, pct)
+  const accentClr  = isOver ? '#FF6F61' : '#FFC23C'
+  const accentBg   = isOver ? '#FFF5F5' : '#FFF8EC'
+  const accentBdr  = isOver ? '#FECACA' : '#FFE4A0'
+  const icon       = isOver ? '🚨' : '⚠️'
+  const title      = isOver ? '¡Superaste tu presupuesto!' : 'Llevas el 80% de tu presupuesto'
+  const subtitle   = isOver
+    ? `Ya gastaste <strong style="color:#FF6F61">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas.`
+    : `Te quedan <strong style="color:#2B7CF6">${fmtCLP(remaining)}</strong> para lo que resta del mes.`
+  const advice = isOver
+    ? 'Revisa tus categorías para entender dónde se fue el dinero y ajustar el próximo mes.'
+    : 'Todavía estás a tiempo de ajustar tus gastos antes de fin de mes.'
 
   return `<!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#EEF4FF;font-family:'Helvetica Neue',Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#EEF4FF;padding:32px 16px">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:24px;border:1.5px solid #D5E6FF;box-shadow:0 4px 20px rgba(27,109,212,0.09);overflow:hidden;max-width:100%">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Alerta de presupuesto · Bolsillo Mágico</title>
+</head>
+<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-        <!-- Header -->
-        <tr><td style="background:#1B6DD4;padding:28px 32px">
-          <p style="margin:0;font-size:22px;font-weight:800;color:#fff">Gstos</p>
-          <p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.7)">Alerta de presupuesto · ${monthName}</p>
-        </td></tr>
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
+  <tr><td align="center">
 
-        <!-- Cuerpo -->
-        <tr><td style="padding:28px 32px">
-          <p style="margin:0 0 4px;font-size:15px;color:#6b7280">Hola, <strong style="color:#0A1F44">${displayName}</strong></p>
+    <table width="560" cellpadding="0" cellspacing="0" role="presentation"
+      style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-          <div style="background:${isOver ? '#FEF2F2' : '#FFFBEB'};border:1.5px solid ${isOver ? '#FECACA' : '#FDE68A'};border-radius:16px;padding:20px 24px;margin:20px 0">
-            <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:${accentClr};text-transform:uppercase;letter-spacing:0.5px">${title}</p>
-            <p style="margin:8px 0 0;font-size:14px;color:#374151;line-height:1.6">${subtitle}</p>
-          </div>
+      <!-- Header -->
+      <tr><td style="background:#F4F7FB;padding:28px 40px 24px;text-align:center">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td style="text-align:left;font-size:14px;color:#2B7CF6;vertical-align:top">✦</td>
+            <td style="text-align:center">
+              <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#2B7CF6;text-transform:uppercase;letter-spacing:2px">Alerta de presupuesto</p>
+              <p style="margin:0;font-size:24px;font-weight:800;color:#0E2A52;letter-spacing:-0.3px">${monthLabel}</p>
+            </td>
+            <td style="text-align:right;font-size:14px;color:#FFC23C;vertical-align:top">✦</td>
+          </tr>
+        </table>
+      </td></tr>
 
+      <!-- Body -->
+      <tr><td style="padding:28px 40px">
+        <p style="margin:0 0 20px;font-size:20px;font-weight:700;color:#0E2A52">Hola, ${displayName} 👋</p>
+
+        <!-- Alert box -->
+        <div style="background:${accentBg};border:1.5px solid ${accentBdr};border-radius:16px;padding:20px 24px;margin-bottom:24px">
+          <table cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <td style="width:36px;font-size:24px;vertical-align:top">${icon}</td>
+              <td style="padding-left:12px;vertical-align:top">
+                <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0E2A52">${title}</p>
+                <p style="margin:0;font-size:14px;color:#5B6B82;line-height:1.6">${subtitle}</p>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Hero card: gastado vs presupuesto -->
+        <div style="background:#2B7CF6;border-radius:20px;padding:24px 28px;margin-bottom:24px">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.2);padding-right:20px">
+                <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px">Gastado</p>
+                <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px">${fmtCLP(total)}</p>
+              </td>
+              <td style="text-align:center;padding-left:20px">
+                <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px">Presupuesto</p>
+                <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px">${fmtCLP(budgetAmount)}</p>
+              </td>
+            </tr>
+          </table>
           <!-- Barra de progreso -->
-          <div style="margin:20px 0">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-              <span style="font-size:12px;color:#6b7280">Gastado: <strong style="color:#0A1F44">${fmtCLP(total)}</strong></span>
-              <span style="font-size:12px;color:#6b7280">Presupuesto: <strong style="color:#0A1F44">${fmtCLP(budgetAmount)}</strong></span>
+          <div style="margin-top:18px">
+            <div style="background:rgba(255,255,255,0.2);border-radius:8px;height:10px;overflow:hidden">
+              <div style="background:${isOver ? '#FF6F61' : '#FFC23C'};width:${barPct}%;height:100%;border-radius:8px"></div>
             </div>
-            <div style="background:#EEF4FF;border-radius:8px;height:10px;overflow:hidden">
-              <div style="background:${accentClr};width:${barPct}%;height:100%;border-radius:8px"></div>
-            </div>
-            <p style="margin:6px 0 0;font-size:12px;color:${accentClr};font-weight:700;text-align:right">${pct}% utilizado</p>
+            <p style="margin:8px 0 0;font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);text-align:right">${pct}% utilizado</p>
           </div>
+        </div>
 
-          <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6">
-            ${isOver ? 'Considera revisar tus gastos para entender dónde se fue el dinero.' : 'Todavía estás a tiempo de ajustar tus gastos antes de fin de mes.'}
-          </p>
+        <!-- Advice -->
+        <p style="margin:0 0 28px;font-size:14px;color:#5B6B82;line-height:1.6">${advice}</p>
 
-          <a href="${siteUrl}/analisis" style="display:inline-block;background:#1B6DD4;color:#fff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 24px;border-radius:12px">
+        <!-- CTA -->
+        <div style="text-align:center">
+          <a href="${siteUrl}/analisis"
+            style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 32px;border-radius:14px;letter-spacing:-0.2px">
             Ver análisis →
           </a>
-        </td></tr>
+          <p style="margin:12px 0 0;font-size:13px;color:#94A3B8">O abre la app y revisa tus categorías.</p>
+        </div>
+      </td></tr>
 
-        <!-- Footer -->
-        <tr><td style="padding:16px 32px 24px;border-top:1.5px solid #EEF4FF">
-          <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
-            Recibiste este email porque tienes activadas las alertas de presupuesto en Gstos.<br>
-            <a href="${siteUrl}/ajustes" style="color:#1B6DD4;text-decoration:none">Cambiar preferencias de notificaciones</a>
-          </p>
-        </td></tr>
+      <!-- Footer navy -->
+      <tr><td style="background:#0E2A52;padding:24px 40px">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td style="text-align:center;padding-bottom:16px">
+              <p style="margin:0;font-size:16px;font-weight:800;color:#ffffff">
+                <span style="color:#FFC23C">✦</span> Bolsillo Mágico
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;padding-bottom:14px">
+              <a href="${siteUrl}" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Abrir app</a>
+              <span style="color:rgba(255,255,255,0.2)">·</span>
+              <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Ajustes de correo</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align:center;border-top:1px solid rgba(255,255,255,0.1);padding-top:14px">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);line-height:1.7">
+                Recibes este correo porque tienes activas las alertas de presupuesto.<br>
+                <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.35);text-decoration:underline">Cancelar suscripción</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
 
-      </table>
-    </td></tr>
-  </table>
+    </table>
+  </td></tr>
+</table>
+
 </body>
 </html>`
 }
