@@ -17,12 +17,35 @@ export default async function AnalisisPage({
 }) {
   const { month: monthStr, year: yearStr, view, bm } = await searchParams
   const now   = new Date()
-  const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
-  const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
   const isBilling = view === 'billing'
   const isAnual   = view === 'anual'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+
+  // Cuando se carga billing sin mes explícito, usar el período de estado ABIERTO.
+  let month: number
+  let year: number
+  if (isBilling && !monthStr) {
+    const { data: cards } = await supabase
+      .from('payment_methods')
+      .select('billing_day')
+      .eq('user_id', user!.id)
+      .eq('card_type', 'credit')
+      .not('billing_day', 'is', null)
+      .order('billing_day', { ascending: true })
+      .limit(1)
+    if (cards?.[0]?.billing_day) {
+      const bp = billingPeriod(now.toISOString().slice(0, 10), cards[0].billing_day as number)
+      month = bp.month
+      year  = bp.year
+    } else {
+      month = now.getMonth() + 1
+      year  = now.getFullYear()
+    }
+  } else {
+    month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
+    year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
+  }
 
   // El gráfico siempre muestra los últimos 6 meses hasta HOY
   const chartAnchor = new Date(now.getFullYear(), now.getMonth(), 1)
