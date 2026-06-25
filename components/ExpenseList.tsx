@@ -9,6 +9,14 @@ import type { ExpenseWithRelations } from '@/types'
 import ExpenseSheet from './ExpenseSheet'
 import ServiceLogo from './ServiceLogo'
 import { cn } from '@/lib/utils'
+import { CreditCard, Landmark, Smartphone, Banknote } from 'lucide-react'
+
+function PaymentIcon({ cardType }: { cardType: string }) {
+  if (cardType === 'credit')  return <CreditCard  className="w-3 h-3 flex-shrink-0" />
+  if (cardType === 'digital') return <Smartphone  className="w-3 h-3 flex-shrink-0" />
+  if (cardType === 'cash')    return <Banknote    className="w-3 h-3 flex-shrink-0" />
+  return                             <Landmark    className="w-3 h-3 flex-shrink-0" />
+}
 
 interface Props {
   expenses: ExpenseWithRelations[]
@@ -80,8 +88,8 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                     </span>
                   )}
                   {e.payment_method && (
-                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                      <span>{e.payment_method.card_type === 'credit' ? '💳' : e.payment_method.card_type === 'digital' ? '📱' : e.payment_method.card_type === 'cash' ? '💵' : '🏦'}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                      <PaymentIcon cardType={e.payment_method.card_type} />
                       {e.payment_method.name}
                     </span>
                   )}

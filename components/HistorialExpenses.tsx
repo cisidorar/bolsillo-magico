@@ -6,9 +6,16 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCLP, cn } from '@/lib/utils'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
-import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown, CreditCard, Landmark, Smartphone, Banknote } from 'lucide-react'
 import { isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
+
+function PaymentIcon({ cardType }: { cardType: string }) {
+  if (cardType === 'credit')  return <CreditCard  className="w-3 h-3 flex-shrink-0" />
+  if (cardType === 'digital') return <Smartphone  className="w-3 h-3 flex-shrink-0" />
+  if (cardType === 'cash')    return <Banknote    className="w-3 h-3 flex-shrink-0" />
+  return                             <Landmark    className="w-3 h-3 flex-shrink-0" />
+}
 import ExpenseList from './ExpenseList'
 import ServiceLogo from './ServiceLogo'
 import type { ExpenseWithRelations } from '@/types'
@@ -270,8 +277,8 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                             </span>
                           )}
                           {e.payment_method && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                              <span>{e.payment_method.card_type === 'credit' ? '💳' : e.payment_method.card_type === 'digital' ? '📱' : e.payment_method.card_type === 'cash' ? '💵' : '🏦'}</span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              <PaymentIcon cardType={e.payment_method.card_type} />
                               {e.payment_method.name}
                             </span>
                           )}
