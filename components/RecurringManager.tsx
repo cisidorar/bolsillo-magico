@@ -501,21 +501,23 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               </div>
 
               {/* Auto-registrar */}
-              {!form.cuotas && (
-                <button
-                  onClick={() => set('auto_register', !form.auto_register)}
-                  className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.auto_register ? 'sheet-toggle-active' : 'sheet-toggle')}
-                >
-                  <RefreshCw className={cn('w-4 h-4 flex-shrink-0', form.auto_register ? 'text-brand-600' : 'text-gray-300')} />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">Registrar automáticamente</p>
-                    <p className="text-xs text-gray-400">La app crea el gasto sola el día de cobro</p>
-                  </div>
-                  <div className={cn('ml-auto w-9 h-5 rounded-full relative transition-colors flex-shrink-0', form.auto_register ? 'bg-brand-600' : 'bg-gray-200')}>
-                    <div className={cn('absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform', form.auto_register ? 'bg-white translate-x-4' : 'bg-white translate-x-0.5')} />
-                  </div>
-                </button>
-              )}
+              <button
+                onClick={() => set('auto_register', !form.auto_register)}
+                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.auto_register ? 'sheet-toggle-active' : 'sheet-toggle')}
+              >
+                <RefreshCw className={cn('w-4 h-4 flex-shrink-0', form.auto_register ? 'text-brand-600' : 'text-gray-300')} />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Registrar automáticamente</p>
+                  <p className="text-xs text-gray-400">
+                    {form.cuotas
+                      ? 'Cada cuota se registra sola al inicio del período de facturación'
+                      : 'La app crea el gasto sola el día de cobro'}
+                  </p>
+                </div>
+                <div className={cn('ml-auto w-9 h-5 rounded-full relative transition-colors flex-shrink-0', form.auto_register ? 'bg-brand-600' : 'bg-gray-200')}>
+                  <div className={cn('absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform', form.auto_register ? 'bg-white translate-x-4' : 'bg-white translate-x-0.5')} />
+                </div>
+              </button>
 
               {/* Pausar/Reactivar (solo edición) */}
               {editTarget && (() => {
