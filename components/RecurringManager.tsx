@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, Lock, Info } from 'lucide-react'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -40,7 +40,7 @@ const DEFAULT: Form = {
   name: '', amount: '', billing_day: '',
   category_id: '', payment_method_id: '',
   auto_register: false, is_active: true,
-  cuotas: false, totalAmount: '', numCuotas: '', pastCuotas: '0',
+  cuotas: false, totalAmount: '', numCuotas: '3', pastCuotas: '0',
 }
 
 function nextBillingDate(billingDay: number): Date {
@@ -72,6 +72,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   const [deleting, setDeleting]     = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [error, setError]           = useState('')
+  const [showAllCats, setShowAllCats] = useState(false)
 
   const computedMonthly = useMemo(() => {
     if (!form.cuotas) return null
@@ -81,8 +82,60 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     return Math.round(total / n)
   }, [form.cuotas, form.totalAmount, form.numCuotas])
 
+  // Categorías ordenadas por uso (top 5 por defecto)
+  const sortedCategories = useMemo(() => {
+    const count: Record<string, number> = {}
+    items.forEach(it => { if (it.category_id) count[it.category_id] = (count[it.category_id] || 0) + 1 })
+    return [...categories].sort((a, b) => {
+      const diff = (count[b.id] || 0) - (count[a.id] || 0)
+      return diff !== 0 ? diff : ((a as Record<string, unknown>).sort_order as number ?? 99) - ((b as Record<string, unknown>).sort_order as number ?? 99)
+    })
+  }, [items, categories])
+
+  // Cuotas: sólo tarjetas de crédito
+  const creditCards = useMemo(() => paymentMethods.filter(p => p.card_type === 'credit'), [paymentMethods])
+  const visiblePaymentMethods = useMemo(
+    () => form.cuotas ? creditCards : paymentMethods,
+    [form.cuotas, creditCards, paymentMethods]
+  )
+
+  // Tarjeta seleccionada y día de cobro automático
+  const selectedCard = useMemo(
+    () => paymentMethods.find(p => p.id === form.payment_method_id),
+    [paymentMethods, form.payment_method_id]
+  )
+  const autoBillingDay = form.cuotas && selectedCard?.billing_day ? selectedCard.billing_day : null
+  // El gasto se registra el primer día del período: billing_day + 1 (con wrap de mes)
+  const chargeDay = autoBillingDay != null ? (autoBillingDay >= 28 ? 1 : autoBillingDay + 1) : null
+
+  // Cuando cuotas=ON y cambia la tarjeta, sincronizar billing_day automáticamente
+  useEffect(() => {
+    if (!form.cuotas) return
+    const card = paymentMethods.find(p => p.id === form.payment_method_id)
+    if (card?.billing_day != null) {
+      setForm(f => ({ ...f, billing_day: String(card.billing_day) }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.payment_method_id, form.cuotas])
+
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setForm(f => ({ ...f, [k]: v }))
+  }
+
+  function handleCuotasToggle() {
+    if (!form.cuotas) {
+      // Activar: auto-seleccionar primera tarjeta de crédito
+      const defaultCC = creditCards.find(c => c.is_default) ?? creditCards[0]
+      setForm(f => ({
+        ...f,
+        cuotas: true,
+        numCuotas: f.numCuotas || '3',
+        payment_method_id: defaultCC?.id ?? f.payment_method_id,
+        billing_day: defaultCC?.billing_day != null ? String(defaultCC.billing_day) : f.billing_day,
+      }))
+    } else {
+      setForm(f => ({ ...f, cuotas: false }))
+    }
   }
 
   function openNew() {
@@ -110,7 +163,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   }
 
   function closeSheet() {
-    setSheetOpen(false); setForm(DEFAULT); setEditTarget(null); setError(''); setDeleteConfirm(false)
+    setSheetOpen(false); setForm(DEFAULT); setEditTarget(null); setError(''); setDeleteConfirm(false); setShowAllCats(false)
   }
 
   async function save() {
@@ -388,31 +441,37 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
-              <h2 className="text-base font-bold text-gray-900">
-                {editTarget ? 'Editar recurrente' : 'Nuevo recurrente'}
-              </h2>
-              <button onClick={closeSheet} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+            <div className="flex items-start justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  {editTarget ? 'Editar recurrente' : 'Nuevo recurrente'}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Suscripciones y cuotas que se repiten cada mes</p>
+              </div>
+              <button onClick={closeSheet} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
             <div className="px-5 pt-4 pb-5 lg:px-6 flex flex-col gap-4">
               {/* Preview */}
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-[#1a2744]">
-                <ServiceLogo domain={previewDomain} name={form.name || '?'} size={44} />
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-gray-50">
+                <ServiceLogo domain={previewDomain} name={form.name || '?'} size={44} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm truncate">{form.name || 'Nombre del servicio'}</p>
-                  <p className="text-xs text-gray-400">
-                    {formatCLP(previewAmount)} · día {form.billing_day || '?'}
-                    {form.cuotas && form.numCuotas && ` · ${form.numCuotas} cuotas`}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatCLP(previewAmount)}{form.cuotas ? ' / cuota' : ' / mes'}
+                    {' · cobro día '}
+                    {form.cuotas && chargeDay ? chargeDay : form.billing_day || '—'}
+                    {form.cuotas && form.numCuotas ? ` · ${form.numCuotas} cuotas` : ''}
                   </p>
                 </div>
+                <span className="text-[10px] font-medium text-gray-400 flex-shrink-0">Vista previa</span>
               </div>
 
               {/* Nombre */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 block mb-1.5">Nombre</label>
+                <label className="text-xs font-semibold text-gray-500 block mb-1.5">Nombre del servicio</label>
                 <input
                   type="text" value={form.name}
                   onChange={e => set('name', e.target.value)}
@@ -423,7 +482,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
               {/* Toggle cuotas */}
               <button
-                onClick={() => set('cuotas', !form.cuotas)}
+                onClick={handleCuotasToggle}
                 className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.cuotas ? 'sheet-toggle-active' : 'sheet-toggle')}
               >
                 <CreditCard className={cn('w-4 h-4 flex-shrink-0', form.cuotas ? 'text-brand-600' : 'text-gray-300')} />
@@ -439,59 +498,111 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {/* Monto */}
               {form.cuotas ? (
                 <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">Total a pagar</label>
-                      <input type="text" inputMode="numeric"
-                        value={form.totalAmount ? fmtNum(form.totalAmount) : ''}
-                        onChange={e => set('totalAmount', e.target.value.replace(/\D/g, ''))}
-                        placeholder="0"
-                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">N° de cuotas</label>
-                      <input type="number" inputMode="numeric" value={form.numCuotas}
-                        onChange={e => set('numCuotas', e.target.value)}
-                        placeholder="ej: 12" min="2" max="120"
-                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                      />
+                  {/* Monto total */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto total</label>
+                    <input type="text" inputMode="numeric"
+                      value={form.totalAmount ? fmtNum(form.totalAmount) : ''}
+                      onChange={e => set('totalAmount', e.target.value.replace(/\D/g, ''))}
+                      placeholder="0"
+                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                    />
+                  </div>
+
+                  {/* N° de cuotas — stepper */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">N° de cuotas</label>
+                    <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => set('numCuotas', String(Math.max(2, (parseInt(form.numCuotas) || 3) - 1)))}
+                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-base leading-none flex-shrink-0 shadow-sm"
+                      >−</button>
+                      <span className="flex-1 text-center text-base font-bold text-gray-900 tabular-nums">
+                        {parseInt(form.numCuotas) || 3}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => set('numCuotas', String(Math.min(120, (parseInt(form.numCuotas) || 3) + 1)))}
+                        className="w-7 h-7 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 font-bold text-base leading-none flex-shrink-0 shadow-sm"
+                      >+</button>
                     </div>
                   </div>
+
+                  {/* Cuota mensual calculada */}
                   {computedMonthly != null && (
                     <div className="flex items-center justify-between px-4 py-2.5 bg-brand-50 border border-brand-100 rounded-xl">
                       <span className="text-xs font-semibold text-brand-700">Cuota mensual</span>
                       <span className="text-sm font-bold text-brand-900 tabular-nums">{formatCLP(computedMonthly)}</span>
                     </div>
                   )}
+
+                  {/* Día de cobro — auto (bloqueado) */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
+                    <div className={cn(
+                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border',
+                      chargeDay ? 'bg-brand-50/60 border-brand-200' : 'bg-gray-50 border-gray-200'
+                    )}>
+                      <span className={cn('flex-1 text-sm font-semibold', chargeDay ? 'text-brand-700' : 'text-gray-400')}>
+                        {chargeDay ? `Día ${chargeDay} de cada mes` : 'Selecciona una tarjeta primero'}
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-brand-500 bg-brand-100 px-2 py-0.5 rounded-full flex-shrink-0">
+                        <Lock className="w-2.5 h-2.5" /> auto
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Info box */}
+                  {chargeDay != null && parseInt(form.numCuotas) >= 2 && (
+                    <div className="flex items-start gap-2.5 px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl">
+                      <Info className="w-4 h-4 text-brand-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-brand-700 leading-relaxed">
+                        El cobro se registrará automáticamente el <strong>día {chargeDay} de cada mes</strong>, durante <strong>{form.numCuotas} meses</strong>.
+                        Basado en el corte de {selectedCard?.name ?? 'la tarjeta'} (día {autoBillingDay}).
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto mensual</label>
-                  <input type="text" inputMode="numeric"
-                    value={form.amount ? fmtNum(form.amount) : ''}
-                    onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
-                    placeholder="0"
-                    className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                  />
+                /* Monto mensual + Día de cobro en la misma fila */
+                <div className="grid grid-cols-[1fr_120px] gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto mensual</label>
+                    <input type="text" inputMode="numeric"
+                      value={form.amount ? fmtNum(form.amount) : ''}
+                      onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
+                      placeholder="$ 0"
+                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
+                    <input type="number" inputMode="numeric" value={form.billing_day}
+                      onChange={e => set('billing_day', e.target.value)}
+                      placeholder="1–31" min="1" max="31"
+                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors"
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Día de cobro */}
-              <div>
-                <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
-                <input type="number" inputMode="numeric" value={form.billing_day}
-                  onChange={e => set('billing_day', e.target.value)}
-                  placeholder="1–31" min="1" max="31"
-                  className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                />
-              </div>
-
               {/* Categoría */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 block mb-2">Categoría</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-gray-500">Categoría</label>
+                  {categories.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCats(v => !v)}
+                      className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                    >
+                      {showAllCats ? 'Ver menos' : `Ver todas (${categories.length})`}
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  {categories.map(c => {
+                  {(showAllCats ? sortedCategories : sortedCategories.slice(0, 5)).map(c => {
                     const selected = form.category_id === c.id
                     return (
                       <button key={c.id}
@@ -509,22 +620,43 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       </button>
                     )
                   })}
+                  {/* Si la categoría seleccionada no está visible, mostrarla igual */}
+                  {!showAllCats && form.category_id && !sortedCategories.slice(0, 5).find(c => c.id === form.category_id) && (() => {
+                    const c = categories.find(c => c.id === form.category_id)
+                    if (!c) return null
+                    return (
+                      <button key={c.id}
+                        onClick={() => set('category_id', '')}
+                        className="cat-badge flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border-transparent font-semibold"
+                        style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
+                      >
+                        {isEmoji(c.icon)
+                          ? <span className="text-base">{c.icon}</span>
+                          : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-3.5 h-3.5" style={{ color: c.color }} /> })()
+                        }
+                        {c.name}
+                      </button>
+                    )
+                  })()}
                 </div>
               </div>
 
               {/* Método de pago */}
               <div>
                 <label className="text-xs font-semibold text-gray-500 block mb-2">
-                  Método de pago <span className="text-red-400">*</span>
+                  Método de pago{form.cuotas && <span className="text-brand-500 ml-1">· Solo tarjetas de crédito</span>}
+                  <span className="text-red-400 ml-0.5">*</span>
                 </label>
-                {paymentMethods.length === 0 ? (
+                {visiblePaymentMethods.length === 0 ? (
                   <a href="/metodos" className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-dashed border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors">
                     <CreditCard className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-xs font-semibold">Agrega un método de pago →</span>
+                    <span className="text-xs font-semibold">
+                      {form.cuotas ? 'Agrega una tarjeta de crédito para usar cuotas →' : 'Agrega un método de pago →'}
+                    </span>
                   </a>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {paymentMethods.map(p => (
+                    {visiblePaymentMethods.map(p => (
                       <button key={p.id}
                         onClick={() => set('payment_method_id', form.payment_method_id === p.id ? '' : p.id)}
                         className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
