@@ -5,7 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -364,31 +364,62 @@ export default async function AnalisisPage({
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
+          {/* Desktop: "Resumen anual" cuando isAnual, "Análisis" siempre en mobile */}
+          <h1 className="text-xl font-bold text-brand-900">
+            {isAnual ? (
+              <>
+                <span className="hidden lg:inline">Resumen anual</span>
+                <span className="lg:hidden">Análisis</span>
+              </>
+            ) : 'Análisis'}
+          </h1>
+          {isAnual && pastRows.length > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5 hidden lg:block">
+              {pastRows.length} de 12 meses con registros
+            </p>
+          )}
           {!isAnual && totalSelected > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">{selectedExpenses.length} gasto{selectedExpenses.length !== 1 ? 's' : ''} · {daysElapsed} días registrados</p>
           )}
         </div>
         {isAnual ? (
-          /* Year nav para vista anual */
-          <div className="flex items-center gap-0.5 bg-white dark:bg-[#1a2744] border border-gray-200 dark:border-[#2d4f7a] rounded-xl shadow-sm dark:shadow-none p-0.5">
-            <Link
-              href={`/analisis?year=${year - 1}&view=anual`}
-              className="p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors"
-              aria-label="Año anterior"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-            </Link>
-            <span className="text-xs font-bold text-brand-700 dark:text-blue-300 min-w-[48px] text-center px-1">
-              {year}
-            </span>
-            <Link
-              href={`/analisis?year=${year + 1}&view=anual`}
-              className={`p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
-              aria-label="Año siguiente"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-            </Link>
+          /* Year nav para vista anual — dark pill en desktop, light en mobile */
+          <div className="flex items-center gap-0.5 rounded-xl p-0.5
+            lg:border-0
+            bg-white border border-gray-200 shadow-sm
+            lg:bg-transparent lg:shadow-none"
+            style={{ background: undefined }}
+          >
+            {/* Mobile: light pill */}
+            <div className="flex items-center gap-0.5 lg:hidden bg-white border border-gray-200 rounded-xl shadow-sm p-0.5">
+              <Link href={`/analisis?year=${year - 1}&view=anual`}
+                className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors"
+                aria-label="Año anterior">
+                <ChevronLeft className="w-4 h-4" />
+              </Link>
+              <span className="text-xs font-bold text-brand-700 min-w-[44px] text-center px-1">{year}</span>
+              <Link href={`/analisis?year=${year + 1}&view=anual`}
+                className={`p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
+                aria-label="Año siguiente">
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            {/* Desktop: dark pill */}
+            <div className="hidden lg:flex items-center gap-0.5 rounded-xl p-0.5" style={{ background: '#0A1F44' }}>
+              <Link href={`/analisis?year=${year - 1}&view=anual`}
+                className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
+                style={{ color: 'rgba(255,255,255,0.6)' }}
+                aria-label="Año anterior">
+                <ChevronLeft className="w-4 h-4" />
+              </Link>
+              <span className="text-xs font-bold text-white min-w-[44px] text-center px-1">{year}</span>
+              <Link href={`/analisis?year=${year + 1}&view=anual`}
+                className={`p-1.5 rounded-lg transition-colors hover:bg-white/10 ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
+                style={{ color: 'rgba(255,255,255,0.6)' }}
+                aria-label="Año siguiente">
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         ) : (
           <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
@@ -692,196 +723,219 @@ export default async function AnalisisPage({
 
               {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}
 
-              {/* D1 — Hero completo */}
-              {(() => {
-                const peakVal  = peakRow?.total ?? 0
-                const niceStep = peakVal > 0 ? Math.ceil(peakVal / 4 / 100000) * 100000 : 350000
-                const niceMax  = niceStep * 4
-                const yTicks   = [niceMax, niceStep * 3, niceStep * 2, niceStep, 0]
-                const fmtAxis  = (v: number) => v === 0 ? '$0' : v >= 1000000 ? `$${(v / 1000000).toFixed(v % 1000000 === 0 ? 0 : 1)}M` : `$${Math.round(v / 1000)}k`
-                return (
-                  <div className="hidden lg:block hero-gradient rounded-3xl px-7 pt-6 pb-6 text-white">
-                    {/* Grid: ambas columnas con la misma altura */}
-                    <div className="grid gap-8 items-stretch" style={{ gridTemplateColumns: '260px 1fr' }}>
+              {/* D1 — [total card + KPIs] | [gráfico de barras] */}
+              <div className="hidden lg:flex gap-4 items-start">
 
-                      {/* ── Columna izquierda: total + KPIs ── */}
-                      <div className="flex flex-col">
-                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-2">Total gastado en {year}</p>
-                        <p className="text-[clamp(26px,3vw,42px)] font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
-                        {yearDelta !== null && (
-                          <div className={`mt-2.5 inline-flex items-center gap-1 self-start px-2 py-1 rounded-lg text-[11px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
-                            {yearDelta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-                            {Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que en {year - 1}
-                          </div>
-                        )}
-                        {/* KPI 2×2 */}
-                        <div className="grid grid-cols-2 gap-2 mt-auto pt-5">
-                          <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <BarChart2 className="w-3 h-3 text-white/50" />
-                              <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Promedio</p>
-                            </div>
-                            <p className="text-[15px] font-extrabold text-white tabular-nums leading-none">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
-                            <p className="text-[9px] text-white/35 mt-1">por mes</p>
-                          </div>
-                          <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <CalendarDays className="w-3 h-3 text-white/50" />
-                              <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Meses</p>
-                            </div>
-                            <p className="text-[15px] font-extrabold text-white leading-none">{pastRows.length}<span className="text-white/35 text-xs font-medium"> / 12</span></p>
-                            <p className="text-[9px] text-white/35 mt-1">con datos</p>
-                          </div>
-                          {peakRow && (
-                            <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <ArrowUp className="w-3 h-3 text-white/50" />
-                                <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Más alto</p>
-                              </div>
-                              <p className="text-[15px] font-extrabold text-white leading-none">{anualMonthLabels[peakRow.monthNum - 1]}</p>
-                              <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(peakRow.total)}</p>
-                            </div>
-                          )}
-                          {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
-                            <div className="bg-white/10 rounded-2xl px-3.5 py-3">
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <ArrowDown className="w-3 h-3 text-white/50" />
-                                <p className="text-[9px] text-white/45 font-bold uppercase tracking-wide">Más bajo</p>
-                              </div>
-                              <p className="text-[15px] font-extrabold text-emerald-300 leading-none">{anualMonthLabels[lowRow.monthNum - 1]}</p>
-                              <p className="text-[9px] text-white/50 tabular-nums mt-1">{formatCLP(lowRow.total)}</p>
-                            </div>
-                          )}
-                        </div>
+                {/* ── Col izquierda: total + Más alto / Más bajo ── */}
+                <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: '240px' }}>
+
+                  {/* Tarjeta azul: total + promedio */}
+                  <div className="rounded-3xl p-5 flex flex-col" style={{ background: '#1B6DD4' }}>
+                    <p className="text-[9px] font-bold uppercase tracking-widest mb-3"
+                      style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      Total gastado en {year}
+                    </p>
+                    <p className="text-[clamp(24px,2.6vw,38px)] font-extrabold text-white tabular-nums leading-none tracking-tight">
+                      {formatCLP(anualGrandTotal)}
+                    </p>
+                    {yearDelta !== null && (
+                      <div className={`mt-2.5 inline-flex items-center gap-1 self-start px-2 py-1 rounded-lg text-[10px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
+                        {yearDelta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                        {Math.abs(yearDelta)}% {yearDelta < 0 ? 'menos' : 'más'} que {year - 1}
                       </div>
+                    )}
+                    <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.22)' }}>
+                      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Promedio mensual</p>
+                      <p className="text-base font-extrabold text-white tabular-nums mt-0.5">
+                        {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}
+                      </p>
+                    </div>
+                  </div>
 
-                      {/* ── Columna derecha: gráfico flex que ocupa toda la altura ── */}
-                      <div className="flex flex-col min-h-0">
-                        <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3 flex-shrink-0">Gasto mensual en {year}</p>
-
-                        {/* Eje Y + zona de barras — ocupa el resto de la columna */}
-                        <div className="flex gap-2 flex-1 min-h-0">
-
-                          {/* Eje Y: justify-between sobre toda la altura disponible */}
-                          <div className="flex flex-col justify-between flex-shrink-0 pb-5" style={{ width: '52px' }}>
-                            {yTicks.map(tick => (
-                              <span key={tick} className="text-[8px] text-white/40 tabular-nums leading-none text-right block">
-                                {fmtAxis(tick)}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Zona de barras: ocupa todo el ancho y alto restante */}
-                          <div className="flex-1 flex flex-col min-h-0 min-w-0">
-                            {/* Área de barras con gridlines — flex-1 */}
-                            <div className="flex-1 relative min-h-0">
-                              {/* Gridlines: top % sobre el área de barras */}
-                              {yTicks.map((_, i) => (
-                                <div key={i} className="absolute left-0 right-0 pointer-events-none"
-                                  style={{ top: `${(i / (yTicks.length - 1)) * 100}%`, borderTop: i === yTicks.length - 1 ? '1px solid rgba(255,255,255,0.22)' : '1px solid rgba(255,255,255,0.08)' }}
-                                />
-                              ))}
-
-                              {/* Barras: absolute inset, altura en % */}
-                              <div className="absolute inset-0 flex items-end justify-between" style={{ gap: '4px' }}>
-                                {anualRows.map(row => {
-                                  const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                                  const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
-                                  const isPeakBar    = peakRow?.monthNum === row.monthNum
-                                  const barPct       = row.total > 0 ? Math.min(90, (row.total / niceMax) * 100) : 0
-                                  const showVal      = (isPeakBar || isCurrentBar) && row.total > 0
-                                  return (
-                                    <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end h-full">
-                                      <span className="text-[8px] tabular-nums font-bold leading-none mb-1 block" style={{ color: showVal ? 'rgba(255,255,255,0.75)' : 'transparent', userSelect: 'none' }}>
-                                        {formatCLP(row.total)}
-                                      </span>
-                                      {!isFutureBar ? (
-                                        <div style={{
-                                          width: 'min(36px, 100%)',
-                                          height: barPct > 0 ? `${barPct}%` : '3px',
-                                          borderRadius: '5px 5px 2px 2px',
-                                          backgroundColor: isPeakBar ? 'rgba(255,255,255,0.92)' : isCurrentBar ? 'rgba(255,255,255,0.62)' : barPct === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.28)',
-                                        }} />
-                                      ) : (
-                                        <div style={{ width: 'min(36px, 100%)', height: '18px', borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.15)' }} />
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Labels de mes — altura fija debajo de las barras */}
-                            <div className="flex justify-between flex-shrink-0 pt-1.5" style={{ gap: '4px' }}>
-                              {anualRows.map(row => {
-                                const isCurrentBar = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
-                                const isPeakBar    = peakRow?.monthNum === row.monthNum
-                                const isFutureBar  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
-                                const op = isCurrentBar ? 1 : isPeakBar ? 0.75 : isFutureBar ? 0.18 : 0.38
-                                return (
-                                  <span key={row.monthNum} className="flex-1 text-center text-[9px] leading-none" style={{ color: `rgba(255,255,255,${op})`, fontWeight: isCurrentBar ? 700 : 500 }}>
-                                    {anualMonthLabels[row.monthNum - 1].slice(0, 3)}
-                                  </span>
-                                )
-                              })}
-                            </div>
-                          </div>
+                  {/* Chips: Más alto + Más bajo */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {peakRow && (
+                      <div className="rounded-2xl p-3.5 flex flex-col gap-1"
+                        style={{ background: '#0A1F44', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: '#FFC23C' }} />
+                          <span className="text-[9px] font-bold uppercase tracking-widest"
+                            style={{ color: '#FFC23C' }}>Más alto</span>
                         </div>
+                        <p className="text-[14px] font-extrabold text-white leading-none">
+                          {anualMonthLabels[peakRow.monthNum - 1]}
+                        </p>
+                        <p className="text-[10px] tabular-nums"
+                          style={{ color: 'rgba(255,255,255,0.38)' }}>{formatCLP(peakRow.total)}</p>
                       </div>
+                    )}
+                    {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
+                      <div className="rounded-2xl p-3.5 flex flex-col gap-1"
+                        style={{ background: '#0A1F44', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" style={{ color: '#34D399' }} />
+                          <span className="text-[9px] font-bold uppercase tracking-widest"
+                            style={{ color: '#34D399' }}>Más bajo</span>
+                        </div>
+                        <p className="text-[14px] font-extrabold text-white leading-none">
+                          {anualMonthLabels[lowRow.monthNum - 1]}
+                        </p>
+                        <p className="text-[10px] tabular-nums"
+                          style={{ color: 'rgba(255,255,255,0.38)' }}>{formatCLP(lowRow.total)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Col derecha: gráfico de barras ── */}
+                <div className="flex-1 rounded-3xl flex flex-col" style={{ background: '#0A1F44', minHeight: '260px' }}>
+
+                  {/* Header del chart */}
+                  <div className="flex items-center justify-between px-5 pt-4 pb-3"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    <p className="text-sm font-bold text-white">Gasto mensual</p>
+                    <div className="flex items-center gap-4 text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: '#FFC23C' }} />Pico
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: '#4D93FF' }} />Actual
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Barras */}
+                  <div className="flex-1 flex flex-col px-5 pt-5 pb-4">
+                    <div className="flex items-end justify-between flex-1" style={{ gap: '5px', minHeight: '140px' }}>
+                      {anualRows.map(row => {
+                        const isFutureB  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                        const isCurrentB = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                        const isPeakB    = peakRow?.monthNum === row.monthNum
+                        const maxVal     = peakRow?.total ?? 1
+                        const barH       = row.total > 0 ? Math.max(8, Math.round((row.total / maxVal) * 140)) : 0
+                        const showLabel  = (isPeakB || isCurrentB) && row.total > 0
+                        const barBg      = isPeakB ? '#FFC23C' : isCurrentB ? '#4D93FF'
+                          : row.total > 0 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'
+
+                        return (
+                          <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end"
+                            style={{ height: '140px' }}>
+                            <span className="text-[9px] tabular-nums font-bold leading-none mb-1.5 text-center w-full truncate block"
+                              style={{ color: showLabel ? (isPeakB ? '#FFC23C' : '#4D93FF') : 'transparent' }}>
+                              {showLabel ? formatCLP(row.total) : '.'}
+                            </span>
+                            {!isFutureB ? (
+                              <div style={{
+                                width: 'min(38px, 100%)',
+                                height: barH > 0 ? `${barH}px` : '3px',
+                                borderRadius: '5px 5px 2px 2px',
+                                backgroundColor: barBg,
+                              }} />
+                            ) : (
+                              <div style={{
+                                width: 'min(38px, 100%)', height: '24px',
+                                borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.12)',
+                              }} />
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
 
+                    {/* Labels de mes */}
+                    <div className="flex justify-between mt-2" style={{ gap: '5px' }}>
+                      {anualRows.map(row => {
+                        const isFutureB  = year === now.getFullYear() && row.monthNum > now.getMonth() + 1
+                        const isCurrentB = row.monthNum === now.getMonth() + 1 && year === now.getFullYear()
+                        const isPeakB    = peakRow?.monthNum === row.monthNum
+                        return (
+                          <span key={row.monthNum} className="flex-1 text-center text-[9px] leading-none"
+                            style={{
+                              fontWeight: (isPeakB || isCurrentB) ? 700 : 400,
+                              color: isPeakB ? '#FFC23C'
+                                : isCurrentB ? '#4D93FF'
+                                : isFutureB ? 'rgba(255,255,255,0.14)'
+                                : 'rgba(255,255,255,0.35)',
+                            }}>
+                            {row.label}
+                          </span>
+                        )
+                      })}
+                    </div>
                   </div>
-                )
-              })()}
-
-              {/* D2 — Ranking completo */}
-              <div className="hidden lg:block card p-5">
-                <div className="flex items-center justify-between mb-1">
-                  <div>
-                    <p className="text-sm font-bold text-gray-800 dark:text-gray-100">Ranking del año</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Toca una categoría para ver su historial mes a mes</p>
-                  </div>
-                  {Object.keys(catSpikes).length > 0 && (
-                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 flex-shrink-0">
-                      <Zap className="w-3 h-3 flex-shrink-0" />{Object.keys(catSpikes).length} pico{Object.keys(catSpikes).length > 1 ? 's' : ''} detectado{Object.keys(catSpikes).length > 1 ? 's' : ''}
-                    </span>
-                  )}
                 </div>
-                <div className="mt-3 space-y-0.5">
+              </div>
+
+              {/* D2 — Ranking de categorías */}
+              <div className="hidden lg:block rounded-3xl px-5 py-5" style={{ background: '#0A1F44' }}>
+
+                {/* Header */}
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <p className="text-sm font-bold text-white">Ranking de categorías · {year}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      En qué se concentró tu gasto del año
+                    </p>
+                  </div>
+                  {Object.keys(catSpikes).length > 0 && (() => {
+                    const spikesArr = Object.entries(catSpikes)
+                      .map(([catId, s]) => ({ ...s, catName: anualCats.find(c => c.id === catId)?.name ?? '' }))
+                      .sort((a, b) => b.multiple - a.multiple)
+                    const top = spikesArr[0]
+                    const label = spikesArr.length === 1
+                      ? `${top.catName} ×${top.multiple} en ${anualMonthLabels[top.monthNum - 1]}`
+                      : `${spikesArr.length} picos detectados`
+                    return (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full flex-shrink-0 ml-4"
+                        style={{ background: 'rgba(255,195,60,0.12)', color: '#FFC23C', border: '1px solid rgba(255,195,60,0.22)' }}>
+                        <Zap className="w-3 h-3 flex-shrink-0" />{label}
+                      </span>
+                    )
+                  })()}
+                </div>
+
+                {/* Filas */}
+                <div className="space-y-4">
                   {anualCats.map((c, idx) => {
                     const pctVal  = anualGrandTotal > 0 ? Math.round((c.total / anualGrandTotal) * 100) : 0
                     const barW    = anualCats[0].total > 0 ? Math.round((c.total / anualCats[0].total) * 100) : 0
                     const spike   = catSpikes[c.id]
                     const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
-                    const rankColors = ['text-amber-500', 'text-slate-400', 'text-orange-400', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600', 'text-gray-300 dark:text-gray-600']
+                    const rankColor = idx === 0 ? '#FFB800' : idx === 1 ? '#94A3B8' : idx === 2 ? '#F97316' : 'rgba(255,255,255,0.2)'
                     return (
                       <Link key={c.id}
                         href={spike ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}` : `/analisis/${c.id}?year=${year}`}
-                        className="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
-                        <span className={`w-4 text-center text-[11px] font-extrabold flex-shrink-0 ${rankColors[idx] ?? 'text-gray-300 dark:text-gray-600'}`}>{idx + 1}</span>
-                        <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
-                          {isEmoji(c.icon) ? <span className="text-base leading-none">{c.icon}</span>
-                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{c.name}</span>
+                        className="block group">
+                        {/* Fila superior */}
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <span className="w-4 text-center text-[11px] font-extrabold flex-shrink-0"
+                            style={{ color: rankColor }}>{idx + 1}</span>
+                          <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                            {isEmoji(c.icon)
+                              ? <span className="text-sm leading-none">{c.icon}</span>
+                              : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
+                          </div>
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-semibold text-white truncate">{c.name}</span>
                             {spike && (
-                              <span className="inline-flex items-center gap-0.5 flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
-                                <Zap className="w-2.5 h-2.5" />×{spike.multiple} en {anualMonthLabels[spike.monthNum - 1].slice(0, 3)}
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                style={{ background: 'rgba(255,195,60,0.14)', color: '#FFC23C', border: '1px solid rgba(255,195,60,0.2)' }}>
+                                <Zap className="w-2.5 h-2.5" />pico ×{spike.multiple}
                               </span>
                             )}
                           </div>
-                          <div className="h-2 rounded-full overflow-hidden bg-gray-100 dark:bg-white/10">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, backgroundColor: c.color }} />
-                          </div>
+                          <span className="text-sm font-bold text-white tabular-nums flex-shrink-0 pl-3">
+                            {formatCLP(c.total)}
+                          </span>
+                          <span className="text-[11px] font-semibold flex-shrink-0 w-8 text-right"
+                            style={{ color: 'rgba(255,255,255,0.32)' }}>{pctVal}%</span>
                         </div>
-                        <div className="text-right flex-shrink-0 pl-2 min-w-[100px]">
-                          <p className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(c.total)}</p>
-                          <p className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">{pctVal}% del año</p>
+                        {/* Progress bar azul */}
+                        <div className="ml-7 h-1.5 rounded-full overflow-hidden"
+                          style={{ background: 'rgba(255,255,255,0.07)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${barW}%`, background: '#4D93FF' }} />
                         </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-gray-300 dark:text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
                       </Link>
                     )
                   })}
