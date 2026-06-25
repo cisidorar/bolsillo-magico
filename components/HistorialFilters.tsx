@@ -83,7 +83,17 @@ export default function HistorialFilters({ categories, month, year }: Props) {
   function handleView(v: 'purchase' | 'billing') {
     setView(v)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    pushParams(query, catIds, v)
+    if (v === 'billing') {
+      // Al cambiar a billing, omitir month/year para que el server
+      // detecte el período de estado ABIERTO automáticamente
+      const params = new URLSearchParams()
+      params.set('view', 'billing')
+      if (query) params.set('q', query)
+      if (catIds.length) params.set('cats', catIds.join(','))
+      startTransition(() => router.push(`${pathname}?${params.toString()}`))
+    } else {
+      pushParams(query, catIds, v)
+    }
   }
 
   function clearAll() {
