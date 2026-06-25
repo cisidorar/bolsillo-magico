@@ -405,7 +405,7 @@ export default async function AnalisisPage({
               </Link>
             </div>
             {/* Desktop: dark pill */}
-            <div className="hidden lg:flex items-center gap-0.5 rounded-xl p-0.5" style={{ background: '#0A1F44' }}>
+            <div className="hidden lg:flex items-center gap-0.5 rounded-xl p-0.5" style={{ background: '#131c2e' }}>
               <Link href={`/analisis?year=${year - 1}&view=anual`}
                 className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
                 style={{ color: 'rgba(255,255,255,0.6)' }}
@@ -606,7 +606,7 @@ export default async function AnalisisPage({
                                 <div style={{
                                   position: 'absolute', bottom: '100%', left: '50%',
                                   transform: 'translateX(-50%)', marginBottom: '5px',
-                                  background: '#0A1F44', color: 'white',
+                                  background: '#131c2e', color: 'white',
                                   borderRadius: '7px', padding: '3px 8px',
                                   fontSize: '10px', fontWeight: 700,
                                   whiteSpace: 'nowrap', zIndex: 10,
@@ -756,7 +756,7 @@ export default async function AnalisisPage({
                   <div className="grid grid-cols-2 gap-2">
                     {peakRow && (
                       <div className="rounded-2xl p-3.5 flex flex-col gap-1"
-                        style={{ background: '#0A1F44', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        style={{ background: '#131c2e', border: '1px solid rgba(255,255,255,0.07)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: '#FFC23C' }} />
                           <span className="text-[9px] font-bold uppercase tracking-widest"
@@ -771,7 +771,7 @@ export default async function AnalisisPage({
                     )}
                     {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
                       <div className="rounded-2xl p-3.5 flex flex-col gap-1"
-                        style={{ background: '#0A1F44', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        style={{ background: '#131c2e', border: '1px solid rgba(255,255,255,0.07)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowDown className="w-3 h-3 flex-shrink-0" style={{ color: '#34D399' }} />
                           <span className="text-[9px] font-bold uppercase tracking-widest"
@@ -788,7 +788,7 @@ export default async function AnalisisPage({
                 </div>
 
                 {/* ── Col derecha: gráfico de barras ── */}
-                <div className="flex-1 rounded-3xl flex flex-col" style={{ background: '#0A1F44', minHeight: '260px' }}>
+                <div className="flex-1 rounded-3xl flex flex-col" style={{ background: '#131c2e', minHeight: '260px' }}>
 
                   {/* Header del chart */}
                   <div className="flex items-center justify-between px-5 pt-4 pb-3"
@@ -867,7 +867,7 @@ export default async function AnalisisPage({
               </div>
 
               {/* D2 — Ranking de categorías */}
-              <div className="hidden lg:block rounded-3xl px-5 py-5" style={{ background: '#0A1F44' }}>
+              <div className="hidden lg:block rounded-3xl px-5 py-5" style={{ background: '#131c2e' }}>
 
                 {/* Header */}
                 <div className="flex items-start justify-between mb-5">
@@ -943,7 +943,7 @@ export default async function AnalisisPage({
               </div>
 
               {/* D3 — Heatmap mes × categoría — dark card — solo desktop */}
-              <div className="hidden lg:block rounded-3xl overflow-hidden" style={{ background: '#0A1F44' }}>
+              <div className="hidden lg:block rounded-3xl overflow-hidden" style={{ background: '#131c2e' }}>
 
                 {/* Header */}
                 <div className="px-6 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -965,7 +965,7 @@ export default async function AnalisisPage({
                   <table className="w-full">
                     <thead>
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                        <th className="text-left px-6 py-3 min-w-[130px] sticky left-0" style={{ background: '#0A1F44' }}>
+                        <th className="text-left px-6 py-3 min-w-[130px] sticky left-0" style={{ background: '#131c2e' }}>
                           <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.28)' }}>Mes</span>
                         </th>
                         {anualCats.map(c => (
@@ -1006,7 +1006,7 @@ export default async function AnalisisPage({
                             }}
                           >
                             {/* Mes */}
-                            <td className="px-4 py-2.5 sticky left-0" style={{ background: '#0A1F44' }}>
+                            <td className="px-4 py-2.5 sticky left-0" style={{ background: '#131c2e' }}>
                               <Link href={`/analisis?month=${row.monthNum}&year=${year}`} className="flex items-center gap-2 group">
                                 <span className={`font-bold text-[14px] leading-tight ${isEmpty ? '' : 'text-white'}`}
                                   style={isEmpty ? { color: 'rgba(255,255,255,0.2)' } : undefined}>
@@ -1031,7 +1031,7 @@ export default async function AnalisisPage({
                               // Intensidad del azul según peso relativo dentro de la columna
                               const intensity = val > 0 ? 0.14 + (val / anualColMax[c.id]) * 0.82 : 0
                               const cellBg   = isSpike ? '#FFC23C' : val > 0 ? `rgba(77,147,255,${intensity.toFixed(2)})` : 'transparent'
-                              const textColor = isSpike ? '#0A1F44' : 'white'
+                              const textColor = isSpike ? '#131c2e' : 'white'
 
                               return (
                                 <td key={c.id} className="px-1.5 py-2">
@@ -1042,7 +1042,7 @@ export default async function AnalisisPage({
                                       style={{ background: cellBg }}
                                     >
                                       {isSpike && (
-                                        <span className="flex items-center gap-0.5 text-[9px] font-bold leading-none" style={{ color: '#0A1F44' }}>
+                                        <span className="flex items-center gap-0.5 text-[9px] font-bold leading-none" style={{ color: '#131c2e' }}>
                                           <Zap className="w-2.5 h-2.5 flex-shrink-0" />PICO
                                         </span>
                                       )}
