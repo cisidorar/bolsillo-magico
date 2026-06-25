@@ -17,9 +17,9 @@ const config: Config = {
           300: '#63A4F9',
           400: '#4D93FF',
           500: '#3B85F7',
-          600: '#2B7CF6',   // primary — CTA
-          700: '#1E69D8',   // hover
-          800: '#1553B0',   // active / dark
+          600: '#2256C8',   // primary — CTA
+          700: '#1A45A8',   // hover
+          800: '#133690',   // active / dark
           900: '#0E2A52',   // ink profundo
         },
         mint:  { DEFAULT: '#1FBE8D', dark: '#34D6A2' },
