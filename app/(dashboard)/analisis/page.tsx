@@ -745,7 +745,7 @@ export default async function AnalisisPage({
                       </div>
                     )}
                     <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.22)' }}>
-                      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Promedio mensual</p>
+                      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Promedio / mes</p>
                       <p className="text-base font-extrabold text-white tabular-nums mt-0.5">
                         {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}
                       </p>
@@ -815,7 +815,7 @@ export default async function AnalisisPage({
                         const barH       = row.total > 0 ? Math.max(8, Math.round((row.total / maxVal) * 140)) : 0
                         const showLabel  = (isPeakB || isCurrentB) && row.total > 0
                         const barBg      = isPeakB ? '#FFC23C' : isCurrentB ? '#4D93FF'
-                          : row.total > 0 ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'
+                          : row.total > 0 ? 'rgba(77,147,255,0.32)' : 'rgba(77,147,255,0.08)'
 
                         return (
                           <div key={row.monthNum} className="flex-1 flex flex-col items-center justify-end"
@@ -921,7 +921,7 @@ export default async function AnalisisPage({
                             {spike && (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
                                 style={{ background: 'rgba(255,195,60,0.14)', color: '#FFC23C', border: '1px solid rgba(255,195,60,0.2)' }}>
-                                <Zap className="w-2.5 h-2.5" />pico ×{spike.multiple}
+                                <Zap className="w-2.5 h-2.5" />pico en {anualMonthLabels[spike.monthNum - 1].slice(0, 3)}
                               </span>
                             )}
                           </div>
@@ -932,7 +932,7 @@ export default async function AnalisisPage({
                             style={{ color: 'rgba(255,255,255,0.32)' }}>{pctVal}%</span>
                         </div>
                         {/* Progress bar azul */}
-                        <div className="ml-7 h-1.5 rounded-full overflow-hidden"
+                        <div className="ml-[52px] h-1.5 rounded-full overflow-hidden"
                           style={{ background: 'rgba(255,255,255,0.07)' }}>
                           <div className="h-full rounded-full" style={{ width: `${barW}%`, background: '#4D93FF' }} />
                         </div>
