@@ -480,8 +480,8 @@ export default async function DashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
-                            <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
+                            <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
+                            <p className="text-[14px] font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
@@ -532,7 +532,7 @@ export default async function DashboardPage() {
                         <Icon className="w-3.5 h-3.5" style={{ color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>
+                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {e.description || e.category?.name || '—'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
@@ -752,9 +752,9 @@ export default async function DashboardPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                            <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
+                            <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
                             <div className="text-right flex-shrink-0">
-                              <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
+                              <p className="text-[14px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
                               <p className="text-[10px] font-semibold"
                                 style={{ color: hardOver ? '#FF6F61' : mildOver ? '#FFC23C' : 'var(--ink-3)' }}>
                                 {isAllRec && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
@@ -797,7 +797,7 @@ export default async function DashboardPage() {
                         <Icon className="w-4 h-4" style={{ color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>
+                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {e.description || e.category?.name || '—'}
                         </p>
                         <div className="flex items-center gap-1 mt-0.5">
