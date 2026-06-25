@@ -5,7 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, Lightbulb, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -318,6 +318,9 @@ export default async function AnalisisPage({
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold text-brand-900">Análisis</h1>
+          {!isAnual && totalSelected > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">{selectedExpenses.length} gasto{selectedExpenses.length !== 1 ? 's' : ''} · {daysElapsed} días registrados</p>
+          )}
         </div>
         {isAnual ? (
           /* Year nav para vista anual */
@@ -1068,62 +1071,62 @@ export default async function AnalisisPage({
               </div>
             </div>
 
-            {/* Desktop strip — single card, 4 sections */}
-            <div className="hidden lg:grid lg:grid-cols-4 card overflow-hidden divide-x divide-gray-100 mb-6 !rounded-2xl">
+            {/* Desktop strip — 4 separate cards */}
+            <div className="hidden lg:grid lg:grid-cols-4 gap-4 mb-6">
               {/* Total */}
-              <div className="p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                  <Wallet className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+              <div className="card p-4 xl:p-5 flex items-center gap-3">
+                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#4D93FF' } as React.CSSProperties}>
+                  <Wallet className="w-6 h-6" style={{ color: '#4D93FF' }} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] text-gray-400 font-medium">Total del mes</p>
-                  <p className="text-lg font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
+                  <p className="text-xs text-gray-400 font-medium">Total del mes</p>
+                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
                   <p className="text-[10px] text-gray-400">{selectedExpenses.length} gastos</p>
                 </div>
               </div>
               {/* Por día */}
-              <div className="p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                  <BarChart2 className="w-5 h-5" style={{ color: '#16A34A' }} />
+              <div className="card p-4 xl:p-5 flex items-center gap-3">
+                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
+                  <BarChart2 className="w-6 h-6" style={{ color: '#FFC23C' }} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] text-gray-400 font-medium">Por día</p>
-                  <p className="text-lg font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
+                  <p className="text-xs text-gray-400 font-medium">Por día</p>
+                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
                   <p className="text-[10px] text-gray-400">{daysElapsed} días</p>
                 </div>
               </div>
               {/* vs anterior */}
-              <div className="p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4', '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A' } as React.CSSProperties}>
-                  {delta === null || delta === 0 ? <Minus className="w-5 h-5 text-gray-400" /> : delta > 0 ? <TrendingUp className="w-5 h-5" style={{ color: '#EF4444' }} /> : <TrendingDown className="w-5 h-5" style={{ color: '#16A34A' }} />}
+              <div className="card p-4 xl:p-5 flex items-center gap-3">
+                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4', '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A' } as React.CSSProperties}>
+                  {delta === null || delta === 0 ? <Minus className="w-6 h-6 text-gray-400" /> : delta > 0 ? <TrendingUp className="w-6 h-6" style={{ color: '#EF4444' }} /> : <TrendingDown className="w-6 h-6" style={{ color: '#16A34A' }} />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] text-gray-400 font-medium">vs anterior{isCurrentMonth && !isBilling ? ` · día ${cutoffDay}` : ''}</p>
+                  <p className="text-xs text-gray-400 font-medium">vs. anterior{isCurrentMonth && !isBilling ? ` · día ${cutoffDay}` : ''}</p>
                   {delta === null ? (
-                    <p className="text-lg font-extrabold text-gray-400">—</p>
+                    <p className="text-xl font-extrabold text-gray-400">—</p>
                   ) : (
                     <>
-                      <p className={`text-lg font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{delta > 0 ? '+' : ''}{delta}%</p>
+                      <p className={`text-xl font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{delta > 0 ? '+' : ''}{delta}%</p>
                       <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}</p>
                     </>
                   )}
                 </div>
               </div>
               {/* Mayor gasto */}
-              <div className="p-4 xl:p-5 flex items-center gap-3">
+              <div className="card p-4 xl:p-5 flex items-center gap-3">
                 {topExpenseData ? (
                   <>
-                    <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': topExpenseData.bg, '--cat-color': topExpenseData.color } as React.CSSProperties}>
-                      <topExpenseData.icon className="w-5 h-5" style={{ color: topExpenseData.color }} />
+                    <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': topExpenseData.bg, '--cat-color': topExpenseData.color } as React.CSSProperties}>
+                      <topExpenseData.icon className="w-6 h-6" style={{ color: topExpenseData.color }} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[11px] text-gray-400 font-medium">Mayor gasto</p>
-                      <p className="text-lg font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(topExpense!.amount)}</p>
+                      <p className="text-xs text-gray-400 font-medium">Mayor gasto</p>
+                      <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(topExpense!.amount)}</p>
                       <p className="text-[10px] text-gray-400 truncate">{topExpense!.description ?? topExpense!.category?.name ?? 'Gasto'}</p>
                     </div>
                   </>
                 ) : (
-                  <div className="min-w-0"><p className="text-[11px] text-gray-400 font-medium">Mayor gasto</p><p className="text-lg font-extrabold text-gray-400">—</p></div>
+                  <div className="min-w-0"><p className="text-xs text-gray-400 font-medium">Mayor gasto</p><p className="text-xl font-extrabold text-gray-400">—</p></div>
                 )}
               </div>
             </div>
@@ -1133,13 +1136,13 @@ export default async function AnalisisPage({
 
       {/* ── Insight — full width, visible without scroll ─────────────────────── */}
       {!isAnual && insight && (
-        <div className="card insight-card p-4 flex items-start gap-3 mb-5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#FEF3C7' }}>
-            <Lightbulb className="w-4 h-4" style={{ color: '#D97706' }} />
+        <div className="card insight-card px-5 py-4 flex items-start gap-4 mb-5">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#FEF3C7' }}>
+            <span style={{ color: '#D97706', fontSize: 18, lineHeight: 1 }}>✦</span>
           </div>
           <div>
-            <p className="text-xs font-bold text-amber-800 mb-0.5">Insight del mes</p>
-            <p className="text-xs text-amber-700 leading-relaxed">{insight}</p>
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Insight del mes</p>
+            <p className="text-sm text-amber-800 leading-relaxed">{insight}</p>
           </div>
         </div>
       )}
@@ -1152,17 +1155,24 @@ export default async function AnalisisPage({
 
           {/* ── Tendencia 6 meses ────────────────────────────────────────────── */}
           <div className="card p-4">
-            <p className="text-sm font-bold text-gray-700 mb-3">
-              Tendencia 6 meses
-              {isBilling && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: '#1B6DD4', background: '#EEF4FF' }}>facturación</span>}
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-gray-700">
+                Tendencia 6 meses
+                {isBilling && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: '#1B6DD4', background: '#EEF4FF' }}>facturación</span>}
+              </p>
+              {monthData.length >= 2 && (
+                <span className="text-xs text-gray-400 capitalize">
+                  {monthData[0].label} – {monthData[monthData.length - 1].label}
+                </span>
+              )}
+            </div>
             {/* Y-axis max label */}
             {maxMonth > 1 && (
               <p className="text-[9px] text-gray-300 font-medium tabular-nums mb-1">
                 {maxMonth >= 1000000 ? `${(maxMonth/1000000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
               </p>
             )}
-            <div className="flex items-end gap-2 h-28 lg:h-48">
+            <div className="flex items-end gap-2 h-28 lg:h-52">
               {monthData.map((m) => {
                 const isSelected = m.key === selectedKey
                 const isCurrent  = m.key === currentKey
@@ -1195,7 +1205,10 @@ export default async function AnalisisPage({
           {/* ── Distribución por semana ──────────────────────────────────────── */}
           {totalSelected > 0 && (
             <div className="card p-4">
-              <p className="text-sm font-bold text-gray-700 mb-3">Distribución por día</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold text-gray-700">Distribución por día</p>
+                <span className="text-xs text-gray-400">Semana actual</span>
+              </div>
               <div className="flex items-end gap-1.5 h-24 lg:h-40">
                 {byWeekday.map((day, i) => {
                   const h = day.total > 0 ? Math.max(6, Math.round((day.total / maxWeekday) * 80)) : 3
@@ -1247,9 +1260,16 @@ export default async function AnalisisPage({
 
             {/* Top categorías */}
             <div>
-              <h2 className="text-sm font-bold text-gray-600 mb-2.5">
-                Top categorías · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
-              </h2>
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm font-bold text-gray-700">
+                  Top categorías · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
+                </h2>
+                <div className="hidden lg:flex items-center gap-3 text-[10px] text-gray-400 font-semibold">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#1FBE8D' }} />OK</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FFC23C' }} />Cerca</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FF6F61' }} />Excedido</span>
+                </div>
+              </div>
               <div className="card divide-y divide-gray-50 overflow-hidden">
                 {(() => {
                   const maxCatTotal = catSummary[0]?.total ?? 1
@@ -1314,8 +1334,9 @@ export default async function AnalisisPage({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold text-gray-800 leading-tight truncate">{c.name}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
+                            <span className={`text-xs ${statusColor} flex-shrink-0`}>{statusLabel}</span>
                             {isAllRecurring && (
                               <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">↻ fijo</span>
                             )}
@@ -1323,7 +1344,6 @@ export default async function AnalisisPage({
                               <span className="text-[9px] font-semibold text-gray-400 flex-shrink-0">↻ {formatCLP(recurringAmt)}</span>
                             )}
                           </div>
-                          <p className={`text-xs ${statusColor}`}>{statusLabel}</p>
                         </div>
 
                         <div className="text-right flex-shrink-0 flex items-center gap-1.5">
