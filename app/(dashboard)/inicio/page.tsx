@@ -133,10 +133,20 @@ export default async function DashboardPage() {
     recurringByCatInicio[e.category.id] = (recurringByCatInicio[e.category.id] ?? 0) + e.amount
   })
 
-  // Resumen rápido — todas las categorías con presupuesto (no solo top 6)
-  const allCatsWithBudget = ((categories ?? []) as { id: string }[]).filter(c => catBudgetMap.has(c.id))
-  const catsDentro        = allCatsWithBudget.filter(c => (byCat[c.id]?.total ?? 0) <= (catBudgetMap.get(c.id) ?? Infinity)).length
-  const catsExcedidas     = allCatsWithBudget.filter(c => (byCat[c.id]?.total ?? 0) >  (catBudgetMap.get(c.id) ?? Infinity)).length
+  // Resumen rápido — todas las categorías (con y sin límite específico)
+  // Sin límite → siempre "dentro". Con límite → comparar contra gasto.
+  const allCats       = (categories ?? []) as { id: string }[]
+  const catsDentro    = allCats.filter(c => {
+    const limit = catBudgetMap.get(c.id) ?? null
+    if (limit === null) return true  // sin límite = siempre dentro
+    return (byCat[c.id]?.total ?? 0) <= limit
+  }).length
+  const catsExcedidas = allCats.filter(c => {
+    const limit = catBudgetMap.get(c.id) ?? null
+    if (limit === null) return false
+    return (byCat[c.id]?.total ?? 0) > limit
+  }).length
+  const allCatsWithBudget = allCats  // para el JSX existente
   const topCat           = catSummary[0]?.name ?? '—'
 
   // Saludo
@@ -246,9 +256,10 @@ export default async function DashboardPage() {
   )
 
   const ProximosPagosList = () => (
-    <div className="card divide-y overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-      {proximosPagos.map(r => (
-        <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+      {proximosPagos.map((r, i) => (
+        <div key={r.id} className="flex items-center gap-3 px-4 py-3"
+          style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
           <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
@@ -587,18 +598,20 @@ export default async function DashboardPage() {
             <div>
               <h2 className="text-sm font-bold mb-2.5" style={{ color: 'var(--ink-2)' }}>Resumen rápido</h2>
               <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
-                {allCatsWithBudget.length > 0 && (
+                {allCats.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
                       <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
-                      <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {allCats.length}</p>
+                      <div className="flex items-center justify-center gap-1">
                         <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                         <p className="text-[10px] font-semibold" style={{ color: 'var(--mint)' }}>dentro</p>
                       </div>
                     </div>
                     <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,111,97,0.10)' }}>
                       <p className="text-2xl font-extrabold" style={{ color: 'var(--coral)' }}>{catsExcedidas}</p>
-                      <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {allCats.length}</p>
+                      <div className="flex items-center justify-center gap-1">
                         <XCircle className="w-3 h-3" style={{ color: 'var(--coral)' }} />
                         <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>excedidas</p>
                       </div>
