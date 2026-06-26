@@ -133,10 +133,10 @@ export default async function DashboardPage() {
     recurringByCatInicio[e.category.id] = (recurringByCatInicio[e.category.id] ?? 0) + e.amount
   })
 
-  // Resumen rápido — categorías con presupuesto
-  const catsWithBudget   = catSummary.filter(c => catBudgetMap.has(c.id))
-  const catsDentro       = catsWithBudget.filter(c => c.total <= (catBudgetMap.get(c.id) ?? Infinity)).length
-  const catsExcedidas    = catsWithBudget.filter(c => c.total >  (catBudgetMap.get(c.id) ?? Infinity)).length
+  // Resumen rápido — todas las categorías con presupuesto (no solo top 6)
+  const allCatsWithBudget = ((categories ?? []) as { id: string }[]).filter(c => catBudgetMap.has(c.id))
+  const catsDentro        = allCatsWithBudget.filter(c => (byCat[c.id]?.total ?? 0) <= (catBudgetMap.get(c.id) ?? Infinity)).length
+  const catsExcedidas     = allCatsWithBudget.filter(c => (byCat[c.id]?.total ?? 0) >  (catBudgetMap.get(c.id) ?? Infinity)).length
   const topCat           = catSummary[0]?.name ?? '—'
 
   // Saludo
@@ -288,7 +288,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Hero + KPIs side-by-side ── */}
-        <div className="hidden lg:grid gap-4 mb-5" style={{ gridTemplateColumns: '1fr 300px' }}>
+        <div className="hidden lg:grid gap-4 mb-5" style={{ gridTemplateColumns: '1fr 420px' }}>
 
           {/* Hero card */}
           <div className="hero-gradient rounded-3xl px-8 py-7 text-white flex flex-col justify-between" style={{ minHeight: '160px' }}>
@@ -342,7 +342,7 @@ export default async function DashboardPage() {
                   <BarChart3 className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                 </div>
               </div>
-              <p className="text-2xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)' }}>
+              <p className="text-xl font-extrabold tabular-nums leading-none truncate" style={{ color: 'var(--ink)' }}>
                 {formatCLP(dailyAvg)}
               </p>
               <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>promedio diario</p>
@@ -366,7 +366,7 @@ export default async function DashboardPage() {
               </div>
               {deltaVsLast !== null ? (
                 <>
-                  <p className="text-2xl font-extrabold tabular-nums leading-none"
+                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
                     style={{ color: deltaVsLast < 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
                   </p>
@@ -389,7 +389,7 @@ export default async function DashboardPage() {
               </div>
               {savings !== null ? (
                 <>
-                  <p className="text-2xl font-extrabold tabular-nums leading-none"
+                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
                     style={{ color: savings >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {savings >= 0 ? '' : '−'}{formatCLP(Math.abs(savings))}
                   </p>
@@ -419,7 +419,7 @@ export default async function DashboardPage() {
                   }
                 </div>
               </div>
-              <p className="text-2xl font-extrabold tabular-nums leading-none"
+              <p className="text-xl font-extrabold tabular-nums leading-none truncate"
                 style={{ color: projOverBudget ? 'var(--coral)' : 'var(--ink)' }}>
                 {total > 0 ? formatCLP(projection) : '—'}
               </p>
@@ -587,7 +587,7 @@ export default async function DashboardPage() {
             <div>
               <h2 className="text-sm font-bold mb-2.5" style={{ color: 'var(--ink-2)' }}>Resumen rápido</h2>
               <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
-                {catsWithBudget.length > 0 && (
+                {allCatsWithBudget.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
                       <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
