@@ -392,9 +392,16 @@ export default async function AnalisisPage({
   const sig3pts = numExcedidas === 0 ? 25 : numExcedidas === 1 ? 18 : numExcedidas === 2 ? 10 : 0
 
   // Signal 4: monthly projection vs global budget
-  const projection = isCurrentMonth && now.getDate() > 3
-    ? Math.round((totalSelected / now.getDate()) * new Date(year, month, 0).getDate())
+  const daysInMonth  = new Date(year, month, 0).getDate()
+  const projection   = isCurrentMonth && now.getDate() > 3
+    ? Math.round((totalSelected / now.getDate()) * daysInMonth)
     : null
+  // Projection without the biggest single purchase (to detect one-off distortion)
+  const projectionWithoutTop = isCurrentMonth && now.getDate() > 3 && topExpense
+    ? Math.round(((totalSelected - topExpense.amount) / now.getDate()) * daysInMonth) + topExpense.amount
+    : null
+  const projInflatedByTop = projection !== null && projectionWithoutTop !== null && globalBudget !== null
+    && projection > globalBudget && projectionWithoutTop <= globalBudget * 1.05
   const sig4pts = !projection ? 15
     : !globalBudget ? 15
     : projection <= globalBudget ? 25
@@ -402,6 +409,8 @@ export default async function AnalisisPage({
     : projection <= globalBudget * 1.3 ? 8 : 0
 
   const healthScore = sig1pts + sig2pts + sig3pts + sig4pts
+  // Remap 0-65 → Alerta, 66-75 → Atención, 76-88 → En camino, 89-100 → Buena salud
+  // (our max without income is 15+25+25+25=90, with income 25+25+25+25=100)
   const healthLabel = healthScore >= 80 ? 'Buena salud'
     : healthScore >= 60 ? 'En camino'
     : healthScore >= 40 ? 'Atención'
@@ -1272,8 +1281,8 @@ export default async function AnalisisPage({
           ? getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
           : null
         // Donut chart helpers
-        const donutR   = 46
-        const donutC   = 2 * Math.PI * donutR  // ≈ 289
+        const donutR    = 68
+        const donutC    = 2 * Math.PI * donutR  // ≈ 427
         const donutFill = Math.round((healthScore / 100) * donutC)
 
         return (
@@ -1381,26 +1390,26 @@ export default async function AnalisisPage({
             {/* Mobile: stacked / Desktop: side-by-side */}
             <div className="flex flex-col lg:flex-row lg:gap-8 lg:items-center">
               {/* Donut + badge */}
-              <div className="flex items-center gap-4 lg:flex-col lg:items-center lg:gap-3 mb-5 lg:mb-0 lg:flex-shrink-0">
-                <div className="relative" style={{ width: 120, height: 120 }}>
-                  <svg width="120" height="120" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r={donutR} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="9" />
+              <div className="flex items-center gap-5 lg:flex-col lg:items-center lg:gap-3 mb-5 lg:mb-0 lg:flex-shrink-0">
+                <div className="relative" style={{ width: 160, height: 160 }}>
+                  <svg width="160" height="160" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r={donutR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="11" />
                     <circle
-                      cx="60" cy="60" r={donutR} fill="none"
-                      stroke={healthColor} strokeWidth="9"
+                      cx="80" cy="80" r={donutR} fill="none"
+                      stroke={healthColor} strokeWidth="11"
                       strokeLinecap="round"
                       strokeDasharray={`${donutFill} ${donutC}`}
-                      transform="rotate(-90 60 60)"
+                      transform="rotate(-90 80 80)"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-[28px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>{healthScore}</span>
-                    <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>de 100</span>
+                    <span className="text-[38px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>{healthScore}</span>
+                    <span className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--ink-3)' }}>de 100</span>
                   </div>
                 </div>
-                <div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                    style={{ background: `${healthColor}22`, color: healthColor }}>
+                <div className="lg:text-center">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                    style={{ background: `${healthColor}20`, color: healthColor }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: healthColor }} />
                     {healthLabel}
                   </span>
@@ -1425,57 +1434,57 @@ export default async function AnalisisPage({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {/* Signal 1: earns more */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: earnsMore === false ? 'rgba(255,111,97,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: earnsMore === false ? 'rgba(255,111,97,0.18)' : 'rgba(31,190,141,0.18)' }}>
                         {earnsMore === false
-                          ? <TrendingUp className="w-3 h-3" style={{ color: '#FF6F61' }} />
-                          : <Check className="w-3 h-3" style={{ color: '#1FBE8D' }} />}
+                          ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
+                          : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
                       </div>
-                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
                         {earnsMore === false ? 'Gastos superan ingresos' : 'Gastas menos de lo que ganas'}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-8" style={{ color: surplus !== null ? (surplus > 0 ? '#1FBE8D' : '#FF6F61') : 'var(--ink-3)' }}>
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: surplus !== null ? (surplus > 0 ? '#1FBE8D' : '#FF6F61') : 'var(--ink-3)' }}>
                       {surplus !== null ? `Te sobraron ${formatCLP(Math.abs(surplus))}` : 'Sin ingresos registrados'}
                     </p>
                   </div>
 
                   {/* Signal 2: spending trend */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: spendingDown === false ? 'rgba(255,111,97,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: delta === null ? 'rgba(148,163,184,0.15)' : delta < 0 ? 'rgba(31,190,141,0.18)' : 'rgba(255,111,97,0.18)' }}>
                         {delta === null || delta === 0
-                          ? <Minus className="w-3 h-3" style={{ color: 'var(--ink-3)' }} />
+                          ? <Minus className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
                           : delta < 0
-                            ? <TrendingDown className="w-3 h-3" style={{ color: '#1FBE8D' }} />
-                            : <TrendingUp className="w-3 h-3" style={{ color: '#FF6F61' }} />}
+                            ? <TrendingDown className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />
+                            : <TrendingUp className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />}
                       </div>
-                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
                         {delta === null ? 'Sin comparación' : delta < 0 ? 'Tu gasto va a la baja' : 'Tu gasto subió'}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-8" style={{ color: delta === null ? 'var(--ink-3)' : delta < 0 ? '#1FBE8D' : '#FF6F61' }}>
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: delta === null ? 'var(--ink-3)' : delta < 0 ? '#1FBE8D' : '#FF6F61' }}>
                       {delta !== null ? `${delta > 0 ? '+' : ''}${delta}% frente a ${prevMonthName}` : 'Primer mes registrado'}
                     </p>
                   </div>
 
                   {/* Signal 3: category budgets */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: numExcedidas > 0 ? 'rgba(255,193,60,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : 'rgba(31,190,141,0.18)' }}>
                         {numExcedidas > 0
-                          ? <AlertTriangle className="w-3 h-3" style={{ color: '#FFC23C' }} />
-                          : <Check className="w-3 h-3" style={{ color: '#1FBE8D' }} />}
+                          ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
+                          : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
                       </div>
-                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
                         {numExcedidas === 0 ? 'Presupuestos en orden' : `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-8" style={{ color: numExcedidas > 0 ? '#FFC23C' : 'var(--ink-3)' }}>
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: numExcedidas > 0 ? '#FF6F61' : 'var(--ink-3)' }}>
                       {numExcedidas > 0
                         ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
                         : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Sin presupuestos definidos'}
@@ -1483,26 +1492,32 @@ export default async function AnalisisPage({
                   </div>
 
                   {/* Signal 4: projection */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: projection && globalBudget && projection > globalBudget * 1.1 ? 'rgba(255,193,60,0.15)' : 'rgba(77,147,255,0.15)' }}>
-                        <Clock className="w-3 h-3" style={{ color: projection && globalBudget && projection > globalBudget * 1.1 ? '#FFC23C' : '#4D93FF' }} />
+                  {(() => {
+                    const projOver = projection !== null && globalBudget !== null && projection > globalBudget * 1.05
+                    const sigColor = projOver ? '#FFC23C' : '#4D93FF'
+                    const sigBg    = projOver ? 'rgba(255,193,60,0.18)' : 'rgba(77,147,255,0.18)'
+                    const title    = projInflatedByTop ? 'Proyección algo justa'
+                      : projOver ? 'Proyección elevada'
+                      : 'Proyección del mes'
+                    const subtitle = projInflatedByTop
+                      ? 'Al día por una compra única'
+                      : projection
+                        ? `${formatCLP(projection)} estimado al cierre`
+                        : isCurrentMonth ? 'Pocos días para proyectar' : 'Mes completado'
+                    return (
+                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: sigBg }}>
+                            <Clock className="w-3.5 h-3.5" style={{ color: sigColor }} />
+                          </div>
+                          <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>{title}</p>
+                        </div>
+                        <p className="text-[10px] font-semibold pl-9" style={{ color: projInflatedByTop || projOver ? '#FFC23C' : 'var(--ink-3)' }}>
+                          {subtitle}
+                        </p>
                       </div>
-                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
-                        {!projection ? 'Proyección del mes' : projection && globalBudget && projection > globalBudget * 1.1 ? 'Proyección algo justa' : 'Proyección del mes'}
-                      </p>
-                    </div>
-                    <p className="text-[10px] font-semibold pl-8" style={{ color: 'var(--ink-3)' }}>
-                      {projection
-                        ? globalBudget
-                          ? projection > globalBudget * 1.1
-                            ? `Al ritmo actual: ${formatCLP(projection)}`
-                            : `${formatCLP(projection)} estimado`
-                          : `${formatCLP(projection)} estimado`
-                        : isCurrentMonth ? 'Pocos días para proyectar' : 'Mes completado'}
-                    </p>
-                  </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
