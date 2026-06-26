@@ -1558,7 +1558,7 @@ export default async function AnalisisPage({
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
             {/* Tendencia 6 meses */}
-            <div className="card p-4">
+            <div className="card p-4 lg:self-start">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tendencia 6 meses</p>
                 {monthData.length >= 2 && (
