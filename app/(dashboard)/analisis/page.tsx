@@ -435,7 +435,7 @@ export default async function AnalisisPage({
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
-          Por compra
+          Mensual
         </Link>
         <Link
           href={`/analisis?year=${year}&view=anual`}
