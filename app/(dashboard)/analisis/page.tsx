@@ -1567,46 +1567,71 @@ export default async function AnalisisPage({
                   </span>
                 )}
               </div>
-              {/* Average line label */}
               {(() => {
-                const nonZero = monthData.filter(m => m.total > 0)
-                const avg = nonZero.length > 0 ? Math.round(nonZero.reduce((s, m) => s + m.total, 0) / nonZero.length) : 0
-                return avg > 0 ? (
-                  <p className="text-[10px] font-semibold mb-3" style={{ color: 'var(--ink-3)' }}>
-                    — Promedio {avg >= 1_000_000 ? `$${(avg/1_000_000).toFixed(1)}M` : `$${Math.round(avg/1_000)}k`}/mes
-                  </p>
-                ) : <div className="mb-3" />
-              })()}
-              {maxMonth > 1 && (
-                <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
-                  {maxMonth >= 1_000_000 ? `${(maxMonth/1_000_000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
-                </p>
-              )}
-              <div className="flex items-end gap-2 h-36 lg:h-44">
-                {monthData.map((m) => {
-                  const isSelected = m.key === selectedKey
-                  const isCurrent  = m.key === currentKey
-                  const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-                  const barClass  = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
-                  const [mYear, mMonth] = m.key.split('-').map(Number)
-                  return (
-                    <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`} className="flex-1 flex flex-col items-center gap-1 group">
-                      <span className="text-[9px] tabular-nums leading-none font-semibold" style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}>
-                        {m.total > 0 ? (m.total >= 1_000_000 ? `${(m.total/1_000_000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
-                      </span>
-                      <div className="w-full flex-1 flex items-end">
+                const nonZero   = monthData.filter(m => m.total > 0)
+                const avg       = nonZero.length > 0 ? Math.round(nonZero.reduce((s, m) => s + m.total, 0) / nonZero.length) : 0
+                const BAR_H     = 160  // px — height of bar area
+                const avgPx     = avg > 0 ? Math.round((avg / maxMonth) * BAR_H) : 0
+                const avgLabel  = avg >= 1_000_000 ? `$${(avg/1_000_000).toFixed(1)}M` : `$${Math.round(avg/1_000)}k`
+                return (
+                  <>
+                    {/* Promedio label */}
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className="inline-block w-5 border-t-2 border-dashed flex-shrink-0" style={{ borderColor: '#4D93FF' }} />
+                      <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                        Promedio {avgLabel}/mes
+                      </p>
+                    </div>
+                    {/* Max label */}
+                    {maxMonth > 1 && (
+                      <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
+                        {maxMonth >= 1_000_000 ? `${(maxMonth/1_000_000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
+                      </p>
+                    )}
+                    {/* Chart */}
+                    <div className="relative" style={{ height: BAR_H + 24 }}>
+                      {/* Dashed avg line */}
+                      {avgPx > 0 && (
                         <div
-                          className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(77,147,255,0.35)]' : ''} ${barClass}`}
-                          style={{ height: `${h}%`, ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}), opacity: m.total === 0 ? 0.3 : 1 }}
+                          className="absolute left-0 right-0 border-t-2 border-dashed pointer-events-none"
+                          style={{ bottom: 24 + avgPx - 1, borderColor: 'rgba(77,147,255,0.5)' }}
                         />
+                      )}
+                      {/* Bars */}
+                      <div className="absolute inset-x-0 bottom-0 flex items-end gap-1.5" style={{ height: BAR_H + 24 }}>
+                        {monthData.map((m) => {
+                          const isSelected = m.key === selectedKey
+                          const isCurrent  = m.key === currentKey
+                          const barPx      = m.total > 0 ? Math.max(6, Math.round((m.total / maxMonth) * BAR_H)) : 3
+                          const barClass   = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
+                          const [mYear, mMonth] = m.key.split('-').map(Number)
+                          return (
+                            <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`}
+                              className="flex-1 flex flex-col items-center gap-0.5 group h-full justify-end">
+                              <span className="text-[9px] tabular-nums leading-none font-semibold mb-0.5"
+                                style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}>
+                                {m.total > 0 ? (m.total >= 1_000_000 ? `${(m.total/1_000_000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
+                              </span>
+                              <div
+                                className={`w-full rounded-t-xl transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_14px_rgba(77,147,255,0.4)]' : ''} ${barClass}`}
+                                style={{
+                                  height: barPx,
+                                  ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}),
+                                  opacity: m.total === 0 ? 0.25 : 1,
+                                }}
+                              />
+                              <span className="text-[10px] capitalize leading-none font-semibold mt-1"
+                                style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : 'var(--ink-3)' }}>
+                                {m.label}
+                              </span>
+                            </Link>
+                          )
+                        })}
                       </div>
-                      <span className="text-[10px] capitalize leading-none font-semibold" style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : 'var(--ink-3)' }}>
-                        {m.label}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* Categorías vs. presupuesto */}
