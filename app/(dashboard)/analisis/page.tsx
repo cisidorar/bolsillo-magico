@@ -404,18 +404,18 @@ export default async function AnalisisPage({
                 <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
-            {/* Desktop: dark pill */}
-            <div className="hidden lg:flex items-center gap-0.5 rounded-xl p-0.5" style={{ background: '#131c2e' }}>
+            {/* Desktop: pill */}
+            <div className="hidden lg:flex items-center gap-0.5 rounded-xl p-0.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
               <Link href={`/analisis?year=${year - 1}&view=anual`}
-                className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
-                style={{ color: 'rgba(255,255,255,0.6)' }}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: 'var(--ink-3)' }}
                 aria-label="Año anterior">
                 <ChevronLeft className="w-4 h-4" />
               </Link>
-              <span className="text-xs font-bold text-white min-w-[44px] text-center px-1">{year}</span>
+              <span className="text-xs font-bold min-w-[44px] text-center px-1" style={{ color: 'var(--ink)' }}>{year}</span>
               <Link href={`/analisis?year=${year + 1}&view=anual`}
-                className={`p-1.5 rounded-lg transition-colors hover:bg-white/10 ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
-                style={{ color: 'rgba(255,255,255,0.6)' }}
+                className={`p-1.5 rounded-lg transition-colors ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
+                style={{ color: 'var(--ink-3)' }}
                 aria-label="Año siguiente">
                 <ChevronRight className="w-4 h-4" />
               </Link>
@@ -606,11 +606,12 @@ export default async function AnalisisPage({
                                 <div style={{
                                   position: 'absolute', bottom: '100%', left: '50%',
                                   transform: 'translateX(-50%)', marginBottom: '5px',
-                                  background: '#131c2e', color: 'white',
+                                  background: 'var(--surface-2)', color: 'var(--ink)',
+                                  border: '1px solid var(--border)',
                                   borderRadius: '7px', padding: '3px 8px',
                                   fontSize: '10px', fontWeight: 700,
                                   whiteSpace: 'nowrap', zIndex: 10,
-                                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                                 }}>{valLabel}</div>
                               )}
                             </div>
@@ -756,45 +757,45 @@ export default async function AnalisisPage({
                   <div className="grid grid-cols-2 gap-2">
                     {peakRow && (
                       <div className="rounded-2xl p-3.5 flex flex-col gap-1"
-                        style={{ background: '#131c2e', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: '#FFC23C' }} />
                           <span className="text-[9px] font-bold uppercase tracking-widest"
                             style={{ color: '#FFC23C' }}>Más alto</span>
                         </div>
-                        <p className="text-[14px] font-extrabold text-white leading-none">
+                        <p className="text-[14px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>
                           {anualMonthLabels[peakRow.monthNum - 1]}
                         </p>
                         <p className="text-[10px] tabular-nums"
-                          style={{ color: 'rgba(255,255,255,0.38)' }}>{formatCLP(peakRow.total)}</p>
+                          style={{ color: 'var(--ink-3)' }}>{formatCLP(peakRow.total)}</p>
                       </div>
                     )}
                     {lowRow && lowRow.monthNum !== peakRow?.monthNum && (
                       <div className="rounded-2xl p-3.5 flex flex-col gap-1"
-                        style={{ background: '#131c2e', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowDown className="w-3 h-3 flex-shrink-0" style={{ color: '#34D399' }} />
                           <span className="text-[9px] font-bold uppercase tracking-widest"
                             style={{ color: '#34D399' }}>Más bajo</span>
                         </div>
-                        <p className="text-[14px] font-extrabold text-white leading-none">
+                        <p className="text-[14px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>
                           {anualMonthLabels[lowRow.monthNum - 1]}
                         </p>
                         <p className="text-[10px] tabular-nums"
-                          style={{ color: 'rgba(255,255,255,0.38)' }}>{formatCLP(lowRow.total)}</p>
+                          style={{ color: 'var(--ink-3)' }}>{formatCLP(lowRow.total)}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* ── Col derecha: gráfico de barras ── */}
-                <div className="flex-1 rounded-3xl flex flex-col" style={{ background: '#131c2e', minHeight: '260px' }}>
+                <div className="flex-1 rounded-3xl flex flex-col" style={{ background: 'var(--surface)', border: '1px solid var(--border)', minHeight: '260px' }}>
 
                   {/* Header del chart */}
                   <div className="flex items-center justify-between px-5 pt-4 pb-3"
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <p className="text-sm font-bold text-white">Gasto mensual</p>
-                    <div className="flex items-center gap-4 text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    style={{ borderBottom: '1px solid var(--border)' }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gasto mensual</p>
+                    <div className="flex items-center gap-4 text-[11px]" style={{ color: 'var(--ink-3)' }}>
                       <span className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: '#FFC23C' }} />Pico
                       </span>
@@ -834,7 +835,7 @@ export default async function AnalisisPage({
                             ) : (
                               <div style={{
                                 width: 'min(38px, 100%)', height: '24px',
-                                borderRadius: '5px', border: '1.5px dashed rgba(255,255,255,0.12)',
+                                borderRadius: '5px', border: '1.5px dashed var(--border)',
                               }} />
                             )}
                           </div>
@@ -854,8 +855,8 @@ export default async function AnalisisPage({
                               fontWeight: (isPeakB || isCurrentB) ? 700 : 400,
                               color: isPeakB ? '#FFC23C'
                                 : isCurrentB ? '#4D93FF'
-                                : isFutureB ? 'rgba(255,255,255,0.14)'
-                                : 'rgba(255,255,255,0.35)',
+                                : isFutureB ? 'var(--ink-3)'
+                                : 'var(--ink-3)',
                             }}>
                             {row.label}
                           </span>
@@ -867,13 +868,13 @@ export default async function AnalisisPage({
               </div>
 
               {/* D2 — Ranking de categorías */}
-              <div className="hidden lg:block rounded-3xl px-5 py-5" style={{ background: '#131c2e' }}>
+              <div className="hidden lg:block rounded-3xl px-5 py-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
 
                 {/* Header */}
                 <div className="flex items-start justify-between mb-5">
                   <div>
-                    <p className="text-sm font-bold text-white">Ranking de categorías · {year}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Ranking de categorías · {year}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                       En qué se concentró tu gasto del año
                     </p>
                   </div>
@@ -901,7 +902,7 @@ export default async function AnalisisPage({
                     const barW    = anualCats[0].total > 0 ? Math.round((c.total / anualCats[0].total) * 100) : 0
                     const spike   = catSpikes[c.id]
                     const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
-                    const rankColor = idx === 0 ? '#FFB800' : idx === 1 ? '#94A3B8' : idx === 2 ? '#F97316' : 'rgba(255,255,255,0.2)'
+                    const rankColor = idx === 0 ? '#FFB800' : idx === 1 ? '#94A3B8' : idx === 2 ? '#F97316' : 'var(--ink-3)'
                     return (
                       <Link key={c.id}
                         href={spike ? `/analisis/${c.id}?month=${spike.monthNum}&year=${year}` : `/analisis/${c.id}?year=${year}`}
@@ -917,7 +918,7 @@ export default async function AnalisisPage({
                               : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
                           </div>
                           <div className="flex-1 flex items-center gap-2 min-w-0">
-                            <span className="text-sm font-semibold text-white truncate">{c.name}</span>
+                            <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</span>
                             {spike && (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
                                 style={{ background: 'rgba(255,195,60,0.14)', color: '#FFC23C', border: '1px solid rgba(255,195,60,0.2)' }}>
@@ -925,15 +926,15 @@ export default async function AnalisisPage({
                               </span>
                             )}
                           </div>
-                          <span className="text-sm font-bold text-white tabular-nums flex-shrink-0 pl-3">
+                          <span className="text-sm font-bold tabular-nums flex-shrink-0 pl-3" style={{ color: 'var(--ink)' }}>
                             {formatCLP(c.total)}
                           </span>
                           <span className="text-[11px] font-semibold flex-shrink-0 w-8 text-right"
-                            style={{ color: 'rgba(255,255,255,0.32)' }}>{pctVal}%</span>
+                            style={{ color: 'var(--ink-3)' }}>{pctVal}%</span>
                         </div>
                         {/* Progress bar azul */}
                         <div className="ml-[52px] h-1.5 rounded-full overflow-hidden"
-                          style={{ background: 'rgba(255,255,255,0.07)' }}>
+                          style={{ background: 'var(--border)' }}>
                           <div className="h-full rounded-full" style={{ width: `${barW}%`, background: '#4D93FF' }} />
                         </div>
                       </Link>
@@ -942,46 +943,46 @@ export default async function AnalisisPage({
                 </div>
               </div>
 
-              {/* D3 — Heatmap mes × categoría — dark card — solo desktop */}
-              <div className="hidden lg:block rounded-3xl overflow-hidden" style={{ background: '#131c2e' }}>
+              {/* D3 — Heatmap mes × categoría — solo desktop */}
+              <div className="hidden lg:block rounded-3xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
 
                 {/* Header */}
-                <div className="px-6 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="px-6 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
                   <div>
-                    <p className="text-base font-bold text-white">Desglose mensual</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>La intensidad del color indica el peso relativo en cada categoría</p>
+                    <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>Desglose mensual</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>La intensidad del color indica el peso relativo en cada categoría</p>
                   </div>
                   {/* Leyenda de intensidad */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Menos</span>
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>Menos</span>
                     {[0.12, 0.28, 0.48, 0.68, 0.90].map((op, i) => (
                       <div key={i} className="w-5 h-4 rounded-md" style={{ background: `rgba(77,147,255,${op})` }} />
                     ))}
-                    <span className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>Más</span>
+                    <span className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>Más</span>
                   </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                        <th className="text-left px-6 py-3 min-w-[130px] sticky left-0" style={{ background: '#131c2e' }}>
-                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.28)' }}>Mes</span>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-left px-6 py-3 min-w-[130px] sticky left-0" style={{ background: 'var(--surface)' }}>
+                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Mes</span>
                         </th>
                         {anualCats.map(c => (
                           <th key={c.id} className="px-2 py-3 text-center min-w-[110px]">
-                            <span className="text-[10px] font-bold uppercase tracking-widest block truncate max-w-[96px] mx-auto" style={{ color: 'rgba(255,255,255,0.28)' }} title={c.name}>
+                            <span className="text-[10px] font-bold uppercase tracking-widest block truncate max-w-[96px] mx-auto" style={{ color: 'var(--ink-3)' }} title={c.name}>
                               {c.name.length > 9 ? c.name.slice(0, 8) + '.' : c.name}
                             </span>
                           </th>
                         ))}
                         {hasOtros && (
                           <th className="px-2 py-3 text-center min-w-[90px]">
-                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.18)' }}>Otros</span>
+                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Otros</span>
                           </th>
                         )}
-                        <th className="px-6 py-3 text-right min-w-[140px]" style={{ borderLeft: '1px solid rgba(255,255,255,0.07)' }}>
-                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.28)' }}>Total Mes</span>
+                        <th className="px-6 py-3 text-right min-w-[140px]" style={{ borderLeft: '1px solid var(--border)' }}>
+                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Total Mes</span>
                         </th>
                       </tr>
                     </thead>
@@ -1001,15 +1002,15 @@ export default async function AnalisisPage({
                           <tr
                             key={row.monthNum}
                             style={{
-                              borderBottom: '1px solid rgba(255,255,255,0.05)',
+                              borderBottom: '1px solid var(--border)',
                               borderLeft: isCurrentM ? '3px solid #4D93FF' : '3px solid transparent',
                             }}
                           >
                             {/* Mes */}
-                            <td className="px-4 py-2.5 sticky left-0" style={{ background: '#131c2e' }}>
+                            <td className="px-4 py-2.5 sticky left-0" style={{ background: 'var(--surface)' }}>
                               <Link href={`/analisis?month=${row.monthNum}&year=${year}`} className="flex items-center gap-2 group">
-                                <span className={`font-bold text-[14px] leading-tight ${isEmpty ? '' : 'text-white'}`}
-                                  style={isEmpty ? { color: 'rgba(255,255,255,0.2)' } : undefined}>
+                                <span className="font-bold text-[14px] leading-tight"
+                                  style={{ color: isEmpty ? 'var(--ink-3)' : 'var(--ink)' }}>
                                   {anualMonthLabels[row.monthNum - 1]}
                                 </span>
                                 {isCurrentM && (
@@ -1031,7 +1032,7 @@ export default async function AnalisisPage({
                               // Intensidad del azul según peso relativo dentro de la columna
                               const intensity = val > 0 ? 0.14 + (val / anualColMax[c.id]) * 0.82 : 0
                               const cellBg   = isSpike ? '#FFC23C' : val > 0 ? `rgba(77,147,255,${intensity.toFixed(2)})` : 'transparent'
-                              const textColor = isSpike ? '#131c2e' : 'white'
+                              const textColor = isSpike ? '#0A1F44' : 'var(--ink)'
 
                               return (
                                 <td key={c.id} className="px-1.5 py-2">
@@ -1042,7 +1043,7 @@ export default async function AnalisisPage({
                                       style={{ background: cellBg }}
                                     >
                                       {isSpike && (
-                                        <span className="flex items-center gap-0.5 text-[9px] font-bold leading-none" style={{ color: '#131c2e' }}>
+                                        <span className="flex items-center gap-0.5 text-[9px] font-bold leading-none" style={{ color: '#0A1F44' }}>
                                           <Zap className="w-2.5 h-2.5 flex-shrink-0" />PICO
                                         </span>
                                       )}
@@ -1052,7 +1053,7 @@ export default async function AnalisisPage({
                                     </Link>
                                   ) : (
                                     <div className="flex items-center justify-center min-h-[44px]">
-                                      <span className="text-sm" style={{ color: 'rgba(255,255,255,0.12)' }}>·</span>
+                                      <span className="text-sm" style={{ color: 'var(--border)' }}>·</span>
                                     </div>
                                   )}
                                 </td>
@@ -1062,26 +1063,26 @@ export default async function AnalisisPage({
                             {/* Otros */}
                             {hasOtros && (
                               <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[12px]"
-                                style={{ color: 'rgba(255,255,255,0.28)' }}>
+                                style={{ color: 'var(--ink-3)' }}>
                                 {otros > 0 ? formatCLP(otros) : ''}
                               </td>
                             )}
 
                             {/* Total fila */}
-                            <td className="px-5 py-2.5 text-right" style={{ borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                            <td className="px-5 py-2.5 text-right" style={{ borderLeft: '1px solid var(--border)' }}>
                               {row.total > 0 ? (
                                 <div className="flex flex-col items-end gap-0.5">
                                   <span className="tabular-nums font-extrabold text-[14px] leading-tight"
-                                    style={{ color: isPeak ? '#FFC23C' : 'white' }}>
+                                    style={{ color: isPeak ? '#FFC23C' : 'var(--ink)' }}>
                                     {formatCLP(row.total)}
                                   </span>
                                   <span className="text-[10px] tabular-nums font-semibold"
-                                    style={{ color: isPeak ? 'rgba(255,195,60,0.6)' : 'rgba(255,255,255,0.28)' }}>
+                                    style={{ color: isPeak ? 'rgba(255,195,60,0.6)' : 'var(--ink-3)' }}>
                                     {yearPct}%{isPeak ? ' · máx' : ''}
                                   </span>
                                 </div>
                               ) : (
-                                <span style={{ color: 'rgba(255,255,255,0.12)' }}>—</span>
+                                <span style={{ color: 'var(--ink-3)' }}>—</span>
                               )}
                             </td>
                           </tr>
@@ -1091,18 +1092,18 @@ export default async function AnalisisPage({
 
                     {/* Footer — totales anuales */}
                     <tfoot>
-                      <tr style={{ borderTop: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.18)' }}>
+                      <tr style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                         <td className="px-5 py-4 font-bold text-[11px] uppercase tracking-widest sticky left-0"
-                          style={{ color: 'rgba(255,255,255,0.45)', background: 'rgba(8,24,52,0.95)' }}>
+                          style={{ color: 'var(--ink-3)', background: 'var(--surface-2)' }}>
                           Total Año
                         </td>
                         {anualCats.map(c => (
                           <td key={c.id} className="px-2 py-4 text-center">
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="font-bold tabular-nums text-[13px] text-white">
+                              <span className="font-bold tabular-nums text-[13px]" style={{ color: 'var(--ink)' }}>
                                 {formatCLP(anualCatTotals[c.id])}
                               </span>
-                              <span className="text-[10px] font-semibold tabular-nums" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                              <span className="text-[10px] font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>
                                 {anualGrandTotal > 0 ? Math.round((anualCatTotals[c.id] / anualGrandTotal) * 100) : 0}%
                               </span>
                             </div>
@@ -1110,7 +1111,7 @@ export default async function AnalisisPage({
                         ))}
                         {hasOtros && (
                           <td className="px-3 py-4 text-center font-bold tabular-nums text-[13px]"
-                            style={{ color: 'rgba(255,255,255,0.3)' }}>
+                            style={{ color: 'var(--ink-3)' }}>
                             {(() => {
                               const tot = anualRows.reduce((s, r) => {
                                 const ct = anualCats.reduce((cs, c) => cs + (r.byCategory[c.id] ?? 0), 0)
@@ -1120,7 +1121,7 @@ export default async function AnalisisPage({
                             })()}
                           </td>
                         )}
-                        <td className="px-5 py-4 text-right" style={{ borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+                        <td className="px-5 py-4 text-right" style={{ borderLeft: '1px solid var(--border)' }}>
                           <span className="font-extrabold tabular-nums text-[15px]" style={{ color: '#4D93FF' }}>
                             {formatCLP(anualGrandTotal)}
                           </span>
@@ -1131,8 +1132,8 @@ export default async function AnalisisPage({
                 </div>
 
                 {year === now.getFullYear() && now.getMonth() < 11 && (
-                  <div className="px-6 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.22)' }}>
+                  <div className="px-6 py-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
                       Los meses restantes de {year} aparecerán cuando registres gastos.
                     </p>
                   </div>
