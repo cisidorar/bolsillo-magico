@@ -88,11 +88,23 @@ export async function suggestCategory(description: string): Promise<CategorySugg
     return { categoryId: exactRule.category_id, confidence: exactRule.confidence, source: 'rule_exact' }
   }
 
-  // ── 2. Fuzzy + 3. Embedding (need all rules loaded once) ────────────────────
-  const { data: allRules } = await supabase
-    .from('category_rules')
-    .select('merchant_key, category_id, hit_count, embedding')
-    .eq('user_id', user.id)
+  // ── 2. Fuzzy + 3. Embedding + 4. History — cargar en paralelo ──────────────
+  const since = new Date()
+  since.setDate(since.getDate() - 90)
+
+  const [{ data: allRules }, { data: histExpenses }] = await Promise.all([
+    supabase
+      .from('category_rules')
+      .select('merchant_key, category_id, hit_count, embedding')
+      .eq('user_id', user.id),
+    supabase
+      .from('expenses')
+      .select('category_id, description')
+      .eq('user_id', user.id)
+      .not('description', 'is', null)
+      .not('category_id', 'is', null)
+      .gte('date', since.toISOString().split('T')[0]),
+  ])
 
   if (allRules?.length) {
     // Fuzzy match
@@ -146,17 +158,7 @@ export async function suggestCategory(description: string): Promise<CategorySugg
     }
   }
 
-  // ── 4. Expense history fallback ─────────────────────────────────────────────
-  const since = new Date()
-  since.setDate(since.getDate() - 90)
-
-  const { data: histExpenses } = await supabase
-    .from('expenses')
-    .select('category_id, description')
-    .eq('user_id', user.id)
-    .not('description', 'is', null)
-    .not('category_id', 'is', null)
-    .gte('date', since.toISOString().split('T')[0])
+  // ── 4. Expense history fallback (ya cargado en paralelo arriba) ─────────────
 
   if (histExpenses?.length) {
     const freq: Record<string, number> = {}

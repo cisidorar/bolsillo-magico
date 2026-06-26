@@ -15,6 +15,13 @@ export default function AutoRegister() {
     })
   }, [])
 
+  // Auto-dismiss después de 6s
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 6000)
+    return () => clearTimeout(t)
+  }, [toast])
+
   if (!toast) return null
 
   return (

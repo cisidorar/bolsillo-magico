@@ -5,7 +5,7 @@ import CatExpenseList from '@/components/CatExpenseList'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, TrendingUp, TrendingDown, Minus, CalendarDays, ArrowUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, CalendarDays, ArrowUp } from 'lucide-react'
 import type { ExpenseWithRelations } from '@/types'
 
 export const revalidate = 0
@@ -196,7 +196,26 @@ export default async function CategoriaDetallePage({
             </div>
           </div>
 
-          {!isAnual && (
+          {isAnual ? (
+            /* Navegación de año en modo anual */
+            <div className="flex items-center gap-0.5 bg-white/20 rounded-xl p-0.5">
+              <Link
+                href={`/analisis/${catId}?year=${year - 1}&view=anual`}
+                className="p-1.5 rounded-lg transition-colors hover:bg-white/20 text-white"
+                aria-label="Año anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Link>
+              <span className="text-xs font-bold text-white min-w-[44px] text-center px-1">{year}</span>
+              <Link
+                href={`/analisis/${catId}?year=${year + 1}&view=anual`}
+                className={`p-1.5 rounded-lg transition-colors hover:bg-white/20 text-white ${year >= now.getFullYear() ? 'opacity-30 pointer-events-none' : ''}`}
+                aria-label="Año siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : (
             <MonthNav
               month={month}
               year={year}

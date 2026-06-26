@@ -178,8 +178,10 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     if (form.cuotas) {
       const total = parseInt(form.totalAmount)
       const n = parseInt(form.numCuotas)
+      const past = parseInt(form.pastCuotas) || 0
       if (!total || total <= 0) { setError('Ingresa el total a pagar'); return }
       if (!n || n < 2 || n > 120) { setError('El número de cuotas debe ser entre 2 y 120'); return }
+      if (past >= n) { setError(`Las cuotas cobradas (${past}) deben ser menos que el total (${n})`); return }
       amt = Math.round(total / n)
       totalInstallments = n
     } else {

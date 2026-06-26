@@ -2,7 +2,7 @@ import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
-import { formatCLP } from '@/lib/utils'
+import { formatCLP, billingPeriod, billingPeriodRange } from '@/lib/utils'
 import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
 
@@ -16,22 +16,54 @@ export default async function PresupuestoPage() {
   const month = now.getMonth() + 1
   const year = now.getFullYear()
 
-  // Mes anterior para el ordenamiento por gasto
-  const prevMonth = month === 1 ? 12 : month - 1
-  const prevYear  = month === 1 ? year - 1 : year
-  const prevMonthKey = String(prevMonth).padStart(2, '0')
-  const nextOfPrev   = prevMonth === 12 ? 1 : prevMonth + 1
-  const nextYearOfPrev = prevMonth === 12 ? prevYear + 1 : prevYear
+  // Buscar la tarjeta de crédito default para calcular el período de facturación anterior
+  const { data: defaultCard } = await supabase
+    .from('payment_methods')
+    .select('billing_day')
+    .eq('user_id', user.id)
+    .eq('card_type', 'credit')
+    .not('billing_day', 'is', null)
+    .order('is_default', { ascending: false })
+    .order('sort_order', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  const [{ data: categories }, { data: budgets }, { data: lastMonthExpenses }, { data: recurring }] = await Promise.all([
+  // Calcular el rango de fechas del período anterior:
+  // Si hay tarjeta de crédito → usar el período de facturación anterior
+  // Si no → usar el mes calendario anterior
+  let fetchStart: string
+  let fetchEnd: string
+
+  if (defaultCard?.billing_day) {
+    const billingDay = defaultCard.billing_day as number
+    // Período actual de facturación
+    const currentBp = billingPeriod(now.toISOString().slice(0, 10), billingDay)
+    // Período anterior
+    const prevBpMonth = currentBp.month === 1 ? 12 : currentBp.month - 1
+    const prevBpYear  = currentBp.month === 1 ? currentBp.year - 1 : currentBp.year
+    const prevRange   = billingPeriodRange(prevBpMonth, prevBpYear, billingDay)
+    fetchStart = prevRange.start
+    fetchEnd   = prevRange.end
+  } else {
+    // Mes calendario anterior
+    const prevMonth    = month === 1 ? 12 : month - 1
+    const prevYear     = month === 1 ? year - 1 : year
+    const prevMonthKey = String(prevMonth).padStart(2, '0')
+    const nextOfPrev   = prevMonth === 12 ? 1 : prevMonth + 1
+    const nextYearOfPrev = prevMonth === 12 ? prevYear + 1 : prevYear
+    fetchStart = `${prevYear}-${prevMonthKey}-01`
+    fetchEnd   = `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`
+  }
+
+  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
       .from('expenses')
-      .select('category_id, amount')
+      .select('category_id, amount, date')
       .eq('user_id', user.id)
-      .gte('date', `${prevYear}-${prevMonthKey}-01`)
-      .lt('date', `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`),
+      .gte('date', fetchStart)
+      .lte('date', fetchEnd),
     supabase
       .from('recurring_expenses')
       .select('category_id, amount')
@@ -39,12 +71,19 @@ export default async function PresupuestoPage() {
       .eq('is_active', true),
   ])
 
-  // Mapa de gasto por categoría del mes anterior
+  // Mapa de gasto por categoría del período anterior
   const spendingMap = new Map<string, number>()
-  for (const e of lastMonthExpenses ?? []) {
-    if (e.category_id) {
-      spendingMap.set(e.category_id, (spendingMap.get(e.category_id) ?? 0) + e.amount)
+  for (const e of lastPeriodExpenses ?? []) {
+    if (!e.category_id) continue
+    // Si hay tarjeta con billing_day, filtrar solo los gastos que pertenecen al período correcto
+    if (defaultCard?.billing_day) {
+      const bp = billingPeriod(e.date, defaultCard.billing_day as number)
+      const currentBp = billingPeriod(now.toISOString().slice(0, 10), defaultCard.billing_day as number)
+      const prevBpMonth = currentBp.month === 1 ? 12 : currentBp.month - 1
+      const prevBpYear  = currentBp.month === 1 ? currentBp.year - 1 : currentBp.year
+      if (bp.month !== prevBpMonth || bp.year !== prevBpYear) continue
     }
+    spendingMap.set(e.category_id, (spendingMap.get(e.category_id) ?? 0) + e.amount)
   }
 
   // Mapa de recurrentes activos por categoría
