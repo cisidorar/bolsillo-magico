@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
     const uniqueCatNames = [...new Set(
       data.map(row => (row[iCat] ?? '').trim()).filter(Boolean)
     )]
-    const missing = uniqueCatNames.filter(name => !catMap.has(name.toLowerCase()))
+    // A04: cap auto-created categories to prevent unbounded resource creation
+    const missing = uniqueCatNames.filter(name => !catMap.has(name.toLowerCase())).slice(0, 30)
 
     if (missing.length > 0) {
       const maxOrder = (cats ?? []).length
@@ -196,8 +197,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No se pudo procesar ninguna fila. Revisa el formato de fecha y monto.' }, { status: 422 })
   }
 
+  // A05: don't expose internal DB error messages to the client
   const { error } = await supabase.from('expenses').insert(toInsert)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('import insert error:', error.message)
+    return NextResponse.json({ error: 'Error al guardar los gastos. Intenta de nuevo.' }, { status: 500 })
+  }
 
   const newCatsCount = iCat !== -1
     ? [...new Set(data.map(row => (row[iCat] ?? '').trim()).filter(Boolean))]
