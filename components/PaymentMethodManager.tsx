@@ -67,6 +67,7 @@ type FormState = {
   is_default: boolean
   domain: string
   selectedBank: string | null
+  admin_fee: string
 }
 
 const DEFAULT_FORM: FormState = {
@@ -77,6 +78,7 @@ const DEFAULT_FORM: FormState = {
   is_default: false,
   domain: '',
   selectedBank: null,
+  admin_fee: '',
 }
 
 function methodToForm(m: PaymentMethod): FormState {
@@ -88,6 +90,7 @@ function methodToForm(m: PaymentMethod): FormState {
     is_default: m.is_default,
     domain: m.domain ?? '',
     selectedBank: ALL_OPTIONS.find(b => b.domain === m.domain)?.domain ?? null,
+    admin_fee: m.admin_fee?.toString() ?? '',
   }
 }
 
@@ -122,12 +125,14 @@ function FormPanel({
       onChange('selectedBank', null)
       onChange('last_four', '')
       onChange('billing_day', '')
+      onChange('admin_fee', '')
     } else {
       onChange('name', '')
       onChange('domain', '')
       onChange('selectedBank', null)
       onChange('last_four', '')
       onChange('billing_day', '')
+      onChange('admin_fee', '')
     }
   }
 
@@ -269,6 +274,27 @@ function FormPanel({
         </div>
       )}
 
+      {/* Cargo de administración */}
+      {form.card_type === 'credit' && (
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1.5">
+            Cargo de administración <span className="font-normal normal-case tracking-normal text-gray-300">(opcional)</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium pointer-events-none">$</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.admin_fee}
+              onChange={e => onChange('admin_fee', e.target.value.replace(/\D/g, ''))}
+              placeholder="0"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1">Se registra automáticamente el día de cierre</p>
+        </div>
+      )}
+
       {/* Predeterminado */}
       <button
         type="button"
@@ -394,6 +420,10 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       if (isNaN(d) || d < 1 || d > 28) return 'Día de cierre debe ser entre 1 y 28'
     }
     if (form.last_four && !/^\d{4}$/.test(form.last_four)) return 'Los últimos 4 dígitos deben ser 4 números'
+    if (form.card_type === 'credit' && form.admin_fee) {
+      const f = parseInt(form.admin_fee)
+      if (isNaN(f) || f < 0) return 'El cargo de administración debe ser un valor positivo'
+    }
     return ''
   }
 
@@ -410,6 +440,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       is_default:  form.is_default,
       icon:        '💳',
       domain:      form.domain.trim() || null,
+      admin_fee:   form.card_type === 'credit' && form.admin_fee ? parseInt(form.admin_fee) : null,
     }
 
     if (form.is_default) {
@@ -520,6 +551,9 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                         </span>
                         {m.card_type === 'credit' && m.billing_day && (
                           <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
+                        )}
+                        {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
+                          <span className="text-[11px] text-gray-400">Admin {formatCLP(m.admin_fee)}</span>
                         )}
                         {stmt && (
                           <span className="text-[11px] font-bold tabular-nums" style={{ color: '#1B6DD4' }}>

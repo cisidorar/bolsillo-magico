@@ -23,6 +23,7 @@ export type PaymentMethod = {
   is_default: boolean
   sort_order: number
   domain: string | null
+  admin_fee: number | null
   created_at: string
 }
 

@@ -137,6 +137,59 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     }
   }
 
+  // ── Cargo de administración de tarjetas de crédito ───────────────────────
+  // Se registra UNA VEZ el día de cierre (billing_day) de cada tarjeta.
+  // Dedup: verificar que no exista ya un gasto con la misma descripción
+  // y monto dentro del período de facturación actual.
+  const { data: cardsWithFee } = await supabase
+    .from('payment_methods')
+    .select('id, name, admin_fee, billing_day')
+    .eq('user_id', user.id)
+    .eq('card_type', 'credit')
+    .not('admin_fee', 'is', null)
+    .gt('admin_fee', 0)
+    .not('billing_day', 'is', null)
+
+  for (const card of cardsWithFee ?? []) {
+    const billingDay = card.billing_day as number
+    const fee        = card.admin_fee as number
+
+    // Solo registrar si hoy ES el día de cierre
+    const eff = effectiveDay(billingDay, currentYear, currentMonth)
+    if (todayDay !== eff) continue
+
+    // Período de facturación que cierra hoy
+    const { month: bpM, year: bpY } = billingPeriod(todayStr, billingDay)
+    const { start, end } = billingPeriodRange(bpM, bpY, billingDay)
+
+    const feeDesc = `Cargo administración ${card.name}`
+
+    // Dedup: ¿ya existe este cargo en el período actual?
+    const { data: existing } = await supabase
+      .from('expenses')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('payment_method_id', card.id)
+      .eq('amount', fee)
+      .eq('description', feeDesc)
+      .gte('date', start)
+      .lte('date', end)
+      .limit(1)
+
+    if (existing && existing.length > 0) continue
+
+    const { error } = await supabase.from('expenses').insert({
+      user_id:           user.id,
+      amount:            fee,
+      category_id:       null,
+      payment_method_id: card.id,
+      description:       feeDesc,
+      date:              todayStr,
+    })
+
+    if (!error) insertedNames.push(feeDesc)
+  }
+
   const midnight = new Date(today)
   midnight.setHours(24, 0, 0, 0)
   cookieStore.set(cookieKey, '1', {
