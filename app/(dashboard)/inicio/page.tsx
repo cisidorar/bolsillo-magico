@@ -265,7 +265,7 @@ export default async function DashboardPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
             <p className="text-[10px] font-semibold" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
-              {r.label} · en {r.daysUntil === 0 ? 'hoy' : `${r.daysUntil} días`}
+              {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
             </p>
           </div>
           <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(r.amount)}</p>
