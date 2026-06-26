@@ -26,6 +26,13 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
   const [uploading, setUploading]     = useState(false)
   const [avatarError, setAvatarError] = useState('')
 
+  // Seguridad — cambiar email
+  const [emailOpen, setEmailOpen]     = useState(false)
+  const [newEmail, setNewEmail]       = useState('')
+  const [emailSaving, setEmailSaving] = useState(false)
+  const [emailError, setEmailError]   = useState('')
+  const [emailDone, setEmailDone]     = useState(false)
+
   // Seguridad — cambiar contraseña
   const [passOpen, setPassOpen]       = useState(false)
   const [currentPass, setCurrentPass] = useState('')
@@ -83,6 +90,22 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  // ── Cambiar email ────────────────────────────────────────────────────────────
+  async function saveEmail() {
+    const trimmed = newEmail.trim().toLowerCase()
+    if (!trimmed || !trimmed.includes('@')) { setEmailError('Ingresa un correo válido'); return }
+    if (trimmed === email.toLowerCase()) { setEmailError('El correo es igual al actual'); return }
+    setEmailSaving(true); setEmailError('')
+    const { error } = await supabase.auth.updateUser({ email: trimmed })
+    setEmailSaving(false)
+    if (error) {
+      setEmailError(error.message ?? 'Error al actualizar. Intenta de nuevo.')
+      return
+    }
+    setEmailDone(true)
+    setNewEmail('')
   }
 
   // ── Cambiar contraseña ───────────────────────────────────────────────────────
@@ -207,13 +230,66 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
           <p className="text-sm font-bold text-gray-700">Seguridad</p>
         </div>
 
-        {/* ── Email (solo lectura) ── */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-50">
-          <Mail className="w-4 h-4 text-gray-300 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-400">Email</p>
-            <p className="text-sm text-gray-700 truncate">{email}</p>
-          </div>
+        {/* ── Cambiar email ── */}
+        <div className="border-b" style={{ borderColor: 'var(--border)' }}>
+          <button
+            onClick={() => { setEmailOpen(v => !v); setEmailError(''); setEmailDone(false); setNewEmail('') }}
+            className="w-full flex items-center gap-3 px-5 py-4 transition-colors hover:bg-black/[0.02]"
+          >
+            <Mail className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Correo electrónico</p>
+              <p className="text-sm truncate" style={{ color: 'var(--ink)' }}>{email}</p>
+            </div>
+            {emailOpen
+              ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+              : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+            }
+          </button>
+
+          {emailOpen && (
+            <div className="px-5 pb-5 space-y-3">
+              {emailDone ? (
+                <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.2)' }}>
+                  <p className="text-xs font-bold" style={{ color: '#16A34A' }}>Correo de confirmación enviado</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#16A34A', opacity: 0.8 }}>
+                    Revisa tu bandeja de entrada y haz clic en el enlace para confirmar el cambio.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Nuevo correo electrónico
+                    </label>
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={e => { setNewEmail(e.target.value); setEmailError('') }}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEmail() }}
+                      placeholder={email}
+                      autoComplete="email"
+                      className="w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors"
+                      style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                    />
+                    {emailError && <p className="text-xs text-red-500 mt-1.5">{emailError}</p>}
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                    Te enviaremos un enlace al nuevo correo para confirmar el cambio.
+                  </p>
+                  <button
+                    onClick={saveEmail}
+                    disabled={emailSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60"
+                    style={{ backgroundColor: '#1B6DD4' }}
+                  >
+                    {emailSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    {emailSaving ? 'Enviando…' : 'Enviar confirmación'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Cambiar contraseña ── */}
