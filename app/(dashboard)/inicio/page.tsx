@@ -221,8 +221,8 @@ export default async function DashboardPage() {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const StatementCardList = () => (
-    <div className="card divide-y overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-      {statementCards.map(card => {
+    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+      {statementCards.map((card, i) => {
         const openDate  = new Date(card.opensOn  + 'T12:00:00')
         const closeDate = new Date(card.closesOn + 'T12:00:00')
         const fmt = (d: Date) => d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
@@ -238,6 +238,7 @@ export default async function DashboardPage() {
             key={card.id}
             href={`/cuenta/${card.id}`}
             className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:opacity-80"
+            style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
           >
             <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">

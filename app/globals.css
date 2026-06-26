@@ -305,8 +305,11 @@
 .dark .text-gray-400   { color: var(--ink-3) !important; }
 .dark .text-gray-300   { color: var(--ink-3) !important; }
 
-.dark .divide-gray-50 > :not([hidden]) ~ :not([hidden])  { border-color: var(--border) !important; }
-.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+/* Forzar color de divisor oscuro en dark mode — cubre divide-gray-*, divide-y sin clase, etc. */
+.dark [class*="divide-"] > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.dark .divide-y           > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.dark .divide-gray-50     > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.dark .divide-gray-100    > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
 
 .dark .hover\:bg-gray-50:hover           { background-color: var(--surface-2) !important; }
 .dark .hover\:bg-brand-50\/40:hover      { background-color: var(--primary-soft) !important; }
