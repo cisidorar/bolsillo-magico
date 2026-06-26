@@ -148,26 +148,6 @@ function FormPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Preview */}
-      <div className="flex items-center gap-3 p-3 rounded-2xl" style={{ background: 'var(--surface-2)' }}>
-        <ServiceLogo
-          domain={form.domain || undefined}
-          name={form.name || 'M'}
-          size={40}
-          fallbackColor={ALL_OPTIONS.find(b => b.domain === form.domain)?.color}
-        />
-        <div>
-          <p className="font-bold text-sm" style={{ color: colors.textHex }}>
-            {form.name || 'Nombre del método'}
-            {form.last_four && ` ···${form.last_four}`}
-          </p>
-          <p className="text-xs opacity-70" style={{ color: colors.textHex }}>
-            {selectedType.label}
-            {form.card_type === 'credit' && form.billing_day && ` · Cierra día ${form.billing_day}`}
-          </p>
-        </div>
-      </div>
-
       {/* Tipo */}
       <div>
         <label className={labelCls} style={{ color: 'var(--ink-3)' }}>Tipo</label>
