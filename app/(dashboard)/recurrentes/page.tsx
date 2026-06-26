@@ -135,8 +135,8 @@ export default async function RecurrentesPage({
 
           {/* Próximo cargo */}
           <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: '#F0FDF4' }}>
-              <CalendarClock className="w-5 h-5" style={{ color: '#16A34A' }} />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
+              <CalendarClock className="w-5 h-5 text-emerald-600" />
             </div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Próximo cargo</p>
             {nextPayment ? (
@@ -144,7 +144,7 @@ export default async function RecurrentesPage({
                 <p className="text-sm font-bold text-gray-900 leading-tight">
                   {nextDateLabel} · {nextPayment.name}
                 </p>
-                <p className="text-base font-extrabold tabular-nums mt-0.5" style={{ color: '#1B6DD4' }}>
+                <p className="text-base font-extrabold tabular-nums mt-0.5 text-brand-600">
                   {formatCLP(nextPayment.amount)}
                 </p>
               </>
@@ -155,18 +155,18 @@ export default async function RecurrentesPage({
 
           {/* Promedio mensual */}
           <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: '#F5F3FF' }}>
-              <TrendingUp className="w-5 h-5" style={{ color: '#7C3AED' }} />
+            <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center mb-3">
+              <TrendingUp className="w-5 h-5 text-violet-600" />
             </div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Promedio mensual</p>
             <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(avgMonthly)}</p>
             <p className="text-[11px] text-gray-400 mt-1">Últimos 3 meses</p>
           </div>
 
-          {/* Ahorro anual estimado */}
+          {/* Gasto anual estimado */}
           <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: '#FFF7ED' }}>
-              <Sparkles className="w-5 h-5" style={{ color: '#EA580C' }} />
+            <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center mb-3">
+              <Sparkles className="w-5 h-5 text-orange-600" />
             </div>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto anual estimado</p>
             <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(yearlyEstimate)}</p>

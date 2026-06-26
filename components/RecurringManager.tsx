@@ -324,7 +324,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
               : null
             const regState    = registerState[item.id] ?? null
-            const canRegister = item.is_active && !isCompleted
+            const canRegister = item.is_active && !isCompleted && !item.auto_register
 
             return (
               <div
@@ -334,7 +334,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 tabIndex={0}
                 onKeyDown={e => e.key === 'Enter' && openEdit(item)}
                 className={cn(
-                  'w-full px-4 py-4 text-left transition-colors hover:bg-gray-50/60 active:bg-gray-100/50 cursor-pointer',
+                  'w-full px-4 py-4 text-left transition-colors hover:bg-gray-50/60 active:bg-brand-50/40 cursor-pointer',
                   !item.is_active && 'opacity-60'
                 )}
               >

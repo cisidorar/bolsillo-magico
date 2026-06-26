@@ -334,6 +334,17 @@
 .dark .text-indigo-500   { color: #818cf8 !important; }
 .dark .text-indigo-400   { color: #818cf8 !important; }
 
+/* ── Violet / Purple ─────────────────────────────────────────────────────── */
+.dark .bg-violet-50      { background-color: rgba(124,58,237,0.10) !important; }
+.dark .bg-purple-50      { background-color: rgba(124,58,237,0.10) !important; }
+.dark .text-violet-600   { color: #a78bfa !important; }
+.dark .text-purple-700   { color: #a78bfa !important; }
+
+/* ── Orange ──────────────────────────────────────────────────────────────── */
+.dark .bg-orange-50      { background-color: rgba(234,88,12,0.10) !important; }
+.dark .text-orange-600   { color: var(--coral) !important; }
+.dark .text-orange-500   { color: var(--coral) !important; }
+
 /* ── Status / feedback ───────────────────────────────────────────────────── */
 .dark .bg-red-50        { background-color: rgba(255,111,97,0.08) !important; }
 .dark .border-red-100   { border-color: rgba(255,111,97,0.18) !important; }
