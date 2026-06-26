@@ -53,6 +53,12 @@ const WALLET_OPTIONS: { name: string; domain: string; color: string }[] = [
 
 const ALL_OPTIONS = [...BANK_OPTIONS, ...WALLET_OPTIONS]
 
+/** Formatea dígitos en estilo CLP: 4980 → "4.980" */
+function fmtCLPInput(raw: string): string {
+  if (!raw) return ''
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
 interface Props {
   paymentMethods: PaymentMethod[]
   userId: string
@@ -260,7 +266,7 @@ function FormPanel({
       {form.card_type === 'credit' && (
         <div>
           <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1.5">
-            Día de cierre <span className="font-normal normal-case tracking-normal text-gray-300">(opcional)</span>
+            Día de cierre <span className="font-normal normal-case tracking-normal text-red-400">*</span>
           </label>
           <input
             type="text"
@@ -278,20 +284,20 @@ function FormPanel({
       {form.card_type === 'credit' && (
         <div>
           <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1.5">
-            Cargo de administración <span className="font-normal normal-case tracking-normal text-gray-300">(opcional)</span>
+            Cargo de administración <span className="font-normal normal-case tracking-normal text-red-400">*</span>
           </label>
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium pointer-events-none">$</span>
             <input
               type="text"
               inputMode="numeric"
-              value={form.admin_fee}
+              value={fmtCLPInput(form.admin_fee)}
               onChange={e => onChange('admin_fee', e.target.value.replace(/\D/g, ''))}
               placeholder="0"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-400 transition-colors"
             />
           </div>
-          <p className="text-[10px] text-gray-400 mt-1">Se registra automáticamente el día de cierre</p>
+          <p className="text-[10px] text-gray-400 mt-1">Ingresa 0 si no aplica · se registra el día de cierre</p>
         </div>
       )}
 
@@ -415,15 +421,15 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
 
   function validate(): string {
     if (!form.name.trim()) return 'Ponle un nombre al método'
-    if (form.card_type === 'credit' && form.billing_day) {
+    if (form.card_type === 'credit') {
+      if (!form.billing_day) return 'El día de cierre es obligatorio para tarjetas de crédito'
       const d = parseInt(form.billing_day)
       if (isNaN(d) || d < 1 || d > 28) return 'Día de cierre debe ser entre 1 y 28'
+      if (form.admin_fee === '') return 'El cargo de administración es obligatorio (ingresa 0 si no aplica)'
+      const f = parseInt(form.admin_fee)
+      if (isNaN(f) || f < 0) return 'El cargo de administración debe ser 0 o un valor positivo'
     }
     if (form.last_four && !/^\d{4}$/.test(form.last_four)) return 'Los últimos 4 dígitos deben ser 4 números'
-    if (form.card_type === 'credit' && form.admin_fee) {
-      const f = parseInt(form.admin_fee)
-      if (isNaN(f) || f < 0) return 'El cargo de administración debe ser un valor positivo'
-    }
     return ''
   }
 
