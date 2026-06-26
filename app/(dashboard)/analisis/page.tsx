@@ -422,7 +422,7 @@ export default async function AnalisisPage({
             </div>
           </div>
         ) : (
-          <MonthNav month={month} year={year} basePath="/analisis" extraParams={isBilling ? { view: 'billing' } : {}} />
+          <MonthNav month={month} year={year} basePath="/analisis" />
         )}
       </div>
 
@@ -436,15 +436,6 @@ export default async function AnalisisPage({
         >
           <ShoppingCart className="w-3.5 h-3.5" />
           Por compra
-        </Link>
-        <Link
-          href={`/analisis?month=${month}&year=${year}&view=billing`}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'view-toggle-active-billing' : 'view-toggle-btn'
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          Por facturación
         </Link>
         <Link
           href={`/analisis?year=${year}&view=anual`}
@@ -1286,7 +1277,6 @@ export default async function AnalisisPage({
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-bold text-gray-700">
                 Tendencia 6 meses
-                {isBilling && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color: '#1B6DD4', background: '#EEF4FF' }}>facturación</span>}
               </p>
               {monthData.length >= 2 && (
                 <span className="text-xs text-gray-400 capitalize">
