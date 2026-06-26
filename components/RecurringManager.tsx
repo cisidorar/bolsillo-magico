@@ -213,37 +213,53 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       setSaving(false)
       if (err) { setError(`Error: ${err.message}`); return }
 
-      // Retroactuar cuotas ya cobradas en períodos anteriores
-      if (past > 0 && data) {
-        const today     = new Date()
-        const todayDay  = today.getDate()
-        // Mes del estado cerrado más reciente
-        let closedMonth = today.getMonth() + 1
-        let closedYear  = today.getFullYear()
-        if (todayDay <= day) {
-          closedMonth = closedMonth === 1 ? 12 : closedMonth - 1
-          if (closedMonth === 12) closedYear--
-        }
-        const backfillExpenses = []
-        for (let i = past - 1; i >= 0; i--) {
-          let m = closedMonth - i
-          let y = closedYear
+      // Registrar cuotas: backfill de períodos anteriores + período actual de inmediato
+      if (data && totalInstallments != null) {
+        const today    = new Date()
+        const todayStr = today.toISOString().split('T')[0]
+        const { billingPeriod, billingPeriodRange } = await import('@/lib/utils')
+
+        const { month: currM, year: currY } = billingPeriod(todayStr, day)
+        const expensesToInsert: object[] = []
+
+        // Backfill: cuotas anteriores (primer día de cada período)
+        for (let i = past; i >= 1; i--) {
+          let m = currM - i
+          let y = currY
           while (m <= 0) { m += 12; y-- }
-          const { billingPeriodRange } = await import('@/lib/utils')
-          const { end } = billingPeriodRange(m, y, day)
-          backfillExpenses.push({
+          const { start } = billingPeriodRange(m, y, day)
+          expensesToInsert.push({
             user_id:              userId,
             amount:               amt,
             category_id:          form.category_id || null,
             payment_method_id:    form.payment_method_id || null,
             recurring_expense_id: data.id,
             description:          form.name.trim(),
-            date:                 end,
+            date:                 start,
           })
         }
-        if (backfillExpenses.length > 0) {
-          await supabase.from('expenses').insert(backfillExpenses)
-        }
+
+        // Cuota del período actual — registrar de inmediato (primer día)
+        const { start: currStart } = billingPeriodRange(currM, currY, day)
+        expensesToInsert.push({
+          user_id:              userId,
+          amount:               amt,
+          category_id:          form.category_id || null,
+          payment_method_id:    form.payment_method_id || null,
+          recurring_expense_id: data.id,
+          description:          form.name.trim(),
+          date:                 currStart,
+        })
+
+        await supabase.from('expenses').insert(expensesToInsert)
+
+        // Actualizar paid_installments: backfill + cuota actual
+        const newPaid = past + 1
+        const isDone  = newPaid >= totalInstallments
+        await supabase
+          .from('recurring_expenses')
+          .update({ paid_installments: newPaid, ...(isDone ? { is_active: false } : {}) })
+          .eq('id', data.id)
       }
 
       setItems(prev => [...prev, data].sort((a, b) => a.billing_day - b.billing_day))
@@ -579,8 +595,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       style={{ background: 'var(--primary-soft)', border: '1px solid color-mix(in srgb, var(--primary) 30%, transparent)' }}>
                       <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--primary)' }} />
                       <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                        El cobro se registrará automáticamente el{' '}
-                        <strong style={{ color: 'var(--primary)' }}>día {chargeDay} de cada mes</strong>, durante{' '}
+                        La cuota del período actual se registra al guardar. Las siguientes se registrarán el{' '}
+                        <strong style={{ color: 'var(--primary)' }}>día {chargeDay} de cada mes</strong> durante{' '}
                         <strong style={{ color: 'var(--primary)' }}>{form.numCuotas} meses</strong>.{' '}
                         Basado en el corte de {selectedCard?.name ?? 'la tarjeta'} (día {autoBillingDay}).
                       </p>
@@ -715,8 +731,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 </div>
               </button>
 
-              {/* Cuotas ya cobradas — solo en creación de cuotas con auto_register */}
-              {form.cuotas && form.auto_register && !editTarget && (() => {
+              {/* Cuotas ya cobradas — en creación de cuotas */}
+              {form.cuotas && !editTarget && (() => {
                 const total = parseInt(form.numCuotas) || 0
                 const past  = parseInt(form.pastCuotas) || 0
                 return (
@@ -747,11 +763,11 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         style={{ color: 'var(--primary)' }}
                       >+</button>
                     </div>
-                    {past > 0 && (
-                      <p className="text-[11px] font-semibold text-center px-4 py-2" style={{ color: 'var(--primary)', background: 'var(--primary-soft)', borderTop: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)' }}>
-                        Se crearán {past} gasto{past > 1 ? 's' : ''} en estado{past > 1 ? 's' : ''} anterior{past > 1 ? 'es' : ''}
-                      </p>
-                    )}
+                    <p className="text-[11px] font-semibold text-center px-4 py-2" style={{ color: 'var(--primary)', background: 'var(--primary-soft)', borderTop: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)' }}>
+                      {past > 0
+                        ? `${past} cuota${past > 1 ? 's' : ''} anterior${past > 1 ? 'es' : ''} + cuota actual → ${past + 1} gastos en total`
+                        : 'Se registrará la cuota del período actual'}
+                    </p>
                   </div>
                 )
               })()}
