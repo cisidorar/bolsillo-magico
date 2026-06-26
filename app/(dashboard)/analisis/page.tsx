@@ -7,6 +7,7 @@ import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
+import AnalyzeTrigger from '@/components/AnalyzeTrigger'
 
 export const revalidate = 0
 
@@ -75,7 +76,7 @@ export default async function AnalisisPage({
     : new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: monthBudgetRow }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -106,6 +107,16 @@ export default async function AnalisisPage({
     supabase.from('incomes').select('amount, description').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
     // Presupuesto mensual global
     supabase.from('budgets').select('amount').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
+    // AI insights (may be empty — generated async by AnalyzeTrigger)
+    supabase
+      .from('monthly_insights')
+      .select('type, title, description, impact_amount, severity, action_label, action')
+      .eq('user_id', user!.id)
+      .eq('month', month)
+      .eq('year', year)
+      .eq('status', 'active')
+      .order('severity', { ascending: false })
+      .limit(3),
   ])
 
   const catBudgetMap = new Map(
@@ -428,6 +439,7 @@ export default async function AnalisisPage({
     body: React.ReactNode
     cta: string
     href: string
+    isAi?: boolean
   }
   const oportunidades: Oportunidad[] = []
 
@@ -494,6 +506,59 @@ export default async function AnalisisPage({
       href: '/historial',
     })
   }
+
+  // ── Map AI insights → Oportunidad ────────────────────────────────────────
+  type AiInsightRow = {
+    type: string; title: string; description: string
+    impact_amount: number | null; severity: string
+    action_label: string | null; action: string | null
+  }
+  const aiInsights = (aiInsightsRaw ?? []) as AiInsightRow[]
+
+  function aiInsightToOportunidad(ai: AiInsightRow): Oportunidad {
+    const severityColor = ai.severity === 'high' ? '#FF6F61' : ai.severity === 'medium' ? '#FFC23C' : '#4D93FF'
+    const severityBg    = ai.severity === 'high' ? 'rgba(255,111,97,0.15)' : ai.severity === 'medium' ? 'rgba(255,194,60,0.15)' : 'rgba(77,147,255,0.15)'
+    const icon: React.ElementType =
+      ai.type === 'one_time_purchase'       ? Package
+      : ai.type === 'subscription_review'  ? Clock
+      : ai.type === 'category_over_budget' ? AlertTriangle
+      : ai.type === 'budget_missing'       ? Target
+      : ai.type === 'habit_increase'       ? TrendingUp
+      : ai.type === 'frequent_small_expenses' ? ShoppingCart
+      : Sparkles
+    const actionHref =
+      ai.action === 'create_budget' || ai.action === 'adjust_budget' ? '/presupuesto'
+      : ai.action === 'view_category' ? '/historial'
+      : ai.action === 'review_expenses' ? '/historial'
+      : '/historial'
+
+    return {
+      icon,
+      iconBg: severityBg,
+      iconColor: severityColor,
+      title: ai.title,
+      body: (
+        <>
+          {ai.description}
+          {ai.impact_amount ? (
+            <> Impacto estimado: <span style={{ fontWeight: 700, color: severityColor }}>{formatCLP(ai.impact_amount)}</span>.</>
+          ) : null}
+        </>
+      ),
+      cta: ai.action_label ?? 'Ver detalle',
+      href: actionHref,
+      isAi: true,
+    }
+  }
+
+  // Merge: rule-based first (max 2), then AI if no rule-based covered that angle (max 3 total)
+  const aiOportunidades = aiInsights.map(aiInsightToOportunidad)
+  // If we have AI insights, use them as primary (they're richer); keep rule-based as fallback
+  const finalOportunidades: Oportunidad[] = aiOportunidades.length > 0
+    ? aiOportunidades.slice(0, 3)
+    : oportunidades.slice(0, 3)
+
+  const hasAiInsights = aiOportunidades.length > 0
 
   const prevMonthName = monthName(month === 1 ? 12 : month - 1)
   const viewParam = isBilling ? '&view=billing' : ''
@@ -1524,17 +1589,26 @@ export default async function AnalisisPage({
           </div>
         )}
 
+        {/* Trigger AI analysis in background when there are expenses */}
+        {totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
+
         {/* ── Oportunidades de mejora ─────────────────────────────────────────── */}
-        {oportunidades.length > 0 && (
+        {finalOportunidades.length > 0 && (
           <div className="mb-5">
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</h2>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                {oportunidades.length} sugerencia{oportunidades.length > 1 ? 's' : ''}
+                {finalOportunidades.length} sugerencia{finalOportunidades.length > 1 ? 's' : ''}
               </span>
+              {hasAiInsights && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                  style={{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' }}>
+                  <Sparkles className="w-2.5 h-2.5" /> IA
+                </span>
+              )}
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
-              {oportunidades.map((op, i) => (
+              {finalOportunidades.map((op, i) => (
                 <div key={i} className="card p-4 flex flex-col gap-3">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
