@@ -776,7 +776,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {editTarget && (() => {
                 const isCuotas    = editTarget.total_installments != null && editTarget.total_installments > 0
                 const isCompleted = isCuotas && (editTarget.paid_installments ?? 0) >= (editTarget.total_installments ?? 0)
-                if (isCompleted) return null
+                if (isCuotas || isCompleted) return null
                 return (
                   <button
                     onClick={() => set('is_active', !form.is_active)}
