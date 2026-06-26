@@ -420,7 +420,10 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
         <button
           onClick={openNew}
-          className="flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-brand-200 rounded-2xl text-sm font-bold text-brand-600 hover:border-brand-400 hover:bg-brand-50 transition-colors"
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-bold text-brand-600 transition-colors"
+          style={{ background: 'var(--surface)', border: '1.5px dashed var(--border)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--primary-soft)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
         >
           <Plus className="w-4 h-4" />
           Agregar recurrente

@@ -183,11 +183,11 @@ export default function CalendarioPagos({ items }: Props) {
         </div>
 
         {/* Total programado */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/60">
-          <span className="text-xs font-semibold text-gray-500 capitalize">
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+          <span className="text-xs font-semibold capitalize" style={{ color: 'var(--ink-3)' }}>
             Total programado en {monthName(month)}
           </span>
-          <span className="text-sm font-bold tabular-nums" style={{ color: '#1B6DD4' }}>
+          <span className="text-sm font-bold tabular-nums text-brand-600">
             {formatCLP(monthTotal)}
           </span>
         </div>
