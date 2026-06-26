@@ -29,6 +29,7 @@ type Form = {
   amount: string
   billing_day: string
   billing_month: string  // '' = mensual, '1'-'12' = anual
+  ddmm: string           // input visual anual: "dd/mm"
   category_id: string
   payment_method_id: string
   auto_register: boolean
@@ -41,7 +42,7 @@ type Form = {
 }
 
 const DEFAULT: Form = {
-  name: '', amount: '', billing_day: '', billing_month: '',
+  name: '', amount: '', billing_day: '', billing_month: '', ddmm: '',
   category_id: '', payment_method_id: '',
   auto_register: false, is_active: true,
   cuotas: false, anual: false, totalAmount: '', numCuotas: '3', pastCuotas: '0',
@@ -159,11 +160,15 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   function openEdit(item: RecurringExpense) {
     const isCuotas = item.total_installments != null && item.total_installments > 0
     const isAnual  = item.billing_month != null
+    const bm = item.billing_month
     setForm({
       name: item.name,
       amount: String(item.amount),
       billing_day: String(item.billing_day),
-      billing_month: item.billing_month != null ? String(item.billing_month) : '',
+      billing_month: bm != null ? String(bm) : '',
+      ddmm: bm != null
+        ? `${String(item.billing_day).padStart(2, '0')}/${String(bm).padStart(2, '0')}`
+        : '',
       category_id: item.category_id ?? '',
       payment_method_id: item.payment_method_id ?? '',
       auto_register: item.auto_register,
@@ -183,9 +188,21 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
   async function save() {
     if (!form.name.trim()) { setError('Escribe un nombre'); return }
-    const day = parseInt(form.billing_day)
-    if (!day || day < 1 || day > 31) { setError('Día de cobro debe ser entre 1 y 31'); return }
-    if (form.anual && !form.billing_month) { setError('Selecciona el mes del cobro anual'); return }
+
+    let day: number
+    let annualMonth: number | null = null
+
+    if (form.anual) {
+      const parts = form.ddmm.split('/')
+      day = parseInt(parts[0])
+      annualMonth = parseInt(parts[1])
+      if (!day || day < 1 || day > 31) { setError('Día inválido en dd/mm'); return }
+      if (!annualMonth || annualMonth < 1 || annualMonth > 12) { setError('Mes inválido en dd/mm (01–12)'); return }
+    } else {
+      day = parseInt(form.billing_day)
+      if (!day || day < 1 || day > 31) { setError('Día de cobro debe ser entre 1 y 31'); return }
+    }
+
     if (!form.payment_method_id) { setError('Selecciona un método de pago'); return }
 
     let amt: number
@@ -212,7 +229,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       name: form.name.trim(),
       amount: amt,
       billing_day: day,
-      billing_month: form.anual && form.billing_month ? parseInt(form.billing_month) : null,
+      billing_month: form.anual ? annualMonth : null,
       category_id: form.category_id || null,
       payment_method_id: form.payment_method_id || null,
       auto_register: form.auto_register,
@@ -508,7 +525,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     {formatCLP(previewAmount)}{' '}{previewPeriod}
                     {' · cobro día '}
                     {form.cuotas && chargeDay ? chargeDay : form.billing_day || '—'}
-                    {form.anual && form.billing_month ? ` de ${MONTH_NAMES[parseInt(form.billing_month) - 1]}` : ''}
+                    {form.anual && form.ddmm ? ` (${form.ddmm})` : ''}
                     {form.cuotas && form.numCuotas ? ` · ${form.numCuotas} cuotas` : ''}
                   </p>
                 </div>
@@ -647,58 +664,46 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 </div>
               ) : (
                 /* Monto + Día de cobro (mensual o anual) */
-                <div className="flex flex-col gap-3">
-                  <div className="grid grid-cols-[1fr_120px] gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">
-                        {form.anual ? 'Monto anual' : 'Monto mensual'}
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
-                        <input type="text" inputMode="numeric"
-                          value={form.amount ? fmtNum(form.amount) : ''}
-                          onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
-                          placeholder="0"
-                          className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
-                        />
-                      </div>
+                <div className="grid grid-cols-[1fr_120px] gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">
+                      {form.anual ? 'Monto anual' : 'Monto mensual'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
+                      <input type="text" inputMode="numeric"
+                        value={form.amount ? fmtNum(form.amount) : ''}
+                        onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
+                        placeholder="0"
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                      />
                     </div>
+                  </div>
+                  {form.anual ? (
                     <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">
-                        {form.anual ? 'Día del mes' : 'Día de cobro'}
-                      </label>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día/Mes</label>
+                      <input
+                        type="text" inputMode="numeric"
+                        value={form.ddmm}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^\d/]/g, '')
+                          // Auto-insert "/" after 2 digits
+                          let v = raw.replace('/', '')
+                          if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2, 4)
+                          set('ddmm', v)
+                        }}
+                        placeholder="dd/mm" maxLength={5}
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors tabular-nums"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
                       <input type="number" inputMode="numeric" value={form.billing_day}
                         onChange={e => set('billing_day', e.target.value)}
                         placeholder="1–31" min="1" max="31"
                         className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors"
                       />
-                    </div>
-                  </div>
-
-                  {/* Selector de mes (sólo anual) */}
-                  {form.anual && (
-                    <div>
-                      <label className="text-xs font-semibold text-gray-500 block mb-2">Mes del cobro</label>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {MONTH_NAMES.map((name, i) => {
-                          const val = String(i + 1)
-                          const sel = form.billing_month === val
-                          return (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => set('billing_month', sel ? '' : val)}
-                              className="py-2 rounded-xl text-xs font-semibold transition-all border"
-                              style={sel
-                                ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
-                                : { background: 'var(--surface-2)', color: 'var(--ink-2)', borderColor: 'var(--border)' }
-                              }
-                            >
-                              {name.slice(0, 3)}
-                            </button>
-                          )
-                        })}
-                      </div>
                     </div>
                   )}
                 </div>
