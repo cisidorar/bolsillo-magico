@@ -1555,7 +1555,7 @@ export default async function AnalisisPage({
 
         {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
         {totalSelected > 0 ? (
-          <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-5 lg:space-y-0">
+          <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
             {/* Tendencia 6 meses */}
             <div className="card p-4">
