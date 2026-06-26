@@ -410,7 +410,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium">auto</span>
                       )}
                       {isAnual && (
-                        <span className="text-[10px] bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded-full font-medium">anual</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                          style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>anual</span>
                       )}
                     </div>
                   </div>
