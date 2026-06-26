@@ -31,12 +31,15 @@ export default async function CategoriaDetallePage({
   const nextMonth = month === 12 ? 1 : month + 1
   const nextYear  = month === 12 ? year + 1 : year
 
-  // Gráfico de tendencia (últimos 7 meses)
-  const chartAnchor = new Date(now.getFullYear(), now.getMonth(), 1)
-  const sevenAgo    = new Date(chartAnchor); sevenAgo.setMonth(sevenAgo.getMonth() - 6)
-  const chartStart  = `${sevenAgo.getFullYear()}-${String(sevenAgo.getMonth() + 1).padStart(2, '0')}-01`
+  // Gráfico de tendencia (últimos 6 meses anclado al mes real actual)
+  const chartAnchor   = new Date(now.getFullYear(), now.getMonth(), 1)
+  const sevenAgo      = new Date(chartAnchor); sevenAgo.setMonth(sevenAgo.getMonth() - 6)
+  const chartStart    = `${sevenAgo.getFullYear()}-${String(sevenAgo.getMonth() + 1).padStart(2, '0')}-01`
   const selectedStart = `${year}-${monthKey}-01`
   const fetchStart    = selectedStart < chartStart ? selectedStart : chartStart
+  // La query siempre llega hasta el fin del mes real actual (no del mes seleccionado)
+  const realNextM     = now.getMonth() === 11 ? 1  : now.getMonth() + 2
+  const realNextY     = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear()
 
   const [{ data: category }, { data: expenses }, { data: trendExpenses }, { data: anualExpenses }] = await Promise.all([
     supabase.from('categories').select('*').eq('id', catId).eq('user_id', user!.id).maybeSingle(),
@@ -61,7 +64,7 @@ export default async function CategoriaDetallePage({
           .eq('user_id', user!.id)
           .eq('category_id', catId)
           .gte('date', fetchStart)
-          .lt('date', `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`),
+          .lt('date', `${realNextY}-${String(realNextM).padStart(2, '0')}-01`),
     // Todos los gastos del año (solo modo anual)
     isAnual
       ? supabase
