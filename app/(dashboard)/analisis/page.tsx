@@ -728,7 +728,7 @@ export default async function AnalisisPage({
               <div className="hidden lg:flex gap-4 items-start">
 
                 {/* ── Col izquierda: total + Más alto / Más bajo ── */}
-                <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: '240px' }}>
+                <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: '320px' }}>
 
                   {/* Tarjeta azul: total + promedio */}
                   <div className="rounded-3xl p-5 flex flex-col" style={{ background: '#1B6DD4' }}>
@@ -736,7 +736,7 @@ export default async function AnalisisPage({
                       style={{ color: 'rgba(255,255,255,0.6)' }}>
                       Total gastado en {year}
                     </p>
-                    <p className="text-[clamp(24px,2.6vw,38px)] font-extrabold text-white tabular-nums leading-none tracking-tight">
+                    <p className="text-[clamp(22px,2.2vw,34px)] font-extrabold text-white tabular-nums leading-none tracking-tight break-all">
                       {formatCLP(anualGrandTotal)}
                     </p>
                     {yearDelta !== null && (
