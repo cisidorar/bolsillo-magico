@@ -33,14 +33,14 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   const { data: autoRecurring } = await supabase
     .from('recurring_expenses')
-    .select('id, amount, category_id, payment_method_id, billing_day, name, total_installments, paid_installments')
+    .select('id, amount, category_id, payment_method_id, billing_day, billing_month, name, total_installments, paid_installments')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .eq('auto_register', true)
 
-  // ── Gastos normales (sin cuotas) ─────────────────────────────────────────
+  // ── Gastos normales (sin cuotas, sin cobro anual) ────────────────────────
   // Se registran cuando hoy >= billing_day del mes actual.
-  const normalItems = (autoRecurring ?? []).filter(r => r.total_installments == null)
+  const normalItems = (autoRecurring ?? []).filter(r => r.total_installments == null && r.billing_month == null)
   const normalDue   = normalItems.filter(r => {
     const eff = effectiveDay(r.billing_day, currentYear, currentMonth)
     return eff <= todayDay
@@ -135,6 +135,47 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
         .eq('id', r.id)
       insertedNames.push(r.name)
     }
+  }
+
+  // ── Gastos anuales ───────────────────────────────────────────────────────
+  // Se registran UNA VEZ en el año calendario cuando hoy es el día de cobro
+  // dentro del mes configurado en billing_month.
+  const annualItems = (autoRecurring ?? []).filter(r =>
+    r.total_installments == null && r.billing_month != null
+  )
+
+  for (const r of annualItems) {
+    const bm  = r.billing_month as number
+    // Solo actuar si hoy está en el mes correcto
+    if (currentMonth !== bm) continue
+
+    const eff = effectiveDay(r.billing_day, currentYear, bm)
+    if (todayDay < eff) continue  // el día aún no llegó
+
+    const dateStr = `${currentYear}-${String(bm).padStart(2, '0')}-${String(eff).padStart(2, '0')}`
+
+    // Dedup por año calendario: ¿ya existe este gasto en este año?
+    const { data: existingAnnual } = await supabase
+      .from('expenses')
+      .select('id')
+      .eq('recurring_expense_id', r.id)
+      .gte('date', `${currentYear}-01-01`)
+      .lte('date', `${currentYear}-12-31`)
+      .limit(1)
+
+    if (existingAnnual && existingAnnual.length > 0) continue
+
+    const { error } = await supabase.from('expenses').insert({
+      user_id:              user.id,
+      amount:               r.amount,
+      category_id:          r.category_id,
+      payment_method_id:    r.payment_method_id,
+      recurring_expense_id: r.id,
+      description:          r.name,
+      date:                 dateStr,
+    })
+
+    if (!error) insertedNames.push(r.name)
   }
 
   // ── Cargo de administración de tarjetas de crédito ───────────────────────

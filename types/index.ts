@@ -52,6 +52,7 @@ export type RecurringExpense = {
   category_id: string | null
   payment_method_id: string | null
   billing_day: number
+  billing_month: number | null        // null = mensual, 1-12 = anual (mes del cobro)
   auto_register: boolean
   is_active: boolean
   notes: string | null

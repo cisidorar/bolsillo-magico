@@ -15,6 +15,8 @@ function fmtNum(raw: string): string {
   return raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
 interface Props {
   items: RecurringExpense[]
   categories: Category[]
@@ -26,33 +28,43 @@ type Form = {
   name: string
   amount: string
   billing_day: string
+  billing_month: string  // '' = mensual, '1'-'12' = anual
   category_id: string
   payment_method_id: string
   auto_register: boolean
   is_active: boolean
   cuotas: boolean
+  anual: boolean
   totalAmount: string
   numCuotas: string
   pastCuotas: string   // cuotas ya cobradas antes de hoy (para backfill)
 }
 
 const DEFAULT: Form = {
-  name: '', amount: '', billing_day: '',
+  name: '', amount: '', billing_day: '', billing_month: '',
   category_id: '', payment_method_id: '',
   auto_register: false, is_active: true,
-  cuotas: false, totalAmount: '', numCuotas: '3', pastCuotas: '0',
+  cuotas: false, anual: false, totalAmount: '', numCuotas: '3', pastCuotas: '0',
 }
 
-function nextBillingDate(billingDay: number): Date {
-  const now  = new Date()
+function nextBillingDate(billingDay: number, billingMonth?: number | null): Date {
+  const now = new Date()
+  if (billingMonth) {
+    const y    = now.getFullYear()
+    const last = new Date(y, billingMonth, 0).getDate()
+    const cand = new Date(y, billingMonth - 1, Math.min(billingDay, last))
+    if (cand >= now) return cand
+    const last2 = new Date(y + 1, billingMonth, 0).getDate()
+    return new Date(y + 1, billingMonth - 1, Math.min(billingDay, last2))
+  }
   const d    = now.getDate()
   const m    = now.getMonth() + 1
   const y    = now.getFullYear()
   const last = new Date(y, m, 0).getDate()
   const day  = Math.min(billingDay, last)
   if (day >= d) return new Date(y, m - 1, day)
-  const nm   = m === 12 ? 1  : m + 1
-  const ny   = m === 12 ? y + 1 : y
+  const nm    = m === 12 ? 1  : m + 1
+  const ny    = m === 12 ? y + 1 : y
   const nLast = new Date(ny, nm, 0).getDate()
   return new Date(ny, nm - 1, Math.min(billingDay, nLast))
 }
@@ -146,15 +158,18 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
   function openEdit(item: RecurringExpense) {
     const isCuotas = item.total_installments != null && item.total_installments > 0
+    const isAnual  = item.billing_month != null
     setForm({
       name: item.name,
       amount: String(item.amount),
       billing_day: String(item.billing_day),
+      billing_month: item.billing_month != null ? String(item.billing_month) : '',
       category_id: item.category_id ?? '',
       payment_method_id: item.payment_method_id ?? '',
       auto_register: item.auto_register,
       is_active: item.is_active,
       cuotas: isCuotas,
+      anual: isAnual,
       totalAmount: isCuotas ? String(item.amount * (item.total_installments ?? 0)) : '',
       numCuotas: isCuotas ? String(item.total_installments) : '',
       pastCuotas: '0', // en edición no se retroactúa
@@ -170,6 +185,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     if (!form.name.trim()) { setError('Escribe un nombre'); return }
     const day = parseInt(form.billing_day)
     if (!day || day < 1 || day > 31) { setError('Día de cobro debe ser entre 1 y 31'); return }
+    if (form.anual && !form.billing_month) { setError('Selecciona el mes del cobro anual'); return }
     if (!form.payment_method_id) { setError('Selecciona un método de pago'); return }
 
     let amt: number
@@ -196,6 +212,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       name: form.name.trim(),
       amount: amt,
       billing_day: day,
+      billing_month: form.anual && form.billing_month ? parseInt(form.billing_month) : null,
       category_id: form.category_id || null,
       payment_method_id: form.payment_method_id || null,
       auto_register: form.auto_register,
@@ -323,6 +340,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
   const previewDomain = detectDomain(form.name) ?? null
   const previewAmount = form.cuotas ? (computedMonthly ?? 0) : (parseInt(form.amount) || 0)
+  const previewPeriod = form.cuotas ? '/ cuota' : form.anual ? '/ año' : '/ mes'
 
   return (
     <>
@@ -335,8 +353,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
           {items.map(item => {
             const isCuotas    = item.total_installments != null && item.total_installments > 0
+            const isAnual     = item.billing_month != null
             const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
-            const next        = nextBillingDate(item.billing_day)
+            const next        = nextBillingDate(item.billing_day, item.billing_month)
             const nextLabel   = next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
             const progress    = isCuotas
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
@@ -371,6 +390,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       {item.auto_register && !isCuotas && (
                         <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium">auto</span>
                       )}
+                      {isAnual && (
+                        <span className="text-[10px] bg-violet-50 text-violet-600 border border-violet-100 px-1.5 py-0.5 rounded-full font-medium">anual</span>
+                      )}
                     </div>
                   </div>
 
@@ -381,7 +403,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
-                    <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : '/ mes'}</p>
+                    <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : '/ mes'}</p>
                   </div>
 
                   {/* Botón "Registrar ahora" */}
@@ -481,9 +503,10 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm truncate">{form.name || 'Nombre del servicio'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {formatCLP(previewAmount)}{form.cuotas ? ' / cuota' : ' / mes'}
+                    {formatCLP(previewAmount)}{' '}{previewPeriod}
                     {' · cobro día '}
                     {form.cuotas && chargeDay ? chargeDay : form.billing_day || '—'}
+                    {form.anual && form.billing_month ? ` de ${MONTH_NAMES[parseInt(form.billing_month) - 1]}` : ''}
                     {form.cuotas && form.numCuotas ? ` · ${form.numCuotas} cuotas` : ''}
                   </p>
                 </div>
@@ -504,7 +527,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {/* Toggle cuotas */}
               <button
                 onClick={handleCuotasToggle}
-                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.cuotas ? 'sheet-toggle-active' : 'sheet-toggle')}
+                disabled={form.anual}
+                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.cuotas ? 'sheet-toggle-active' : 'sheet-toggle', form.anual && 'opacity-40 cursor-not-allowed')}
               >
                 <CreditCard className={cn('w-4 h-4 flex-shrink-0', form.cuotas ? 'text-brand-600' : 'text-gray-300')} />
                 <div>
@@ -513,6 +537,22 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 </div>
                 <div className={cn('ml-auto w-9 h-5 rounded-full relative transition-colors flex-shrink-0', form.cuotas ? 'bg-brand-600' : 'bg-gray-200')}>
                   <div className={cn('absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform', form.cuotas ? 'bg-white translate-x-4' : 'bg-white translate-x-0.5')} />
+                </div>
+              </button>
+
+              {/* Toggle anual */}
+              <button
+                onClick={() => setForm(f => ({ ...f, anual: !f.anual, billing_month: f.anual ? '' : f.billing_month, cuotas: false }))}
+                disabled={form.cuotas}
+                className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.anual ? 'sheet-toggle-active' : 'sheet-toggle', form.cuotas && 'opacity-40 cursor-not-allowed')}
+              >
+                <RefreshCw className={cn('w-4 h-4 flex-shrink-0 rotate-0', form.anual ? 'text-brand-600' : 'text-gray-300')} />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Cobro anual</p>
+                  <p className="text-xs text-gray-400">Se cobra una vez al año en el mes que elijas</p>
+                </div>
+                <div className={cn('ml-auto w-9 h-5 rounded-full relative transition-colors flex-shrink-0', form.anual ? 'bg-brand-600' : 'bg-gray-200')}>
+                  <div className={cn('absolute top-0.5 w-4 h-4 rounded-full shadow transition-transform', form.anual ? 'bg-white translate-x-4' : 'bg-white translate-x-0.5')} />
                 </div>
               </button>
 
@@ -604,28 +644,61 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   )}
                 </div>
               ) : (
-                /* Monto mensual + Día de cobro en la misma fila */
-                <div className="grid grid-cols-[1fr_120px] gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Monto mensual</label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
-                      <input type="text" inputMode="numeric"
-                        value={form.amount ? fmtNum(form.amount) : ''}
-                        onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
-                        placeholder="0"
-                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                /* Monto + Día de cobro (mensual o anual) */
+                <div className="flex flex-col gap-3">
+                  <div className="grid grid-cols-[1fr_120px] gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">
+                        {form.anual ? 'Monto anual' : 'Monto mensual'}
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">$</span>
+                        <input type="text" inputMode="numeric"
+                          value={form.amount ? fmtNum(form.amount) : ''}
+                          onChange={e => set('amount', e.target.value.replace(/\D/g, ''))}
+                          placeholder="0"
+                          className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl pl-7 pr-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-1.5">
+                        {form.anual ? 'Día del mes' : 'Día de cobro'}
+                      </label>
+                      <input type="number" inputMode="numeric" value={form.billing_day}
+                        onChange={e => set('billing_day', e.target.value)}
+                        placeholder="1–31" min="1" max="31"
+                        className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors"
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 block mb-1.5">Día de cobro</label>
-                    <input type="number" inputMode="numeric" value={form.billing_day}
-                      onChange={e => set('billing_day', e.target.value)}
-                      placeholder="1–31" min="1" max="31"
-                      className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors"
-                    />
-                  </div>
+
+                  {/* Selector de mes (sólo anual) */}
+                  {form.anual && (
+                    <div>
+                      <label className="text-xs font-semibold text-gray-500 block mb-2">Mes del cobro</label>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {MONTH_NAMES.map((name, i) => {
+                          const val = String(i + 1)
+                          const sel = form.billing_month === val
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => set('billing_month', sel ? '' : val)}
+                              className="py-2 rounded-xl text-xs font-semibold transition-all border"
+                              style={sel
+                                ? { background: 'var(--primary)', color: '#fff', borderColor: 'var(--primary)' }
+                                : { background: 'var(--surface-2)', color: 'var(--ink-2)', borderColor: 'var(--border)' }
+                              }
+                            >
+                              {name.slice(0, 3)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
