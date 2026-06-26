@@ -5,7 +5,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 
 export const revalidate = 0
@@ -75,7 +75,7 @@ export default async function AnalisisPage({
     : new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: monthBudgetRow }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -102,6 +102,10 @@ export default async function AnalisisPage({
           .gte('date', `${year - 1}-01-01`)
           .lte('date', `${year - 1}-12-31`)
       : Promise.resolve({ data: null }),
+    // Ingreso del mes seleccionado
+    supabase.from('incomes').select('amount, description').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
+    // Presupuesto mensual global
+    supabase.from('budgets').select('amount').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
   ])
 
   const catBudgetMap = new Map(
@@ -356,6 +360,133 @@ export default async function AnalisisPage({
     return `$${v.toLocaleString('es-CL')}`
   }
 
+  // ── Income & surplus ──────────────────────────────────────────────────────
+  const monthIncome  = (incomeRow as { amount?: number } | null)?.amount ?? 0
+  const incomeDesc   = (incomeRow as { description?: string } | null)?.description ?? 'Entradas registradas'
+  const surplus      = monthIncome > 0 ? monthIncome - totalSelected : null
+  const surplusPct   = surplus !== null && monthIncome > 0 ? Math.round((surplus / monthIncome) * 100) : null
+  const globalBudget = (monthBudgetRow as { amount?: number } | null)?.amount ?? null
+
+  // ── Health score (0–100) ─────────────────────────────────────────────────
+  // Signal 1: earns more than spends
+  const earnsMore = monthIncome > 0 ? monthIncome > totalSelected : null
+  const sig1pts   = monthIncome > 0 ? (earnsMore ? 25 : 0) : 15  // neutral if no income
+
+  // Signal 2: spending trend vs prev month
+  const spendingDown = delta !== null ? delta < 0 : null
+  const sig2pts = delta === null ? 15
+    : delta < -10 ? 25
+    : delta < 0 ? 20
+    : delta < 10 ? 15
+    : delta < 30 ? 8 : 0
+
+  // Signal 3: category budget compliance
+  const catsOverBudget = catSummary.filter(c => {
+    const limit = catBudgetMap.get(c.id) ?? null
+    if (!limit) return false
+    const recurringAmt = recurringByCat[c.id] ?? 0
+    const allRecurring = recurringAmt > 0 && recurringAmt >= c.total
+    return c.total > limit && !allRecurring
+  })
+  const numExcedidas = catsOverBudget.length
+  const sig3pts = numExcedidas === 0 ? 25 : numExcedidas === 1 ? 18 : numExcedidas === 2 ? 10 : 0
+
+  // Signal 4: monthly projection vs global budget
+  const projection = isCurrentMonth && now.getDate() > 3
+    ? Math.round((totalSelected / now.getDate()) * new Date(year, month, 0).getDate())
+    : null
+  const sig4pts = !projection ? 15
+    : !globalBudget ? 15
+    : projection <= globalBudget ? 25
+    : projection <= globalBudget * 1.1 ? 15
+    : projection <= globalBudget * 1.3 ? 8 : 0
+
+  const healthScore = sig1pts + sig2pts + sig3pts + sig4pts
+  const healthLabel = healthScore >= 80 ? 'Buena salud'
+    : healthScore >= 60 ? 'En camino'
+    : healthScore >= 40 ? 'Atención'
+    : 'Alerta'
+  const healthColor = healthScore >= 80 ? '#1FBE8D'
+    : healthScore >= 60 ? '#4D93FF'
+    : healthScore >= 40 ? '#FFC23C' : '#FF6F61'
+
+  // ── Oportunidades de mejora ───────────────────────────────────────────────
+  type Oportunidad = {
+    icon: React.ElementType
+    iconBg: string
+    iconColor: string
+    title: string
+    body: React.ReactNode
+    cta: string
+    href: string
+  }
+  const oportunidades: Oportunidad[] = []
+
+  // 1: Límites excedidos
+  if (numExcedidas > 0) {
+    const catNames = catsOverBudget.map(c => c.name)
+    const extra    = catsOverBudget.reduce((s, c) => s + (c.total - (catBudgetMap.get(c.id) ?? 0)), 0)
+    oportunidades.push({
+      icon: AlertTriangle,
+      iconBg: 'rgba(255,111,97,0.15)',
+      iconColor: '#FF6F61',
+      title: `Revisa ${numExcedidas} límite${numExcedidas > 1 ? 's' : ''}`,
+      body: (
+        <>
+          {catNames.slice(0, 3).join(', ')} {catNames.length > 3 ? `y ${catNames.length - 3} más` : ''} sumaron{' '}
+          <span style={{ color: '#FF6F61', fontWeight: 700 }}>+{formatCLP(extra)}</span> por encima del límite.
+          Si el gasto era esperable, sube el límite; si no, ajústalo el próximo mes.
+        </>
+      ),
+      cta: 'Ajustar límites',
+      href: '/presupuesto',
+    })
+  }
+
+  // 2: Mayor categoría sin presupuesto
+  const bigCatNoBudget = catSummary.find(c => !catBudgetMap.has(c.id))
+  if (bigCatNoBudget && totalSelected > 0) {
+    const sharePct2 = Math.round((bigCatNoBudget.total / totalSelected) * 100)
+    oportunidades.push({
+      icon: Target,
+      iconBg: 'rgba(77,147,255,0.15)',
+      iconColor: '#4D93FF',
+      title: `Controla ${bigCatNoBudget.name}`,
+      body: (
+        <>
+          Gastaste <span style={{ fontWeight: 700 }}>{formatCLP(bigCatNoBudget.total)}</span> en {bigCatNoBudget.name}{' '}
+          ({sharePct2}% del mes) sin un límite definido. Ponle un tope y revísalo.
+        </>
+      ),
+      cta: 'Definir presupuesto',
+      href: '/presupuesto',
+    })
+  }
+
+  // 3: Compra única que infla el mes
+  const topExpensePct = topExpense && totalSelected > 0
+    ? Math.round((topExpense.amount / totalSelected) * 100)
+    : 0
+  if (topExpense && topExpensePct >= 12) {
+    const withoutTop = totalSelected - topExpense.amount
+    oportunidades.push({
+      icon: Package,
+      iconBg: 'rgba(31,190,141,0.15)',
+      iconColor: '#1FBE8D',
+      title: 'Separa compras únicas',
+      body: (
+        <>
+          {topExpense.description ?? 'Esta compra'} ({formatCLP(topExpense.amount)}) infló tu mes.{' '}
+          Sin esa compra puntual gastarías{' '}
+          <span style={{ fontWeight: 700 }}>{formatCLP(withoutTop)}</span>.
+        </>
+      ),
+      cta: 'Ver gasto',
+      href: '/historial',
+    })
+  }
+
+  const prevMonthName = monthName(month === 1 ? 12 : month - 1)
   const viewParam = isBilling ? '&view=billing' : ''
 
   return (
@@ -1135,391 +1266,427 @@ export default async function AnalisisPage({
         </div>
       )}
 
-      {/* ── KPI strip ──────────────────────────────────────────────────────────── */}
-      {!isAnual && totalSelected > 0 && (() => {
+      {/* ── Vista mensual ─────────────────────────────────────────────────────── */}
+      {!isAnual && (() => {
         const topExpenseData = topExpense
           ? getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
           : null
+        // Donut chart helpers
+        const donutR   = 46
+        const donutC   = 2 * Math.PI * donutR  // ≈ 289
+        const donutFill = Math.round((healthScore / 100) * donutC)
 
         return (
-          /* Mobile: 2x2 grid of cards / Desktop: single unified strip */
           <>
-            {/* Mobile 2x2 */}
-            <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
-              <div className="card p-3 flex items-center gap-3">
-                <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                  <Wallet className="w-4 h-4" style={{ color: '#1B6DD4' }} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium leading-tight">Total del mes</p>
-                  <p className="text-sm font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
-                </div>
+            {/* ── 4 KPI cards ─────────────────────────────────────────────────── */}
+            {totalSelected > 0 && (
+              <>
+                {/* Mobile 2×2 */}
+                <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
+              {/* Mobile card 1: Ingresos */}
+              <div className="card p-3">
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                {monthIncome > 0
+                  ? <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(monthIncome)}</p>
+                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>Sin registrar</p>
+                }
+                <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--ink-3)' }}>{incomeDesc}</p>
               </div>
-              <div className="card p-3 flex items-center gap-3">
-                <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                  <BarChart2 className="w-4 h-4" style={{ color: '#16A34A' }} />
+              {/* Mobile card 2: Gasto total */}
+              <div className="card p-3">
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Gasto total</p>
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(totalSelected)}</p>
+                  {delta !== null && (
+                    <span className="text-[10px] font-bold" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
+                      {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
+                    </span>
+                  )}
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium leading-tight">Por día</p>
-                  <p className="text-sm font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
-                </div>
+                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
               </div>
-              <div className="card p-3 flex items-center gap-3">
-                <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4', '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A' } as React.CSSProperties}>
-                  {delta === null || delta === 0 ? <Minus className="w-4 h-4 text-gray-400" /> : delta > 0 ? <TrendingUp className="w-4 h-4" style={{ color: '#EF4444' }} /> : <TrendingDown className="w-4 h-4" style={{ color: '#16A34A' }} />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium leading-tight">vs anterior{isCurrentMonth && !isBilling ? ` · día ${cutoffDay}` : ''}</p>
-                  {delta === null ? <p className="text-sm font-extrabold text-gray-400">—</p> : <p className={`text-sm font-extrabold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{delta > 0 ? '+' : ''}{delta}%</p>}
-                </div>
+              {/* Mobile card 3: Te sobró */}
+              <div className="card p-3" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.10)', border: '1px solid rgba(31,190,141,0.2)' } : {}}>
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Te sobró</p>
+                {surplus !== null
+                  ? <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
+                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
+                }
+                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% de tus ingresos` : 'Sin ingresos'}</p>
               </div>
-              <div className="card p-3 flex items-center gap-3">
-                {topExpenseData ? (
-                  <>
-                    <div className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': topExpenseData.bg, '--cat-color': topExpenseData.color } as React.CSSProperties}>
-                      <topExpenseData.icon className="w-4 h-4" style={{ color: topExpenseData.color }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-gray-400 font-medium leading-tight">Mayor gasto</p>
-                      <p className="text-sm font-extrabold text-gray-900 tabular-nums">{formatCLP(topExpense!.amount)}</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="min-w-0"><p className="text-[10px] text-gray-400 font-medium">Mayor gasto</p><p className="text-sm font-extrabold text-gray-400">—</p></div>
-                )}
+              {/* Mobile card 4: Mayor gasto */}
+              <div className="card p-3">
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Mayor gasto único</p>
+                {topExpense
+                  ? <>
+                      <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(topExpense.amount)}</p>
+                      <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--ink-3)' }}>{topExpense.description ?? topExpense.category?.name ?? 'Gasto'}</p>
+                    </>
+                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
+                }
               </div>
             </div>
 
-            {/* Desktop strip — 4 separate cards */}
+            {/* Desktop 4-col KPI cards */}
             <div className="hidden lg:grid lg:grid-cols-4 gap-4 mb-6">
-              {/* Total */}
-              <div className="card p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#4D93FF' } as React.CSSProperties}>
-                  <Wallet className="w-6 h-6" style={{ color: '#4D93FF' }} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 font-medium">Total del mes</p>
-                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(totalSelected)}</p>
-                  <p className="text-[10px] text-gray-400">{selectedExpenses.length} gastos</p>
-                </div>
+              {/* Ingresos */}
+              <div className="card p-5 flex flex-col gap-1">
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                {monthIncome > 0
+                  ? <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(monthIncome)}</p>
+                  : <p className="text-lg font-semibold" style={{ color: 'var(--ink-3)' }}>Sin registrar</p>
+                }
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{incomeDesc}</p>
               </div>
-              {/* Por día */}
-              <div className="card p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
-                  <BarChart2 className="w-6 h-6" style={{ color: '#FFC23C' }} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 font-medium">Por día</p>
-                  <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
-                  <p className="text-[10px] text-gray-400">{daysElapsed} días</p>
-                </div>
-              </div>
-              {/* vs anterior */}
-              <div className="card p-4 xl:p-5 flex items-center gap-3">
-                <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4', '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A' } as React.CSSProperties}>
-                  {delta === null || delta === 0 ? <Minus className="w-6 h-6 text-gray-400" /> : delta > 0 ? <TrendingUp className="w-6 h-6" style={{ color: '#EF4444' }} /> : <TrendingDown className="w-6 h-6" style={{ color: '#16A34A' }} />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 font-medium">vs. anterior{isCurrentMonth && !isBilling ? ` · día ${cutoffDay}` : ''}</p>
-                  {delta === null ? (
-                    <p className="text-xl font-extrabold text-gray-400">—</p>
-                  ) : (
-                    <>
-                      <p className={`text-xl font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>{delta > 0 ? '+' : ''}{delta}%</p>
-                      <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>{absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}</p>
-                    </>
+              {/* Gasto total */}
+              <div className="card p-5 flex flex-col gap-1">
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Gasto total</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(totalSelected)}</p>
+                  {delta !== null && (
+                    <span className="text-[11px] font-bold" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
+                      {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
+                    </span>
                   )}
                 </div>
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
               </div>
-              {/* Mayor gasto */}
-              <div className="card p-4 xl:p-5 flex items-center gap-3">
-                {topExpenseData ? (
-                  <>
-                    <div className="cat-icon-bg w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ '--cat-bg': topExpenseData.bg, '--cat-color': topExpenseData.color } as React.CSSProperties}>
-                      <topExpenseData.icon className="w-6 h-6" style={{ color: topExpenseData.color }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">Mayor gasto</p>
-                      <p className="text-xl font-extrabold text-gray-900 tabular-nums leading-tight">{formatCLP(topExpense!.amount)}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{topExpense!.description ?? topExpense!.category?.name ?? 'Gasto'}</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="min-w-0"><p className="text-xs text-gray-400 font-medium">Mayor gasto</p><p className="text-xl font-extrabold text-gray-400">—</p></div>
-                )}
+              {/* Te sobró */}
+              <div className="card p-5 flex flex-col gap-1" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.08)', border: '1.5px solid rgba(31,190,141,0.25)' } : {}}>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Te sobró este mes</p>
+                {surplus !== null
+                  ? <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
+                  : <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
+                }
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% de tus ingresos` : 'Registra tus ingresos'}</p>
+              </div>
+              {/* Mayor gasto único */}
+              <div className="card p-5 flex flex-col gap-1">
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Mayor gasto único</p>
+                {topExpense
+                  ? <>
+                      <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(topExpense.amount)}</p>
+                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{topExpense.description ?? topExpense.category?.name ?? 'Gasto'} · compra única</p>
+                    </>
+                  : <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
+                }
               </div>
             </div>
           </>
-        )
-      })()}
+        )}
 
-      {/* ── Insight — full width, visible without scroll ─────────────────────── */}
-      {!isAnual && insight && (
-        <div className="card insight-card px-5 py-4 flex items-start gap-4 mb-5">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: '#FEF3C7' }}>
-            <Sparkles className="w-5 h-5" style={{ color: '#D97706' }} />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1">Insight del mes</p>
-            <p className="text-sm text-amber-800 leading-relaxed">{insight}</p>
-          </div>
-        </div>
-      )}
-
-      {/* ── Responsive 2-col on desktop (asymmetric) ─────────────────────────── */}
-      {!isAnual && <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: '2fr 3fr' }}>
-
-        {/* ══ LEFT: tendencia + distribución + insight ═════════════════════════ */}
-        <div className="space-y-5">
-
-          {/* ── Tendencia 6 meses ────────────────────────────────────────────── */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-700">
-                Tendencia 6 meses
-              </p>
-              {monthData.length >= 2 && (
-                <span className="text-xs text-gray-400 capitalize">
-                  {monthData[0].label} – {monthData[monthData.length - 1].label}
-                </span>
-              )}
-            </div>
-            {/* Y-axis max label */}
-            {maxMonth > 1 && (
-              <p className="text-[9px] text-gray-300 font-medium tabular-nums mb-1">
-                {maxMonth >= 1000000 ? `${(maxMonth/1000000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
-              </p>
-            )}
-            <div className="flex items-end gap-2 h-28 lg:h-52">
-              {monthData.map((m) => {
-                const isSelected = m.key === selectedKey
-                const isCurrent  = m.key === currentKey
-                const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
-                const barClass  = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
-                const textColor = isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF'
-                const [mYear, mMonth] = m.key.split('-').map(Number)
-                const href = `/analisis?month=${mMonth}&year=${mYear}${viewParam}`
-                return (
-                  <Link key={m.key} href={href} className="flex-1 flex flex-col items-center gap-1 group">
-                    <span className={`text-[9px] tabular-nums leading-none font-semibold transition-colors ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
-                      {m.total > 0 ? (m.total >= 1000000 ? `${(m.total/1000000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
-                    </span>
-                    <div className="w-full flex-1 flex items-end">
-                      <div
-                        className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : ''} ${barClass}`}
-                        style={{ height: `${h}px`, ...(isSelected ? { backgroundColor: '#1B6DD4' } : {}), opacity: m.total === 0 ? 0.3 : 1 }}
-                      />
-                    </div>
-                    <span className="text-[10px] capitalize leading-none font-semibold transition-colors" style={{ color: textColor }}>
-                      {m.label}
-                      {isCurrent && !isSelected && <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: '#75A8FF' }} />}
-                    </span>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* ── Distribución por semana ──────────────────────────────────────── */}
-          {totalSelected > 0 && (
-            <div className="card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold text-gray-700">Distribución por día</p>
-                <span className="text-xs text-gray-400">Semana actual</span>
+        {/* ── Health score panel ──────────────────────────────────────────────── */}
+        {totalSelected > 0 && (
+          <div className="card mb-5 p-5 lg:p-6" style={{ background: 'var(--surface-2)' }}>
+            {/* Mobile: stacked / Desktop: side-by-side */}
+            <div className="flex flex-col lg:flex-row lg:gap-8 lg:items-center">
+              {/* Donut + badge */}
+              <div className="flex items-center gap-4 lg:flex-col lg:items-center lg:gap-3 mb-5 lg:mb-0 lg:flex-shrink-0">
+                <div className="relative" style={{ width: 120, height: 120 }}>
+                  <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r={donutR} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="9" />
+                    <circle
+                      cx="60" cy="60" r={donutR} fill="none"
+                      stroke={healthColor} strokeWidth="9"
+                      strokeLinecap="round"
+                      strokeDasharray={`${donutFill} ${donutC}`}
+                      transform="rotate(-90 60 60)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-[28px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>{healthScore}</span>
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>de 100</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ background: `${healthColor}22`, color: healthColor }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: healthColor }} />
+                    {healthLabel}
+                  </span>
+                  {/* Summary visible on mobile only */}
+                  <p className="text-xs mt-2 leading-relaxed lg:hidden" style={{ color: 'var(--ink-2)' }}>
+                    {numExcedidas === 0
+                      ? 'Vas bien: tus gastos están bajo control este mes.'
+                      : `Vas bien, pero ${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedió su límite.`}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-end gap-1.5 h-24 lg:h-40">
-                {byWeekday.map((day, i) => {
-                  const h = day.total > 0 ? Math.max(6, Math.round((day.total / maxWeekday) * 80)) : 3
-                  const isPeak = i === peakDowIdx && day.total > 0
-                  const isWeekend = i >= 5
-                  const barClass = isPeak ? '' : isWeekend ? 'bar-weekend' : 'bar-inactive'
+
+              {/* Signals */}
+              <div className="flex-1 min-w-0">
+                <div className="hidden lg:block mb-3">
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu mes en cuatro señales</p>
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    {numExcedidas === 0
+                      ? 'Vas bien: tus gastos están bajo control. Sigue así.'
+                      : `Vas bien, pero ${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedió su límite. Vigila esos gastos.`}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Signal 1: earns more */}
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: earnsMore === false ? 'rgba(255,111,97,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                        {earnsMore === false
+                          ? <TrendingUp className="w-3 h-3" style={{ color: '#FF6F61' }} />
+                          : <Check className="w-3 h-3" style={{ color: '#1FBE8D' }} />}
+                      </div>
+                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                        {earnsMore === false ? 'Gastos superan ingresos' : 'Gastas menos de lo que ganas'}
+                      </p>
+                    </div>
+                    <p className="text-[10px] font-semibold pl-8" style={{ color: surplus !== null ? (surplus > 0 ? '#1FBE8D' : '#FF6F61') : 'var(--ink-3)' }}>
+                      {surplus !== null ? `Te sobraron ${formatCLP(Math.abs(surplus))}` : 'Sin ingresos registrados'}
+                    </p>
+                  </div>
+
+                  {/* Signal 2: spending trend */}
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: spendingDown === false ? 'rgba(255,111,97,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                        {delta === null || delta === 0
+                          ? <Minus className="w-3 h-3" style={{ color: 'var(--ink-3)' }} />
+                          : delta < 0
+                            ? <TrendingDown className="w-3 h-3" style={{ color: '#1FBE8D' }} />
+                            : <TrendingUp className="w-3 h-3" style={{ color: '#FF6F61' }} />}
+                      </div>
+                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                        {delta === null ? 'Sin comparación' : delta < 0 ? 'Tu gasto va a la baja' : 'Tu gasto subió'}
+                      </p>
+                    </div>
+                    <p className="text-[10px] font-semibold pl-8" style={{ color: delta === null ? 'var(--ink-3)' : delta < 0 ? '#1FBE8D' : '#FF6F61' }}>
+                      {delta !== null ? `${delta > 0 ? '+' : ''}${delta}% frente a ${prevMonthName}` : 'Primer mes registrado'}
+                    </p>
+                  </div>
+
+                  {/* Signal 3: category budgets */}
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: numExcedidas > 0 ? 'rgba(255,193,60,0.15)' : 'rgba(31,190,141,0.15)' }}>
+                        {numExcedidas > 0
+                          ? <AlertTriangle className="w-3 h-3" style={{ color: '#FFC23C' }} />
+                          : <Check className="w-3 h-3" style={{ color: '#1FBE8D' }} />}
+                      </div>
+                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                        {numExcedidas === 0 ? 'Presupuestos en orden' : `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`}
+                      </p>
+                    </div>
+                    <p className="text-[10px] font-semibold pl-8" style={{ color: numExcedidas > 0 ? '#FFC23C' : 'var(--ink-3)' }}>
+                      {numExcedidas > 0
+                        ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
+                        : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Sin presupuestos definidos'}
+                    </p>
+                  </div>
+
+                  {/* Signal 4: projection */}
+                  <div className="rounded-2xl p-3" style={{ background: 'var(--bg)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: projection && globalBudget && projection > globalBudget * 1.1 ? 'rgba(255,193,60,0.15)' : 'rgba(77,147,255,0.15)' }}>
+                        <Clock className="w-3 h-3" style={{ color: projection && globalBudget && projection > globalBudget * 1.1 ? '#FFC23C' : '#4D93FF' }} />
+                      </div>
+                      <p className="text-[11px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
+                        {!projection ? 'Proyección del mes' : projection && globalBudget && projection > globalBudget * 1.1 ? 'Proyección algo justa' : 'Proyección del mes'}
+                      </p>
+                    </div>
+                    <p className="text-[10px] font-semibold pl-8" style={{ color: 'var(--ink-3)' }}>
+                      {projection
+                        ? globalBudget
+                          ? projection > globalBudget * 1.1
+                            ? `Al ritmo actual: ${formatCLP(projection)}`
+                            : `${formatCLP(projection)} estimado`
+                          : `${formatCLP(projection)} estimado`
+                        : isCurrentMonth ? 'Pocos días para proyectar' : 'Mes completado'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Oportunidades de mejora ─────────────────────────────────────────── */}
+        {oportunidades.length > 0 && (
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                {oportunidades.length} sugerencia{oportunidades.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-3">
+              {oportunidades.map((op, i) => (
+                <div key={i} className="card p-4 flex flex-col gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: op.iconBg }}>
+                      <op.icon className="w-4 h-4" style={{ color: op.iconColor }} />
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
+                  </div>
+                  <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
+                  <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                    {op.cta} <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
+        {totalSelected > 0 ? (
+          <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-5 lg:space-y-0">
+
+            {/* Tendencia 6 meses */}
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tendencia 6 meses</p>
+                {monthData.length >= 2 && (
+                  <span className="text-xs capitalize" style={{ color: 'var(--ink-3)' }}>
+                    {monthData[0].label} – {monthData[monthData.length - 1].label}
+                  </span>
+                )}
+              </div>
+              {/* Average line label */}
+              {(() => {
+                const nonZero = monthData.filter(m => m.total > 0)
+                const avg = nonZero.length > 0 ? Math.round(nonZero.reduce((s, m) => s + m.total, 0) / nonZero.length) : 0
+                return avg > 0 ? (
+                  <p className="text-[10px] font-semibold mb-3" style={{ color: 'var(--ink-3)' }}>
+                    — Promedio {avg >= 1_000_000 ? `$${(avg/1_000_000).toFixed(1)}M` : `$${Math.round(avg/1_000)}k`}/mes
+                  </p>
+                ) : <div className="mb-3" />
+              })()}
+              {maxMonth > 1 && (
+                <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
+                  {maxMonth >= 1_000_000 ? `${(maxMonth/1_000_000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
+                </p>
+              )}
+              <div className="flex items-end gap-2 h-36 lg:h-44">
+                {monthData.map((m) => {
+                  const isSelected = m.key === selectedKey
+                  const isCurrent  = m.key === currentKey
+                  const h = m.total > 0 ? Math.max(8, Math.round((m.total / maxMonth) * 100)) : 3
+                  const barClass  = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
+                  const [mYear, mMonth] = m.key.split('-').map(Number)
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      {isPeak && (
-                        <span className="text-[8px] font-bold leading-none" style={{ color: '#1B6DD4' }}>
-                          {day.total >= 1000000 ? `${(day.total/1000000).toFixed(1)}M` : `${Math.round(day.total/1000)}k`}
-                        </span>
-                      )}
+                    <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`} className="flex-1 flex flex-col items-center gap-1 group">
+                      <span className="text-[9px] tabular-nums leading-none font-semibold" style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}>
+                        {m.total > 0 ? (m.total >= 1_000_000 ? `${(m.total/1_000_000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
+                      </span>
                       <div className="w-full flex-1 flex items-end">
                         <div
-                          className={`w-full rounded-t-md transition-all ${barClass}`}
-                          style={{ height: `${h}px`, ...(isPeak ? { backgroundColor: '#1B6DD4' } : {}), opacity: day.total === 0 ? 0.25 : 1 }}
+                          className={`w-full rounded-t-lg transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_12px_rgba(77,147,255,0.35)]' : ''} ${barClass}`}
+                          style={{ height: `${h}%`, ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}), opacity: m.total === 0 ? 0.3 : 1 }}
                         />
                       </div>
-                      <span className="text-[9px] font-semibold text-gray-400 leading-none">{weekdayLabels[i]}</span>
-                    </div>
+                      <span className="text-[10px] capitalize leading-none font-semibold" style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : 'var(--ink-3)' }}>
+                        {m.label}
+                      </span>
+                    </Link>
                   )
                 })}
               </div>
             </div>
-          )}
 
-          {/* Empty state */}
-          {totalSelected === 0 && (
-            <div className="card text-center py-14 flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
-                <BarChart2 className="w-7 h-7 text-brand-400" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-600">
-                  Sin gastos {isBilling ? `en estado de cuenta de ${monthName(month)}` : `en ${monthName(month)}`}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Registra gastos para ver tu análisis</p>
-              </div>
-            </div>
-          )}
-
-        </div>
-        {/* ══ END LEFT ═══════════════════════════════════════════════════════ */}
-
-        {/* ══ RIGHT: top categorías + cómo pagaste ══════════════════════════ */}
-        {totalSelected > 0 && (
-          <div className="space-y-5">
-
-            {/* Top categorías */}
+            {/* Categorías vs. presupuesto */}
             <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-sm font-bold text-gray-700">
-                  Top categorías · {isBilling ? `Facturación ${monthName(month)}` : monthName(month)}
-                </h2>
-                <div className="hidden lg:flex items-center gap-3 text-[10px] text-gray-400 font-semibold">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Categorías vs. presupuesto</h2>
+                <div className="flex items-center gap-3 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#1FBE8D' }} />OK</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FFC23C' }} />Cerca</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FF6F61' }} />Excedido</span>
                 </div>
               </div>
-              <div className="card divide-y divide-gray-50 overflow-hidden">
-                {(() => {
-                  const maxCatTotal = catSummary[0]?.total ?? 1
-                  return catSummary.map((c, idx) => {
+              <div className="card overflow-hidden">
+                {catSummary.map((c, idx) => {
                   const limit        = catBudgetMap.get(c.id) ?? null
                   const over         = limit ? c.total > limit : false
                   const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
-                  const sharePct     = pct(c.total, totalSelected)
-                  const barWidth     = limit ? budgetPct! : Math.round((c.total / maxCatTotal) * 100)
-
-                  // Recurring context: don't alarm if overage is entirely from fixed costs
+                  const barWidth     = limit ? budgetPct! : Math.round((c.total / (catSummary[0]?.total ?? 1)) * 100)
                   const recurringAmt  = recurringByCat[c.id] ?? 0
                   const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
-                  const hasRecurring   = recurringAmt > 0 && !isAllRecurring
-
-                  // Bar color: suppress red alarm when all spending is fixed/recurring
-                  const barColor = (over && isAllRecurring)
-                    ? c.color
-                    : over ? '#EF4444'
-                    : budgetPct !== null && budgetPct >= 80 ? '#F59E0B'
+                  const barColor = (over && isAllRecurring) ? c.color
+                    : over ? '#FF6F61'
+                    : budgetPct !== null && budgetPct >= 80 ? '#FFC23C'
                     : c.color
-
-                  // Status label
-                  const statusLabel = isAllRecurring && over
-                    ? '↻ Gasto fijo'
-                    : over
-                      ? `+${formatCLP(c.total - limit!)} sobre el límite`
-                      : limit
-                        ? `${formatCLP(limit - c.total)} restante`
-                        : 'Sin límite'
-
-                  const statusColor = isAllRecurring && over
-                    ? 'text-gray-400'
-                    : over ? 'text-red-500 font-semibold'
-                    : 'text-gray-400'
-
                   const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
-
                   return (
                     <Link
                       key={c.id}
-                      href={`/analisis/${c.id}?month=${month}&year=${year}${viewParam}`}
-                      className="block px-4 py-3 hover:bg-gray-50/60 transition-colors active:bg-brand-50"
+                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                      className="flex flex-col px-4 py-3 transition-colors hover:bg-black/5 active:bg-black/10"
+                      style={{ borderTop: idx > 0 ? '1px solid var(--border)' : undefined }}
                     >
-                      <div className="flex items-center gap-3 mb-1.5">
-                        {/* Rank badge */}
-                        <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
-                          idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : 'rank-default'
-                        }`}>
-                          {idx + 1}
-                        </div>
-
-                        {/* Category icon */}
-                        <div
-                          className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                        >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
                           {isEmoji(c.icon)
                             ? <span className="text-sm leading-none">{c.icon}</span>
-                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null
-                          }
+                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
                         </div>
-
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
-                            <span className={`text-xs ${statusColor} flex-shrink-0`}>{statusLabel}</span>
-                            {isAllRecurring && (
-                              <span className="text-[9px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">↻ fijo</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--ink)' }}>{c.name}</p>
+                            {budgetPct !== null && (
+                              <span className="text-[10px] font-bold" style={{ color: barColor }}>{budgetPct}%</span>
                             )}
-                            {hasRecurring && (
-                              <span className="text-[9px] font-semibold text-gray-400 flex-shrink-0">↻ {formatCLP(recurringAmt)}</span>
+                            {!limit && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                                Sin presupuesto · definir
+                              </span>
                             )}
                           </div>
+                          {over && !isAllRecurring && (
+                            <p className="text-[10px] font-semibold" style={{ color: '#FF6F61' }}>
+                              +{formatCLP(c.total - limit!)} sobre el límite
+                            </p>
+                          )}
+                          {limit && !over && (
+                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>quedan {formatCLP(limit - c.total)}</p>
+                          )}
+                          {!limit && (
+                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                              {totalSelected > 0 ? `${pct(c.total, totalSelected)}% del total` : ''}
+                            </p>
+                          )}
                         </div>
-
-                        <div className="text-right flex-shrink-0 flex items-center gap-1.5">
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(c.total)}</p>
-                            {limit && <p className="text-[10px] text-gray-400 tabular-nums">de {formatCLP(limit)}</p>}
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
+                          {limit && <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>de {formatCLP(limit)}</p>}
                         </div>
                       </div>
-
-                      {/* Progress bar */}
-                      <div className="progress-track h-1.5 rounded-full overflow-hidden ml-8" style={{ '--bar-color': barColor } as React.CSSProperties}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: barColor }} />
                       </div>
                     </Link>
                   )
-                  })
-                })()}
+                })}
               </div>
             </div>
 
-            {/* Cómo pagaste */}
-            {pmSummary.length > 0 && (
-              <div>
-                <h2 className="text-sm font-bold text-gray-600 mb-2.5">Cómo pagaste</h2>
-                <div className="card divide-y divide-gray-50 overflow-hidden">
-                  {pmSummary.map(pm => {
-                    const pmPct = pct(pm.total, totalSelected)
-                    return (
-                      <div key={pm.name} className="px-4 py-3">
-                        <div className="flex items-center gap-3 mb-1.5">
-                          {pm.domain ? (
-                            <ServiceLogo domain={pm.domain} name={pm.name} size={28} />
-                          ) : (
-                            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#EEF4FF' }}>
-                              <CreditCard className="w-3.5 h-3.5" style={{ color: '#1B6DD4' }} />
-                            </div>
-                          )}
-                          <p className="flex-1 text-sm font-semibold text-gray-800">{pm.name}</p>
-                          <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(pm.total)}</p>
-                          <p className="text-xs text-gray-400 w-8 text-right tabular-nums">{pmPct}%</p>
-                        </div>
-                        <div className="progress-track h-1.5 rounded-full overflow-hidden ml-10" style={{ '--bar-color': '#1B6DD4' } as React.CSSProperties}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${pmPct}%`, backgroundColor: '#1B6DD4' }} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
+          </div>
+        ) : (
+          /* Empty state */
+          <div className="card text-center py-14 flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-3xl flex items-center justify-center" style={{ background: 'var(--primary-soft)' }}>
+              <BarChart2 className="w-7 h-7" style={{ color: 'var(--primary)' }} />
+            </div>
+            <div>
+              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin gastos en {monthName(month)}</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Registra gastos para ver tu análisis</p>
+            </div>
           </div>
         )}
-        {/* ══ END RIGHT ══════════════════════════════════════════════════════ */}
-
-      </div>}
+          </>
+        )
+      })()}
     </div>
   )
 }
