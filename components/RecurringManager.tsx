@@ -356,7 +356,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             const isAnual     = item.billing_month != null
             const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
             const next        = nextBillingDate(item.billing_day, item.billing_month)
-            const nextLabel   = next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
+            const nextLabel   = isAnual
+              ? `${String(item.billing_day).padStart(2, '0')}/${String(item.billing_month).padStart(2, '0')}`
+              : next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
             const progress    = isCuotas
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
               : null
@@ -398,7 +400,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
                   <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
                     <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
-                    <p className="text-[11px] text-gray-400">Próximo cargo</p>
+                    <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
                   </div>
 
                   <div className="text-right flex-shrink-0">
