@@ -8,6 +8,7 @@ import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
+import IncomeEditor from '@/components/IncomeEditor'
 
 export const revalidate = 0
 
@@ -1355,12 +1356,15 @@ export default async function AnalisisPage({
                 <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
               {/* Mobile card 1: Ingresos */}
               <div className="card p-3">
-                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
-                {monthIncome > 0
-                  ? <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(monthIncome)}</p>
-                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>Sin registrar</p>
-                }
-                <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--ink-3)' }}>{incomeDesc}</p>
+                <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                <IncomeEditor
+                  userId={user!.id}
+                  month={month}
+                  year={year}
+                  amount={monthIncome > 0 ? monthIncome : null}
+                  description={(incomeRow as any)?.description ?? null}
+                  compact
+                />
               </div>
               {/* Mobile card 2: Gasto total */}
               <div className="card p-3">
@@ -1401,12 +1405,14 @@ export default async function AnalisisPage({
             <div className="hidden lg:grid lg:grid-cols-4 gap-4 mb-6">
               {/* Ingresos */}
               <div className="card p-5 flex flex-col gap-1">
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
-                {monthIncome > 0
-                  ? <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(monthIncome)}</p>
-                  : <p className="text-lg font-semibold" style={{ color: 'var(--ink-3)' }}>Sin registrar</p>
-                }
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{incomeDesc}</p>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                <IncomeEditor
+                  userId={user!.id}
+                  month={month}
+                  year={year}
+                  amount={monthIncome > 0 ? monthIncome : null}
+                  description={(incomeRow as any)?.description ?? null}
+                />
               </div>
               {/* Gasto total */}
               <div className="card p-5 flex flex-col gap-1">
