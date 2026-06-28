@@ -8,7 +8,7 @@ import ProfileEditor from '@/components/ProfileEditor'
 import Link from 'next/link'
 import {
   ChevronRight, RefreshCw, Tag, CreditCard, Target,
-  Download, Database, Shield, Coins, LogOut, Palette, Wallet,
+  Download, Database, Shield, Coins, LogOut, Palette, Wallet, TrendingUp,
   type LucideIcon,
 } from 'lucide-react'
 import ImportCSV from '@/components/ImportCSV'
@@ -67,6 +67,18 @@ export default async function AjustesPage() {
                 }
                 title="Ingresos"
                 subtitle="Registra cuánto ganas cada mes."
+              />
+
+              <SettingsRow
+                href="/inversiones"
+                icon={
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
+                    <TrendingUp className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+                  </div>
+                }
+                title="Inversiones"
+                subtitle="Acciones y depósitos a plazo."
               />
 
               <SettingsRow

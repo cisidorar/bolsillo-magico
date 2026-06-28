@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Settings, Plus, RefreshCw, Wallet } from 'lucide-react'
+import { Home, BookOpen, BarChart2, Settings, Plus, RefreshCw, Wallet, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
@@ -11,8 +11,9 @@ const navItems = [
   { href: '/inicio',      icon: Home,      label: 'Inicio'      },
   { href: '/historial',   icon: BookOpen,  label: 'Historial'   },
   { href: '/analisis',    icon: BarChart2, label: 'Análisis'    },
-  { href: '/ingresos',    icon: Wallet,    label: 'Ingresos'    },
-  { href: '/recurrentes', icon: RefreshCw, label: 'Recurrentes' },
+  { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
+  { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones'  },
+  { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
   { href: '/ajustes',     icon: Settings,  label: 'Ajustes'     },
 ]
 
