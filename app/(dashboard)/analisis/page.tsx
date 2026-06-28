@@ -1362,15 +1362,15 @@ export default async function AnalisisPage({
               <>
                 {/* Mobile 2×2 */}
                 <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
-              {/* Mobile card 1: Ingresos */}
+              {/* Mobile card 1: Ingresos (del mes ANTERIOR — ese financió este mes) */}
               <div className="card p-3">
-                <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
                 <IncomeEditor
                   userId={user!.id}
-                  month={month}
-                  year={year}
-                  amount={monthIncome > 0 ? monthIncome : null}
-                  description={(incomeRow as any)?.description ?? null}
+                  month={prevMonth}
+                  year={prevYear}
+                  amount={prevMonthIncome > 0 ? prevMonthIncome : null}
+                  description={(prevIncomeRow as any)?.description ?? null}
                   compact
                 />
               </div>
@@ -1411,15 +1411,15 @@ export default async function AnalisisPage({
 
             {/* Desktop 4-col KPI cards */}
             <div className="hidden lg:grid lg:grid-cols-4 gap-4 mb-6">
-              {/* Ingresos */}
+              {/* Ingresos (del mes ANTERIOR — ese financió este mes) */}
               <div className="card p-5 flex flex-col gap-1">
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Ingresos del mes</p>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
                 <IncomeEditor
                   userId={user!.id}
-                  month={month}
-                  year={year}
-                  amount={monthIncome > 0 ? monthIncome : null}
-                  description={(incomeRow as any)?.description ?? null}
+                  month={prevMonth}
+                  year={prevYear}
+                  amount={prevMonthIncome > 0 ? prevMonthIncome : null}
+                  description={(prevIncomeRow as any)?.description ?? null}
                 />
               </div>
               {/* Gasto total */}
