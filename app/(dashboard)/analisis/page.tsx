@@ -551,13 +551,9 @@ export default async function AnalisisPage({
     }
   }
 
-  // Merge: rule-based first (max 2), then AI if no rule-based covered that angle (max 3 total)
+  // Solo mostrar insights de IA — si no hay, no mostrar nada (no fallback rule-based)
   const aiOportunidades = aiInsights.map(aiInsightToOportunidad)
-  // If we have AI insights, use them as primary (they're richer); keep rule-based as fallback
-  const finalOportunidades: Oportunidad[] = aiOportunidades.length > 0
-    ? aiOportunidades.slice(0, 3)
-    : oportunidades.slice(0, 3)
-
+  const finalOportunidades: Oportunidad[] = aiOportunidades.slice(0, 3)
   const hasAiInsights = aiOportunidades.length > 0
 
   const prevMonthName = monthName(month === 1 ? 12 : month - 1)
