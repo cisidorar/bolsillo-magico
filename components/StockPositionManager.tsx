@@ -101,8 +101,8 @@ interface Props {
   userId:           string
   initialPositions: StockPosition[]
 }
-interface FormState { ticker: string; shares: string; avgCostUsd: string; notes: string }
-const emptyForm: FormState = { ticker: '', shares: '', avgCostUsd: '', notes: '' }
+interface FormState { ticker: string; shares: string; totalPaid: string; notes: string }
+const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' }
 
 export default function StockPositionManager({ userId, initialPositions }: Props) {
   const supabase = createClient()
@@ -195,18 +195,20 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   // ── CRUD ─────────────────────────────────────────────────────────────────
   function openAdd() { setForm(emptyForm); setEditingId(null); setFormError(''); setShowForm(true) }
   function openEdit(pos: StockPosition) {
-    setForm({ ticker: pos.ticker, shares: String(pos.shares), avgCostUsd: String(pos.avg_cost_usd), notes: pos.notes ?? '' })
+    const totalPaid = (pos.shares * pos.avg_cost_usd).toFixed(2)
+    setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid, notes: pos.notes ?? '' })
     setEditingId(pos.id); setFormError(''); setShowForm(true)
   }
   function cancelForm() { setShowForm(false); setEditingId(null); setForm(emptyForm); setFormError('') }
 
   async function savePosition() {
-    const ticker  = form.ticker.trim().toUpperCase()
-    const shares  = parseFloat(form.shares)
-    const avgCost = parseFloat(form.avgCostUsd)
+    const ticker     = form.ticker.trim().toUpperCase()
+    const shares     = parseFloat(form.shares)
+    const totalPaid  = parseFloat(form.totalPaid)
     if (!ticker || !/^[A-Z0-9.\-]{1,10}$/.test(ticker)) { setFormError('Ticker inválido (ej: AAPL, BRK.B)'); return }
-    if (isNaN(shares)  || shares  <= 0) { setFormError('Número de acciones inválido'); return }
-    if (isNaN(avgCost) || avgCost <= 0) { setFormError('Precio de compra inválido'); return }
+    if (isNaN(shares)    || shares    <= 0) { setFormError('Número de acciones inválido'); return }
+    if (isNaN(totalPaid) || totalPaid <= 0) { setFormError('Total pagado inválido'); return }
+    const avgCost = totalPaid / shares
 
     setSaving(true); setFormError('')
     if (editingId) {
@@ -303,9 +305,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
             </div>
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Precio compra (USD)</label>
-              <input type="number" value={form.avgCostUsd} onChange={e => setForm(f => ({ ...f, avgCostUsd: e.target.value }))}
-                placeholder="150.00" min="0.01" step="0.01"
+              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
+              <input type="number" value={form.totalPaid} onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
+                placeholder="896.99" min="0.01" step="0.01"
                 className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
             </div>
             <div>
@@ -315,9 +317,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
             </div>
           </div>
-          {form.shares && form.avgCostUsd && (
+          {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
             <p className="text-xs mb-3 font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>
-              Inversión: {fmtUSD(parseFloat(form.shares || '0') * parseFloat(form.avgCostUsd || '0'))}
+              Precio por acción: {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
             </p>
           )}
           {formError && <p className="text-xs mb-2 font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}

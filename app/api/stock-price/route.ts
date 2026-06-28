@@ -36,16 +36,24 @@ export async function GET(request: Request) {
 
   try {
     // ── 1. Fetch current quotes for all symbols ───────────────────────────
-    const quotesUrl =
-      `https://query1.finance.yahoo.com/v7/finance/quote` +
+    const quotesPath =
+      `/v7/finance/quote` +
       `?symbols=${allSymbols.join(',')}` +
       `&fields=regularMarketPrice,regularMarketChangePercent,shortName,currency` +
       `&lang=en-US&region=US`
 
-    const quotesRes = await fetch(quotesUrl, {
+    let quotesRes = await fetch(`https://query1.finance.yahoo.com${quotesPath}`, {
       headers: YF_HEADERS,
       next: { revalidate: 300 }, // 5 min cache
     })
+
+    // Fallback to query2 if query1 is blocked or returns an error
+    if (!quotesRes.ok) {
+      quotesRes = await fetch(`https://query2.finance.yahoo.com${quotesPath}`, {
+        headers: YF_HEADERS,
+        next: { revalidate: 300 },
+      })
+    }
 
     if (!quotesRes.ok) {
       console.error('[stock-price] quotes error:', quotesRes.status)
@@ -71,14 +79,19 @@ export async function GET(request: Request) {
       await Promise.all(
         symbols.map(async (sym) => {
           try {
-            const chartUrl =
-              `https://query1.finance.yahoo.com/v8/finance/chart/${sym}` +
-              `?range=8d&interval=1d&includePrePost=false`
+            const chartPath = `/v8/finance/chart/${sym}?range=8d&interval=1d&includePrePost=false`
 
-            const chartRes = await fetch(chartUrl, {
+            let chartRes = await fetch(`https://query1.finance.yahoo.com${chartPath}`, {
               headers: YF_HEADERS,
               next: { revalidate: 3600 }, // 1h cache for daily history
             })
+
+            if (!chartRes.ok) {
+              chartRes = await fetch(`https://query2.finance.yahoo.com${chartPath}`, {
+                headers: YF_HEADERS,
+                next: { revalidate: 3600 },
+              })
+            }
 
             if (!chartRes.ok) return
 
