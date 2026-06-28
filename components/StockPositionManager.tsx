@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, RefreshCw, TrendingUp, TrendingDown, Pencil,
-  Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown,
+  Plus, RefreshCw, TrendingUp, Pencil,
+  Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { StockPosition } from '@/app/(dashboard)/inversiones/page'
@@ -246,31 +246,38 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     <div className="space-y-4">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {lastUpdated && (
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--mint)' }} />
+      <div className="flex items-center justify-between gap-3">
+
+        {/* Estado en vivo / error */}
+        <div className="flex items-center gap-2 min-w-0">
+          {lastUpdated && !quotesError && (
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: 'var(--mint)' }} />
               <span style={{ color: 'var(--mint)' }}>En vivo</span>
-              <span>· hace {secsAgo < 60 ? `${secsAgo}s` : `${Math.floor(secsAgo / 60)}m`}</span>
+              <span style={{ color: 'var(--ink-3)' }}>
+                · hace {secsAgo < 60 ? `${secsAgo}s` : `${Math.floor(secsAgo / 60)}m`}
+              </span>
             </div>
           )}
           {quotesError && (
             <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--coral)' }}>
-              <AlertCircle className="w-3.5 h-3.5" /> {quotesError}
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{quotesError}</span>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Acciones */}
+        <div className="flex items-center gap-2 shrink-0">
           {positions.length > 0 && (
             <button
               onClick={() => fetchQuotes(positions.map(p => p.ticker))}
               disabled={loadingQ}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border rounded-xl transition-colors disabled:opacity-50"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+              title="Actualizar precios"
+              className="p-2 rounded-xl border transition-colors disabled:opacity-40"
+              style={{ color: 'var(--ink-3)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
             >
-              <RefreshCw className={`w-3 h-3 ${loadingQ ? 'animate-spin' : ''}`} />
-              Actualizar
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingQ ? 'animate-spin' : ''}`} />
             </button>
           )}
           <button
@@ -354,121 +361,121 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         </div>
       )}
 
-      {/* ── Stats: Hero + KPI grid ───────────────────────────────────────── */}
+      {/* ── Hero card (ancho completo) ────────────────────────────────────── */}
       {positions.length > 0 && (
-        <div className="flex flex-col lg:flex-row gap-4">
+        <div className="card overflow-hidden p-5 lg:p-6 flex flex-col hero-gradient" style={{ minHeight: 180 }}>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
+            Valor del portafolio
+          </p>
 
-          {/* Hero card */}
-          <div
-            className="card overflow-hidden p-6 flex flex-col justify-between hero-gradient"
-            style={{ flex: '1.3 1 0', minHeight: 200 }}
-          >
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                Valor del portafolio
-              </p>
-              <div className="flex items-end gap-3 mb-2">
-                <p className="text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
-                  {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
-                </p>
-                <span className="px-2 py-1 rounded-lg text-xs font-bold mb-1" style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
-                  USD
-                </span>
-              </div>
-              {hasQ && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-semibold"
-                  style={{
-                    background: totalGainUsd >= 0 ? 'rgba(31,190,141,0.25)' : 'rgba(255,111,97,0.25)',
-                    color: 'white',
-                  }}>
-                  {totalGainUsd >= 0
-                    ? <ArrowUp className="w-3.5 h-3.5" />
-                    : <ArrowDown className="w-3.5 h-3.5" />}
-                  {fmtUSDSigned(totalGainUsd)} ({fmtPct(totalGainPct)}) ganancia total
-                </div>
-              )}
-              {totalValueClp && (
-                <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                  ≈ {formatCLP(totalValueClp)} CLP
-                </p>
-              )}
-            </div>
-
-            {/* Portfolio sparkline */}
-            {portfolioHistory.length >= 2 && (
-              <div className="mt-4 -mb-2 -mx-2">
-                <Sparkline
-                  values={portfolioHistory}
-                  w={400}
-                  h={56}
-                  color="rgba(255,194,60,0.9)"
-                  strokeWidth={2}
-                />
+          {/* Valor + badge + chip en una línea */}
+          <div className="flex items-center flex-wrap gap-2 lg:gap-3 mb-1">
+            <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+              {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
+            </p>
+            <span className="px-2 py-1 rounded-lg text-xs font-bold self-center" style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
+              USD
+            </span>
+            {hasQ && (
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs lg:text-sm font-semibold self-center"
+                style={{
+                  background: totalGainUsd >= 0 ? 'rgba(31,190,141,0.22)' : 'rgba(255,111,97,0.22)',
+                  color: 'white',
+                }}
+              >
+                {totalGainUsd >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                {fmtUSDSigned(totalGainUsd)} ({fmtPct(totalGainPct)}) ganancia total
               </div>
             )}
           </div>
 
-          {/* KPI cards 2x2 */}
-          <div className="grid grid-cols-2 gap-3" style={{ flex: '1 1 0' }}>
+          {totalValueClp && (
+            <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              ≈ {formatCLP(totalValueClp)} CLP
+            </p>
+          )}
 
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Invertido</p>
-              <p className="text-xl font-extrabold tabular-nums leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
-                {fmtUSD(totalCostUsd)}
-              </p>
-              <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>costo de compra</p>
+          {/* Sparkline del portfolio ocupa todo el ancho */}
+          {portfolioHistory.length >= 2 ? (
+            <div className="mt-4 -mb-3 -mx-3 lg:-mx-4">
+              <Sparkline
+                values={portfolioHistory}
+                w={900} h={64}
+                color="rgba(255,194,60,0.9)"
+                strokeWidth={2}
+              />
             </div>
+          ) : (
+            <div className="mt-4" />
+          )}
+        </div>
+      )}
 
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio de hoy</p>
-              <p className="text-xl font-extrabold tabular-nums leading-tight" style={{
-                fontFamily: 'Fredoka, sans-serif',
-                color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
-              }}>
-                {hasQ ? fmtUSDSigned(todayChangeUsd) : '—'}
-              </p>
-              {hasQ && (
-                <div className="flex items-center gap-1 mt-1">
-                  {todayChangeUsd >= 0
-                    ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
-                    : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                  <p className="text-[10px] font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {fmtPct(todayChangePct)} hoy
-                  </p>
-                </div>
-              )}
-            </div>
+      {/* ── KPI row (4 columnas) ─────────────────────────────────────────── */}
+      {positions.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
-                {positions.length}
-              </p>
-              {hasQ && (posUp > 0 || posDown > 0) && (
-                <div className="flex items-center gap-2 mt-1 text-[10px] font-semibold">
-                  {posUp > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
-                  {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
-                  <span style={{ color: 'var(--ink-3)' }}>hoy</span>
-                </div>
-              )}
-            </div>
+          {/* Invertido */}
+          <div className="card p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Invertido</p>
+            <p className="text-xl font-extrabold tabular-nums leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+              {fmtUSD(totalCostUsd)}
+            </p>
+            <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>costo de compra</p>
+          </div>
 
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor posición</p>
-              {bestPos ? (
-                <>
-                  <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
-                    {bestPos.ticker}
-                  </p>
-                  <p className="text-[10px] font-semibold mt-1" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {fmtPct(bestPos.pct)} retorno
-                  </p>
-                </>
-              ) : (
-                <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
-              )}
-            </div>
+          {/* Cambio de hoy */}
+          <div className="card p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio de hoy</p>
+            <p className="text-xl font-extrabold tabular-nums leading-tight" style={{
+              fontFamily: 'Fredoka, sans-serif',
+              color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
+            }}>
+              {hasQ ? fmtUSDSigned(todayChangeUsd) : '—'}
+            </p>
+            {hasQ && (
+              <div className="flex items-center gap-1 mt-1">
+                {todayChangeUsd >= 0
+                  ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
+                  : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
+                <p className="text-[10px] font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  {fmtPct(todayChangePct)} hoy
+                </p>
+              </div>
+            )}
+          </div>
 
+          {/* Posiciones */}
+          <div className="card p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
+            <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+              {positions.length}
+            </p>
+            {hasQ && (posUp > 0 || posDown > 0) && (
+              <div className="flex items-center gap-2 mt-1 text-[10px] font-semibold">
+                {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
+                {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
+                <span style={{ color: 'var(--ink-3)' }}>hoy</span>
+              </div>
+            )}
+          </div>
+
+          {/* Mejor posición */}
+          <div className="card p-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor posición</p>
+            {bestPos ? (
+              <>
+                <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  {bestPos.ticker}
+                </p>
+                <p className="text-[10px] font-semibold mt-1" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  {fmtPct(bestPos.pct)} retorno
+                </p>
+              </>
+            ) : (
+              <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
+            )}
           </div>
         </div>
       )}
@@ -489,14 +496,14 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               </span>
             </div>
             <p className="text-[10px] flex items-center gap-1" style={{ color: 'var(--ink-3)' }}>
-              <span>⊙</span> Precios vía Finnhub
+              <span>⊙</span> Precios vía API · cierre hoy
             </p>
           </div>
 
           {/* Column headers (desktop only) */}
           <div
             className="hidden lg:grid px-6 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
-            style={{ gridTemplateColumns: '2fr 0.8fr 1fr 1fr 1fr 1fr 80px', color: 'var(--ink-3)', borderColor: 'var(--border)' }}
+            style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px', color: 'var(--ink-3)', borderColor: 'var(--border)' }}
           >
             <span>Acción</span>
             <span className="text-right">Cant.</span>
@@ -527,10 +534,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const initials     = pos.ticker.slice(0, 2)
 
               return (
-                <div key={pos.id} className="px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors">
+                <div key={pos.id} className="group px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors">
 
                   {/* Desktop row */}
-                  <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.8fr 1fr 1fr 1fr 1fr 80px' }}>
+                  <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px' }}>
 
                     {/* Acción: avatar + ticker + name */}
                     <div className="flex items-center gap-3">
@@ -606,19 +613,35 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                       ) : '—'}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEdit(pos)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--ink-3)' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => deletePosition(pos.id)} disabled={deletingId === pos.id}
-                        className="p-1.5 rounded-lg transition-colors disabled:opacity-50" style={{ color: 'var(--ink-3)' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--coral)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    {/* Actions + Chevron */}
+                    <div className="flex items-center justify-end gap-0.5">
+                      {/* Editar / borrar aparecen en hover */}
+                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={e => { e.stopPropagation(); openEdit(pos) }}
+                          className="p-1.5 rounded-lg transition-colors"
+                          style={{ color: 'var(--ink-3)' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deletePosition(pos.id) }}
+                          disabled={deletingId === pos.id}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          style={{ color: 'var(--ink-3)' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--coral)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {/* Chevron siempre visible */}
+                      <ChevronRight
+                        className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+                        style={{ color: 'var(--ink-3)' }}
+                      />
                     </div>
                   </div>
 
@@ -662,14 +685,15 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                         <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{fmtUSD(costBasis)}</p>
                       )}
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={() => openEdit(pos)} className="p-1.5 rounded-lg" style={{ color: 'var(--ink-3)' }}>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button onClick={e => { e.stopPropagation(); openEdit(pos) }} className="p-1.5 rounded-lg" style={{ color: 'var(--ink-3)' }}>
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deletePosition(pos.id)} disabled={deletingId === pos.id}
+                      <button onClick={e => { e.stopPropagation(); deletePosition(pos.id) }} disabled={deletingId === pos.id}
                         className="p-1.5 rounded-lg disabled:opacity-50" style={{ color: 'var(--ink-3)' }}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                      <ChevronRight className="w-4 h-4 ml-1" style={{ color: 'var(--ink-3)' }} />
                     </div>
                   </div>
 
@@ -678,12 +702,11 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             })}
           </div>
 
-          {/* Footer: exchange rate */}
-          {usdClp && (
-            <div className="px-4 lg:px-6 py-2.5 border-t text-[10px]" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
-              1 USD = {formatCLP(Math.round(usdClp))} CLP · Precios con posible demora de 15 min
-            </div>
-          )}
+          {/* Footer */}
+          <div className="px-4 lg:px-6 py-2.5 border-t flex items-center justify-between text-[10px]" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
+            <span>⊙ Precios vía API · datos del cierre</span>
+            {usdClp && <span>1 USD = {formatCLP(Math.round(usdClp))} CLP</span>}
+          </div>
         </div>
       )}
 

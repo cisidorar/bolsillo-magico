@@ -63,12 +63,15 @@ async function fhProfile(ticker: string, key: string): Promise<string | null> {
 
 async function fhCandles(ticker: string, key: string): Promise<number[] | null> {
   const to   = Math.floor(Date.now() / 1000)
-  const from = to - 12 * 86_400
+  const from = to - 20 * 86_400   // 20 días calendario → ~14 días hábiles
   const d = await fhFetch(
     `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
   ) as Record<string, unknown> | null
-  if (!d || d.s !== 'ok' || !Array.isArray(d.c) || (d.c as number[]).length === 0) return null
-  return (d.c as number[]).slice(-7)
+  if (!d) { console.warn('[fhCandles] null response for', ticker); return null }
+  if (d.s !== 'ok') { console.warn('[fhCandles] s =', d.s, 'for', ticker); return null }
+  if (!Array.isArray(d.c) || (d.c as number[]).length === 0) { console.warn('[fhCandles] empty closes for', ticker); return null }
+  const closes = (d.c as number[]).filter((v): v is number => typeof v === 'number' && !isNaN(v))
+  return closes.length >= 2 ? closes.slice(-7) : null
 }
 
 // ── Frankfurter (tipo de cambio, sin API key) ─────────────────────────────────
