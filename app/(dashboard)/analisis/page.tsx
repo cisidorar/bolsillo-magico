@@ -1,5 +1,5 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { billingPeriod, billingPeriodRange, formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
@@ -19,42 +19,12 @@ export default async function AnalisisPage({
 }) {
   const { month: monthStr, year: yearStr, view, bm } = await searchParams
   const now   = new Date()
-  const isBilling = view === 'billing'
-  const isAnual   = view === 'anual'
+  const isAnual = view === 'anual'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
-  // En modo billing: buscar siempre la tarjeta favorita (needed para mes default y para daysElapsed)
-  let defaultCard: { billing_day: number | null; is_default: boolean } | null | undefined = null
-  if (isBilling) {
-    const { data: cards } = await supabase
-      .from('payment_methods')
-      .select('billing_day, is_default')
-      .eq('user_id', user!.id)
-      .eq('card_type', 'credit')
-      .not('billing_day', 'is', null)
-      .order('is_default', { ascending: false })
-      .order('sort_order',  { ascending: true })
-      .limit(5)
-    defaultCard = cards?.find(c => c.is_default) ?? cards?.[0] ?? null
-  }
-
-  // Cuando se carga billing sin mes explícito, usar el período de estado ABIERTO.
-  let month: number
-  let year: number
-  if (isBilling && !monthStr) {
-    if (defaultCard?.billing_day) {
-      const bp = billingPeriod(now.toISOString().slice(0, 10), defaultCard.billing_day as number)
-      month = bp.month
-      year  = bp.year
-    } else {
-      month = now.getMonth() + 1
-      year  = now.getFullYear()
-    }
-  } else {
-    month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
-    year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
-  }
+  const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
+  const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
 
   // El gráfico siempre muestra los últimos 6 meses hasta HOY
   const chartAnchor = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -67,17 +37,15 @@ export default async function AnalisisPage({
   const selectedKey = `${year}-${String(month).padStart(2, '0')}`
   const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  const selEnd   = new Date(year, month + (isBilling ? 2 : 1), 1)
-  const curEnd   = new Date(now.getFullYear(), now.getMonth() + (isBilling ? 2 : 1), 1)
+  const selEnd   = new Date(year, month + 1, 1)
+  const curEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const fetchEnd = selEnd > curEnd ? selEnd : curEnd
   const nextYear  = fetchEnd.getFullYear()
   const nextMonth = fetchEnd.getMonth() + 1
   const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
   const fetchStartBase = selectedKey < chartStart.substring(0, 7) ? `${year}-${String(month).padStart(2, '0')}-01` : chartStart
-  const fetchStartDate = isBilling
-    ? new Date(new Date(fetchStartBase).getFullYear(), new Date(fetchStartBase).getMonth() - 1, 1)
-    : new Date(fetchStartBase)
+  const fetchStartDate = new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
   const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }] = await Promise.all([
@@ -132,11 +100,7 @@ export default async function AnalisisPage({
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
 
   function expenseMonthKey(e: ExpenseWithRelations): string {
-    if (!isBilling) return e.date.substring(0, 7)
-    const pm = e.payment_method as { billing_day?: number | null } | null
-    const bd = pm?.billing_day ?? null
-    const bp = billingPeriod(e.date, bd)
-    return `${bp.year}-${String(bp.month).padStart(2, '0')}`
+    return e.date.substring(0, 7)
   }
 
   // ── Gráfico: últimos 6 meses ──────────────────────────────────────────────
@@ -159,23 +123,7 @@ export default async function AnalisisPage({
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
 
-  // En modo billing: usar la duración real del período de facturación de la tarjeta favorita
-  let daysElapsed: number
-  if (isBilling && defaultCard?.billing_day) {
-    const range = billingPeriodRange(month, year, defaultCard.billing_day as number)
-    const start = new Date(range.start + 'T12:00:00')
-    const end   = new Date(range.end   + 'T12:00:00')
-    const periodDays = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
-    // Si el período aún no terminó, contar solo hasta hoy
-    const today = new Date(now.toISOString().slice(0, 10) + 'T12:00:00')
-    if (today < end) {
-      daysElapsed = Math.max(1, Math.round((today.getTime() - start.getTime()) / 86_400_000) + 1)
-    } else {
-      daysElapsed = periodDays
-    }
-  } else {
-    daysElapsed = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
-  }
+  const daysElapsed = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
   const dailyAvg = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
 
   // vs previous month — comparación al mismo día cuando es el mes actual
@@ -186,7 +134,7 @@ export default async function AnalisisPage({
   const rawPrevExpenses = typedExpenses.filter(e => expenseMonthKey(e) === prevMonthKey2)
   const cutoffDay       = now.getDate()
   // En modo compra y mes actual: solo hasta el mismo día del mes anterior
-  const prevExpensesForDelta = (isCurrentMonth && !isBilling)
+  const prevExpensesForDelta = isCurrentMonth
     ? rawPrevExpenses.filter(e => parseInt(e.date.split('-')[2]) <= cutoffDay)
     : rawPrevExpenses
   const prevTotal     = prevExpensesForDelta.reduce((s, e) => s + e.amount, 0)
@@ -566,7 +514,6 @@ export default async function AnalisisPage({
   const hasAiInsights = aiOportunidades.length > 0
 
   const prevMonthName = monthName(month === 1 ? 12 : month - 1)
-  const viewParam = isBilling ? '&view=billing' : ''
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
@@ -641,7 +588,7 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isBilling && !isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+            !isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
