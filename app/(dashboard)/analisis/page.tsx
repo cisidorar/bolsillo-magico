@@ -645,18 +645,9 @@ export default async function AnalisisPage({
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
-          Compra
+          Mensual
         </Link>
-        <Link
-          href={`/analisis?view=billing`}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            isBilling ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          Facturación
-        </Link>
-        <Link
+<Link
           href={`/analisis?year=${year}&view=anual`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
