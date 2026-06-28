@@ -7,13 +7,15 @@ import { Pencil, Check, X } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 
 interface Props {
-  userId:      string
-  month:       number
-  year:        number
-  amount:      number | null
-  description: string | null
-  /** Si true, usa estilos compactos para mobile */
-  compact?:    boolean
+  userId:       string
+  month:        number
+  year:         number
+  amount:       number | null
+  description:  string | null
+  /** Estilos compactos para mobile */
+  compact?:     boolean
+  /** Modo historial: muestra solo botón Editar/Registrar que abre editor inline */
+  historyMode?: boolean
 }
 
 function fmt(raw: string): string {
@@ -22,7 +24,7 @@ function fmt(raw: string): string {
   return parseInt(n).toLocaleString('es-CL')
 }
 
-export default function IncomeEditor({ userId, month, year, amount, description, compact }: Props) {
+export default function IncomeEditor({ userId, month, year, amount, description, compact, historyMode }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -83,6 +85,46 @@ export default function IncomeEditor({ userId, month, year, amount, description,
     setSaving(false)
     setEditing(false)
     router.refresh()
+  }
+
+  // ── Modo historial: botón simple Editar/Registrar ─────────────────────────
+  if (historyMode) {
+    return editing ? (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          value={fmt(amtRaw)}
+          onChange={e => setAmtRaw(e.target.value.replace(/\D/g, ''))}
+          placeholder="Monto"
+          className="w-28 text-sm font-semibold border rounded-xl px-3 py-1.5 outline-none transition-colors tabular-nums"
+          style={{ color: 'var(--ink)', borderColor: 'var(--primary)', background: 'var(--surface)' }}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+        />
+        <button
+          onClick={save} disabled={saving}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors disabled:opacity-60"
+          style={{ background: 'var(--primary)' }}
+        >
+          {saving ? '…' : 'OK'}
+        </button>
+        <button onClick={cancel} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+          <X className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
+        </button>
+      </div>
+    ) : (
+      <button
+        onClick={openEditor}
+        className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
+        style={amount
+          ? { color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }
+          : { color: 'var(--primary)', borderColor: 'var(--primary)', background: 'var(--primary-soft)' }
+        }
+      >
+        {amount ? 'Editar' : 'Registrar'}
+      </button>
+    )
   }
 
   // ── Vista compacta (tarjeta KPI mobile) ────────────────────────────────────
