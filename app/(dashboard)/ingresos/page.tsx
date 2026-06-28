@@ -268,9 +268,14 @@ export default async function IngresosPage() {
         {periods.slice(1).map(({ month, year }) => {
           const key     = `${year}-${month}`
           const income  = incomeMap[key] ?? null
-          const expense = expenseMap[key] ?? 0
-          const surplus = income ? income.amount - expense : null
           const isReg   = income !== null
+
+          // Saldo real: sueldo del mes ANTERIOR financió los gastos de ESTE mes
+          const prevM2  = month === 1 ? 12 : month - 1
+          const prevY2  = month === 1 ? year - 1 : year
+          const prevInc = incomeMap[`${prevY2}-${prevM2}`] ?? null
+          const expense = expenseMap[key] ?? 0
+          const surplus = prevInc ? prevInc.amount - expense : null
 
           const sparkValues: number[] = []
           for (let i = 5; i >= 0; i--) {
@@ -311,7 +316,7 @@ export default async function IngresosPage() {
                 {surplus !== null && expense > 0 && (
                   <p className="text-[10px] font-semibold tabular-nums mt-0.5"
                     style={{ color: surplus >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {surplus >= 0 ? 'Ahorro ' : 'Déficit '}{formatCLP(Math.abs(surplus))}
+                    {surplus >= 0 ? 'Sobró ' : 'Déficit '}{formatCLP(Math.abs(surplus))}
                   </p>
                 )}
               </div>

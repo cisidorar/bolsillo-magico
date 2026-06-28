@@ -61,6 +61,9 @@ export default async function AnalisisPage({
   const sixAgo      = new Date(chartAnchor); sixAgo.setMonth(sixAgo.getMonth() - 5)
   const chartStart  = `${sixAgo.getFullYear()}-${String(sixAgo.getMonth() + 1).padStart(2, '0')}-01`
 
+  const prevMonth   = month === 1 ? 12 : month - 1
+  const prevYear    = month === 1 ? year - 1 : year
+
   const selectedKey = `${year}-${String(month).padStart(2, '0')}`
   const currentKey  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -77,7 +80,7 @@ export default async function AnalisisPage({
     : new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -104,8 +107,10 @@ export default async function AnalisisPage({
           .gte('date', `${year - 1}-01-01`)
           .lte('date', `${year - 1}-12-31`)
       : Promise.resolve({ data: null }),
-    // Ingreso del mes seleccionado
+    // Ingreso del mes seleccionado (lo que recibiste este mes, para mostrar en tarjeta)
     supabase.from('incomes').select('amount, description').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
+    // Ingreso del mes ANTERIOR (el que financió los gastos de este mes)
+    supabase.from('incomes').select('amount').eq('user_id', user!.id).eq('month', prevMonth).eq('year', prevYear).maybeSingle(),
     // Presupuesto mensual global
     supabase.from('budgets').select('amount').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
     // AI insights (may be empty — generated async by AnalyzeTrigger)
@@ -373,16 +378,19 @@ export default async function AnalisisPage({
   }
 
   // ── Income & surplus ──────────────────────────────────────────────────────
-  const monthIncome  = (incomeRow as { amount?: number } | null)?.amount ?? 0
-  const incomeDesc   = (incomeRow as { description?: string } | null)?.description ?? 'Entradas registradas'
-  const surplus      = monthIncome > 0 ? monthIncome - totalSelected : null
-  const surplusPct   = surplus !== null && monthIncome > 0 ? Math.round((surplus / monthIncome) * 100) : null
-  const globalBudget = (monthBudgetRow as { amount?: number } | null)?.amount ?? null
+  // monthIncome = lo que llegó ESTE mes (mostrar en tarjeta, para referencia)
+  // prevMonthIncome = lo que llegó el MES ANTERIOR (financió los gastos de este mes)
+  const monthIncome      = (incomeRow as { amount?: number } | null)?.amount ?? 0
+  const incomeDesc       = (incomeRow as { description?: string } | null)?.description ?? 'Entradas registradas'
+  const prevMonthIncome  = (prevIncomeRow as { amount?: number } | null)?.amount ?? 0
+  const surplus          = prevMonthIncome > 0 ? prevMonthIncome - totalSelected : null
+  const surplusPct       = surplus !== null && prevMonthIncome > 0 ? Math.round((surplus / prevMonthIncome) * 100) : null
+  const globalBudget     = (monthBudgetRow as { amount?: number } | null)?.amount ?? null
 
   // ── Health score (0–100) ─────────────────────────────────────────────────
-  // Signal 1: earns more than spends
-  const earnsMore = monthIncome > 0 ? monthIncome > totalSelected : null
-  const sig1pts   = monthIncome > 0 ? (earnsMore ? 25 : 0) : 15  // neutral if no income
+  // Signal 1: sueldo del mes anterior alcanzó para cubrir los gastos de este mes
+  const earnsMore = prevMonthIncome > 0 ? prevMonthIncome > totalSelected : null
+  const sig1pts   = prevMonthIncome > 0 ? (earnsMore ? 25 : 0) : 15  // neutral si no hay ingreso previo
 
   // Signal 2: spending trend vs prev month
   const spendingDown = delta !== null ? delta < 0 : null
@@ -1381,12 +1389,12 @@ export default async function AnalisisPage({
               </div>
               {/* Mobile card 3: Te sobró */}
               <div className="card p-3" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.10)', border: '1px solid rgba(31,190,141,0.2)' } : {}}>
-                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Te sobró</p>
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Saldo de {prevMonthName}</p>
                 {surplus !== null
                   ? <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
                   : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
                 }
-                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% de tus ingresos` : 'Sin ingresos'}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% del sueldo anterior` : 'Sin ingreso de ' + prevMonthName}</p>
               </div>
               {/* Mobile card 4: Mayor gasto */}
               <div className="card p-3">
@@ -1429,12 +1437,12 @@ export default async function AnalisisPage({
               </div>
               {/* Te sobró */}
               <div className="card p-5 flex flex-col gap-1" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.08)', border: '1.5px solid rgba(31,190,141,0.25)' } : {}}>
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Te sobró este mes</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Saldo de {prevMonthName}</p>
                 {surplus !== null
                   ? <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
                   : <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
                 }
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% de tus ingresos` : 'Registra tus ingresos'}</p>
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% del sueldo de ${prevMonthName}` : `Sin ingreso de ${prevMonthName}`}</p>
               </div>
               {/* Mayor gasto único */}
               <div className="card p-5 flex flex-col gap-1">
@@ -1514,7 +1522,9 @@ export default async function AnalisisPage({
                       </p>
                     </div>
                     <p className="text-[10px] font-semibold pl-9" style={{ color: surplus !== null ? (surplus > 0 ? '#1FBE8D' : '#FF6F61') : 'var(--ink-3)' }}>
-                      {surplus !== null ? `Te sobraron ${formatCLP(Math.abs(surplus))}` : 'Sin ingresos registrados'}
+                      {surplus !== null
+                        ? (surplus > 0 ? `Saldo de ${prevMonthName}: ${formatCLP(surplus)}` : `Déficit de ${formatCLP(Math.abs(surplus))} vs sueldo de ${prevMonthName}`)
+                        : `Sin ingreso registrado de ${prevMonthName}`}
                     </p>
                   </div>
 
