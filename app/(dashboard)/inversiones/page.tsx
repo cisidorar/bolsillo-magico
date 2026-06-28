@@ -1,6 +1,7 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Landmark } from 'lucide-react'
+import Link from 'next/link'
 import StockPositionManager from '@/components/StockPositionManager'
 import DepositManager from '@/components/DepositManager'
 
@@ -27,9 +28,19 @@ export interface TermDeposit {
   created_at:    string
 }
 
-export default async function InversionesPage() {
-  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+interface Props {
+  searchParams: Promise<{ view?: string }>
+}
+
+export default async function InversionesPage({ searchParams }: Props) {
+  const [user, supabase, sp] = await Promise.all([
+    getServerSession(),
+    createClient(),
+    searchParams,
+  ])
   if (!user) redirect('/login')
+
+  const isAhorro = sp.view === 'ahorro'
 
   const [{ data: stocks }, { data: deposits }] = await Promise.all([
     supabase
@@ -45,56 +56,55 @@ export default async function InversionesPage() {
   ])
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12 space-y-8">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: 'var(--primary-soft)' }}
-          >
-            <TrendingUp className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-          </div>
-          <h1
-            className="text-3xl font-semibold leading-tight"
-            style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-          >
-            Inversiones
-          </h1>
-        </div>
-        <p className="text-sm mt-0.5 ml-0.5" style={{ color: 'var(--ink-3)' }}>
-          Seguimiento de acciones y depósitos a plazo.
+      <div className="mb-5">
+        <h1
+          className="text-3xl font-semibold leading-tight"
+          style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
+        >
+          Inversiones
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
+          {isAhorro ? 'Depósitos a plazo y ahorro.' : 'Acciones y renta variable.'}
         </p>
       </div>
 
-      {/* ── Acciones ───────────────────────────────────────────────────────── */}
-      <section>
-        <h2
-          className="text-lg font-semibold mb-4"
-          style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
+      {/* ── Toggle ─────────────────────────────────────────────────────────── */}
+      <div className="view-toggle-wrap flex items-center gap-1.5 rounded-xl p-1 mb-6">
+        <Link
+          href="/inversiones"
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            !isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+          }`}
         >
+          <TrendingUp className="w-3.5 h-3.5" />
           Acciones
-        </h2>
+        </Link>
+        <Link
+          href="/inversiones?view=ahorro"
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+          }`}
+        >
+          <Landmark className="w-3.5 h-3.5" />
+          Ahorro
+        </Link>
+      </div>
+
+      {/* ── Content ────────────────────────────────────────────────────────── */}
+      {!isAhorro ? (
         <StockPositionManager
           userId={user.id}
           initialPositions={(stocks ?? []) as StockPosition[]}
         />
-      </section>
-
-      {/* ── Depósitos a plazo ──────────────────────────────────────────────── */}
-      <section>
-        <h2
-          className="text-lg font-semibold mb-4"
-          style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-        >
-          Depósitos a plazo
-        </h2>
+      ) : (
         <DepositManager
           userId={user.id}
           initialDeposits={(deposits ?? []) as TermDeposit[]}
         />
-      </section>
+      )}
 
     </div>
   )
