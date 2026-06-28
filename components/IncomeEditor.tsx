@@ -98,19 +98,23 @@ export default function IncomeEditor({ userId, month, year, amount, description,
           value={fmt(amtRaw)}
           onChange={e => setAmtRaw(e.target.value.replace(/\D/g, ''))}
           placeholder="Monto"
-          className="w-28 text-sm font-semibold border rounded-xl px-3 py-1.5 outline-none transition-colors tabular-nums"
-          style={{ color: 'var(--ink)', borderColor: 'var(--primary)', background: 'var(--surface)' }}
+          className="w-28 text-sm font-semibold border px-3 py-1.5 outline-none tabular-nums"
+          style={{ color: 'var(--ink)', borderColor: 'var(--primary)', background: 'var(--surface-2)', borderRadius: 12, boxShadow: '0 0 0 3px var(--primary-soft)' }}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
         />
         <button
           onClick={save} disabled={saving}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors disabled:opacity-60"
-          style={{ background: 'var(--primary)' }}
+          className="px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-60 active:scale-[.97]"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', borderRadius: 10, boxShadow: '0 4px 10px var(--shadow)' }}
         >
           {saving ? '…' : 'OK'}
         </button>
-        <button onClick={cancel} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-          <X className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
+        <button
+          onClick={cancel}
+          className="p-1.5 rounded-lg transition-colors"
+          style={{ color: 'var(--ink-3)' }}
+        >
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     ) : (
@@ -138,8 +142,10 @@ export default function IncomeEditor({ userId, month, year, amount, description,
           value={fmt(amtRaw)}
           onChange={e => setAmtRaw(e.target.value.replace(/\D/g, ''))}
           placeholder="Monto"
-          className="w-full text-[13px] font-bold border rounded-lg px-2 py-1 outline-none focus:border-brand-400"
-          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+          className="w-full text-[13px] font-bold border px-2 py-1 outline-none"
+          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface)', borderRadius: 10 }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)' }}
+          onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.boxShadow = 'none' }}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
         />
         <input
@@ -147,30 +153,34 @@ export default function IncomeEditor({ userId, month, year, amount, description,
           value={desc}
           onChange={e => setDesc(e.target.value)}
           placeholder="Descripción (opcional)"
-          className="w-full text-[10px] border rounded-lg px-2 py-1 outline-none focus:border-brand-400"
-          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+          className="w-full text-[10px] border px-2 py-1 outline-none"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)', borderRadius: 10 }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)' }}
+          onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.boxShadow = 'none' }}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
         />
-        {error && <p className="text-[9px] text-red-500">{error}</p>}
+        {error && <p className="text-[9px]" style={{ color: 'var(--coral)' }}>{error}</p>}
         <div className="flex gap-1">
           <button
             onClick={save} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-60"
+            className="flex-1 flex items-center justify-center gap-1 py-1 text-[10px] font-semibold transition-colors disabled:opacity-60"
+            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', borderRadius: 8 }}
           >
             <Check className="w-3 h-3" /> Guardar
           </button>
           {amount && (
             <button
               onClick={clear} disabled={saving}
-              className="px-2 py-1 rounded-lg text-[10px] font-semibold text-red-500 hover:bg-red-50 transition-colors"
+              className="px-2 py-1 text-[10px] font-semibold transition-colors"
+              style={{ color: 'var(--coral)', borderRadius: 8 }}
             >
               Borrar
             </button>
           )}
           <button
             onClick={cancel}
-            className="px-2 py-1 rounded-lg text-[10px] font-semibold hover:bg-gray-100 transition-colors"
-            style={{ color: 'var(--ink-3)' }}
+            className="px-2 py-1 text-[10px] font-semibold transition-colors"
+            style={{ color: 'var(--ink-3)', borderRadius: 8 }}
           >
             <X className="w-3 h-3" />
           </button>
@@ -197,7 +207,7 @@ export default function IncomeEditor({ userId, month, year, amount, description,
   return editing ? (
     <div className="flex flex-col gap-2">
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[10px] font-bold uppercase tracking-widest mb-1 block" style={{ color: 'var(--ink-3)' }}>
           Monto
         </label>
         <input
@@ -207,14 +217,16 @@ export default function IncomeEditor({ userId, month, year, amount, description,
           value={fmt(amtRaw)}
           onChange={e => setAmtRaw(e.target.value.replace(/\D/g, ''))}
           placeholder="ej: 1.500.000"
-          className="w-full text-sm font-semibold border rounded-xl px-3 py-2 outline-none focus:border-brand-400 transition-colors"
-          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+          className="w-full text-sm font-semibold border px-3 py-2 outline-none"
+          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)', borderRadius: 14 }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)' }}
+          onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.boxShadow = 'none' }}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
         />
         {amtRaw && <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>{formatCLP(parseInt(amtRaw.replace(/\D/g, '')) || 0)}</p>}
       </div>
       <div>
-        <label className="text-[10px] font-semibold uppercase tracking-wide mb-1 block" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[10px] font-bold uppercase tracking-widest mb-1 block" style={{ color: 'var(--ink-3)' }}>
           Descripción (opcional)
         </label>
         <input
@@ -223,16 +235,19 @@ export default function IncomeEditor({ userId, month, year, amount, description,
           onChange={e => setDesc(e.target.value)}
           placeholder="ej: Sueldo + bono"
           maxLength={80}
-          className="w-full text-sm border rounded-xl px-3 py-2 outline-none focus:border-brand-400 transition-colors"
-          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+          className="w-full text-sm border px-3 py-2 outline-none"
+          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)', borderRadius: 14 }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)' }}
+          onBlur={e =>  { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.boxShadow = 'none' }}
           onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
         />
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs" style={{ color: 'var(--coral)' }}>{error}</p>}
       <div className="flex gap-2 pt-1">
         <button
           onClick={save} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all disabled:opacity-60 active:scale-[.98]"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', borderRadius: 12, boxShadow: '0 8px 18px var(--shadow)' }}
         >
           <Check className="w-3.5 h-3.5" />
           {saving ? 'Guardando…' : 'Guardar'}
@@ -240,15 +255,16 @@ export default function IncomeEditor({ userId, month, year, amount, description,
         {amount && (
           <button
             onClick={clear} disabled={saving}
-            className="px-3 py-2 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+            className="px-3 py-2 text-xs font-semibold transition-colors"
+            style={{ color: 'var(--coral)', borderRadius: 12 }}
           >
             Borrar
           </button>
         )}
         <button
           onClick={cancel}
-          className="px-3 py-2 rounded-xl text-xs font-semibold hover:bg-gray-100 transition-colors"
-          style={{ color: 'var(--ink-3)' }}
+          className="px-3 py-2 text-xs font-semibold transition-colors"
+          style={{ color: 'var(--ink-3)', borderRadius: 12 }}
         >
           Cancelar
         </button>
