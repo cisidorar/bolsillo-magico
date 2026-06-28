@@ -8,7 +8,7 @@ import ProfileEditor from '@/components/ProfileEditor'
 import Link from 'next/link'
 import {
   ChevronRight, RefreshCw, Tag, CreditCard, Target,
-  Download, Database, Shield, Coins, LogOut, Palette,
+  Download, Database, Shield, Coins, LogOut, Palette, Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import ImportCSV from '@/components/ImportCSV'
@@ -56,6 +56,18 @@ export default async function AjustesPage() {
           <section>
             <SectionHeader icon={Coins} label="Finanzas" color="#F59E0B" />
             <div className="card overflow-hidden divide-y divide-gray-50">
+
+              <SettingsRow
+                href="/ingresos"
+                icon={
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#E6FAF3', '--cat-color': '#1FBE8D' } as React.CSSProperties}>
+                    <Wallet className="w-5 h-5" style={{ color: '#1FBE8D' }} />
+                  </div>
+                }
+                title="Ingresos"
+                subtitle="Registra cuánto ganas cada mes."
+              />
 
               <SettingsRow
                 href="/presupuesto"
