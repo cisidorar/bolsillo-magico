@@ -97,8 +97,8 @@ Next.js 15 App Router · Supabase (auth + Postgres + RLS + Storage) · TypeScrip
 
 ### Alta prioridad
 
-**1. Ingresos reales por mes**
-La tabla `incomes` ya existe y el score de salud la consume, pero no hay UI para registrarlos. Sin ingreso registrado el score no puede evaluar si "gastas menos de lo que ganas". Una pantalla simple o un campo en Ajustes/Inicio para registrar el sueldo mensual cambia mucho el valor del score.
+**~~1. Ingresos reales por mes~~** ✅ _Implementado junio 2026_
+Vista `/ingresos` con KPIs (ingreso actual, promedio 6m, variación, meses sin registrar), editor con desglose por fuente ("¿de dónde viene?"), badge calza/no calza, historial con sparklines. Lógica de surplus corregida para sueldo pagado a fin de mes (sueldo de mayo financia gastos de junio).
 
 **2. Metas de ahorro**
 Hoy el presupuesto solo define un tope de gasto. Agregar metas ("quiero ahorrar $200.000 este mes") con progreso visual daría un objetivo positivo, no solo un límite. Tabla: `savings_goals(user_id, name, target_amount, month, year)`.
@@ -148,4 +148,4 @@ Un link compartible de solo lectura del resumen mensual (sin auth) para mostrar 
 
 ---
 
-_Última actualización: junio 2026_
+_Última actualización: junio 2026 — ingresos implementado_
