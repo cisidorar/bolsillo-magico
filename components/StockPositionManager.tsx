@@ -489,7 +489,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               </span>
             </div>
             <p className="text-[10px] flex items-center gap-1" style={{ color: 'var(--ink-3)' }}>
-              <span>⊙</span> Precios vía Yahoo Finance
+              <span>⊙</span> Precios vía Finnhub
             </p>
           </div>
 

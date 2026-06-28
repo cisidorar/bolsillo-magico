@@ -169,6 +169,12 @@ export async function GET(request: Request) {
   if (!apiKey) {
     console.warn('[stock-price] FINNHUB_API_KEY no configurada — usando Yahoo Finance')
     const result = await yahooFallback(symbols, fetchHistory)
+    // Si Yahoo Finance no devolvió ningún ticker (bloqueado desde Vercel), devolver 502
+    const hasData = Object.keys(result).some(k => k !== 'USDCLP=X')
+    if (!hasData) {
+      console.error('[stock-price] Yahoo Finance no devolvió datos — configurar FINNHUB_API_KEY')
+      return NextResponse.json({ error: 'Failed to fetch prices' }, { status: 502 })
+    }
     return NextResponse.json(result)
   }
 
