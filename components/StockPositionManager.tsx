@@ -191,15 +191,16 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     return best
   }, null)
 
-  // Portfolio 7d sparkline: sum shares × price[d] per day
-  // Requiere al menos 1 posición con historial; las que no tienen usan avg_cost_usd como base plana
+  // Portfolio sparkline: usa historial real si está disponible, si no muestra costo → valor actual
   const histLens = positions.map(p => quotes[p.ticker]?.history7d?.length ?? 0).filter(l => l > 0)
   const histLen  = histLens.length > 0 ? Math.min(...histLens) : 0
   const portfolioHistory: number[] = histLen > 1
     ? Array.from({ length: histLen }, (_, d) =>
         positions.reduce((s, p) => s + p.shares * (quotes[p.ticker]?.history7d?.[d] ?? p.avg_cost_usd), 0)
       )
-    : []
+    : hasQ
+      ? [totalCostUsd, totalValueUsd]   // fallback 2 puntos: costo → valor actual
+      : []
 
   // ── CRUD ─────────────────────────────────────────────────────────────────
   function openAdd() { setForm(emptyForm); setEditingId(null); setFormError(''); setShowForm(true) }
@@ -548,7 +549,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
               const isUp         = gainUsd !== null && gainUsd >= 0
               const todayUp      = changePct !== null && changePct >= 0
-              const history7d    = q?.history7d ?? []
+              // Usa historial real si hay ≥2 puntos, si no: [costo → precio actual] como fallback
+              const history7d    = (q?.history7d && q.history7d.length >= 2)
+                ? q.history7d
+                : (currentPrice !== null ? [pos.avg_cost_usd, currentPrice] : [])
               const histTrend    = history7d.length >= 2
                 ? history7d[history7d.length - 1] >= history7d[0]
                 : true
