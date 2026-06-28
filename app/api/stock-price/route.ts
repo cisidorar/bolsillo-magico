@@ -28,54 +28,47 @@ interface PriceCacheRow {
 
 // ── Finnhub fetchers ──────────────────────────────────────────────────────────
 
+const FH_TIMEOUT = 7_000   // 7 s — Vercel corta la función a los 10 s
+
+async function fhFetch(url: string): Promise<unknown | null> {
+  try {
+    const r = await fetch(url, {
+      cache:  'no-store',
+      signal: AbortSignal.timeout(FH_TIMEOUT),
+    })
+    if (!r.ok) {
+      console.error('[fhFetch] status', r.status, url)
+      return null
+    }
+    return await r.json()
+  } catch (err) {
+    console.error('[fhFetch] error', err, url)
+    return null
+  }
+}
+
 async function fhQuote(
   ticker: string,
   key: string,
 ): Promise<{ price: number; changePercent: number } | null> {
-  try {
-    const r = await fetch(
-      `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`,
-      { cache: 'no-store' },
-    )
-    if (!r.ok) return null
-    const d = await r.json()
-    // Finnhub devuelve c=0 para tickers inexistentes
-    if (!d.c || d.c === 0) return null
-    return { price: d.c as number, changePercent: (d.dp as number) ?? 0 }
-  } catch {
-    return null
-  }
+  const d = await fhFetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${key}`) as Record<string, number> | null
+  if (!d || !d.c || d.c === 0) return null
+  return { price: d.c, changePercent: d.dp ?? 0 }
 }
 
 async function fhProfile(ticker: string, key: string): Promise<string | null> {
-  try {
-    const r = await fetch(
-      `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${key}`,
-      { cache: 'no-store' },
-    )
-    if (!r.ok) return null
-    const d = await r.json()
-    return (d.name as string) || null
-  } catch {
-    return null
-  }
+  const d = await fhFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${key}`) as Record<string, unknown> | null
+  return (d?.name as string) || null
 }
 
 async function fhCandles(ticker: string, key: string): Promise<number[] | null> {
-  try {
-    const to   = Math.floor(Date.now() / 1000)
-    const from = to - 12 * 86_400   // 12 días atrás → asegura 7 días hábiles
-    const r = await fetch(
-      `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
-      { cache: 'no-store' },
-    )
-    if (!r.ok) return null
-    const d = await r.json()
-    if (d.s !== 'ok' || !Array.isArray(d.c) || d.c.length === 0) return null
-    return (d.c as number[]).slice(-7)
-  } catch {
-    return null
-  }
+  const to   = Math.floor(Date.now() / 1000)
+  const from = to - 12 * 86_400
+  const d = await fhFetch(
+    `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
+  ) as Record<string, unknown> | null
+  if (!d || d.s !== 'ok' || !Array.isArray(d.c) || (d.c as number[]).length === 0) return null
+  return (d.c as number[]).slice(-7)
 }
 
 // ── Frankfurter (tipo de cambio, sin API key) ─────────────────────────────────
@@ -179,6 +172,7 @@ export async function GET(request: Request) {
   }
 
   // ── Con API key: Finnhub + caché Supabase ─────────────────────────────────
+  try {
   const supabase = await createClient()
   const now      = Date.now()
 
@@ -331,5 +325,17 @@ export async function GET(request: Request) {
     }
   }
 
+  // Si Finnhub no devolvió ningún ticker, devolver 502 con detalle
+  const hasData = Object.keys(result).some(k => k !== 'USDCLP=X')
+  if (!hasData) {
+    console.error('[stock-price] Finnhub no devolvió datos para:', symbols)
+    return NextResponse.json({ error: 'Failed to fetch prices from Finnhub' }, { status: 502 })
+  }
+
   return NextResponse.json(result)
+
+  } catch (err) {
+    console.error('[stock-price] unhandled error:', err)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
 }
