@@ -192,8 +192,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   }, null)
 
   // Portfolio 7d sparkline: sum shares × price[d] per day
+  // Requiere al menos 1 posición con historial; las que no tienen usan avg_cost_usd como base plana
   const histLens = positions.map(p => quotes[p.ticker]?.history7d?.length ?? 0).filter(l => l > 0)
-  const histLen  = histLens.length === positions.length && histLens.length > 0 ? Math.min(...histLens) : 0
+  const histLen  = histLens.length > 0 ? Math.min(...histLens) : 0
   const portfolioHistory: number[] = histLen > 1
     ? Array.from({ length: histLen }, (_, d) =>
         positions.reduce((s, p) => s + p.shares * (quotes[p.ticker]?.history7d?.[d] ?? p.avg_cost_usd), 0)
@@ -377,11 +378,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
       {/* ── Hero card + KPI 2×2 (side by side on desktop) ───────────────── */}
       {positions.length > 0 && (
-        <div className="space-y-3 lg:space-y-0 lg:grid lg:gap-4 lg:items-start"
-          style={{ gridTemplateColumns: '1.4fr 1fr' }}>
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
 
-          {/* Hero card */}
-          <div className="card overflow-hidden flex flex-col hero-gradient" style={{ minHeight: 220 }}>
+          {/* Hero card — toma ~58% del ancho en desktop */}
+          <div className="card overflow-hidden flex flex-col hero-gradient w-full lg:min-w-0" style={{ flex: '58 1 0', minHeight: 220 }}>
             <div className="px-5 pt-5 pb-3 lg:px-6 lg:pt-6">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 Valor del portafolio
@@ -434,8 +434,8 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
           </div>
 
-          {/* KPI 2×2 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* KPI 2×2 — toma ~42% del ancho en desktop */}
+          <div className="grid grid-cols-2 gap-3 w-full lg:min-w-0" style={{ flex: '42 1 0', alignContent: 'start' }}>
 
             {/* Invertido */}
             <div className="card p-4">
