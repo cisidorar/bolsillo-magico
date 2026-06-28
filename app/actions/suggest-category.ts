@@ -50,7 +50,7 @@ async function getEmbedding(text: string): Promise<number[] | null> {
 export interface CategorySuggestion {
   categoryId: string
   confidence: number   // 0-100
-  source: 'rule_exact' | 'rule_fuzzy' | 'history' | 'embedding'
+  source: 'rule_exact' | 'rule_fuzzy' | 'history' | 'embedding' | 'ai'
 }
 
 // ─── main action ──────────────────────────────────────────────────────────────
@@ -63,6 +63,7 @@ export interface CategorySuggestion {
  *   2. Fuzzy match in rules (first-word / substring)
  *   3. Embedding cosine-similarity against rules that have stored embeddings
  *   4. Frequency count over last-90-days expense history
+ *   5. AI (DeepSeek) fallback — uses user's categories + recent expense examples
  */
 export async function suggestCategory(description: string): Promise<CategorySuggestion | null> {
   const trimmed = description.trim()
@@ -181,7 +182,84 @@ export async function suggestCategory(description: string): Promise<CategorySugg
     }
   }
 
-  return null
+  // ── 5. AI fallback (DeepSeek / OpenAI-compatible) ──────────────────────────
+  // Solo se llega aquí cuando las reglas y el historial no encontraron match.
+  // Envía la descripción + categorías del usuario + ejemplos reales de cada una.
+  const apiKey = process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY
+  const apiUrl = process.env.AI_API_URL ?? 'https://api.openai.com/v1'
+  const aiModel = process.env.AI_MODEL ?? 'gpt-4.1-mini'
+
+  if (!apiKey) return null
+
+  // Cargar categorías del usuario
+  const { data: cats } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('user_id', user.id)
+
+  if (!cats?.length) return null
+
+  // Ejemplos reales de cada categoría (hasta 3 por cat, últimos 180 días)
+  const since180 = new Date()
+  since180.setDate(since180.getDate() - 180)
+  const { data: recentAll } = await supabase
+    .from('expenses')
+    .select('description, category_id')
+    .eq('user_id', user.id)
+    .not('description', 'is', null)
+    .not('category_id', 'is', null)
+    .gte('date', since180.toISOString().split('T')[0])
+    .limit(300)
+
+  const examplesMap: Record<string, string[]> = {}
+  for (const e of recentAll ?? []) {
+    if (!e.category_id || !e.description) continue
+    if (!examplesMap[e.category_id]) examplesMap[e.category_id] = []
+    const seen = examplesMap[e.category_id]
+    const desc = e.description.slice(0, 40)
+    if (seen.length < 3 && !seen.includes(desc)) seen.push(desc)
+  }
+
+  const catLines = cats
+    .map(c => {
+      const exs = examplesMap[c.id] ?? []
+      return `- "${c.name}"${exs.length ? ` (ejemplos: ${exs.join(', ')})` : ''}`
+    })
+    .join('\n')
+
+  const prompt = `Clasifica este gasto en una de las categorías del usuario.
+Gasto: "${trimmed.slice(0, 100)}"
+
+Categorías:
+${catLines}
+
+Responde SOLO con JSON: {"category": "nombre exacto de la categoría"}`
+
+  try {
+    const res = await fetch(`${apiUrl}/chat/completions`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model:           aiModel,
+        messages:        [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature:     0,
+        max_tokens:      60,
+      }),
+    })
+    if (!res.ok) return null
+    const json = await res.json()
+    const content = json.choices?.[0]?.message?.content
+    if (!content) return null
+    const parsed = JSON.parse(content) as { category?: string }
+    const catName = parsed.category?.trim()
+    if (!catName) return null
+    const matched = cats.find(c => c.name.toLowerCase() === catName.toLowerCase())
+    if (!matched) return null
+    return { categoryId: matched.id, confidence: 75, source: 'ai' }
+  } catch {
+    return null
+  }
 }
 
 // ─── learning action ──────────────────────────────────────────────────────────

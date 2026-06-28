@@ -802,8 +802,8 @@ export default function ExpenseSheet({
     if (!sugCat) return null
     const isSame = suggestion.categoryId === catId
     const sourceLabel =
-      suggestion.source === 'rule_exact' ? 'regla guardada' :
-      suggestion.source === 'embedding'  ? 'IA'             : 'historial'
+      suggestion.source === 'rule_exact'                      ? 'regla guardada' :
+      suggestion.source === 'embedding' || suggestion.source === 'ai' ? 'IA' : 'historial'
     return isSame ? (
       <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
         <Sparkles className="w-2.5 h-2.5" />
