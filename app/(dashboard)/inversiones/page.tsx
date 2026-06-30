@@ -26,6 +26,18 @@ export interface TermDeposit {
   created_at:    string
 }
 
+export interface SavingsAccount {
+  id:          string
+  user_id:     string
+  name:        string
+  balance:     number        // CLP entero
+  annual_rate: number        // % TAE, ej: 12.5
+  start_date:  string        // YYYY-MM-DD
+  notes:       string | null
+  created_at:  string
+  updated_at:  string
+}
+
 interface Props {
   searchParams: Promise<{ view?: string }>
 }
@@ -40,26 +52,26 @@ export default async function InversionesPage({ searchParams }: Props) {
 
   const isAhorro = sp.view === 'ahorro'
 
-  const [{ data: stocks }, { data: deposits }] = await Promise.all([
+  const [{ data: stocks }, { data: savings }] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
     supabase
-      .from('term_deposits')
+      .from('savings_accounts')
       .select('*')
       .eq('user_id', user.id)
-      .order('maturity_date', { ascending: true }),
+      .order('start_date', { ascending: true }),
   ])
 
-  const stockCount   = stocks?.length   ?? 0
-  const depositCount = deposits?.length ?? 0
+  const stockCount  = stocks?.length  ?? 0
+  const savingCount = savings?.length ?? 0
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
-      {/* ── Header: solo título + subtítulo (tabs y botón van en el componente client) */}
+      {/* ── Header */}
       <div className="mb-6">
         <h1
           className="text-3xl font-semibold leading-tight"
@@ -69,12 +81,12 @@ export default async function InversionesPage({ searchParams }: Props) {
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
           {isAhorro
-            ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · ahorro`
+            ? `${savingCount} cuenta${savingCount !== 1 ? 's' : ''} · ahorro`
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
 
-      {/* ── Content ────────────────────────────────────────────────────────── */}
+      {/* ── Content */}
       {!isAhorro ? (
         <StockPositionManager
           userId={user.id}
@@ -83,7 +95,7 @@ export default async function InversionesPage({ searchParams }: Props) {
       ) : (
         <DepositManager
           userId={user.id}
-          initialDeposits={(deposits ?? []) as TermDeposit[]}
+          initialSavings={(savings ?? []) as SavingsAccount[]}
         />
       )}
 
