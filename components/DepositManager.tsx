@@ -208,13 +208,13 @@ export default function DepositManager({ userId, initialSavings }: Props) {
       const { error } = await supabase.from('savings_accounts')
         .update(payload).eq('id', editingId).eq('user_id', userId)
       setSaving_(false)
-      if (error) { setFormError('Error al guardar'); return }
+      if (error) { setFormError(error.message); return }
       setSavings(prev => prev.map(a => a.id === editingId ? { ...a, ...payload } : a))
     } else {
       const { data, error } = await supabase.from('savings_accounts')
         .insert(payload).select().single()
       setSaving_(false)
-      if (error) { setFormError('Error al guardar'); return }
+      if (error) { setFormError(error.message); return }
       setSavings(prev => [...prev, data as SavingsAccount].sort((a, b) => a.start_date.localeCompare(b.start_date)))
     }
     cancelForm()
