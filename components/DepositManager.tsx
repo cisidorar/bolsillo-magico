@@ -24,19 +24,25 @@ function daysElapsed(startDate: string): number {
   return Math.max(1, Math.floor((now.getTime() - s.getTime()) / 86_400_000))
 }
 
-/** Interés ganado acumulado (interés simple) en CLP */
+/** Tasa diaria efectiva a partir de TEA: (1 + r)^(1/365) - 1 */
+function dailyRate(annualRate: number): number {
+  return Math.pow(1 + annualRate / 100, 1 / 365) - 1
+}
+
+/** Interés ganado acumulado (capitalización compuesta diaria) en CLP */
 function earnedSoFar(balance: number, annualRate: number, startDate: string): number {
-  return Math.round(balance * (annualRate / 100) * (daysElapsed(startDate) / 365))
+  const days = daysElapsed(startDate)
+  return Math.round(balance * (Math.pow(1 + annualRate / 100, days / 365) - 1))
 }
 
-/** Interés ganado en un día en CLP */
+/** Interés ganado en un día en CLP (tasa diaria efectiva) */
 function dailyInterest(balance: number, annualRate: number): number {
-  return Math.round(balance * (annualRate / 100) / 365)
+  return Math.round(balance * dailyRate(annualRate))
 }
 
-/** Interés proyectado en N días */
+/** Interés proyectado en N días (capitalización compuesta) */
 function projectedInterest(balance: number, annualRate: number, days: number): number {
-  return Math.round(balance * (annualRate / 100) * (days / 365))
+  return Math.round(balance * (Math.pow(1 + annualRate / 100, days / 365) - 1))
 }
 
 function fmtCLP(n: number, showSign = false): string {
@@ -758,7 +764,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
             style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
           >
             <CalendarDays className="w-3 h-3 shrink-0" />
-            <span>Interés simple · actualizado al día de hoy</span>
+            <span>Capitalización compuesta diaria (TEA) · actualizado al día de hoy</span>
           </div>
         </div>
       )}
