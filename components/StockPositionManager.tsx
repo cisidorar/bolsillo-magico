@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, TrendingUp, Landmark, Pencil,
+  Plus, X, TrendingUp, Landmark, Pencil,
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
@@ -519,56 +519,142 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         </div>
       </div>
 
-      {/* ── Add/Edit form ────────────────────────────────────────────────── */}
+      {/* ── Add/Edit form — modal popup ──────────────────────────────────── */}
       {showForm && (
-        <div className="card p-4 lg:p-5" style={{ borderColor: 'var(--primary)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--ink-3)' }}>
-            {editingId ? 'Editar posición' : 'Nueva posición'}
-          </p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Ticker</label>
-              <input type="text" value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
-                placeholder="AAPL" maxLength={10} disabled={!!editingId}
-                className="w-full text-sm font-bold border px-3 py-2 disabled:opacity-50"
-                style={{ ...inputBase, fontFamily: 'ui-monospace, monospace' }} onFocus={focusOn} onBlur={focusOff} />
+        <div
+          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.65)' }}
+          onClick={e => { if (e.target === e.currentTarget) cancelForm() }}
+        >
+          <div
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+            style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+          >
+            {/* Handle — mobile */}
+            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
+                {editingId ? 'Editar posición' : 'Nueva posición'}
+              </h2>
+              <button
+                onClick={cancelForm}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
-              <input type="number" value={form.shares} onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
-                placeholder="10" min="0.0001" step="any"
-                className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+
+            {/* Body */}
+            <div className="px-5 py-5 space-y-4">
+
+              {/* Ticker */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Ticker
+                </label>
+                <input
+                  type="text"
+                  value={form.ticker}
+                  onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
+                  placeholder="AAPL"
+                  maxLength={10}
+                  disabled={!!editingId}
+                  className="w-full text-sm font-bold border px-4 py-3 disabled:opacity-50"
+                  style={{ ...inputBase, fontFamily: 'ui-monospace, monospace', fontSize: 15 }}
+                  onFocus={focusOn} onBlur={focusOff}
+                />
+              </div>
+
+              {/* N° acciones + Total pagado */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    N° acciones
+                  </label>
+                  <input
+                    type="number"
+                    value={form.shares}
+                    onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
+                    placeholder="10"
+                    min="0.0001"
+                    step="any"
+                    className="w-full text-sm border px-4 py-3"
+                    style={inputBase}
+                    onFocus={focusOn} onBlur={focusOff}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    Total pagado (USD)
+                  </label>
+                  <input
+                    type="number"
+                    value={form.totalPaid}
+                    onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
+                    placeholder="896.99"
+                    min="0.01"
+                    step="0.01"
+                    className="w-full text-sm border px-4 py-3"
+                    style={inputBase}
+                    onFocus={focusOn} onBlur={focusOff}
+                  />
+                </div>
+              </div>
+
+              {/* Precio por acción — cálculo automático */}
+              {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
+                <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
+                  <span className="text-sm font-bold tabular-nums ml-auto" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                    {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
+                  </span>
+                </div>
+              )}
+
+              {/* Nota */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Nota (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="ej: compra inicial"
+                  maxLength={80}
+                  className="w-full text-sm border px-4 py-3"
+                  style={inputBase}
+                  onFocus={focusOn} onBlur={focusOff}
+                />
+              </div>
+
+              {formError && (
+                <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={cancelForm}
+                  className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={savePosition}
+                  disabled={saving}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all disabled:opacity-50 active:scale-[.98]"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+                >
+                  <Check className="w-4 h-4" />
+                  {saving ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
-              <input type="number" value={form.totalPaid} onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
-                placeholder="896.99" min="0.01" step="0.01"
-                className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</label>
-              <input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="ej: compra inicial" maxLength={80}
-                className="w-full text-sm border px-3 py-2" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
-            </div>
-          </div>
-          {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
-            <p className="text-xs mb-3 font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>
-              Precio por acción: {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
-            </p>
-          )}
-          {formError && <p className="text-xs mb-2 font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
-          <div className="flex gap-2">
-            <button onClick={savePosition} disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all disabled:opacity-50 active:scale-[.98]"
-              style={{ background: 'var(--primary)', color: 'var(--primary-ink)', borderRadius: 10, boxShadow: '0 6px 14px var(--shadow)' }}>
-              <Check className="w-3.5 h-3.5" /> {saving ? 'Guardando…' : 'Guardar'}
-            </button>
-            <button onClick={cancelForm}
-              className="px-4 py-2 text-xs font-semibold border"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', borderRadius: 10, background: 'var(--surface)' }}>
-              Cancelar
-            </button>
           </div>
         </div>
       )}
@@ -643,20 +729,20 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
             {/* Cambio hoy */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
-              <p className="text-xl font-extrabold tabular-nums" style={{
+            <div className="card p-4 lg:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
+              <p className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none" style={{
                 fontFamily: 'Fredoka, sans-serif',
                 color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
               }}>
                 {hasQ ? fmtUSDSigned(todayChangeUsd) : '—'}
               </p>
               {hasQ && (
-                <div className="flex items-center gap-1 mt-0.5">
+                <div className="flex items-center gap-1 mt-1.5">
                   {todayChangeUsd >= 0
                     ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                     : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                  <span className="text-[10px] font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  <span className="text-xs font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {fmtPct(todayChangePct)} hoy
                   </span>
                 </div>
@@ -664,13 +750,13 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
 
             {/* Posiciones */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+            <div className="card p-4 lg:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
+              <p className="text-2xl lg:text-3xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {positions.length}
               </p>
               {hasQ && (posUp > 0 || posDown > 0) && (
-                <div className="flex items-center gap-2 mt-0.5 text-[10px] font-semibold">
+                <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
                   {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
                   {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
                 </div>
@@ -678,24 +764,24 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
 
             {/* Mejor retorno */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
+            <div className="card p-4 lg:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
               {bestPos ? (
                 <>
-                  <p className="text-xl font-extrabold" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  <p className="text-2xl lg:text-3xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
                   </p>
-                  <div className="flex items-center gap-1 mt-0.5">
+                  <div className="flex items-center gap-1 mt-1.5">
                     {bestPos.pct >= 0
                       ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                       : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                    <span className="text-[10px] font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    <span className="text-xs font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                       {fmtPct(bestPos.pct)} total
                     </span>
                   </div>
                 </>
               ) : (
-                <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
+                <p className="text-2xl lg:text-3xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
               )}
             </div>
           </div>
