@@ -255,6 +255,26 @@ export async function GET(request: Request) {
     }
   }
 
+  // 2b. Tickers frescos sin domain → background profile fetch para enriquecer caché
+  const needsDomain = symbols.filter(t => result[t] && !result[t].domain)
+  if (needsDomain.length > 0) {
+    Promise.all(needsDomain.map(async (ticker) => {
+      const profile = await fhProfile(ticker, apiKey)
+      if (!profile.domain) return
+      result[ticker].domain = profile.domain
+      if (!result[ticker].name || result[ticker].name === ticker) {
+        result[ticker].name = profile.name ?? ticker
+      }
+      // Actualizar caché con el domain recién obtenido (fire-and-forget)
+      supabase.from('price_cache')
+        .update({ domain: profile.domain, name: result[ticker].name })
+        .eq('ticker', ticker)
+        .then(({ error }) => {
+          if (error) console.error('[stock-price] domain update error:', ticker, error.message)
+        })
+    })).catch(() => { /* ignorar errores background */ })
+  }
+
   // 3. USD/CLP — verificar caché
   const fxRow = cacheMap['USDCLP']
   const fxAge = fxRow ? (now - new Date(fxRow.fetched_at).getTime()) / 1000 : Infinity

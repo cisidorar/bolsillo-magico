@@ -48,11 +48,11 @@ function tickerColor(ticker: string): string {
   return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length]
 }
 
-// ── Dominio para ETFs y tickers sin weburl en Finnhub ────────────────────────
+// ── Dominio para ETFs y acciones sin weburl en Finnhub ───────────────────────
 const TICKER_DOMAIN: Record<string, string> = {
-  // iShares (BlackRock)
-  IBIT: 'ishares.com', IVV: 'ishares.com', IJR: 'ishares.com', AGG: 'ishares.com',
-  EFA: 'ishares.com', EEM: 'ishares.com', LQD: 'ishares.com', HYG: 'ishares.com',
+  // iShares (BlackRock) — usar blackrock.com porque ishares.com no tiene logo en Clearbit
+  IBIT: 'blackrock.com', IVV: 'blackrock.com', IJR: 'blackrock.com', AGG: 'blackrock.com',
+  EFA: 'blackrock.com', EEM: 'blackrock.com', LQD: 'blackrock.com', HYG: 'blackrock.com',
   // Invesco
   QQQ: 'invesco.com', QQQM: 'invesco.com', RSP: 'invesco.com',
   // Vanguard
@@ -67,13 +67,38 @@ const TICKER_DOMAIN: Record<string, string> = {
   ARKK: 'ark-funds.com', ARKW: 'ark-funds.com', ARKG: 'ark-funds.com',
   // VanEck
   SMH: 'vaneck.com', GDX: 'vaneck.com',
+  // Acciones individuales populares
+  AAPL: 'apple.com',      MSFT: 'microsoft.com',  GOOGL: 'google.com',
+  GOOG: 'google.com',     AMZN: 'amazon.com',      NVDA: 'nvidia.com',
+  META: 'meta.com',       TSLA: 'tesla.com',       NFLX: 'netflix.com',
+  MSCI: 'msci.com',       BRK: 'berkshirehathaway.com',
+  JPM:  'jpmorganchase.com', BAC: 'bankofamerica.com', WFC: 'wellsfargo.com',
+  GS:   'goldmansachs.com',  MS: 'morganstanley.com',
+  WMT:  'walmart.com',    COST: 'costco.com',      TGT: 'target.com',
+  AMGN: 'amgen.com',      LLY: 'lilly.com',        JNJ: 'jnj.com',
+  PFE:  'pfizer.com',     ABBV: 'abbvie.com',      MRK: 'merck.com',
+  XOM:  'exxonmobil.com', CVX: 'chevron.com',      COP: 'conocophillips.com',
+  INTC: 'intel.com',      AMD: 'amd.com',           MU: 'micron.com',
+  QCOM: 'qualcomm.com',   AVGO: 'broadcom.com',     TXN: 'ti.com',
+  TSM:  'tsmc.com',       ASML: 'asml.com',         AMAT: 'appliedmaterials.com',
+  MELI: 'mercadolibre.com', NU: 'nu.com.br',        SE: 'sea.com',
+  BABA: 'alibaba.com',    JD: 'jd.com',             BIDU: 'baidu.com',
+  V:    'visa.com',       MA: 'mastercard.com',     PYPL: 'paypal.com',
+  DIS:  'thewaltdisneycompany.com', CMCSA: 'comcast.com',
+  T:    'att.com',        VZ: 'verizon.com',
+  KO:   'coca-cola.com',  PEP: 'pepsico.com',       MCD: 'mcdonalds.com',
+  SBUX: 'starbucks.com',  NKE: 'nike.com',
+  CRM:  'salesforce.com', ORCL: 'oracle.com',       SAP: 'sap.com',
+  UBER: 'uber.com',       LYFT: 'lyft.com',         ABNB: 'airbnb.com',
+  COIN: 'coinbase.com',   MSTR: 'microstrategy.com',
+  SPOT: 'spotify.com',    SNAP: 'snap.com',          PINS: 'pinterest.com',
 }
 
 // Infiere dominio desde el nombre del emisor (fallback para ETFs desconocidos)
 function domainFromName(name: string | undefined): string | null {
   if (!name) return null
   const n = name.toLowerCase()
-  if (n.includes('ishares'))  return 'ishares.com'
+  if (n.includes('ishares'))  return 'blackrock.com'
   if (n.includes('invesco'))  return 'invesco.com'
   if (n.includes('vanguard')) return 'vanguard.com'
   if (n.includes('spdr'))     return 'ssga.com'
