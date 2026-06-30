@@ -463,54 +463,34 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3">
-
-        {/* Estado en vivo / error */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Estado en vivo */}
+        <div className="flex items-center gap-2 min-w-0 text-[11px]">
           {lastUpdated && !quotesError && (
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+            <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: 'var(--mint)' }} />
-              <span style={{ color: 'var(--mint)' }}>En vivo</span>
-              <span style={{ color: 'var(--ink-3)' }}>
-                · hace {secsAgo < 60 ? `${secsAgo}s` : `${Math.floor(secsAgo / 60)}m`}
-              </span>
-            </div>
+              <span style={{ color: 'var(--mint)' }} className="font-semibold">Precios en vivo</span>
+            </>
           )}
           {quotesError && (
-            <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--coral)' }}>
+            <div className="flex items-center gap-1.5" style={{ color: 'var(--coral)' }}>
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <button
-                onClick={() => fetchQuotes(positions.map(p => p.ticker))}
-                disabled={loadingQ}
-                className="underline underline-offset-2 disabled:opacity-50"
-              >
+              <button onClick={() => fetchQuotes(positions.map(p => p.ticker))}
+                disabled={loadingQ} className="underline underline-offset-2 disabled:opacity-50">
                 Reintentar
               </button>
             </div>
           )}
         </div>
 
-        {/* Acciones */}
-        <div className="flex items-center gap-2 shrink-0">
-          {positions.length > 0 && (
-            <button
-              onClick={() => fetchQuotes(positions.map(p => p.ticker))}
-              disabled={loadingQ}
-              title="Actualizar precios"
-              className="p-2 rounded-xl border transition-colors disabled:opacity-40"
-              style={{ color: 'var(--ink-3)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingQ ? 'animate-spin' : ''}`} />
-            </button>
-          )}
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97]"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-          >
-            <Plus className="w-4 h-4" strokeWidth={2.5} />
-            Agregar acción
-          </button>
-        </div>
+        {/* Botón agregar */}
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+          Agregar
+        </button>
       </div>
 
       {/* ── Add/Edit form ────────────────────────────────────────────────── */}
@@ -583,123 +563,110 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         </div>
       )}
 
-      {/* ── Hero card + KPI 2×2 (side by side on desktop) ───────────────── */}
+      {/* ── Hero card + 3 KPIs (lado a lado en desktop) ─────────────────── */}
       {positions.length > 0 && (
         <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
 
-          {/* Hero card — toma ~58% del ancho en desktop */}
-          <div className="card overflow-hidden flex flex-col hero-gradient w-full lg:min-w-0" style={{ flex: '58 1 0', minHeight: 220 }}>
-            <div className="px-5 pt-5 pb-3 lg:px-6 lg:pt-6">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          {/* ── Hero card ── */}
+          <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '62 1 0' }}>
+            {/* Valor */}
+            <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
                 Valor del portafolio
               </p>
-
-              {/* Valor + badge */}
-              <div className="flex items-baseline gap-2 flex-wrap mb-1">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
                   {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
                 </p>
-                <span className="px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background: 'rgba(255,255,255,0.15)', color: 'white' }}>
-                  USD
-                </span>
+                <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-
-              {/* Ganancia total chip */}
-              {hasQ && (
-                <div
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mt-2"
-                  style={{
-                    background: totalGainUsd >= 0 ? 'rgba(31,190,141,0.22)' : 'rgba(255,111,97,0.22)',
-                    color: 'white',
-                  }}
-                >
-                  {totalGainUsd >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                  {fmtUSDSigned(totalGainUsd)} ({fmtPct(totalGainPct)}) ganancia total
-                </div>
-              )}
-
               {totalValueClp && (
-                <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                <p className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
                   ≈ {formatCLP(totalValueClp)} CLP
                 </p>
               )}
             </div>
 
-            {/* Sparkline del portfolio — full-width al fondo de la card */}
-            <div className="flex-1 flex items-end">
-              {portfolioHistory.length >= 2 ? (
-                <Sparkline
-                  values={portfolioHistory}
-                  w={600} h={72}
-                  color="rgba(255,194,60,0.9)"
-                  strokeWidth={2}
-                  responsive
-                />
-              ) : (
-                <div className="h-12 w-full" />
-              )}
+            {/* Divider + 3 sub-KPIs */}
+            <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+              {/* Invertido */}
+              <div className="px-4 py-3 lg:px-5 lg:py-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>
+                  {fmtUSD(totalCostUsd)}
+                </p>
+              </div>
+              {/* Ganancia total */}
+              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Ganancia total</p>
+                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+                </p>
+              </div>
+              {/* Retorno */}
+              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
+                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalGainPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {hasQ ? fmtPct(totalGainPct) : '—'}
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* KPI 2×2 — toma ~42% del ancho en desktop */}
-          <div className="grid grid-cols-2 gap-3 w-full lg:min-w-0" style={{ flex: '42 1 0', alignContent: 'start' }}>
+          {/* ── 3 KPI cards verticales ── */}
+          <div className="flex flex-col gap-3 w-full lg:min-w-0" style={{ flex: '38 1 0' }}>
 
-            {/* Invertido */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Invertido</p>
-              <p className="text-xl font-extrabold tabular-nums leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
-                {fmtUSD(totalCostUsd)}
-              </p>
-              <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>costo de compra</p>
-            </div>
-
-            {/* Cambio de hoy */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio de hoy</p>
-              <p className="text-xl font-extrabold tabular-nums leading-tight" style={{
+            {/* Cambio hoy */}
+            <div className="card p-4 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
+              <p className="text-xl font-extrabold tabular-nums" style={{
                 fontFamily: 'Fredoka, sans-serif',
                 color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
               }}>
                 {hasQ ? fmtUSDSigned(todayChangeUsd) : '—'}
               </p>
               {hasQ && (
-                <div className="flex items-center gap-1 mt-1">
+                <div className="flex items-center gap-1 mt-0.5">
                   {todayChangeUsd >= 0
                     ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                     : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                  <p className="text-[10px] font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  <span className="text-[10px] font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {fmtPct(todayChangePct)} hoy
-                  </p>
+                  </span>
                 </div>
               )}
             </div>
 
             {/* Posiciones */}
-            <div className="card p-4">
+            <div className="card p-4 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+              <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {positions.length}
               </p>
               {hasQ && (posUp > 0 || posDown > 0) && (
-                <div className="flex items-center gap-2 mt-1 text-[10px] font-semibold">
+                <div className="flex items-center gap-2 mt-0.5 text-[10px] font-semibold">
                   {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
                   {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
-                  <span style={{ color: 'var(--ink-3)' }}>hoy</span>
                 </div>
               )}
             </div>
 
-            {/* Mejor posición */}
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor posición</p>
+            {/* Mejor retorno */}
+            <div className="card p-4 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
               {bestPos ? (
                 <>
-                  <p className="text-xl font-extrabold leading-tight" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  <p className="text-xl font-extrabold" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
                   </p>
-                  <p className="text-[10px] font-semibold mt-1" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {fmtPct(bestPos.pct)} retorno
-                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {bestPos.pct >= 0
+                      ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
+                      : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
+                    <span className="text-[10px] font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {fmtPct(bestPos.pct)} total
+                    </span>
+                  </div>
                 </>
               ) : (
                 <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
@@ -727,19 +694,23 @@ export default function StockPositionManager({ userId, initialPositions }: Props
       {positions.length > 0 && (
         <div className="card overflow-hidden">
 
-          {/* Table header */}
+          {/* Table header bar */}
           <div className="flex items-center justify-between px-4 lg:px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Mis posiciones</p>
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
-              >
-                {positions.length}
-              </span>
-            </div>
-            <p className="text-[10px] flex items-center gap-1" style={{ color: 'var(--ink-3)' }}>
-              <span>⊙</span> Precios vía API · cierre hoy
+            {/* ≡ Filtrar */}
+            <button
+              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              <span className="text-sm leading-none">≡</span>
+              Filtrar
+            </button>
+            {/* ⊙ cierre · hace Xs */}
+            <p className="text-[10px] flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: lastUpdated ? 'var(--mint)' : 'var(--ink-3)' }} />
+              cierre ·{' '}
+              {lastUpdated
+                ? `hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`
+                : 'sin datos'}
             </p>
           </div>
 
@@ -748,11 +719,11 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             className="hidden lg:grid px-6 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
             style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px', color: 'var(--ink-3)', borderColor: 'var(--border)' }}
           >
-            <span>Acción</span>
+            <span>Empresa</span>
             <span className="text-right">Cant.</span>
-            <span className="text-center">7 días</span>
-            <span className="text-right">Precio</span>
+            <span className="text-right">Precio hoy</span>
             <span className="text-right">Valor</span>
+            <span className="text-right">Invertido</span>
             <span className="text-right">Retorno</span>
             <span></span>
           </div>
@@ -769,23 +740,16 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
               const isUp         = gainUsd !== null && gainUsd >= 0
               const todayUp      = changePct !== null && changePct >= 0
-              // Usa historial real si hay ≥2 puntos, si no: [costo → precio actual] como fallback
-              const history7d    = (q?.history7d && q.history7d.length >= 2)
-                ? q.history7d
-                : (currentPrice !== null ? [pos.avg_cost_usd, currentPrice] : [])
-              const histTrend    = history7d.length >= 2
-                ? history7d[history7d.length - 1] >= history7d[0]
-                : true
               const avatarBg     = tickerColor(pos.ticker)
               const initials     = pos.ticker.slice(0, 2)
 
               return (
                 <div key={pos.id} className="group px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors">
 
-                  {/* Desktop row */}
+                  {/* Desktop row — Empresa | Cant. | Precio hoy | Valor | Invertido | Retorno | actions */}
                   <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px' }}>
 
-                    {/* Acción: avatar + ticker + name */}
+                    {/* Empresa: avatar + ticker + name */}
                     <div className="flex items-center gap-3">
                       <div
                         className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
@@ -806,23 +770,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                     {/* Cant. */}
                     <div className="text-right">
                       <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>{pos.shares}</p>
-                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>@{fmtUSD(pos.avg_cost_usd)}</p>
                     </div>
 
-                    {/* 7 días sparkline */}
-                    <div className="flex items-center justify-center">
-                      {history7d.length >= 2 ? (
-                        <Sparkline
-                          values={history7d}
-                          w={80} h={28}
-                          color={histTrend ? '#1FBE8D' : '#FF6F61'}
-                        />
-                      ) : (
-                        <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>—</span>
-                      )}
-                    </div>
-
-                    {/* Precio actual */}
+                    {/* Precio hoy */}
                     <div className="text-right">
                       <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
                         {currentPrice !== null ? fmtUSD(currentPrice) : (loadingQ ? '…' : '—')}
@@ -841,6 +791,14 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                       </p>
                     </div>
 
+                    {/* Invertido */}
+                    <div className="text-right">
+                      <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                        {fmtUSD(costBasis)}
+                      </p>
+                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>@{fmtUSD(pos.avg_cost_usd)}</p>
+                    </div>
+
                     {/* Retorno */}
                     <div className="text-right">
                       {gainUsd !== null ? (
@@ -856,12 +814,13 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                             </div>
                           )}
                         </>
-                      ) : '—'}
+                      ) : (
+                        <span className="text-sm" style={{ color: 'var(--ink-3)' }}>—</span>
+                      )}
                     </div>
 
-                    {/* Actions + Chevron */}
+                    {/* Actions hover-only + Chevron */}
                     <div className="flex items-center justify-end gap-0.5">
-                      {/* Editar / borrar aparecen en hover */}
                       <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={e => { e.stopPropagation(); openEdit(pos) }}
@@ -883,7 +842,6 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {/* Chevron siempre visible */}
                       <ChevronRight
                         className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
                         style={{ color: 'var(--ink-3)' }}
@@ -912,9 +870,6 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                         {pos.shares} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
                       </p>
                     </div>
-                    {history7d.length >= 2 && (
-                      <Sparkline values={history7d} w={56} h={22} color={histTrend ? '#1FBE8D' : '#FF6F61'} />
-                    )}
                     <div className="text-right shrink-0 min-w-[72px]">
                       {gainUsd !== null ? (
                         <>
@@ -950,7 +905,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
           {/* Footer */}
           <div className="px-4 lg:px-6 py-2.5 border-t flex items-center justify-between text-[10px]" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
-            <span>⊙ Precios vía API · datos del cierre</span>
+            <span>Fuente: Finnhub · precios en USD</span>
             {usdClp && <span>1 USD = {formatCLP(Math.round(usdClp))} CLP</span>}
           </div>
         </div>
