@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, RefreshCw, TrendingUp, Pencil,
+  Plus, TrendingUp, Landmark, Pencil,
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
@@ -298,7 +300,9 @@ interface FormState { ticker: string; shares: string; totalPaid: string; notes: 
 const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' }
 
 export default function StockPositionManager({ userId, initialPositions }: Props) {
-  const supabase = createClient()
+  const supabase     = createClient()
+  const searchParams = useSearchParams()
+  const isAhorro     = searchParams.get('view') === 'ahorro'
 
   const [positions,      setPositions]      = useState<StockPosition[]>(initialPositions)
   const [quotes,         setQuotes]         = useState<Quotes>({})
@@ -463,7 +467,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3">
-        {/* Estado en vivo */}
+        {/* Estado en vivo — izquierda */}
         <div className="flex items-center gap-2 min-w-0 text-[11px]">
           {lastUpdated && !quotesError && (
             <>
@@ -482,15 +486,37 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           )}
         </div>
 
-        {/* Botón agregar */}
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
-          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-        >
-          <Plus className="w-4 h-4" strokeWidth={2.5} />
-          Agregar
-        </button>
+        {/* Tabs + Agregar — derecha */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
+            <Link
+              href="/inversiones"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                !isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Acciones</span>
+            </Link>
+            <Link
+              href="/inversiones?view=ahorro"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+              }`}
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ahorro</span>
+            </Link>
+          </div>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+            Agregar
+          </button>
+        </div>
       </div>
 
       {/* ── Add/Edit form ────────────────────────────────────────────────── */}
@@ -568,7 +594,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
 
           {/* ── Hero card ── */}
-          <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '62 1 0' }}>
+          <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '40 1 0' }}>
             {/* Valor */}
             <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
@@ -613,11 +639,11 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
           </div>
 
-          {/* ── 3 KPI cards verticales ── */}
-          <div className="flex flex-col gap-3 w-full lg:min-w-0" style={{ flex: '38 1 0' }}>
+          {/* ── 3 KPI cards horizontales ── */}
+          <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
             {/* Cambio hoy */}
-            <div className="card p-4 flex-1">
+            <div className="card p-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
               <p className="text-xl font-extrabold tabular-nums" style={{
                 fontFamily: 'Fredoka, sans-serif',
@@ -638,7 +664,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
 
             {/* Posiciones */}
-            <div className="card p-4 flex-1">
+            <div className="card p-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
               <p className="text-xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {positions.length}
@@ -652,7 +678,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             </div>
 
             {/* Mejor retorno */}
-            <div className="card p-4 flex-1">
+            <div className="card p-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
               {bestPos ? (
                 <>
