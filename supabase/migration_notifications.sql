@@ -25,3 +25,36 @@ create policy "own_notification_log"
 
 create unique index if not exists notification_log_ref_key_idx
   on public.notification_log (ref_key);
+
+-- ============================================================
+-- Recordatorios de gastos recurrentes (agregar después de la migración inicial)
+-- ============================================================
+
+-- 3. Agregar preferencia notify_recurring a profiles
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS notify_recurring boolean NOT NULL DEFAULT true;
+
+-- 4. Programar notify-recurring-reminder (requiere pg_cron y la URL base de la Edge Function)
+-- Ejecutar UNA VEZ después de hacer deploy de la edge function:
+--
+-- SELECT cron.schedule(
+--   'notify-recurring-due',
+--   '0 12 * * *',   -- 9:00 AM Santiago (UTC-3); ajustar a 13 en horario de verano
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://<project-ref>.supabase.co/functions/v1/notify-recurring-reminder?type=due',
+--     headers := '{"Authorization": "Bearer <anon-key>"}'::jsonb
+--   )
+--   $$
+-- );
+--
+-- SELECT cron.schedule(
+--   'notify-recurring-overdue',
+--   '0 13 * * *',   -- 10:00 AM Santiago (UTC-3)
+--   $$
+--   SELECT net.http_post(
+--     url := 'https://<project-ref>.supabase.co/functions/v1/notify-recurring-reminder?type=overdue',
+--     headers := '{"Authorization": "Bearer <anon-key>"}'::jsonb
+--   )
+--   $$
+-- );

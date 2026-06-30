@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, CreditCard, Target } from 'lucide-react'
+import { Bell, CreditCard, Target, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   userId: string
-  notifyBilling: boolean
-  notifyBudget: boolean
-  notifyMonthly: boolean
+  notifyBilling:   boolean
+  notifyBudget:    boolean
+  notifyMonthly:   boolean
+  notifyRecurring: boolean
 }
 
 interface ToggleItem {
-  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly'
+  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring'
   dbCol: string
   icon: React.ReactNode
   title: string
@@ -21,17 +22,19 @@ interface ToggleItem {
 
 export default function NotificationPrefs({
   userId,
-  notifyBilling: initBilling,
-  notifyBudget:  initBudget,
-  notifyMonthly: initMonthly,
+  notifyBilling:   initBilling,
+  notifyBudget:    initBudget,
+  notifyMonthly:   initMonthly,
+  notifyRecurring: initRecurring,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
 
   const [state, setState] = useState({
-    notifyBilling: initBilling,
-    notifyBudget:  initBudget,
-    notifyMonthly: initMonthly,
+    notifyBilling:   initBilling,
+    notifyBudget:    initBudget,
+    notifyMonthly:   initMonthly,
+    notifyRecurring: initRecurring,
   })
 
   const toggle = (key: keyof typeof state, dbCol: string) => {
@@ -67,6 +70,13 @@ export default function NotificationPrefs({
       title:    'Resumen mensual',
       subtitle: 'Email con tu resumen de gastos el primer día de cada mes.',
     },
+    {
+      key:      'notifyRecurring',
+      dbCol:    'notify_recurring',
+      icon:     <RefreshCw className="w-5 h-5" style={{ color: '#059669' }} />,
+      title:    'Gastos recurrentes',
+      subtitle: 'Recordatorio el día que vence un gasto manual, y aviso si al día siguiente aún no se registró.',
+    },
   ]
 
   return (
@@ -77,8 +87,8 @@ export default function NotificationPrefs({
           <div
             className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
-              '--cat-bg':    item.key === 'notifyBilling' ? '#F5F3FF' : item.key === 'notifyBudget' ? '#FFF7ED' : '#EEF4FF',
-              '--cat-color': item.key === 'notifyBilling' ? '#7C3AED' : item.key === 'notifyBudget' ? '#EA580C' : '#1B6DD4',
+              '--cat-bg':    item.key === 'notifyBilling' ? '#F5F3FF' : item.key === 'notifyBudget' ? '#FFF7ED' : item.key === 'notifyRecurring' ? '#ECFDF5' : '#EEF4FF',
+              '--cat-color': item.key === 'notifyBilling' ? '#7C3AED' : item.key === 'notifyBudget' ? '#EA580C' : item.key === 'notifyRecurring' ? '#059669' : '#1B6DD4',
             } as React.CSSProperties}
           >
             {item.icon}

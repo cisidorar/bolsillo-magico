@@ -174,6 +174,7 @@ export default async function AjustesPage() {
               notifyBilling={profile?.notify_billing ?? true}
               notifyBudget={profile?.notify_budget ?? true}
               notifyMonthly={profile?.notify_monthly ?? false}
+              notifyRecurring={profile?.notify_recurring ?? true}
             />
           </section>
 
