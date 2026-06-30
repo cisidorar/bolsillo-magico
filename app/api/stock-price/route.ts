@@ -3,9 +3,33 @@ import { getServerSession, createClient } from '@/lib/supabase/server'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const TICKER_RE  = /^[A-Z0-9.\-]{1,12}$/
-const STOCKS_TTL = 5  * 60   // 5 min  — cotizaciones de acciones
-const FX_TTL     = 30 * 60   // 30 min — tipo de cambio USD/CLP
+const TICKER_RE       = /^[A-Z0-9.\-]{1,12}$/
+const STOCKS_TTL_OPEN = 5  * 60        // 5 min  — mercado abierto
+const STOCKS_TTL_SHUT = 8  * 60 * 60  // 8 h    — mercado cerrado / fin de semana
+const FX_TTL          = 30 * 60        // 30 min — tipo de cambio USD/CLP
+
+// ── Horario NYSE (lun–vie 9:30–16:00 ET) ──────────────────────────────────────
+
+function nyseStatus(): { open: boolean; label: string } {
+  const etNow  = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day    = etNow.getDay()            // 0=Dom … 6=Sáb
+  const mins   = etNow.getHours() * 60 + etNow.getMinutes()
+  const isWeekday = day >= 1 && day <= 5
+  const inHours   = mins >= 570 && mins < 960  // 9:30=570, 16:00=960
+  const open      = isWeekday && inHours
+
+  // Etiqueta legible en español
+  const days  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const hh    = String(etNow.getHours()).padStart(2, '0')
+  const mm    = String(etNow.getMinutes()).padStart(2, '0')
+  const label = open
+    ? `${days[day]} ${hh}:${mm} ET`
+    : isWeekday
+      ? mins < 570 ? 'Antes de apertura' : 'Mercado cerrado'
+      : 'Fin de semana'
+
+  return { open, label }
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,6 +40,12 @@ export interface StockQuote {
   currency:      string
   history7d?:    number[]   // precios cierre últimos 7 días hábiles (oldest → newest)
   domain?:       string     // dominio web de la empresa (para logos)
+}
+
+export interface StockPriceResponse {
+  quotes:      Record<string, StockQuote>
+  marketOpen:  boolean
+  marketLabel: string        // "Lun 14:32 ET" | "Mercado cerrado" | "Fin de semana"
 }
 
 interface PriceCacheRow {
@@ -171,17 +201,18 @@ export async function GET(request: Request) {
 
   const apiKey = process.env.FINNHUB_API_KEY
 
+  const market = nyseStatus()
+
   // ── Sin API key: fallback a Yahoo Finance ─────────────────────────────────
   if (!apiKey) {
     console.warn('[stock-price] FINNHUB_API_KEY no configurada — usando Yahoo Finance')
-    const result = await yahooFallback(symbols, fetchHistory)
-    // Si Yahoo Finance no devolvió ningún ticker (bloqueado desde Vercel), devolver 502
-    const hasData = Object.keys(result).some(k => k !== 'USDCLP=X')
+    const quotes = await yahooFallback(symbols, fetchHistory)
+    const hasData = Object.keys(quotes).some(k => k !== 'USDCLP=X')
     if (!hasData) {
       console.error('[stock-price] Yahoo Finance no devolvió datos — configurar FINNHUB_API_KEY')
       return NextResponse.json({ error: 'Failed to fetch prices' }, { status: 502 })
     }
-    return NextResponse.json(result)
+    return NextResponse.json({ quotes, marketOpen: market.open, marketLabel: market.label })
   }
 
   // ── Con API key: Finnhub + caché Supabase ─────────────────────────────────
@@ -202,12 +233,15 @@ export async function GET(request: Request) {
   const result: Record<string, StockQuote> = {}
   const stale: string[] = []
 
-  // 2. Separar frescos de vencidos
+  // TTL según estado del mercado
+  const ttl = market.open ? STOCKS_TTL_OPEN : STOCKS_TTL_SHUT
+
+  // 2. Separar frescos de vencidos (cuando mercado cerrado, todo se considera fresco)
   for (const ticker of symbols) {
     const c   = cacheMap[ticker]
     const age = c ? (now - new Date(c.fetched_at).getTime()) / 1000 : Infinity
 
-    if (c && age < STOCKS_TTL) {
+    if (c && (!market.open || age < ttl)) {
       result[ticker] = {
         price:         c.price,
         changePercent: c.change_pct,
@@ -350,7 +384,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch prices from Finnhub' }, { status: 502 })
   }
 
-  return NextResponse.json(result)
+  return NextResponse.json({ quotes: result, marketOpen: market.open, marketLabel: market.label })
 
   } catch (err) {
     console.error('[stock-price] unhandled error:', err)

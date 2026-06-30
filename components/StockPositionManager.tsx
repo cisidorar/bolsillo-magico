@@ -350,6 +350,8 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   const [quotesError,    setQuotesError]    = useState('')
   const [lastUpdated,    setLastUpdated]    = useState<Date | null>(null)
   const [secsAgo,        setSecsAgo]        = useState(0)
+  const [marketOpen,     setMarketOpen]     = useState<boolean | null>(null)
+  const [marketLabel,    setMarketLabel]    = useState<string>('')
   const [monthlyHistory, setMonthlyHistory] = useState<HistData>({})
   const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -376,11 +378,17 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     try {
       const res = await fetch(`/api/stock-price?symbols=${tickers.join(',')}&history=true`)
       if (!res.ok) throw new Error('fetch')
-      const data: Quotes = await res.json()
+      const body = await res.json()
+      // API puede devolver {quotes, marketOpen, marketLabel} o el formato antiguo {ticker: quote}
+      const data: Quotes = body.quotes ?? body
       setUsdClp(data['USDCLP=X']?.price ?? null)
       setQuotes(data)
       setLastUpdated(new Date())
       setSecsAgo(0)
+      if (typeof body.marketOpen === 'boolean') {
+        setMarketOpen(body.marketOpen)
+        setMarketLabel(body.marketLabel ?? '')
+      }
     } catch {
       setQuotesError('No se pudieron obtener los precios. Intenta de nuevo.')
     } finally {
@@ -514,12 +522,29 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-3">
-        {/* Estado en vivo — izquierda */}
+        {/* Estado del mercado — izquierda */}
         <div className="flex items-center gap-2 min-w-0 text-[11px]">
-          {lastUpdated && !quotesError && (
+          {lastUpdated && !quotesError && marketOpen !== null && (
+            <>
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ background: marketOpen ? 'var(--mint)' : 'var(--coral)', animation: marketOpen ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' : 'none' }}
+              />
+              {marketOpen ? (
+                <span style={{ color: 'var(--mint)' }} className="font-semibold">
+                  Precios en vivo · {marketLabel}
+                </span>
+              ) : (
+                <span style={{ color: 'var(--ink-3)' }} className="font-medium">
+                  {marketLabel}
+                </span>
+              )}
+            </>
+          )}
+          {lastUpdated && !quotesError && marketOpen === null && (
             <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: 'var(--mint)' }} />
-              <span style={{ color: 'var(--mint)' }} className="font-semibold">Precios en vivo</span>
+              <span style={{ color: 'var(--mint)' }} className="font-semibold">Precios actualizados</span>
             </>
           )}
           {quotesError && (
