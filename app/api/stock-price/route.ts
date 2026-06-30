@@ -15,6 +15,7 @@ export interface StockQuote {
   name:          string
   currency:      string
   history7d?:    number[]   // precios cierre últimos 7 días hábiles (oldest → newest)
+  domain?:       string     // dominio web de la empresa (para logos)
 }
 
 interface PriceCacheRow {
@@ -22,6 +23,7 @@ interface PriceCacheRow {
   price:      number
   change_pct: number
   name:       string | null
+  domain:     string | null
   history7d:  unknown
   fetched_at: string
 }
@@ -56,9 +58,17 @@ async function fhQuote(
   return { price: d.c, changePercent: d.dp ?? 0 }
 }
 
-async function fhProfile(ticker: string, key: string): Promise<string | null> {
+async function fhProfile(ticker: string, key: string): Promise<{ name: string | null; domain: string | null }> {
   const d = await fhFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${key}`) as Record<string, unknown> | null
-  return (d?.name as string) || null
+  const name = (d?.name as string) || null
+  const weburl = (d?.weburl as string) || null
+  let domain: string | null = null
+  if (weburl) {
+    try {
+      domain = new URL(weburl).hostname.replace(/^www\./, '')
+    } catch { /* ignorar URL inválida */ }
+  }
+  return { name, domain }
 }
 
 async function fhCandles(ticker: string, key: string): Promise<number[] | null> {
@@ -182,7 +192,7 @@ export async function GET(request: Request) {
   // 1. Cargar caché para todos los tickers + USDCLP
   const { data: cached } = await supabase
     .from('price_cache')
-    .select('ticker, price, change_pct, name, history7d, fetched_at')
+    .select('ticker, price, change_pct, name, domain, history7d, fetched_at')
     .in('ticker', [...symbols, 'USDCLP'])
 
   const cacheMap: Record<string, PriceCacheRow> = Object.fromEntries(
@@ -204,6 +214,7 @@ export async function GET(request: Request) {
         name:          c.name ?? ticker,
         currency:      'USD',
         history7d:     Array.isArray(c.history7d) ? (c.history7d as number[]) : undefined,
+        domain:        c.domain ?? undefined,
       }
     } else {
       stale.push(ticker)
@@ -218,16 +229,16 @@ export async function GET(request: Request) {
   // 4. Fetch paralelo de tickers vencidos desde Finnhub
   if (stale.length > 0) {
     await Promise.all(stale.map(async (ticker) => {
-      const needsName = !cacheMap[ticker]?.name
+      const needsProfile = !cacheMap[ticker]?.name || !cacheMap[ticker]?.domain
 
-      const [quote, history, profileName] = await Promise.all([
+      const [quote, history, profile] = await Promise.all([
         fhQuote(ticker, apiKey),
         fetchHistory
           ? fhCandles(ticker, apiKey)
           : Promise.resolve(null),
-        needsName
+        needsProfile
           ? fhProfile(ticker, apiKey)
-          : Promise.resolve(cacheMap[ticker]?.name ?? null),
+          : Promise.resolve({ name: cacheMap[ticker]?.name ?? null, domain: cacheMap[ticker]?.domain ?? null }),
       ])
 
       if (!quote) {
@@ -241,12 +252,14 @@ export async function GET(request: Request) {
             history7d:     Array.isArray(cacheMap[ticker].history7d)
               ? (cacheMap[ticker].history7d as number[])
               : undefined,
+            domain:        cacheMap[ticker].domain ?? undefined,
           }
         }
         return
       }
 
-      const resolvedName    = profileName ?? cacheMap[ticker]?.name ?? ticker
+      const resolvedName    = profile.name ?? cacheMap[ticker]?.name ?? ticker
+      const resolvedDomain  = profile.domain ?? cacheMap[ticker]?.domain ?? null
       const cachedHistory   = Array.isArray(cacheMap[ticker]?.history7d)
         ? (cacheMap[ticker].history7d as number[])
         : null
@@ -258,6 +271,7 @@ export async function GET(request: Request) {
         name:          resolvedName,
         currency:      'USD',
         history7d:     resolvedHistory ?? undefined,
+        domain:        resolvedDomain ?? undefined,
       }
 
       // Guardar en caché (fire-and-forget, no bloquea la respuesta)
@@ -267,6 +281,7 @@ export async function GET(request: Request) {
           price:      quote.price,
           change_pct: quote.changePercent,
           name:       resolvedName,
+          domain:     resolvedDomain,
           history7d:  resolvedHistory ?? null,
           fetched_at: new Date(now).toISOString(),
         },

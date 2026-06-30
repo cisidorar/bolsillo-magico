@@ -9,6 +9,7 @@ import {
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
+import ServiceLogo from '@/components/ServiceLogo'
 import type { StockPosition } from '@/app/(dashboard)/inversiones/page'
 import type { TickerHistory } from '@/app/api/stock-history/route'
 
@@ -19,6 +20,7 @@ interface Quote {
   name:          string
   currency:      string
   history7d?:    number[]
+  domain?:       string
 }
 type Quotes   = Record<string, Quote>
 type HistData = Record<string, TickerHistory>
@@ -776,7 +778,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             {/* Cambio hoy */}
             <div className="card p-4 lg:p-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
-              <p className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none" style={{
+              <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none" style={{
                 fontFamily: 'Fredoka, sans-serif',
                 color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
               }}>
@@ -797,7 +799,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             {/* Posiciones */}
             <div className="card p-4 lg:p-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-2xl lg:text-3xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+              <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {positions.length}
               </p>
               {hasQ && (posUp > 0 || posDown > 0) && (
@@ -813,7 +815,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
               {bestPos ? (
                 <>
-                  <p className="text-2xl lg:text-3xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
                   </p>
                   <div className="flex items-center gap-1 mt-1.5">
@@ -897,6 +899,8 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
               const isUp         = gainUsd !== null && gainUsd >= 0
               const todayUp      = changePct !== null && changePct >= 0
+              const logoDomain   = q?.domain ?? null
+              const logoName     = q?.name ?? pos.ticker
               const avatarBg     = tickerColor(pos.ticker)
               const initials     = pos.ticker.slice(0, 2)
 
@@ -910,14 +914,14 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                   {/* Desktop row — Empresa | Cant. | Precio hoy | Valor | Invertido | Retorno | chevron */}
                   <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 40px' }}>
 
-                    {/* Empresa: avatar + ticker + name */}
+                    {/* Empresa: logo + ticker + name */}
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
-                        style={{ background: avatarBg }}
-                      >
-                        {initials}
-                      </div>
+                      <ServiceLogo
+                        domain={logoDomain}
+                        name={logoName}
+                        size={36}
+                        fallbackColor={avatarBg}
+                      />
                       <div>
                         <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
                           {pos.ticker}
@@ -991,12 +995,12 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
                   {/* Mobile row */}
                   <div className="lg:hidden flex items-center gap-3">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
-                      style={{ background: avatarBg }}
-                    >
-                      {initials}
-                    </div>
+                    <ServiceLogo
+                      domain={logoDomain}
+                      name={logoName}
+                      size={36}
+                      fallbackColor={avatarBg}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>{pos.ticker}</span>
