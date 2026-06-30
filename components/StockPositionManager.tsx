@@ -48,6 +48,43 @@ function tickerColor(ticker: string): string {
   return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length]
 }
 
+// ── Dominio para ETFs y tickers sin weburl en Finnhub ────────────────────────
+const TICKER_DOMAIN: Record<string, string> = {
+  // iShares (BlackRock)
+  IBIT: 'ishares.com', IVV: 'ishares.com', IJR: 'ishares.com', AGG: 'ishares.com',
+  EFA: 'ishares.com', EEM: 'ishares.com', LQD: 'ishares.com', HYG: 'ishares.com',
+  // Invesco
+  QQQ: 'invesco.com', QQQM: 'invesco.com', RSP: 'invesco.com',
+  // Vanguard
+  VOO: 'vanguard.com', VTI: 'vanguard.com', VEA: 'vanguard.com',
+  VWO: 'vanguard.com', BND: 'vanguard.com', VIG: 'vanguard.com',
+  // SPDR (State Street)
+  SPY: 'ssga.com', GLD: 'ssga.com', XLF: 'ssga.com', XLE: 'ssga.com',
+  XLK: 'ssga.com', DIA: 'ssga.com',
+  // ProShares
+  TQQQ: 'proshares.com', SQQQ: 'proshares.com', UPRO: 'proshares.com',
+  // ARK
+  ARKK: 'ark-funds.com', ARKW: 'ark-funds.com', ARKG: 'ark-funds.com',
+  // VanEck
+  SMH: 'vaneck.com', GDX: 'vaneck.com',
+}
+
+// Infiere dominio desde el nombre del emisor (fallback para ETFs desconocidos)
+function domainFromName(name: string | undefined): string | null {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('ishares'))  return 'ishares.com'
+  if (n.includes('invesco'))  return 'invesco.com'
+  if (n.includes('vanguard')) return 'vanguard.com'
+  if (n.includes('spdr'))     return 'ssga.com'
+  if (n.includes('proshares'))return 'proshares.com'
+  if (n.includes('ark'))      return 'ark-funds.com'
+  if (n.includes('vaneck'))   return 'vaneck.com'
+  if (n.includes('wisdomtree'))return 'wisdomtree.com'
+  if (n.includes('direxion')) return 'direxioninvestments.com'
+  return null
+}
+
 // ── Sparkline SVG ──────────────────────────────────────────────────────────────
 function Sparkline({
   values,
@@ -899,8 +936,11 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
               const isUp         = gainUsd !== null && gainUsd >= 0
               const todayUp      = changePct !== null && changePct >= 0
-              const logoDomain   = q?.domain ?? null
               const logoName     = q?.name ?? pos.ticker
+              const logoDomain   = q?.domain
+                ?? TICKER_DOMAIN[pos.ticker]
+                ?? domainFromName(q?.name)
+                ?? null
               const avatarBg     = tickerColor(pos.ticker)
               const initials     = pos.ticker.slice(0, 2)
 
