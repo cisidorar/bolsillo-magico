@@ -314,12 +314,13 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   const [monthlyHistory, setMonthlyHistory] = useState<HistData>({})
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const [showForm,   setShowForm]   = useState(false)
-  const [editingId,  setEditingId]  = useState<string | null>(null)
-  const [form,       setForm]       = useState<FormState>(emptyForm)
-  const [saving,     setSaving]     = useState(false)
-  const [formError,  setFormError]  = useState('')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [showForm,      setShowForm]      = useState(false)
+  const [editingId,     setEditingId]     = useState<string | null>(null)
+  const [form,          setForm]          = useState<FormState>(emptyForm)
+  const [saving,        setSaving]        = useState(false)
+  const [formError,     setFormError]     = useState('')
+  const [deletingId,    setDeletingId]    = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   // Live "hace Xs" timer
   useEffect(() => {
@@ -419,7 +420,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid, notes: pos.notes ?? '' })
     setEditingId(pos.id); setFormError(''); setShowForm(true)
   }
-  function cancelForm() { setShowForm(false); setEditingId(null); setForm(emptyForm); setFormError('') }
+  function cancelForm() {
+    setShowForm(false); setEditingId(null); setForm(emptyForm)
+    setFormError(''); setDeleteConfirm(false)
+  }
 
   async function savePosition() {
     const ticker     = form.ticker.trim().toUpperCase()
@@ -433,11 +437,14 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     setSaving(true); setFormError('')
     if (editingId) {
       const { error } = await supabase.from('stock_positions')
-        .update({ shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null, updated_at: new Date().toISOString() })
+        .update({ ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null, updated_at: new Date().toISOString() })
         .eq('id', editingId).eq('user_id', userId)
       setSaving(false)
       if (error) { setFormError('Error al guardar'); return }
-      setPositions(prev => prev.map(p => p.id === editingId ? { ...p, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null } : p))
+      setPositions(prev => prev.map(p => p.id === editingId
+        ? { ...p, ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null }
+        : p
+      ))
     } else {
       const { data, error } = await supabase.from('stock_positions')
         .upsert({ user_id: userId, ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null }, { onConflict: 'user_id,ticker' })
@@ -459,6 +466,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
     setPositions(prev => prev.filter(p => p.id !== id))
     setDeletingId(null)
+    cancelForm()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -561,8 +569,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                   onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
                   placeholder="AAPL"
                   maxLength={10}
-                  disabled={!!editingId}
-                  className="w-full text-sm font-bold border px-4 py-3 disabled:opacity-50"
+                  className="w-full text-sm font-bold border px-4 py-3"
                   style={{ ...inputBase, fontFamily: 'ui-monospace, monospace', fontSize: 15 }}
                   onFocus={focusOn} onBlur={focusOff}
                 />
@@ -635,25 +642,63 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
               )}
 
+              {/* Confirmación de eliminación */}
+              {deleteConfirm && editingId && (
+                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                  <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                    ¿Eliminar esta posición?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeleteConfirm(false)}
+                      className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                      style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => deletePosition(editingId)}
+                      disabled={!!deletingId}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
+                      style={{ background: 'var(--coral)', color: 'white' }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingId ? 'Eliminando…' : 'Sí, eliminar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={cancelForm}
-                  className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
-                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={savePosition}
-                  disabled={saving}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all disabled:opacity-50 active:scale-[.98]"
-                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-                >
-                  <Check className="w-4 h-4" />
-                  {saving ? 'Guardando…' : 'Guardar'}
-                </button>
-              </div>
+              {!deleteConfirm && (
+                <div className="flex gap-3 pt-1">
+                  {editingId && (
+                    <button
+                      onClick={() => setDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                      style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'var(--surface-2)' }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={cancelForm}
+                    className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={savePosition}
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all disabled:opacity-50 active:scale-[.98]"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+                  >
+                    <Check className="w-4 h-4" />
+                    {saving ? 'Guardando…' : 'Guardar'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -829,7 +874,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           {/* Column headers (desktop only) */}
           <div
             className="hidden lg:grid px-6 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
-            style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px', color: 'var(--ink-3)', borderColor: 'var(--border)' }}
+            style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 40px', color: 'var(--ink-3)', borderColor: 'var(--border)' }}
           >
             <span>Empresa</span>
             <span className="text-right">Cant.</span>
@@ -856,10 +901,14 @@ export default function StockPositionManager({ userId, initialPositions }: Props
               const initials     = pos.ticker.slice(0, 2)
 
               return (
-                <div key={pos.id} className="group px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors">
+                <button
+                  key={pos.id}
+                  onClick={() => openEdit(pos)}
+                  className="w-full text-left group px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
+                >
 
-                  {/* Desktop row — Empresa | Cant. | Precio hoy | Valor | Invertido | Retorno | actions */}
-                  <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 52px' }}>
+                  {/* Desktop row — Empresa | Cant. | Precio hoy | Valor | Invertido | Retorno | chevron */}
+                  <div className="hidden lg:grid items-center" style={{ gridTemplateColumns: '2fr 0.9fr 1fr 1fr 1fr 1.1fr 40px' }}>
 
                     {/* Empresa: avatar + ticker + name */}
                     <div className="flex items-center gap-3">
@@ -931,29 +980,8 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                       )}
                     </div>
 
-                    {/* Actions hover-only + Chevron */}
-                    <div className="flex items-center justify-end gap-0.5">
-                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={e => { e.stopPropagation(); openEdit(pos) }}
-                          className="p-1.5 rounded-lg transition-colors"
-                          style={{ color: 'var(--ink-3)' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={e => { e.stopPropagation(); deletePosition(pos.id) }}
-                          disabled={deletingId === pos.id}
-                          className="p-1.5 rounded-lg transition-colors disabled:opacity-50"
-                          style={{ color: 'var(--ink-3)' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--coral)')}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                    {/* Chevron */}
+                    <div className="flex items-center justify-end">
                       <ChevronRight
                         className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
                         style={{ color: 'var(--ink-3)' }}
@@ -998,19 +1026,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                         <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{fmtUSD(costBasis)}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <button onClick={e => { e.stopPropagation(); openEdit(pos) }} className="p-1.5 rounded-lg" style={{ color: 'var(--ink-3)' }}>
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); deletePosition(pos.id) }} disabled={deletingId === pos.id}
-                        className="p-1.5 rounded-lg disabled:opacity-50" style={{ color: 'var(--ink-3)' }}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <ChevronRight className="w-4 h-4 ml-1" style={{ color: 'var(--ink-3)' }} />
-                    </div>
+                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
                   </div>
 
-                </div>
+                </button>
               )
             })}
           </div>
