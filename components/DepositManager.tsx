@@ -9,7 +9,51 @@ import {
   ArrowUp, ArrowDown, CalendarDays,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
+import ServiceLogo from '@/components/ServiceLogo'
 import type { SavingsAccount } from '@/app/(dashboard)/inversiones/page'
+
+// ── Dominio por nombre de banco/fintech ───────────────────────────────────────
+function domainFromSavingsName(name: string): string | null {
+  const n = name.toLowerCase()
+  // Fintechs Chile
+  if (n.includes('copec'))         return 'copec.cl'
+  if (n.includes('mercado pago') || n.includes('mercadopago')) return 'mercadopago.com'
+  if (n.includes('fintual'))       return 'fintual.com'
+  if (n.includes('tenpo'))         return 'tenpo.app'
+  if (n.includes('mach'))          return 'somosmach.com'
+  if (n.includes('lana'))          return 'lana.cl'
+  if (n.includes('chek'))          return 'chek.cl'
+  if (n.includes('tapp'))          return 'tapp.cl'
+  if (n.includes('fpay') || n.includes('falabella pay')) return 'falabella.com'
+  if (n.includes('flow'))          return 'flow.cl'
+  // Bancos Chile
+  if (n.includes('banco estado') || n.includes('bancoestado')) return 'bancoestado.cl'
+  if (n.includes('santander'))     return 'santander.cl'
+  if (n.includes('bci'))           return 'bci.cl'
+  if (n.includes('falabella'))     return 'falabella.com'
+  if (n.includes('ripley'))        return 'ripley.cl'
+  if (n.includes('scotiabank'))    return 'scotiabank.cl'
+  if (n.includes('bice'))          return 'bice.cl'
+  if (n.includes('itaú') || n.includes('itau')) return 'itau.cl'
+  if (n.includes('chile'))         return 'bancochile.cl'
+  if (n.includes('security'))      return 'bancosecurity.cl'
+  if (n.includes('coopeuch'))      return 'coopeuch.cl'
+  if (n.includes('consorcio'))     return 'bancoconsorcio.cl'
+  if (n.includes('internacional')) return 'bancointernacional.cl'
+  // Internacional
+  if (n.includes('nubank') || n.includes(' nu ') || n === 'nu') return 'nu.com.br'
+  if (n.includes('paypal'))        return 'paypal.com'
+  if (n.includes('wise'))          return 'wise.com'
+  if (n.includes('revolut'))       return 'revolut.com'
+  return null
+}
+
+function avatarColor(name: string): string {
+  const palette = ['#1B6DD4','#1FBE8D','#FF6F61','#FBC23C','#A78BFA','#F472B6','#34D399','#FB923C']
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+  return palette[Math.abs(h) % palette.length]
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -661,12 +705,12 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   >
                     {/* Cuenta */}
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold"
-                        style={{ background: 'rgba(31,190,141,0.1)', color: 'var(--mint)' }}
-                      >
-                        {acc.name.trim()[0]?.toUpperCase() ?? '?'}
-                      </div>
+                      <ServiceLogo
+                        domain={domainFromSavingsName(acc.name)}
+                        name={acc.name}
+                        size={36}
+                        fallbackColor={avatarColor(acc.name)}
+                      />
                       <div>
                         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{acc.name}</p>
                         {acc.notes && (
@@ -725,12 +769,12 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
                   {/* Mobile */}
                   <div className="lg:hidden flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base font-bold"
-                      style={{ background: 'rgba(31,190,141,0.1)', color: 'var(--mint)' }}
-                    >
-                      {acc.name.trim()[0]?.toUpperCase() ?? '?'}
-                    </div>
+                    <ServiceLogo
+                      domain={domainFromSavingsName(acc.name)}
+                      name={acc.name}
+                      size={40}
+                      fallbackColor={avatarColor(acc.name)}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{acc.name}</span>
