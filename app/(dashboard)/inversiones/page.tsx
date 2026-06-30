@@ -72,7 +72,7 @@ export default async function InversionesPage({ searchParams }: Props) {
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
       {/* ── Header */}
-      <div className="mb-6">
+      <div className="mb-3">
         <h1
           className="text-3xl font-semibold leading-tight"
           style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
