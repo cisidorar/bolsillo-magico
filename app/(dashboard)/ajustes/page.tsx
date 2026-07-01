@@ -55,109 +55,111 @@ export default async function AjustesPage() {
           {/* Finanzas */}
           <section>
             <SectionHeader icon={Coins} label="Finanzas" color="#F59E0B" />
-            <div className="card overflow-hidden divide-y divide-gray-50">
+            <div className="card overflow-hidden">
 
-              <SettingsRow
-                href="/ingresos"
-                icon={
-                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#E6FAF3', '--cat-color': '#1FBE8D' } as React.CSSProperties}>
-                    <Wallet className="w-5 h-5" style={{ color: '#1FBE8D' }} />
-                  </div>
-                }
-                title="Ingresos"
-                subtitle="Registra cuánto ganas cada mes."
-              />
+              {/* Solo mobile — ya en sidebar desktop */}
+              <div className="lg:hidden divide-y divide-gray-50">
+                <SettingsRow
+                  href="/ingresos"
+                  icon={
+                    <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': '#E6FAF3', '--cat-color': '#1FBE8D' } as React.CSSProperties}>
+                      <Wallet className="w-5 h-5" style={{ color: '#1FBE8D' }} />
+                    </div>
+                  }
+                  title="Ingresos"
+                  subtitle="Registra cuánto ganas cada mes."
+                />
+                <SettingsRow
+                  href="/inversiones"
+                  icon={
+                    <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
+                      <TrendingUp className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+                    </div>
+                  }
+                  title="Inversiones"
+                  subtitle="Acciones y depósitos a plazo."
+                />
+                <SettingsRow
+                  href="/recurrentes"
+                  icon={
+                    <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': '#F0FDFA', '--cat-color': '#0D9488' } as React.CSSProperties}>
+                      <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
+                    </div>
+                  }
+                  title="Gastos recurrentes"
+                  subtitle="Gestiona suscripciones y cobros fijos."
+                />
+              </div>
 
-              <SettingsRow
-                href="/inversiones"
-                icon={
-                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                    <TrendingUp className="w-5 h-5" style={{ color: '#1B6DD4' }} />
-                  </div>
-                }
-                title="Inversiones"
-                subtitle="Acciones y depósitos a plazo."
-              />
-
-              <SettingsRow
-                href="/presupuesto"
-                icon={
-                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                    <Target className="w-5 h-5" style={{ color: '#1B6DD4' }} />
-                  </div>
-                }
-                title="Límite mensual"
-                subtitle="Define y controla tu presupuesto mensual."
-              />
-
-              <SettingsRow
-                href="/categorias"
-                icon={
-                  <div className="flex-shrink-0">
-                    {(categories ?? []).length > 0 ? (
-                      <div className="flex -space-x-2">
-                        {(categories ?? []).slice(0, 3).map(c => (
-                          <div
-                            key={c.id}
-                            className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
-                            style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                          >
-                            {isEmoji(c.icon)
-                              ? <span className="text-base">{c.icon}</span>
-                              : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
-                            }
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5F3FF' }}>
-                        <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
-                      </div>
-                    )}
-                  </div>
-                }
-                title="Categorías"
-                subtitle="Organiza tus gastos por categorías."
-              />
-
-              <SettingsRow
-                href="/metodos"
-                icon={
-                  <div className="flex-shrink-0">
-                    {(paymentMethods ?? []).length > 0 ? (
-                      <div className="flex -space-x-2">
-                        {(paymentMethods ?? []).slice(0, 3).map(m => (
-                          <div key={m.id} className="ring-2 ring-white dark:ring-slate-900 rounded-xl flex-shrink-0">
-                            <ServiceLogo domain={m.domain} name={m.name} size={40} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
-                        style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                        <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
-                      </div>
-                    )}
-                  </div>
-                }
-                title="Métodos de pago"
-                subtitle="Administra tus cuentas y tarjetas."
-              />
-
-              <SettingsRow
-                href="/recurrentes"
-                icon={
-                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#F0FDFA', '--cat-color': '#0D9488' } as React.CSSProperties}>
-                    <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
-                  </div>
-                }
-                title="Gastos recurrentes"
-                subtitle="Gestiona suscripciones y cobros fijos."
-              />
+              {/* Siempre visibles */}
+              <div className="divide-y divide-gray-50 border-t border-gray-50 lg:border-t-0">
+                <SettingsRow
+                  href="/presupuesto"
+                  icon={
+                    <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
+                      <Target className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+                    </div>
+                  }
+                  title="Límite mensual"
+                  subtitle="Define y controla tu presupuesto mensual."
+                />
+                <SettingsRow
+                  href="/categorias"
+                  icon={
+                    <div className="flex-shrink-0">
+                      {(categories ?? []).length > 0 ? (
+                        <div className="flex -space-x-2">
+                          {(categories ?? []).slice(0, 3).map(c => (
+                            <div
+                              key={c.id}
+                              className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
+                              style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
+                            >
+                              {isEmoji(c.icon)
+                                ? <span className="text-base">{c.icon}</span>
+                                : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
+                              }
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5F3FF' }}>
+                          <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
+                        </div>
+                      )}
+                    </div>
+                  }
+                  title="Categorías"
+                  subtitle="Organiza tus gastos por categorías."
+                />
+                <SettingsRow
+                  href="/metodos"
+                  icon={
+                    <div className="flex-shrink-0">
+                      {(paymentMethods ?? []).length > 0 ? (
+                        <div className="flex -space-x-2">
+                          {(paymentMethods ?? []).slice(0, 3).map(m => (
+                            <div key={m.id} className="ring-2 ring-white dark:ring-slate-900 rounded-xl flex-shrink-0">
+                              <ServiceLogo domain={m.domain} name={m.name} size={40} />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
+                          style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
+                          <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
+                        </div>
+                      )}
+                    </div>
+                  }
+                  title="Métodos de pago"
+                  subtitle="Administra tus cuentas y tarjetas."
+                />
+              </div>
 
             </div>
           </section>
