@@ -61,11 +61,11 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-/** Días transcurridos desde start_date hasta hoy (mínimo 1) */
+/** Días transcurridos desde start_date hasta hoy (mínimo 0 — el día de inicio no genera interés) */
 function daysElapsed(startDate: string): number {
   const s   = new Date(startDate + 'T12:00:00')
   const now = new Date()
-  return Math.max(1, Math.floor((now.getTime() - s.getTime()) / 86_400_000))
+  return Math.max(0, Math.floor((now.getTime() - s.getTime()) / 86_400_000))
 }
 
 /** Tasa diaria efectiva a partir de TEA: (1 + r)^(1/365) - 1 */
