@@ -537,8 +537,8 @@ export default async function DashboardPage() {
             <div
               className="card flex flex-col justify-between p-4"
               style={{
-                background: projOverBudget ? 'var(--ink)' : 'var(--surface)',
-                borderColor: projOverBudget ? 'rgba(239,91,82,0.20)' : undefined,
+                background: projOverBudget ? 'rgba(239,91,82,0.08)' : 'var(--surface)',
+                borderColor: projOverBudget ? 'rgba(239,91,82,0.30)' : undefined,
               }}
             >
               <div className="flex items-center justify-between mb-2">
@@ -956,7 +956,7 @@ export default async function DashboardPage() {
                     <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
                   </div>
                   <div className="flex-1 rounded-2xl px-4 py-3"
-                    style={{ background: projOverBudget ? 'var(--ink)' : 'rgba(255,255,255,0.15)' }}>
+                    style={{ background: projOverBudget ? 'rgba(239,91,82,0.25)' : 'rgba(255,255,255,0.15)' }}>
                     <p className="text-[10px] font-semibold mb-1 flex items-center gap-1"
                       style={{ color: projOverBudget ? 'var(--coral)' : 'rgba(255,255,255,0.60)' }}>
                       Proyección
