@@ -40,9 +40,44 @@ select cron.schedule(
   $$
 );
 
+-- 3. Resumen mensual — el día 1 de cada mes a las 13:30 CLT
+--    Resume el mes anterior completo (ej. 1 de julio → resumen de junio)
+select cron.schedule(
+  'notify-monthly-summary',
+  '30 16 1 * *',   -- 16:30 UTC = 13:30 CLT, solo el día 1 de cada mes
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-monthly-summary',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
+-- 4. Recordatorio de pagos recurrentes — todos los días a las 9:15 AM CLT
+select cron.schedule(
+  'notify-recurring-reminder',
+  '15 12 * * *',   -- 12:15 UTC = 09:15 CLT
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-recurring-reminder',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;
 
 -- ── Para eliminar un job si necesitas modificarlo ─────────────────────────────
 -- select cron.unschedule('notify-billing-daily');
 -- select cron.unschedule('notify-budget-daily');
+-- select cron.unschedule('notify-monthly-summary');
+-- select cron.unschedule('notify-recurring-reminder');

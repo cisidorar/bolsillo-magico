@@ -20,28 +20,33 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json() } catch { /* no body */ }
   const force = url.searchParams.get('force') === 'true' || body?.force === true
 
-  const now      = new Date()
-  const year     = now.getFullYear()
-  const month    = now.getMonth() + 1
-  const lastDay  = new Date(year, month, 0).getDate()
-  const isLastDay = now.getDate() === lastDay
+  const now        = new Date()
+  const today      = now.getDate()
+  const year       = now.getFullYear()
+  const month      = now.getMonth() + 1   // mes actual (ej. julio = 7)
+  const isFirstDay = today === 1
 
-  if (!isLastDay && !force) {
-    return new Response(`Not the last day of the month (day ${now.getDate()}/${lastDay})`, { status: 200 })
+  if (!isFirstDay && !force) {
+    return new Response(`Not the first day of the month (day ${today})`, { status: 200 })
   }
 
-  const supabase   = createClient(SUPABASE_URL, SERVICE_KEY)
-  const monthStr   = `${year}-${String(month).padStart(2, '0')}`
-  const monthStart = `${monthStr}-01`
-  const monthEnd   = `${monthStr}-${String(lastDay).padStart(2, '0')}`
+  const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
-  // Mes anterior
-  const prevMonth  = month === 1 ? 12 : month - 1
-  const prevYear   = month === 1 ? year - 1 : year
-  const prevStr    = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
+  // Mes a resumir: el mes anterior (ej. si hoy es 1 julio → resumir junio)
+  const summaryMonth   = month === 1 ? 12 : month - 1
+  const summaryYear    = month === 1 ? year - 1 : year
+  const summaryLastDay = new Date(summaryYear, summaryMonth, 0).getDate()
+  const monthStr       = `${summaryYear}-${String(summaryMonth).padStart(2, '0')}`
+  const monthStart     = `${monthStr}-01`
+  const monthEnd       = `${monthStr}-${String(summaryLastDay).padStart(2, '0')}`
+
+  // Mes anterior al resumido (para comparar delta)
+  const prevMonth   = summaryMonth === 1 ? 12 : summaryMonth - 1
+  const prevYear    = summaryMonth === 1 ? summaryYear - 1 : summaryYear
+  const prevStr     = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
   const prevLastDay = new Date(prevYear, prevMonth, 0).getDate()
-  const prevStart  = `${prevStr}-01`
-  const prevEnd    = `${prevStr}-${String(prevLastDay).padStart(2, '0')}`
+  const prevStart   = `${prevStr}-01`
+  const prevEnd     = `${prevStr}-${String(prevLastDay).padStart(2, '0')}`
 
   // MODO TEST: enviar correo de muestra sin tocar la DB
   if (force) {
@@ -50,7 +55,7 @@ Deno.serve(async (req: Request) => {
       return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
     }
     const fmtCLP = (n: number) => '$' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
-    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+    const monthLabel = new Date(summaryYear, summaryMonth - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -157,7 +162,7 @@ Deno.serve(async (req: Request) => {
       .filter(e => e.recurring_expense_id)
       .reduce((s, e) => s + e.amount, 0)
     const txCount        = userCurrent.length
-    const dailyAvg       = txCount > 0 ? Math.round(totalCurrent / lastDay) : 0
+    const dailyAvg       = txCount > 0 ? Math.round(totalCurrent / summaryLastDay) : 0
 
     const delta    = totalPrev > 0 ? Math.round(((totalCurrent - totalPrev) / totalPrev) * 100) : null
     const deltaAbs = totalCurrent - totalPrev
