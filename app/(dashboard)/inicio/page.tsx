@@ -362,14 +362,14 @@ export default async function DashboardPage() {
           <div className="hero-gradient rounded-3xl px-8 py-7 text-white flex flex-col justify-between" style={{ minHeight: '160px' }}>
             {total === 0 ? (
               /* ── Empty state hero ── */
-              <div className="flex flex-col justify-between h-full" style={{ minHeight: '146px' }}>
+              <div className="flex flex-col gap-5">
                 <div className="flex items-start justify-between gap-6">
                   <div>
                     <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
                     <p className="text-5xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
                     <p className="text-sm text-white/55 mt-2">
                       {budgetAmount
-                        ? `Tienes ${formatCLP(budgetAmount)} disponibles`
+                        ? `Tienes ${formatCLP(budgetAmount)} disponibles este mes`
                         : 'Aún no hay gastos registrados'}
                     </p>
                   </div>
@@ -382,7 +382,7 @@ export default async function DashboardPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3 mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                <div className="flex items-center gap-3 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
                     <Zap className="w-4 h-4 text-white" />
                   </div>
@@ -546,8 +546,8 @@ export default async function DashboardPage() {
                 <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Agregar gasto</Link>
               </div>
               <div
-                className="card flex flex-col items-center justify-center text-center px-6 py-10"
-                style={{ borderColor: 'var(--border)', borderStyle: 'dashed', minHeight: '280px' }}
+                className="card flex flex-col items-center justify-center text-center px-6 py-12"
+                style={{ borderColor: 'var(--border)', borderStyle: 'dashed' }}
               >
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
@@ -743,7 +743,8 @@ export default async function DashboardPage() {
             <div>
               <h2 className="text-sm font-bold mb-2.5" style={{ color: 'var(--ink-2)' }}>Resumen rápido</h2>
               <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
-                {allCats.length > 0 && (
+                {/* Mini-boxes solo cuando hay gastos reales */}
+                {allCats.length > 0 && typedExpenses.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
                       <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
@@ -763,10 +764,10 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                 )}
-                <div className="space-y-2" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                <div className="space-y-2" style={{ borderTop: typedExpenses.length > 0 ? '1px solid var(--border)' : undefined, paddingTop: typedExpenses.length > 0 ? '12px' : undefined }}>
                   <div className="flex justify-between">
                     <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Gastos del mes</span>
-                    <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{typedExpenses.length}</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{typedExpenses.length > 0 ? typedExpenses.length : '—'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Categoría top</span>
