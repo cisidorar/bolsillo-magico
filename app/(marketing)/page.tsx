@@ -300,7 +300,7 @@ export default function LandingPage() {
       }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ width:32, height:32, position:'relative', flexShrink:0 }}>
-            <Image src="/camapana.png" alt="logo" fill style={{ objectFit:'contain' }} />
+            <Image src="/bolsillo-magico-icono-invertido.svg" alt="logo" fill style={{ objectFit:'contain' }} />
           </div>
           <span style={{ fontWeight:900, fontSize:16, color:'#fff', letterSpacing:'-0.01em' }}>Bolsillo Mágico</span>
         </div>
@@ -348,7 +348,7 @@ export default function LandingPage() {
               textTransform:'uppercase', marginBottom:24,
             }}>
               <div style={{ width:20, height:20, position:'relative', flexShrink:0 }}>
-                <Image src="/camapana.png" alt="" fill style={{ objectFit:'contain' }} />
+                <Image src="/bolsillo-magico-icono-invertido.svg" alt="" fill style={{ objectFit:'contain' }} />
               </div>
               Control de gastos personales
             </div>
@@ -508,7 +508,7 @@ export default function LandingPage() {
           <div data-reveal style={{ position:'relative' }}>
             <div style={{ width:80, height:80, position:'relative', margin:'0 auto 24px' }}>
               <Image
-                src="/camapana.png"
+                src="/bolsillo-magico-icono-invertido.svg"
                 alt="Bolsillo Mágico"
                 fill
                 style={{ objectFit:'contain', filter:'drop-shadow(0 8px 24px rgba(0,0,0,.35))' }}
@@ -544,7 +544,7 @@ export default function LandingPage() {
         }}>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <div style={{ width:24, height:24, position:'relative' }}>
-              <Image src="/camapana.png" alt="logo" fill style={{ objectFit:'contain' }} />
+              <Image src="/bolsillo-magico-icono-invertido.svg" alt="logo" fill style={{ objectFit:'contain' }} />
             </div>
             <span style={{ fontWeight:800, fontSize:13, color:'rgba(255,255,255,.5)' }}>Bolsillo Mágico</span>
           </div>

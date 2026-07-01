@@ -1,9 +1,0 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1024" height="1024" rx="230" fill="#4D7FDD"/>
-
-  <!-- Single sparkle star moved slightly higher -->
-  <path d="M512 205L542 339L678 369L542 399L512 533L482 399L346 369L482 339L512 205Z" fill="#F2C94C"/>
-
-  <!-- Improved semicircle / bowl -->
-  <path d="M262 578H762C762 716.071 650.071 828 512 828C373.929 828 262 716.071 262 578Z" fill="#F5F5F5"/>
-</svg>

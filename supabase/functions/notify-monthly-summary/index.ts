@@ -54,7 +54,7 @@ Deno.serve(async (req: Request) => {
     if (!testEmail) {
       return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
     }
-    const fmtCLP = (n: number) => '$' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
+    const fmtCLP = (n: number) => '$ ' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
     const monthLabel = new Date(summaryYear, summaryMonth - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
     const res = await fetch('https://api.resend.com/emails', {
@@ -194,8 +194,8 @@ Deno.serve(async (req: Request) => {
       }))
 
     const recurringPct = totalCurrent > 0 ? Math.round((totalRecurring / totalCurrent) * 100) : 0
-    const fmtCLP = (n: number) => '$' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
-    const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+    const fmtCLP = (n: number) => '$ ' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
+    const monthLabel = new Date(summaryYear, summaryMonth - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     // Capitalizar primera letra
     const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
 
@@ -249,7 +249,7 @@ function brandWordmark(siteUrl: string) {
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
     <tr>
       <td style="vertical-align:middle;padding-right:8px">
-        <img src="${siteUrl}/logo-icon.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+        <img src="${siteUrl}/bolsillo-magico-icono-invertido.svg" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
       </td>
       <td style="vertical-align:middle">
         <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
@@ -310,9 +310,9 @@ function monthlyEmailHtml({
         <td style="padding:10px 0 4px">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="width:20px;vertical-align:middle">${dotHtml}</td>
-              <td style="vertical-align:middle;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#0E2A52">${cat!.name}</td>
-              <td style="text-align:right;vertical-align:middle;white-space:nowrap">
+              <td style="width:20px;vertical-align:middle;padding-right:8px">${dotHtml}</td>
+              <td style="vertical-align:middle;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#0E2A52;padding-right:8px">${cat!.name}</td>
+              <td style="text-align:right;vertical-align:middle;white-space:nowrap;width:1%">
                 <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtCLP(total)}</span>
                 <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;color:#94A3B8;margin-left:4px">· ${pct}%</span>
               </td>
@@ -382,78 +382,81 @@ function monthlyEmailHtml({
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Resumen mensual · Bolsillo Mágico</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    @media only screen and (max-width:600px) {
+      .email-wrap { padding: 0 !important; }
+      .email-body { border-radius: 0 !important; }
+      .body-pad   { padding: 24px 16px !important; }
+      .foot-pad   { padding: 24px 16px !important; }
+      .hero-pad   { padding: 28px 16px 24px !important; }
+      .total-pad  { padding: 28px 16px !important; }
+      .kpi-label  { font-size: 9px !important; }
+      .kpi-val    { font-size: 18px !important; }
+      .kpi-val-sm { font-size: 14px !important; }
+      .total-amt  { font-size: 32px !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-wrap" style="background:#E8EFF8;padding:32px 16px">
   <tr><td align="center">
 
-    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
-      style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-body"
+      style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:600px;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-      <!-- ENCABEZADO azul — Informativo -->
-      <tr><td style="background:#2B7CF6;padding:36px 40px 32px;text-align:center">
-        <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
-        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
-          <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
-            📊
-          </td></tr>
-        </table>
-        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+      <!-- FILA 1 — Encabezado azul -->
+      <tr><td class="hero-pad" style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
+        <div style="margin-bottom:20px">${brandWordmark(siteUrl)}</div>
+        <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;line-height:52px;font-size:26px;margin:0 auto 14px">📊</div>
+        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
           Resumen mensual · ${monthLabel}
         </p>
       </td></tr>
 
-      <!-- CUERPO -->
-      <tr><td style="padding:32px 40px 28px">
-
-        <!-- Saludo -->
-        <p style="margin:0 0 8px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:20px;font-weight:700;color:#0E2A52">
-          Hola, ${displayName}
+      <!-- FILA 2 — Total del mes (full-bleed azul) -->
+      <tr><td class="total-pad" style="background:#2B7CF6;padding:24px 32px 32px;text-align:center;border-bottom:4px solid #E8EFF8">
+        <p style="margin:0 0 6px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;letter-spacing:1.5px">
+          Este mes gastaste
         </p>
-        <p style="margin:0 0 28px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
-          Aquí tienes a dónde fue tu dinero este mes.
+        <p class="total-amt" style="margin:0 0 16px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:40px;font-weight:800;color:#ffffff;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums">
+          ${fmtCLP(totalCurrent)}
         </p>
+        ${deltaMsg ? `<div style="display:inline-block;background:${deltaBadgeBg};border-radius:20px;padding:6px 16px">
+          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#ffffff">${deltaMsg}</span>
+        </div>` : ''}
+      </td></tr>
 
-        <!-- BLOQUE DESTACADO — total del mes -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-          style="background:#2B7CF6;border-radius:20px;margin-bottom:24px">
-          <tr><td style="padding:28px 32px;text-align:center">
-            <p style="margin:0 0 6px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">
-              Este mes gastaste
-            </p>
-            <p style="margin:0 0 14px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:38px;font-weight:800;color:#ffffff;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums">
-              ${fmtCLP(totalCurrent)}
-            </p>
-            ${deltaMsg ? `
-            <div style="display:inline-block;background:${deltaBadgeBg};border-radius:20px;padding:5px 14px">
-              <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:#ffffff">${deltaMsg}</span>
-            </div>` : ''}
-          </td></tr>
-        </table>
-
-        <!-- KPI fila de 3 -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-          style="border:1.5px solid #E4EAF1;border-radius:16px;overflow:hidden;margin-bottom:28px">
+      <!-- FILA 3 — KPIs (full-bleed, borde inferior) -->
+      <tr><td style="padding:0;border-bottom:4px solid #E8EFF8">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr>
-            <td width="33%" style="padding:16px 12px;text-align:center;border-right:1.5px solid #E4EAF1">
-              <p style="margin:0 0 3px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Transacciones</p>
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${txCount}</p>
+            <td width="33%" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
+              <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Transacciones</p>
+              <p class="kpi-val" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${txCount}</p>
             </td>
-            <td width="34%" style="padding:16px 12px;text-align:center;border-right:1.5px solid #E4EAF1">
-              <p style="margin:0 0 3px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Promedio diario</p>
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:17px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtCLP(dailyAvg)}</p>
+            <td width="34%" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
+              <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Promedio diario</p>
+              <p class="kpi-val-sm" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtCLP(dailyAvg)}</p>
             </td>
-            <td width="33%" style="padding:16px 12px;text-align:center;background:#E7F7F0">
-              <p style="margin:0 0 3px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#1FBE8D;text-transform:uppercase;letter-spacing:0.5px">Recurrentes</p>
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D;font-variant-numeric:tabular-nums">${recurringPct}%</p>
+            <td width="33%" style="padding:16px 8px;text-align:center;background:#E7F7F0">
+              <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#1FBE8D;text-transform:uppercase;letter-spacing:0.5px">Recurrentes</p>
+              <p class="kpi-val" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D;font-variant-numeric:tabular-nums">${recurringPct}%</p>
             </td>
           </tr>
         </table>
+      </td></tr>
+
+      <!-- FILA 4 — Cuerpo (padded) -->
+      <tr><td class="body-pad" style="padding:28px 28px 24px">
+
+        <!-- Saludo -->
+        <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:700;color:#0E2A52">Hola, ${displayName}</p>
+        <p style="margin:0 0 24px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.6">Aquí tienes a dónde fue tu dinero este mes.</p>
 
         <!-- Categorías -->
         ${topCats.length > 0 ? `
-        <p style="margin:0 0 8px;font-family:Fredoka,system-ui,sans-serif;font-size:16px;font-weight:600;color:#0E2A52">En qué se fue tu dinero</p>
+        <p style="margin:0 0 10px;font-family:Fredoka,system-ui,sans-serif;font-size:16px;font-weight:600;color:#0E2A52">En qué se fue tu dinero</p>
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:24px">
           ${catRows}
         </table>` : ''}
@@ -463,10 +466,10 @@ function monthlyEmailHtml({
 
         <!-- Top 3 gastos -->
         ${top3.length > 0 ? `
-        <p style="margin:0 0 8px;font-family:Fredoka,system-ui,sans-serif;font-size:16px;font-weight:600;color:#0E2A52">Los gastos más grandes</p>
+        <p style="margin:0 0 10px;font-family:Fredoka,system-ui,sans-serif;font-size:16px;font-weight:600;color:#0E2A52">Los gastos más grandes</p>
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
           style="background:#F4F7FB;border-radius:16px;margin-bottom:28px">
-          <tr><td style="padding:4px 20px">
+          <tr><td style="padding:4px 16px">
             <table width="100%" cellpadding="0" cellspacing="0">
               ${expenseRows}
             </table>
@@ -475,31 +478,28 @@ function monthlyEmailHtml({
 
         <!-- CTA -->
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr><td style="text-align:center">
+          <tr><td style="text-align:center;padding-top:4px">
             <a href="${siteUrl}/analisis"
-              style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
+              style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 36px;border-radius:12px;letter-spacing:0.1px">
               Ver reporte completo
             </a>
-            <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#94A3B8">
-              O abre la app y revisa tus metas para el próximo mes.
-            </p>
           </td></tr>
         </table>
 
       </td></tr>
 
       <!-- PIE navy -->
-      <tr><td style="background:#0E2A52;padding:28px 40px">
+      <tr><td class="foot-pad" style="background:#0E2A52;padding:24px 28px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr><td style="text-align:center;padding-bottom:16px">
+          <tr><td style="text-align:center;padding-bottom:14px">
             ${brandWordmark(siteUrl)}
           </td></tr>
-          <tr><td style="text-align:center;padding-bottom:16px">
+          <tr><td style="text-align:center;padding-bottom:14px">
             <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
             <span style="color:#3D5476;font-size:12px">·</span>
             <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
           </td></tr>
-          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
             <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
               Recibes este correo porque tienes activo el resumen mensual.<br>
               <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>

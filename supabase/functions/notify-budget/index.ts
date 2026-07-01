@@ -154,7 +154,7 @@ function brandWordmark(siteUrl: string) {
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
     <tr>
       <td style="vertical-align:middle;padding-right:8px">
-        <img src="${siteUrl}/logo-icon.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+        <img src="${siteUrl}/bolsillo-magico-icono-invertido.svg" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
       </td>
       <td style="vertical-align:middle">
         <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">

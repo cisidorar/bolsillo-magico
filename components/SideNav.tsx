@@ -36,38 +36,19 @@ export default function SideNav() {
           href="/inicio"
           className="flex items-center gap-2.5 mb-8 px-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          {/* Ícono "El Bolsillo" */}
-          <div
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center relative overflow-hidden"
-            style={{ background: 'var(--primary)' }}
-          >
-            {/* Destello dorado 4 puntas */}
-            <div
-              className="absolute w-3 h-3"
-              style={{
-                background: 'var(--gold)',
-                clipPath: 'polygon(50% 0,61% 39%,100% 50%,61% 61%,50% 100%,39% 61%,0 50%,39% 39%)',
-                top: '5px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-              }}
-            />
-            {/* Bolsillo (medio disco blanco) */}
-            <div
-              className="absolute"
-              style={{
-                width: '18px',
-                height: '9px',
-                bottom: '5px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                overflow: 'hidden',
-                borderRadius: '0 0 9px 9px',
-              }}
-            >
-              <div style={{ width: '18px', height: '18px', background: 'white', borderRadius: '50%', marginTop: '-9px' }} />
-            </div>
-          </div>
+          {/* Ícono — light: azul sobre blanco / dark: blanco sobre oscuro */}
+          <img
+            src="/bolsillo-magico-icono.svg"
+            alt="Bolsillo Mágico"
+            width={36} height={36}
+            className="flex-shrink-0 rounded-xl dark:hidden"
+          />
+          <img
+            src="/bolsillo-magico-icono-invertido.svg"
+            alt="Bolsillo Mágico"
+            width={36} height={36}
+            className="flex-shrink-0 rounded-xl hidden dark:block"
+          />
           {/* Wordmark */}
           <span className="font-display text-[15px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
             <span style={{ color: 'var(--ink)' }}>Bolsillo </span>
