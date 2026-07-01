@@ -974,15 +974,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         <div className="card overflow-hidden">
 
           {/* Table header bar */}
-          <div className="flex items-center justify-between px-4 lg:px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-            {/* ≡ Filtrar */}
-            <button
-              className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg border transition-colors"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
-            >
-              <span className="text-sm leading-none">≡</span>
-              Filtrar
-            </button>
+          <div className="flex items-center justify-end px-4 lg:px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
             {/* ⊙ cierre · hace Xs */}
             <p className="text-[10px] flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: lastUpdated ? 'var(--mint)' : 'var(--ink-3)' }} />
