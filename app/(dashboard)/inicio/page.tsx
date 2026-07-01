@@ -195,16 +195,39 @@ export default async function DashboardPage() {
     }
   }).filter(c => c.count > 0)
 
-  // Próximos pagos (7 días)
+  // Recurrentes ya pagados ESTE MES (tienen gasto registrado en expenses del mes actual)
+  const paidThisMonthSet = new Set(
+    typedExpenses.filter(e => e.recurring_expense_id).map(e => e.recurring_expense_id!)
+  )
+
+  // Atrasados: billing_day ya pasó este mes y NO están registrados
+  type PagoAtrasado = { id: string; name: string; amount: number; domain: string | null; daysLate: number }
+  const atrasados: PagoAtrasado[] = recurringWithCounts
+    .filter(r => r.is_active)
+    .filter(r => {
+      if (r.billing_month !== null && r.billing_month !== month) return false  // anual de otro mes
+      return r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
+    })
+    .map(r => ({ id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate: todayDate - r.billing_day }))
+    .sort((a, b) => b.daysLate - a.daysLate)
+
+  // Próximos pagos (7 días) — excluye atrasados (ya cubiertos arriba)
   type ProximoPago = {
     id: string; name: string; amount: number; domain: string | null
     daysUntil: number; label: string; isToday: boolean
   }
   const proximosPagos: ProximoPago[] = recurringWithCounts
     .filter(r => r.is_active)
+    .filter(r => {
+      if (r.billing_month !== null && r.billing_month !== month) return false
+      // Si está atrasado, ya aparece en la sección de arriba
+      if (r.billing_day < todayDate && !paidThisMonthSet.has(r.id)) return false
+      return true
+    })
     .map(r => {
       let d = r.billing_day, m = month, y = year
-      if (d < todayDate) {
+      // Si ya fue pagado este mes o es hoy → calcular próxima ocurrencia (mes siguiente)
+      if (paidThisMonthSet.has(r.id) && d <= todayDate) {
         m = month === 12 ? 1 : month + 1
         y = month === 12 ? year + 1 : year
       }
@@ -216,7 +239,7 @@ export default async function DashboardPage() {
       const label   = isToday ? 'Hoy' : daysUntil === 1 ? 'Mañana' : `${d} ${monthName(m).slice(0, 3)}`
       return { id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysUntil, label, isToday }
     })
-    .filter(r => r.daysUntil <= 7)
+    .filter(r => r.daysUntil >= 0 && r.daysUntil <= 7)
     .sort((a, b) => a.daysUntil - b.daysUntil)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -253,6 +276,24 @@ export default async function DashboardPage() {
           </Link>
         )
       })}
+    </div>
+  )
+
+  const AtrasadosList = () => (
+    <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
+      {atrasados.map((r, i) => (
+        <div key={r.id} className="flex items-center gap-3 px-4 py-3"
+          style={{ borderTop: i > 0 ? '1px solid #FAD3CF' : undefined, background: i === 0 ? 'rgba(239,91,82,0.04)' : undefined }}>
+          <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
+            <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>
+              Atrasado · hace {r.daysLate} día{r.daysLate !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>{formatCLP(r.amount)}</p>
+        </div>
+      ))}
     </div>
   )
 
@@ -582,6 +623,18 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            {atrasados.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
+                    Pagos atrasados
+                  </h2>
+                </div>
+                <AtrasadosList />
+              </div>
+            )}
+
             {proximosPagos.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-2.5">
@@ -826,6 +879,17 @@ export default async function DashboardPage() {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Pagos atrasados mobile */}
+          {atrasados.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+                <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
+              </div>
+              <AtrasadosList />
             </div>
           )}
 

@@ -14,22 +14,47 @@ const SITE_URL       = Deno.env.get('SITE_URL') ?? 'https://bolsillomagico.com'
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 
-Deno.serve(async () => {
-  const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+Deno.serve(async (req: Request) => {
+  const url  = new URL(req.url)
+  let body: Record<string, unknown> = {}
+  try { body = await req.json() } catch { /* no body */ }
+  const force = url.searchParams.get('force') === 'true' || body?.force === true
 
   const now      = new Date()
   const month    = now.getMonth() + 1
   const year     = now.getFullYear()
   const monthStr = `${year}-${String(month).padStart(2, '0')}`
 
-  const { data: budgets, error: bErr } = await supabase
+  // MODO TEST: enviar correo de muestra sin DB
+  if (force) {
+    const testEmail = (body?.email as string) ?? null
+    if (!testEmail) return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
+    const fmtCLP = (n: number) => '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 })
+    const monthName = new Date(year, month - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+    const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
+        to: testEmail,
+        subject: `Llevas el 80% de tu presupuesto de ${monthLabel} · Bolsillo Mágico`,
+        html: budgetEmailHtml({ displayName: 'Cas', alertType: 'budget_80', total: 850_000, budgetAmount: 1_000_000, pct: 85, remaining: 150_000, fmtCLP, siteUrl: SITE_URL, monthLabel }),
+      }),
+    })
+    return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+
+  const { data: budgetData, error: bErr } = await supabase
     .from('budgets')
     .select('user_id, amount')
     .eq('month', month)
     .eq('year', year)
-
   if (bErr) return new Response(JSON.stringify({ error: bErr.message }), { status: 500 })
-  if (!budgets || budgets.length === 0) return new Response('No budgets found', { status: 200 })
+  if (!budgetData || budgetData.length === 0) return new Response('No budgets found', { status: 200 })
+  const budgets = budgetData
 
   const userIds = budgets.map(b => b.user_id)
 
@@ -80,7 +105,6 @@ Deno.serve(async () => {
       .from('notification_log')
       .insert({ user_id: budget.user_id, type: alertType, ref_key: refKey })
       .select().single()
-
     if (logErr) { skipped++; continue }
 
     const displayName = profile.display_name ?? 'Usuario'
@@ -99,8 +123,8 @@ Deno.serve(async () => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
         subject: alertType === 'budget_100'
-          ? `🚨 Superaste tu presupuesto de ${monthCap}`
-          : `⚠️ Llevas el 80% de tu presupuesto de ${monthCap}`,
+          ? `Superaste tu presupuesto de ${monthCap} · Bolsillo Mágico`
+          : `Llevas el 80% de tu presupuesto de ${monthCap} · Bolsillo Mágico`,
         html: budgetEmailHtml({
           displayName,
           alertType,
@@ -123,6 +147,23 @@ Deno.serve(async () => {
     headers: { 'Content-Type': 'application/json' },
   })
 })
+
+// ── Logo / Wordmark ──────────────────────────────────────────────────────────
+
+function brandWordmark(siteUrl: string) {
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
+    <tr>
+      <td style="vertical-align:middle;padding-right:8px">
+        <img src="${siteUrl}/logo-icon.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+      </td>
+      <td style="vertical-align:middle">
+        <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
+          <span style="color:rgba(255,255,255,0.95)">Bolsillo </span><span style="color:#F8C945">Mágico</span>
+        </span>
+      </td>
+    </tr>
+  </table>`
+}
 
 // ── Email HTML ────────────────────────────────────────────────────────────────
 
@@ -147,127 +188,139 @@ function budgetEmailHtml({
   siteUrl: string
   monthLabel: string
 }) {
-  const isOver     = alertType === 'budget_100'
-  const barPct     = Math.min(100, pct)
-  const accentClr  = isOver ? '#FF6F61' : '#FFC23C'
-  const accentBg   = isOver ? '#FFF5F5' : '#FFF8EC'
-  const accentBdr  = isOver ? '#FECACA' : '#FFE4A0'
-  const icon       = isOver ? '🚨' : '⚠️'
-  const title      = isOver ? '¡Superaste tu presupuesto!' : 'Llevas el 80% de tu presupuesto'
-  const subtitle   = isOver
-    ? `Ya gastaste <strong style="color:#FF6F61">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas.`
+  const isOver      = alertType === 'budget_100'
+  const barPct      = Math.min(100, pct)
+  // Urgente = coral, Recordatorio = ámbar
+  const accent      = isOver ? '#EF5B52' : '#F59E0B'
+  const accentBg    = isOver ? '#FFF4F3' : '#FFF8E8'
+  const accentBdr   = isOver ? '#FAD3CF' : '#FBE6B5'
+  const barColor    = isOver ? '#EF5B52' : '#F59E0B'
+  const title       = isOver ? 'Superaste tu presupuesto' : 'Llevas el 80% de tu presupuesto'
+  const subtitle    = isOver
+    ? `Ya gastaste <strong style="color:${accent}">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas.`
     : `Te quedan <strong style="color:#2B7CF6">${fmtCLP(remaining)}</strong> para lo que resta del mes.`
   const advice = isOver
     ? 'Revisa tus categorías para entender dónde se fue el dinero y ajustar el próximo mes.'
     : 'Todavía estás a tiempo de ajustar tus gastos antes de fin de mes.'
-
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Alerta de presupuesto · Bolsillo Mágico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
   <tr><td align="center">
 
-    <table width="560" cellpadding="0" cellspacing="0" role="presentation"
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-      <!-- Header -->
-      <tr><td style="background:#F4F7FB;padding:28px 40px 24px;text-align:center">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="text-align:left;font-size:14px;color:#2B7CF6;vertical-align:top">✦</td>
-            <td style="text-align:center">
-              <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#2B7CF6;text-transform:uppercase;letter-spacing:2px">Alerta de presupuesto</p>
-              <p style="margin:0;font-size:24px;font-weight:800;color:#0E2A52;letter-spacing:-0.3px">${monthLabel}</p>
-            </td>
-            <td style="text-align:right;font-size:14px;color:#FFC23C;vertical-align:top">✦</td>
-          </tr>
+      <!-- ENCABEZADO -->
+      <tr><td style="background:${accent};padding:36px 40px 32px;text-align:center">
+        <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
+        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
+          <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
+            ${isOver ? '⚠️' : '🔔'}
+          </td></tr>
         </table>
+        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+          ${title}
+        </p>
+        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:rgba(255,255,255,0.8)">
+          ${monthLabel}
+        </p>
       </td></tr>
 
-      <!-- Body -->
-      <tr><td style="padding:28px 40px">
-        <p style="margin:0 0 20px;font-size:20px;font-weight:700;color:#0E2A52">Hola, ${displayName} 👋</p>
+      <!-- CUERPO -->
+      <tr><td style="padding:32px 40px 28px">
 
-        <!-- Alert box -->
-        <div style="background:${accentBg};border:1.5px solid ${accentBdr};border-radius:16px;padding:20px 24px;margin-bottom:24px">
-          <table cellpadding="0" cellspacing="0" role="presentation">
-            <tr>
-              <td style="width:36px;font-size:24px;vertical-align:top">${icon}</td>
-              <td style="padding-left:12px;vertical-align:top">
-                <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#0E2A52">${title}</p>
-                <p style="margin:0;font-size:14px;color:#5B6B82;line-height:1.6">${subtitle}</p>
-              </td>
-            </tr>
-          </table>
-        </div>
+        <p style="margin:0 0 8px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:20px;font-weight:700;color:#0E2A52">
+          Hola, ${displayName}
+        </p>
+        <p style="margin:0 0 28px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
+          ${subtitle}
+          ${advice}
+        </p>
 
-        <!-- Hero card: gastado vs presupuesto -->
-        <div style="background:#2B7CF6;border-radius:20px;padding:24px 28px;margin-bottom:24px">
-          <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-            <tr>
-              <td style="text-align:center;border-right:1px solid rgba(255,255,255,0.2);padding-right:20px">
-                <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px">Gastado</p>
-                <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px">${fmtCLP(total)}</p>
-              </td>
-              <td style="text-align:center;padding-left:20px">
-                <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px">Presupuesto</p>
-                <p style="margin:0;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px">${fmtCLP(budgetAmount)}</p>
-              </td>
-            </tr>
-          </table>
-          <!-- Barra de progreso -->
-          <div style="margin-top:18px">
-            <div style="background:rgba(255,255,255,0.2);border-radius:8px;height:10px;overflow:hidden">
-              <div style="background:${isOver ? '#FF6F61' : '#FFC23C'};width:${barPct}%;height:100%;border-radius:8px"></div>
+        <!-- BLOQUE DESTACADO azul — cifras principales -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:#2B7CF6;border-radius:20px;margin-bottom:24px">
+          <tr>
+            <td width="50%" style="padding:24px 24px 20px;text-align:center;border-right:1px solid rgba(255,255,255,0.18)">
+              <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Gastado</p>
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;font-variant-numeric:tabular-nums">
+                ${fmtCLP(total)}
+              </p>
+            </td>
+            <td width="50%" style="padding:24px 24px 20px;text-align:center">
+              <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Presupuesto</p>
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;font-variant-numeric:tabular-nums">
+                ${fmtCLP(budgetAmount)}
+              </p>
+            </td>
+          </tr>
+          <tr><td colspan="2" style="padding:0 24px 20px">
+            <div style="background:rgba(255,255,255,0.2);border-radius:6px;height:8px;overflow:hidden">
+              <div style="background:${barColor};width:${barPct}%;height:100%;border-radius:6px"></div>
             </div>
-            <p style="margin:8px 0 0;font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);text-align:right">${pct}% utilizado</p>
-          </div>
-        </div>
+            <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.8);text-align:right">
+              ${pct}% utilizado
+            </p>
+          </td></tr>
+        </table>
 
-        <!-- Advice -->
-        <p style="margin:0 0 28px;font-size:14px;color:#5B6B82;line-height:1.6">${advice}</p>
+        <!-- Tarjeta de estado (tinte semántico) -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:${accentBg};border:1.5px solid ${accentBdr};border-radius:16px;margin-bottom:28px">
+          <tr><td style="padding:18px 20px">
+            <table cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="width:30px;vertical-align:top;padding-top:2px;font-size:18px;line-height:1">${isOver ? '⚠️' : '💡'}</td>
+                <td style="padding-left:12px;vertical-align:top;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.6">
+                  ${isOver
+                    ? 'No te preocupes, aún puedes entender qué pasó y planificar mejor el próximo mes.'
+                    : 'Todavía estás a tiempo de ajustar tus gastos antes de fin de mes.'}
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
 
         <!-- CTA -->
-        <div style="text-align:center">
-          <a href="${siteUrl}/analisis"
-            style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 32px;border-radius:14px;letter-spacing:-0.2px">
-            Ver análisis →
-          </a>
-          <p style="margin:12px 0 0;font-size:13px;color:#94A3B8">O abre la app y revisa tus categorías.</p>
-        </div>
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr><td style="text-align:center">
+            <a href="${siteUrl}/analisis"
+              style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
+              Ver análisis de gastos
+            </a>
+            <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#94A3B8">
+              O abre la app y revisa tus categorías.
+            </p>
+          </td></tr>
+        </table>
+
       </td></tr>
 
-      <!-- Footer navy -->
-      <tr><td style="background:#0E2A52;padding:24px 40px">
+      <!-- PIE navy -->
+      <tr><td style="background:#0E2A52;padding:28px 40px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="text-align:center;padding-bottom:16px">
-              <p style="margin:0;font-size:16px;font-weight:800;color:#ffffff">
-                <span style="color:#FFC23C">✦</span> Bolsillo Mágico
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="text-align:center;padding-bottom:14px">
-              <a href="${siteUrl}" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Abrir app</a>
-              <span style="color:rgba(255,255,255,0.2)">·</span>
-              <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Ajustes de correo</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="text-align:center;border-top:1px solid rgba(255,255,255,0.1);padding-top:14px">
-              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);line-height:1.7">
-                Recibes este correo porque tienes activas las alertas de presupuesto.<br>
-                <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.35);text-decoration:underline">Cancelar suscripción</a>
-              </p>
-            </td>
-          </tr>
+          <tr><td style="text-align:center;padding-bottom:16px">
+            ${brandWordmark(siteUrl)}
+          </td></tr>
+          <tr><td style="text-align:center;padding-bottom:16px">
+            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
+            <span style="color:#3D5476;font-size:12px">·</span>
+            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+          </td></tr>
+          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
+              Recibes este correo porque tienes activas las alertas de presupuesto.<br>
+              <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
+            </p>
+          </td></tr>
         </table>
       </td></tr>
 

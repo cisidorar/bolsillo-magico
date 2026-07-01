@@ -30,8 +30,11 @@ function todayInCL(): Date {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
-  const url    = new URL(req.url)
-  const type   = url.searchParams.get('type') ?? 'due'   // 'due' | 'overdue'
+  const url  = new URL(req.url)
+  let body: Record<string, unknown> = {}
+  try { body = await req.json() } catch { /* no body */ }
+  const type  = (url.searchParams.get('type') ?? body?.type ?? 'due') as string
+  const force = url.searchParams.get('force') === 'true' || body?.force === true
 
   if (type !== 'due' && type !== 'overdue') {
     return new Response('Invalid type. Use ?type=due or ?type=overdue', { status: 400 })
@@ -53,8 +56,31 @@ Deno.serve(async (req: Request) => {
     : `${monthStr}-${String(today - 1).padStart(2, '0')}`
 
   // Para 'overdue': si ayer fue el día 0 (inicio de mes), no hay overdue del mes anterior
-  if (type === 'overdue' && today === 1) {
+  if (!force && type === 'overdue' && today === 1) {
     return new Response('First day of month — no overdue from previous day', { status: 200 })
+  }
+
+  // MODO TEST: enviar correo de muestra sin DB
+  if (force) {
+    const testEmail = (body?.email as string) ?? null
+    if (!testEmail) return new Response('Pasa tu email: {"type":"due","force":true,"email":"tu@email.com"}', { status: 400 })
+    const testItems = [
+      { name: 'Netflix', amount: 9_490, domain: 'netflix.com', category: { name: 'Entretenimiento', color: '#8B5CF6', bg_color: '#F5F3FF', icon: '🎬' } },
+      { name: 'Spotify', amount: 5_990, domain: 'spotify.com', category: { name: 'Entretenimiento', color: '#8B5CF6', bg_color: '#F5F3FF', icon: '🎵' } },
+    ]
+    const totalAmount = testItems.reduce((s, i) => s + i.amount, 0)
+    const targetDate = `${monthStr}-${String(today).padStart(2, '0')}`
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
+        to: testEmail,
+        subject: type === 'due' ? 'Recordatorio: Netflix y Spotify vencen hoy · Bolsillo Mágico' : 'Netflix y Spotify no han sido registrados · Bolsillo Mágico',
+        html: reminderEmailHtml({ type: type as 'due' | 'overdue', displayName: 'Cas', items: testItems, totalAmount, targetDate, siteUrl: SITE_URL }),
+      }),
+    })
+    return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
   }
 
   // 1. Usuarios con notify_recurring = true
@@ -74,17 +100,20 @@ Deno.serve(async (req: Request) => {
   const emailMap = new Map((authUsers?.users ?? []).map((u: { id: string; email?: string }) => [u.id, u.email]))
   const profileMap = new Map(profiles.map((p: { id: string; display_name: string | null }) => [p.id, p]))
 
-  // 3. Gastos recurrentes manuales que vencen el día target
-  const { data: allRecurring, error: rErr } = await supabase
+  // 3. Gastos recurrentes manuales que vencen el día target (o todos si force=true)
+  const recurringQuery = supabase
     .from('recurring_expenses')
     .select(`
-      id, user_id, name, amount, billing_day, billing_month,
+      id, user_id, name, amount, billing_day, billing_month, domain,
       category:categories(name, color, bg_color, icon)
     `)
     .in('user_id', userIds)
-    .eq('billing_day', targetDay)
     .eq('auto_register', false)
     .eq('is_active', true)
+
+  if (!force) recurringQuery.eq('billing_day', targetDay)
+
+  const { data: allRecurring, error: rErr } = await recurringQuery
 
   if (rErr) return new Response(JSON.stringify({ error: rErr.message }), { status: 500 })
   if (!allRecurring || allRecurring.length === 0) {
@@ -135,13 +164,15 @@ Deno.serve(async (req: Request) => {
     const profile = profileMap.get(userId)
     if (!email || !profile) { skipped++; continue }
 
-    // Idempotencia: una notificación por usuario por tipo por día
-    const refKey = `${targetDate}:recurring-${type}:${userId}`
-    const { error: logErr } = await supabase
-      .from('notification_log')
-      .insert({ user_id: userId, type: `recurring_${type}`, ref_key: refKey })
-      .select().single()
-    if (logErr) { skipped++; continue }  // ya enviado
+    // Idempotencia: una notificación por usuario por tipo por día (omitir en force/test)
+    if (!force) {
+      const refKey = `${targetDate}:recurring-${type}:${userId}`
+      const { error: logErr } = await supabase
+        .from('notification_log')
+        .insert({ user_id: userId, type: `recurring_${type}`, ref_key: refKey })
+        .select().single()
+      if (logErr) { skipped++; continue }  // ya enviado
+    }
 
     const totalAmount = items.reduce((s: number, i: { amount: number }) => s + i.amount, 0)
 
@@ -155,8 +186,8 @@ Deno.serve(async (req: Request) => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to:   email,
         subject: type === 'due'
-          ? `📅 ${items.length === 1 ? `Recordatorio: ${items[0].name} vence hoy` : `Tienes ${items.length} gastos que vencen hoy`}`
-          : `⚠️ ${items.length === 1 ? `${items[0].name} no ha sido registrado` : `${items.length} gastos atrasados sin registrar`}`,
+          ? `${items.length === 1 ? `Recordatorio: ${items[0].name} vence hoy` : `Tienes ${items.length} gastos que vencen hoy`} · Bolsillo Mágico`
+          : `${items.length === 1 ? `${items[0].name} no ha sido registrado` : `${items.length} gastos atrasados sin registrar`} · Bolsillo Mágico`,
         html: reminderEmailHtml({
           type,
           displayName: profile.display_name ?? 'Usuario',
@@ -182,7 +213,25 @@ Deno.serve(async (req: Request) => {
 interface ReminderItem {
   name: string
   amount: number
+  domain?: string | null
   category: { name: string; color: string; bg_color: string; icon: string | null } | null
+}
+
+function brandWordmark(siteUrl: string, light = true) {
+  const main  = light ? 'rgba(255,255,255,0.95)' : '#0E2A52'
+  const magic = light ? '#F8C945' : '#1B6DD4'
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
+    <tr>
+      <td style="vertical-align:middle;padding-right:8px">
+        <img src="${siteUrl}/logo-icon.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+      </td>
+      <td style="vertical-align:middle">
+        <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
+          <span style="color:${main}">Bolsillo </span><span style="color:${magic}">Mágico</span>
+        </span>
+      </td>
+    </tr>
+  </table>`
 }
 
 function reminderEmailHtml({
@@ -200,52 +249,53 @@ function reminderEmailHtml({
   targetDate: string
   siteUrl: string
 }) {
-  const isDue       = type === 'due'
-  const accentColor = isDue ? '#1B6DD4' : '#FF6F61'
-  const accentLight = isDue ? '#EEF4FF' : '#FFF2F0'
-  const headerBg    = isDue ? 'linear-gradient(135deg, #1B6DD4 0%, #1557b0 100%)' : 'linear-gradient(135deg, #FF6F61 0%, #e05a4e 100%)'
+  const fmt = (n: number) => '$' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
+  const isDue    = type === 'due'
+  const accent   = isDue ? '#F59E0B' : '#EF5B52'
+  const cardBg   = isDue ? '#FFF8E8' : '#FFF4F3'
+  const cardBdr  = isDue ? '#FBE6B5' : '#FAD3CF'
+  const title    = isDue
+    ? (items.length === 1 ? 'Recordatorio de cobro' : `${items.length} cobros se acercan`)
+    : (items.length === 1 ? 'Tienes un pago atrasado' : `${items.length} pagos atrasados`)
 
   const [y, m, d] = targetDate.split('-').map(Number)
-  const dateLabel = new Date(y, m - 1, d).toLocaleDateString('es-CL', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
-  const dateLabelCap = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1)
+  const dateLabel = new Date(y, m - 1, d).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
+  const subtitle  = isDue
+    ? `Se cobra${items.length > 1 ? 'n' : ''} hoy, ${dateLabel}. Ten el saldo listo.`
+    : `Venc${items.length === 1 ? 'ió' : 'ieron'} el ${dateLabel} y aún no aparece${items.length === 1 ? '' : 'n'} en tu historial.`
 
-  const title    = isDue
-    ? (items.length === 1 ? `Recordatorio de pago` : `${items.length} gastos vencen hoy`)
-    : (items.length === 1 ? `Pago atrasado` : `${items.length} pagos atrasados`)
-  const subtitle = isDue
-    ? `${items.length === 1 ? 'Este gasto vence' : 'Estos gastos vencen'} hoy · ${dateLabelCap}`
-    : `${items.length === 1 ? 'Este gasto debía registrarse' : 'Estos gastos debían registrarse'} el ${dateLabelCap} y aún no aparecen en tu historial.`
+  const ctaLabel = isDue ? 'Ver mis recurrentes' : 'Registrar pago ahora'
 
-  const itemRows = items.map(item => {
+  const itemRows = items.map((item, i) => {
     const cat      = item.category
     const catColor = cat?.color ?? '#94A3B8'
     const catBg    = cat?.bg_color ?? '#F1F5F9'
     const catName  = cat?.name ?? 'Sin categoría'
-    const icon     = cat?.icon ?? null
-    const isEmoji  = icon && !/^[A-Z]/.test(icon)
+    const domain   = item.domain
 
-    const iconHtml = isEmoji
-      ? `<span style="font-size:18px;line-height:1">${icon}</span>`
-      : `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${catColor};vertical-align:middle"></span>`
+    // Avatar del servicio: logo de marca si hay domain, sino emoji/punto de categoría
+    const avatarHtml = domain
+      ? `<img src="https://logo.clearbit.com/${domain}" width="40" height="40" alt="${item.name}" style="width:40px;height:40px;border-radius:10px;display:block;object-fit:contain;background:${catBg}">`
+      : (() => {
+          const icon    = cat?.icon ?? null
+          const isEmoji = icon && !/^[A-Z]/.test(icon)
+          return `<div style="width:36px;height:36px;border-radius:10px;background:${catBg};text-align:center;line-height:36px;font-size:18px">
+            ${isEmoji ? icon : `<div style="width:14px;height:14px;border-radius:50%;background:${catColor};display:inline-block;vertical-align:middle"></div>`}
+          </div>`
+        })()
 
     return `
       <tr>
-        <td style="padding:14px 0;border-bottom:1px solid #F0F4F8">
+        <td style="padding:12px 20px;${i < items.length - 1 ? 'border-bottom:1px solid #EDF2F8' : ''}">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="width:44px;vertical-align:middle">
-                <div style="width:40px;height:40px;border-radius:12px;background:${catBg};text-align:center;line-height:40px">
-                  ${iconHtml}
-                </div>
-              </td>
-              <td style="vertical-align:middle;padding-left:12px">
-                <div style="font-size:15px;font-weight:700;color:#0A1F44">${item.name}</div>
-                <div style="font-size:12px;color:#94A3B8;margin-top:2px">${catName}</div>
+              <td style="width:40px;vertical-align:middle">${avatarHtml}</td>
+              <td style="padding-left:12px;vertical-align:middle">
+                <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;color:#0E2A52">${item.name}</p>
+                <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#94A3B8">${catName}</p>
               </td>
               <td style="text-align:right;vertical-align:middle;white-space:nowrap">
-                <span style="font-size:16px;font-weight:800;color:${accentColor}">${fmtCLP(item.amount)}</span>
+                <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;font-weight:800;color:${accent};font-variant-numeric:tabular-nums">${fmt(item.amount)}</span>
               </td>
             </tr>
           </table>
@@ -253,89 +303,112 @@ function reminderEmailHtml({
       </tr>`
   }).join('')
 
-  const ctaLabel = isDue ? 'Registrar pagos' : 'Revisar en la app'
-  const greeting = isDue
-    ? `Hola ${displayName}, tienes ${items.length === 1 ? 'un gasto recurrente que vence' : 'gastos recurrentes que vencen'} hoy y aún no ${items.length === 1 ? 'ha sido registrado' : 'han sido registrados'}.`
-    : `Hola ${displayName}, ${items.length === 1 ? 'un gasto recurrente que debía pagarse ayer no ha sido registrado' : 'algunos gastos recurrentes de ayer no han sido registrados aún'}.`
-
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${title}</title>
+  <title>${title} · Bolsillo Mágico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;padding:0;background:#F4F7FB;font-family:'Helvetica Neue',Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FB;padding:32px 16px">
-    <tr>
-      <td align="center">
-        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
+<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-          <!-- Logo -->
-          <tr>
-            <td align="center" style="padding-bottom:24px">
-              <span style="font-size:22px;font-weight:800;color:#0A1F44;letter-spacing:-0.5px">
-                ✦ Bolsillo Mágico
-              </span>
-            </td>
-          </tr>
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
+  <tr><td align="center">
 
-          <!-- Hero card -->
-          <tr>
-            <td style="border-radius:20px;overflow:hidden;background:${headerBg};padding:28px 28px 24px">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.65)">${isDue ? '📅 Vence hoy' : '⚠️ Pago atrasado'}</p>
-              <p style="margin:0 0 4px;font-size:26px;font-weight:800;color:#fff;line-height:1.2">${title}</p>
-              <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.7)">${subtitle}</p>
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+      style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-              <!-- Total badge -->
-              <div style="margin-top:20px;display:inline-block;background:rgba(255,255,255,0.15);border-radius:12px;padding:10px 18px">
-                <span style="font-size:12px;color:rgba(255,255,255,0.7);font-weight:600;letter-spacing:0.5px">TOTAL PENDIENTE</span>
-                <div style="font-size:22px;font-weight:800;color:#fff;margin-top:2px">${fmtCLP(totalAmount)}</div>
-              </div>
-            </td>
-          </tr>
-
-          <!-- Body card -->
-          <tr>
-            <td style="background:#fff;border-radius:20px;padding:24px 28px;margin-top:12px">
-              <p style="margin:0 0 20px;font-size:14px;color:#4A5568;line-height:1.6">${greeting}</p>
-
-              <!-- Items -->
-              <table width="100%" cellpadding="0" cellspacing="0">
-                ${itemRows}
-              </table>
-
-              <!-- CTA -->
-              <div style="margin-top:24px;text-align:center">
-                <a href="${siteUrl}/recurrentes"
-                   style="display:inline-block;background:${accentColor};color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:14px;letter-spacing:0.2px">
-                  ${ctaLabel} →
-                </a>
-              </div>
-
-              ${!isDue ? `
-              <div style="margin-top:16px;background:${accentLight};border-radius:12px;padding:12px 16px;text-align:center">
-                <p style="margin:0;font-size:12px;color:#FF6F61;font-weight:600">
-                  Si ya lo pagaste, recuerda registrarlo en la app para mantener tu historial al día.
-                </p>
-              </div>` : ''}
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:20px 0 4px;text-align:center">
-              <p style="margin:0;font-size:11px;color:#94A3B8">
-                Bolsillo Mágico · Notificaciones de gastos recurrentes<br>
-                <a href="${siteUrl}/ajustes" style="color:#94A3B8;text-decoration:underline">Gestionar notificaciones</a>
-              </p>
-            </td>
-          </tr>
-
+      <!-- ENCABEZADO -->
+      <tr><td style="background:${accent};padding:36px 40px 32px;text-align:center">
+        <!-- Wordmark con logo -->
+        <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
+        <!-- Ícono de contexto en círculo -->
+        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
+          <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
+            ${isDue ? '🔔' : '⏰'}
+          </td></tr>
         </table>
-      </td>
-    </tr>
-  </table>
+        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+          ${title}
+        </p>
+        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:rgba(255,255,255,0.8)">
+          ${subtitle}
+        </p>
+      </td></tr>
+
+      <!-- CUERPO -->
+      <tr><td style="padding:32px 40px 28px">
+
+        <!-- Saludo -->
+        <p style="margin:0 0 8px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:20px;font-weight:700;color:#0E2A52">
+          Hola, ${displayName}
+        </p>
+        <p style="margin:0 0 24px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
+          ${isDue
+            ? `${items.length === 1 ? 'Este cobro' : 'Estos cobros'} aparece${items.length === 1 ? '' : 'n'} en tus recurrentes activos.`
+            : 'Regístralos para mantener tu historial al día.'}
+        </p>
+
+        <!-- Lista de ítems -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:${cardBg};border:1.5px solid ${cardBdr};border-radius:16px;margin-bottom:20px">
+          ${itemRows}
+        </table>
+
+        <!-- Total -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:#2B7CF6;border-radius:16px;margin-bottom:28px">
+          <tr><td style="padding:18px 24px;text-align:center">
+            <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">
+              Total ${isDue ? 'de cobros' : 'pendiente'}
+            </p>
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:30px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;font-variant-numeric:tabular-nums">
+              ${fmt(totalAmount)}
+            </p>
+          </td></tr>
+        </table>
+
+        <!-- CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr><td style="text-align:center">
+            <a href="${siteUrl}/recurrentes"
+              style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
+              ${ctaLabel}
+            </a>
+            ${!isDue ? `
+            <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#94A3B8">
+              Si ya lo pagaste, recuerda registrarlo para mantener tu historial al día.
+            </p>` : ''}
+          </td></tr>
+        </table>
+
+      </td></tr>
+
+      <!-- PIE navy -->
+      <tr><td style="background:#0E2A52;padding:28px 40px">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr><td style="text-align:center;padding-bottom:16px">
+            ${brandWordmark(siteUrl)}
+          </td></tr>
+          <tr><td style="text-align:center;padding-bottom:16px">
+            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
+            <span style="color:#3D5476;font-size:12px">·</span>
+            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+          </td></tr>
+          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
+              Recibes este recordatorio porque tienes activos los avisos de recurrentes.<br>
+              <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+
 </body>
 </html>`
 }

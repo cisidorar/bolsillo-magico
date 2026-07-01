@@ -14,13 +14,39 @@ const SITE_URL       = Deno.env.get('SITE_URL') ?? 'https://bolsillomagico.com'
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  const url  = new URL(req.url)
+  let body: Record<string, unknown> = {}
+  try { body = await req.json() } catch { /* no body */ }
+  const force = url.searchParams.get('force') === 'true' || body?.force === true
+
+  const now = new Date()
+
+  // MODO TEST: enviar correo de muestra sin DB
+  if (force) {
+    const testEmail = (body?.email as string) ?? null
+    if (!testEmail) return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
+    const fmtCLP = (n: number) => '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 })
+    const billingDay = 5
+    const closeDate = new Date(now.getFullYear(), now.getMonth(), billingDay)
+    const closeDateLabel = closeDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
+        to: testEmail,
+        subject: 'Tu tarjeta Visa BCI cierra mañana · Bolsillo Mágico',
+        html: billingEmailHtml({ displayName: 'Cas', cardName: 'Visa BCI', daysUntil: 1, closeDateLabel, total: 842_500, fmtCLP, siteUrl: SITE_URL }),
+      }),
+    })
+    return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
+  }
+
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
-  const now      = new Date()
   const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1)
   const dayAfter = new Date(now); dayAfter.setDate(now.getDate() + 2)
-
   const targetDays = [tomorrow.getDate(), dayAfter.getDate()]
 
   const { data: methods, error: mErr } = await supabase
@@ -61,7 +87,6 @@ Deno.serve(async () => {
       .from('notification_log')
       .insert({ user_id: method.user_id, type: 'billing', ref_key: refKey })
       .select().single()
-
     if (logErr) { skipped++; continue }
 
     const billingDay = method.billing_day
@@ -104,8 +129,8 @@ Deno.serve(async () => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
         subject: daysUntil === 1
-          ? `⏰ Tu tarjeta ${method.name} cierra mañana`
-          : `📅 Tu tarjeta ${method.name} cierra en 2 días`,
+          ? `Tu tarjeta ${method.name} cierra mañana · Bolsillo Mágico`
+          : `Tu tarjeta ${method.name} cierra en 2 días · Bolsillo Mágico`,
         html: billingEmailHtml({
           displayName,
           cardName:    method.name,
@@ -127,6 +152,23 @@ Deno.serve(async () => {
   })
 })
 
+// ── Logo / Wordmark ──────────────────────────────────────────────────────────
+
+function brandWordmark(siteUrl: string) {
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto">
+    <tr>
+      <td style="vertical-align:middle;padding-right:8px">
+        <img src="${siteUrl}/logo-icon.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+      </td>
+      <td style="vertical-align:middle">
+        <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
+          <span style="color:rgba(255,255,255,0.95)">Bolsillo </span><span style="color:#F8C945">Mágico</span>
+        </span>
+      </td>
+    </tr>
+  </table>`
+}
+
 // ── Email HTML ────────────────────────────────────────────────────────────────
 
 function billingEmailHtml({
@@ -146,9 +188,11 @@ function billingEmailHtml({
   fmtCLP: (n: number) => string
   siteUrl: string
 }) {
-  const isUrgent    = daysUntil === 1
-  const urgencyIcon = isUrgent ? '⏰' : '📅'
-  const urgencyText = isUrgent ? 'cierra <strong>mañana</strong>' : 'cierra en <strong>2 días</strong>'
+  const urgencyText = daysUntil === 1 ? 'cierra mañana' : 'cierra en 2 días'
+  // Recordatorio = ámbar
+  const accent = '#F59E0B'
+  const accentBg = '#FFF8E8'
+  const accentBorder = '#FBE6B5'
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -156,90 +200,112 @@ function billingEmailHtml({
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Cierre de tarjeta · Bolsillo Mágico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
   <tr><td align="center">
 
-    <table width="560" cellpadding="0" cellspacing="0" role="presentation"
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-      <!-- Header -->
-      <tr><td style="background:#F4F7FB;padding:28px 40px 24px;text-align:center">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="text-align:left;font-size:14px;color:#2B7CF6;vertical-align:top">✦</td>
-            <td style="text-align:center">
-              <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#2B7CF6;text-transform:uppercase;letter-spacing:2px">Recordatorio de cierre</p>
-              <p style="margin:0;font-size:24px;font-weight:800;color:#0E2A52;letter-spacing:-0.3px">${cardName}</p>
-            </td>
-            <td style="text-align:right;font-size:14px;color:#FFC23C;vertical-align:top">✦</td>
-          </tr>
+      <!-- ENCABEZADO ámbar -->
+      <tr><td style="background:#F59E0B;padding:36px 40px 32px;text-align:center">
+        <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
+        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
+          <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
+            🔔
+          </td></tr>
         </table>
+        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+          Tu tarjeta ${cardName} ${urgencyText}
+        </p>
       </td></tr>
 
-      <!-- Body -->
-      <tr><td style="padding:28px 40px">
-        <p style="margin:0 0 20px;font-size:20px;font-weight:700;color:#0E2A52">Hola, ${displayName} 👋</p>
-        <p style="margin:0 0 24px;font-size:15px;color:#5B6B82;line-height:1.6">
-          Tu tarjeta <strong style="color:#0E2A52">${cardName}</strong> ${urgencyText} el <strong style="color:#0E2A52">${closeDateLabel}</strong>.
-          Aquí va tu resumen del período actual.
+      <!-- CUERPO -->
+      <tr><td style="padding:32px 40px 28px">
+
+        <!-- Saludo -->
+        <p style="margin:0 0 8px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:20px;font-weight:700;color:#0E2A52">
+          Hola, ${displayName}
+        </p>
+        <p style="margin:0 0 28px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
+          Tu tarjeta <strong style="color:#0E2A52">${cardName}</strong> cierra el
+          <strong style="color:#0E2A52">${closeDateLabel}</strong>.
+          Aquí tienes el total del período actual para que no te tome por sorpresa.
         </p>
 
-        <!-- Hero card: total -->
-        <div style="background:#2B7CF6;border-radius:20px;padding:24px 28px;margin-bottom:24px;text-align:center">
-          <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1px">Gastado en este período</p>
-          <p style="margin:0;font-size:38px;font-weight:800;color:#ffffff;letter-spacing:-1px;line-height:1">${fmtCLP(total)}</p>
-        </div>
+        <!-- BLOQUE DESTACADO azul -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:#2B7CF6;border-radius:20px;margin-bottom:24px">
+          <tr><td style="padding:28px 32px;text-align:center">
+            <p style="margin:0 0 6px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">
+              Gastado en este período
+            </p>
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:38px;font-weight:800;color:#ffffff;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums">
+              ${fmtCLP(total)}
+            </p>
+          </td></tr>
+        </table>
 
-        <!-- Info box -->
-        <div style="background:${isUrgent ? '#FFF5F5' : '#FFF8EC'};border:1.5px solid ${isUrgent ? '#FECACA' : '#FFE4A0'};border-radius:16px;padding:16px 20px;margin-bottom:24px">
-          <table cellpadding="0" cellspacing="0" role="presentation">
-            <tr>
-              <td style="width:32px;font-size:22px;vertical-align:middle">${urgencyIcon}</td>
-              <td style="padding-left:10px;vertical-align:middle;font-size:14px;color:#5B6B82;line-height:1.5">
-                Recuerda revisar tus gastos antes del cierre para evitar sorpresas en tu estado de cuenta.
-              </td>
-            </tr>
-          </table>
-        </div>
+        <!-- TARJETA recordatorio (tinte ámbar) -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+          style="background:#FFF8E8;border:1.5px solid #FBE6B5;border-radius:16px;margin-bottom:28px">
+          <tr><td style="padding:18px 20px">
+            <table cellpadding="0" cellspacing="0" role="presentation">
+              <tr>
+                <td style="width:32px;vertical-align:top;padding-top:2px">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6"/>
+                    <path d="M8.5 17a1.5 1.5 0 0 0 3 0"/>
+                  </svg>
+                </td>
+                <td style="padding-left:12px;vertical-align:top">
+                  <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;color:#0E2A52">
+                    Recordatorio de cierre
+                  </p>
+                  <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.6">
+                    Revisa tus gastos antes del cierre para evitar sorpresas en tu estado de cuenta.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
 
-        <!-- CTA -->
-        <div style="text-align:center">
-          <a href="${siteUrl}/historial?view=billing"
-            style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 32px;border-radius:14px;letter-spacing:-0.2px">
-            Ver estado de cuenta →
-          </a>
-          <p style="margin:12px 0 0;font-size:13px;color:#94A3B8">O abre la app para revisar el detalle.</p>
-        </div>
+        <!-- CTA ámbar -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr><td style="text-align:center">
+            <a href="${siteUrl}/historial?view=billing"
+              style="display:inline-block;background:#F59E0B;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
+              Ver estado de cuenta
+            </a>
+            <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#94A3B8">
+              O abre la app para revisar el detalle.
+            </p>
+          </td></tr>
+        </table>
+
       </td></tr>
 
-      <!-- Footer navy -->
-      <tr><td style="background:#0E2A52;padding:24px 40px">
+      <!-- PIE navy -->
+      <tr><td style="background:#0E2A52;padding:28px 40px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="text-align:center;padding-bottom:16px">
-              <p style="margin:0;font-size:16px;font-weight:800;color:#ffffff">
-                <span style="color:#FFC23C">✦</span> Bolsillo Mágico
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="text-align:center;padding-bottom:14px">
-              <a href="${siteUrl}" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Abrir app</a>
-              <span style="color:rgba(255,255,255,0.2)">·</span>
-              <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.6);text-decoration:none;font-size:13px;margin:0 10px">Ajustes de correo</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="text-align:center;border-top:1px solid rgba(255,255,255,0.1);padding-top:14px">
-              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.35);line-height:1.7">
-                Recibes este correo porque tienes activos los recordatorios de cierre.<br>
-                <a href="${siteUrl}/ajustes" style="color:rgba(255,255,255,0.35);text-decoration:underline">Cancelar suscripción</a>
-              </p>
-            </td>
-          </tr>
+          <tr><td style="text-align:center;padding-bottom:16px">
+            ${brandWordmark(siteUrl)}
+          </td></tr>
+          <tr><td style="text-align:center;padding-bottom:16px">
+            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
+            <span style="color:#3D5476;font-size:12px">·</span>
+            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+          </td></tr>
+          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
+              Recibes este correo porque tienes activos los recordatorios de cierre.<br>
+              <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
+            </p>
+          </td></tr>
         </table>
       </td></tr>
 
