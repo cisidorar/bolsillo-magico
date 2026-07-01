@@ -783,15 +783,27 @@ export default async function DashboardPage() {
             )}
 
             {proximosPagos.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2.5">
-                  <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
-                    <Calendar className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                    Próximos pagos
-                  </h2>
-                  <Link href="/recurrentes?view=calendar" className="text-sm font-semibold hover:opacity-70" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+              <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos pagos</h2>
+                  <Link href="/recurrentes?view=calendar" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
                 </div>
-                <ProximosPagosList />
+                <div className="space-y-2">
+                  {proximosPagos.map(r => (
+                    <div key={r.id} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--surface)' }}>
+                        <ServiceLogo domain={r.domain} name={r.name} size={28} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
+                        <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
+                          {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(r.amount)}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
