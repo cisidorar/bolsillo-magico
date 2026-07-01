@@ -85,9 +85,9 @@ Deno.serve(async (req: Request) => {
     .select('id, display_name, notify_recurring')
     .eq('notify_recurring', true)
 
-  if (pErr) return new Response(JSON.stringify({ step: 'profiles', error: pErr.message, code: pErr.code }), { status: 500 })
+  if (pErr) return new Response(JSON.stringify({ error: pErr.message }), { status: 500 })
   if (!profiles || profiles.length === 0) {
-    return new Response(JSON.stringify({ step: 'profiles', count: 0, srkPresent: !!SERVICE_KEY }), { status: 200 })
+    return new Response('No users with recurring notifications', { status: 200 })
   }
 
   const userIds = profiles.map((p: { id: string }) => p.id)
