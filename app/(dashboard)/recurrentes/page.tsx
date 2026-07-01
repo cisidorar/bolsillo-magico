@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
+import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
 import ServiceLogo from '@/components/ServiceLogo'
 import { CircleDollarSign, CalendarClock, TrendingUp, Sparkles } from 'lucide-react'
 import Link from 'next/link'
@@ -34,11 +35,13 @@ export default async function RecurrentesPage({
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const { now, year, month } = getNowChile()
+  const { now, year, month, todayDate } = getNowChile()
 
   // Últimos 3 meses para promedio
   const threeMonthsAgo = new Date(year, now.getMonth() - 3, 1)
   const threeMonthsStr = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
+
+  const thisMonthStr = `${year}-${String(month).padStart(2, '0')}-01`
 
   const [
     { data: recurring },
@@ -46,6 +49,7 @@ export default async function RecurrentesPage({
     { data: paymentMethods },
     { data: allExpenses },
     { data: recentExpenses },
+    { data: thisMonthExpenses },
   ] = await Promise.all([
     supabase
       .from('recurring_expenses')
@@ -66,6 +70,13 @@ export default async function RecurrentesPage({
       .eq('user_id', user.id)
       .not('recurring_expense_id', 'is', null)
       .gte('date', threeMonthsStr),
+    // Pagados este mes (para detectar atrasados)
+    supabase
+      .from('expenses')
+      .select('recurring_expense_id')
+      .eq('user_id', user.id)
+      .not('recurring_expense_id', 'is', null)
+      .gte('date', thisMonthStr),
   ])
 
   const paidMap = (allExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
@@ -81,6 +92,18 @@ export default async function RecurrentesPage({
   const activeItems  = recurringWithCounts.filter(r => r.is_active)
   const totalMonthly = activeItems.reduce((s, r) => s + r.amount, 0)
   const activeCount  = activeItems.length
+
+  // Atrasados: billing_day ya pasó este mes y no hay gasto registrado este mes
+  const paidThisMonthSet = new Set(
+    (thisMonthExpenses ?? [])
+      .map((e: { recurring_expense_id: string | null }) => e.recurring_expense_id)
+      .filter(Boolean)
+  )
+  const overdueItems = activeItems.filter(r =>
+    r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
+  )
+  const overdueCount = overdueItems.length
+  const overdueNames = overdueItems.map(r => r.name)
 
   // Próximo cargo
   const nextPayment = activeItems.length > 0
@@ -114,6 +137,11 @@ export default async function RecurrentesPage({
           <p className="text-sm text-gray-400 mt-0.5">Visualiza, gestiona y controla tus gastos que se repiten cada mes.</p>
         </div>
       </div>
+
+      {/* ── Alerta atrasados ── */}
+      {overdueCount > 0 && (
+        <RecurringOverdueAlert count={overdueCount} names={overdueNames} />
+      )}
 
       {/* ── KPI Cards ── */}
       {activeCount > 0 && (

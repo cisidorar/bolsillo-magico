@@ -8,6 +8,7 @@ import {
   Wallet, BarChart3, ArrowRight, Zap,
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
+import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
-  const { now, year, month, todayDate } = getNowChile()
+  const { now, year, month, todayDate, dateStr } = getNowChile()
 
   const nextMonth = month === 12 ? 1 : month + 1
   const nextYear  = month === 12 ? year + 1 : year
@@ -210,7 +211,10 @@ export default async function DashboardPage() {
   const lastDayOfPrevMonth = new Date(year, now.getMonth(), 0).getDate()
 
   // Atrasados: billing_day ya pasó este mes O en el mes anterior (primeros 15 días del nuevo mes)
-  type PagoAtrasado = { id: string; name: string; amount: number; domain: string | null; daysLate: number }
+  type PagoAtrasado = {
+    id: string; name: string; amount: number; domain: string | null; daysLate: number
+    category_id: string | null; payment_method_id: string | null
+  }
   const atrasados: PagoAtrasado[] = recurringWithCounts
     .filter(r => r.is_active)
     .filter(r => {
@@ -229,7 +233,10 @@ export default async function DashboardPage() {
       const daysLate = r.billing_day < todayDate
         ? todayDate - r.billing_day
         : (lastDayOfPrevMonth - r.billing_day) + todayDate
-      return { id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate }
+      return {
+        id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate,
+        category_id: r.category_id ?? null, payment_method_id: r.payment_method_id ?? null,
+      }
     })
     .sort((a, b) => b.daysLate - a.daysLate)
 
@@ -303,23 +310,7 @@ export default async function DashboardPage() {
     </div>
   )
 
-  const AtrasadosList = () => (
-    <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
-      {atrasados.map((r, i) => (
-        <div key={r.id} className="flex items-center gap-3 px-4 py-3"
-          style={{ borderTop: i > 0 ? '1px solid #FAD3CF' : undefined, background: i === 0 ? 'rgba(239,91,82,0.04)' : undefined }}>
-          <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
-            <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>
-              Atrasado · hace {r.daysLate} día{r.daysLate !== 1 ? 's' : ''}
-            </p>
-          </div>
-          <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>{formatCLP(r.amount)}</p>
-        </div>
-      ))}
-    </div>
-  )
+  const atrasadosUserId = user!.id
 
   const ProximosPagosList = () => (
     <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -655,7 +646,18 @@ export default async function DashboardPage() {
                     Pagos atrasados
                   </h2>
                 </div>
-                <AtrasadosList />
+                <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
+                  {atrasados.map((r, i) => (
+                    <OverduePaySheet
+                      key={r.id}
+                      atrasado={r}
+                      userId={atrasadosUserId}
+                      dateStr={dateStr}
+                      borderTop={i > 0}
+                      firstItem={i === 0}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -913,7 +915,18 @@ export default async function DashboardPage() {
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
                 <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
               </div>
-              <AtrasadosList />
+              <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
+                {atrasados.map((r, i) => (
+                  <OverduePaySheet
+                    key={r.id}
+                    atrasado={r}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    borderTop={i > 0}
+                    firstItem={i === 0}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
