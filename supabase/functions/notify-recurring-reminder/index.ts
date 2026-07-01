@@ -13,7 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const SITE_URL       = Deno.env.get('SITE_URL') ?? 'https://bolsillomagico.com'
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL')!
-const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,13 +80,14 @@ Deno.serve(async (req: Request) => {
   }
 
   // 1. Usuarios con notify_recurring = true
-  const { data: profiles } = await supabase
+  const { data: profiles, error: pErr } = await supabase
     .from('profiles')
     .select('id, display_name, notify_recurring')
     .eq('notify_recurring', true)
 
+  if (pErr) return new Response(JSON.stringify({ step: 'profiles', error: pErr.message, code: pErr.code }), { status: 500 })
   if (!profiles || profiles.length === 0) {
-    return new Response('No users with recurring notifications', { status: 200 })
+    return new Response(JSON.stringify({ step: 'profiles', count: 0, srkPresent: !!SERVICE_KEY }), { status: 200 })
   }
 
   const userIds = profiles.map((p: { id: string }) => p.id)
