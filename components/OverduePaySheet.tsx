@@ -23,9 +23,10 @@ interface Props {
   dateStr: string
   borderTop?: boolean
   firstItem?: boolean
+  buttonOnly?: boolean
 }
 
-export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTop, firstItem }: Props) {
+export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTop, firstItem, buttonOnly }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -62,7 +63,22 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
 
   return (
     <>
-      {/* ── Fila clickable ── */}
+      {/* ── Botón full-width (buttonOnly mode) ── */}
+      {buttonOnly ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all hover:opacity-90 active:scale-[.98]"
+          style={{
+            background: 'var(--coral)',
+            color: 'white',
+            borderTop: '1px solid rgba(239,91,82,0.25)',
+          }}
+        >
+          <Check className="w-4 h-4" />
+          Registrar pago
+        </button>
+      ) : (
+      /* ── Fila clickable ── */
       <button
         onClick={() => setOpen(true)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left transition-opacity hover:opacity-80 active:opacity-60"
@@ -82,6 +98,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
           {formatCLP(r.amount)}
         </p>
       </button>
+      )}
 
       {/* ── Popup ── */}
       {open && (

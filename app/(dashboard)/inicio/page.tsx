@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import EmptyStateCTA from '@/components/EmptyStateCTA'
+import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import { getExpenseIcon } from '@/lib/expense-icons'
@@ -492,7 +493,17 @@ export default async function DashboardPage() {
                   <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />
                 </div>
               </div>
-              {savings !== null ? (
+              {budgetAmount !== null ? (
+                <>
+                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
+                    style={{ color: budgetAmount - total >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    {budgetAmount - total < 0 ? '−' : ''}{formatCLP(Math.abs(budgetAmount - total))}
+                  </p>
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                    {budgetAmount - total >= 0 ? 'disponible aún' : 'sobre el límite'}
+                  </p>
+                </>
+              ) : savings !== null ? (
                 <>
                   <p className="text-xl font-extrabold tabular-nums leading-none truncate"
                     style={{ color: savings >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
@@ -510,7 +521,7 @@ export default async function DashboardPage() {
             {/* Proyección */}
             <div
               className="card flex flex-col justify-between p-4"
-              style={{ background: projOverBudget ? 'rgba(255,111,97,0.06)' : 'var(--surface)' }}
+              style={{ background: projOverBudget ? 'rgba(239,91,82,0.12)' : 'var(--surface)' }}
             >
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Proyección</p>
@@ -632,14 +643,28 @@ export default async function DashboardPage() {
           )}
 
           {/* Col 2 — Últimos gastos */}
-          {typedExpenses.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
-                <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
+              <div className="flex items-center gap-2">
+                {typedExpenses.length > 0 && (
+                  <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+                )}
+                <AddExpenseInline
+                  categories={(categories ?? []) as Category[]}
+                  paymentMethods={(paymentMethods ?? []) as PaymentMethod[]}
+                />
               </div>
-              <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-                {typedExpenses.slice(0, 8).map((e, i) => {
+            </div>
+            <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              {typedExpenses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center px-6 py-10">
+                  <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+                    Registra un gasto y aparecerá aquí al instante.
+                  </p>
+                </div>
+              ) : (
+                typedExpenses.slice(0, 8).map((e, i) => {
                   const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
                   const d = new Date(e.date + 'T12:00:00')
                   const now2 = new Date()
@@ -679,47 +704,76 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                   )
-                })}
-              </div>
+                })
+              )}
             </div>
-          )}
+          </div>
 
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
             {statementCards.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2.5">
-                  <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
-                    <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                    Estado de cuenta
-                  </h2>
-                  <Link href="/historial?view=billing" className="text-sm font-semibold hover:opacity-70" style={{ color: 'var(--primary)' }}>Ver todo</Link>
-                </div>
-                <StatementCardList />
+              <div className="space-y-3">
+                {statementCards.map(card => {
+                  const closeDate = new Date(card.closesOn + 'T12:00:00')
+                  const today0   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+                  const close0   = new Date(closeDate.getFullYear(), closeDate.getMonth(), closeDate.getDate())
+                  const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
+                  const daysLabel = daysLeft === 0 ? 'Cierra hoy'
+                    : daysLeft === 1 ? 'Cierra mañana'
+                    : daysLeft > 0   ? `Cierra en ${daysLeft}d`
+                    : 'Cerrado'
+                  const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold)' : 'var(--ink-3)'
+                  return (
+                    <div key={card.id} className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                      <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                        <p className="text-xs font-bold truncate" style={{ color: 'var(--ink-2)' }}>{card.name}</p>
+                        <Link href={`/cuenta/${card.id}`} className="text-xs font-semibold flex-shrink-0 ml-2 hover:opacity-70" style={{ color: 'var(--primary)' }}>Ver</Link>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Cupo usado</p>
+                        <div className="flex items-end justify-between gap-2">
+                          <p className="text-xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)' }}>
+                            {formatCLP(card.total)}
+                          </p>
+                          <p className="text-[10px] font-semibold pb-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
 
             {atrasados.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-2.5">
+              <div className="card overflow-hidden" style={{ background: 'rgba(239,91,82,0.06)', borderColor: '#FAD3CF' }}>
+                {/* Header */}
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid rgba(239,91,82,0.20)' }}>
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
-                    Pagos atrasados
+                  <h2 className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+                    {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
                   </h2>
                 </div>
-                <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
-                  {atrasados.map((r, i) => (
-                    <OverduePaySheet
-                      key={r.id}
-                      atrasado={r}
-                      userId={atrasadosUserId}
-                      dateStr={dateStr}
-                      borderTop={i > 0}
-                      firstItem={i === 0}
-                    />
-                  ))}
-                </div>
+                {/* Filas */}
+                {atrasados.map((r, i) => (
+                  <OverduePaySheet
+                    key={r.id}
+                    atrasado={r}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    borderTop={i > 0}
+                    firstItem={false}
+                  />
+                ))}
+                {/* Botón full-width solo cuando hay 1 ítem */}
+                {atrasados.length === 1 && (
+                  <OverduePaySheet
+                    atrasado={atrasados[0]}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    buttonOnly
+                  />
+                )}
               </div>
             )}
 
