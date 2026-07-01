@@ -68,7 +68,7 @@ export default async function DashboardPage() {
     supabase.from('profiles').select('display_name').eq('id', user!.id).maybeSingle(),
     supabase
       .from('expenses')
-      .select('recurring_expense_id')
+      .select('recurring_expense_id, date')
       .eq('user_id', user!.id)
       .not('recurring_expense_id', 'is', null)
       .gte('date', `${year - 10}-01-01`),
@@ -200,15 +200,40 @@ export default async function DashboardPage() {
     typedExpenses.filter(e => e.recurring_expense_id).map(e => e.recurring_expense_id!)
   )
 
-  // Atrasados: billing_day ya pasó este mes y NO están registrados
+  // Recurrentes pagados el MES ANTERIOR (para detectar atrasos cross-month, ej: billing_day=29 y hoy=1)
+  const paidPrevMonthSet = new Set(
+    (allRecurringExpenses ?? [])
+      .filter((e: { date: string; recurring_expense_id: string | null }) =>
+        e.recurring_expense_id && e.date.startsWith(`${prevY}-${prevMStr}`)
+      )
+      .map((e: { recurring_expense_id: string }) => e.recurring_expense_id)
+  )
+
+  // Días en el mes anterior (para calcular daysLate cross-month)
+  const lastDayOfPrevMonth = new Date(year, now.getMonth(), 0).getDate()
+
+  // Atrasados: billing_day ya pasó este mes O en el mes anterior (primeros 15 días del nuevo mes)
   type PagoAtrasado = { id: string; name: string; amount: number; domain: string | null; daysLate: number }
   const atrasados: PagoAtrasado[] = recurringWithCounts
     .filter(r => r.is_active)
     .filter(r => {
-      if (r.billing_month !== null && r.billing_month !== month) return false  // anual de otro mes
-      return r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
+      if (r.billing_day < todayDate) {
+        // Vencido en el ciclo del mes actual
+        if (r.billing_month !== null && r.billing_month !== month) return false
+        return !paidThisMonthSet.has(r.id)
+      } else if (r.billing_day > todayDate && todayDate <= 15) {
+        // billing_day > hoy: posible atraso del ciclo del mes anterior (cruce de mes)
+        if (r.billing_month !== null && r.billing_month !== prevM) return false
+        return !paidPrevMonthSet.has(r.id)
+      }
+      return false
     })
-    .map(r => ({ id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate: todayDate - r.billing_day }))
+    .map(r => {
+      const daysLate = r.billing_day < todayDate
+        ? todayDate - r.billing_day
+        : (lastDayOfPrevMonth - r.billing_day) + todayDate
+      return { id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate }
+    })
     .sort((a, b) => b.daysLate - a.daysLate)
 
   // Próximos pagos (7 días) — excluye atrasados (ya cubiertos arriba)
@@ -220,8 +245,10 @@ export default async function DashboardPage() {
     .filter(r => r.is_active)
     .filter(r => {
       if (r.billing_month !== null && r.billing_month !== month) return false
-      // Si está atrasado, ya aparece en la sección de arriba
+      // Si está atrasado este mes, ya aparece en la sección de arriba
       if (r.billing_day < todayDate && !paidThisMonthSet.has(r.id)) return false
+      // Si está atrasado del mes anterior (cruce de mes), también excluir
+      if (r.billing_day > todayDate && todayDate <= 15 && !paidPrevMonthSet.has(r.id)) return false
       return true
     })
     .map(r => {
