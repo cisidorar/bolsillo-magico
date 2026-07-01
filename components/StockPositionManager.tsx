@@ -562,10 +562,10 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div>
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
+      {/* ── Top bar — espacio compacto arriba y abajo ────────────────── */}
+      <div className="flex items-center justify-between gap-3 mb-3">
         {/* Estado del mercado — izquierda */}
         <div className="flex items-center gap-2 min-w-0 text-[11px]">
           {lastUpdated && !quotesError && marketOpen !== null && (
@@ -635,7 +635,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         </div>
       </div>
 
-      {/* ── Add/Edit form — modal popup ──────────────────────────────────── */}
+      {/* ── Add/Edit form — modal popup (fixed, fuera del flujo) ─────────── */}
       {showForm && (
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
@@ -811,6 +811,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           </div>
         </div>
       )}
+
+      {/* ── Contenido principal ────────────────────────────────────────── */}
+      <div className="space-y-4">
 
       {/* ── Empty state ──────────────────────────────────────────────────── */}
       {positions.length === 0 && !showForm && (
@@ -1188,6 +1191,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
         <p className="text-xs font-semibold shrink-0" style={{ color: 'var(--ink-3)' }}>Configurar →</p>
       </div>
 
+      </div> {/* end space-y-4 */}
     </div>
   )
 }
