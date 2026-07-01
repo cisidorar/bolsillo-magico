@@ -68,8 +68,8 @@ export default async function PresupuestoPage() {
       .select('category_id, amount')
       .eq('user_id', user.id)
       .eq('is_active', true),
-    supabase.from('budgets').select('amount')
-      .eq('user_id', user.id).eq('month', month).eq('year', year).maybeSingle(),
+    supabase.from('budgets').select('amount, month, year')
+      .eq('user_id', user.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
   ])
 
   // Mapa de gasto por categoría del período anterior
@@ -106,6 +106,12 @@ export default async function PresupuestoPage() {
   const budgetsWithLimit = typedBudgets.length
   const totalCategories = sortedCategories.length
 
+  // Presupuesto mensual: usar el del mes actual o el más reciente como default
+  type BudgetRow = { amount: number; month: number; year: number }
+  const allMonthlyBudgets = (monthlyBudget ?? []) as BudgetRow[]
+  const thisMonthBudget = allMonthlyBudgets.find(b => b.month === month && b.year === year)
+  const defaultBudgetAmount = thisMonthBudget?.amount ?? allMonthlyBudgets[0]?.amount ?? null
+
   const monthLabelCap = monthName(month).charAt(0).toUpperCase() + monthName(month).slice(1) + ' ' + year
 
   return (
@@ -122,7 +128,7 @@ export default async function PresupuestoPage() {
         userId={user.id}
         month={month}
         year={year}
-        currentAmount={monthlyBudget?.amount ?? null}
+        currentAmount={defaultBudgetAmount}
         monthLabel={monthLabelCap}
       />
 

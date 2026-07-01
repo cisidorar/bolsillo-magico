@@ -56,8 +56,8 @@ export default async function DashboardPage() {
       .lt('date',  `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false }),
-    supabase.from('budgets').select('amount')
-      .eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
+    supabase.from('budgets').select('amount, month, year')
+      .eq('user_id', user!.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
     supabase.from('categories').select('*').eq('user_id', user!.id).order('sort_order'),
     supabase.from('payment_methods').select('*').eq('user_id', user!.id).order('sort_order'),
     supabase
@@ -98,7 +98,12 @@ export default async function DashboardPage() {
 
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
   const total         = typedExpenses.reduce((s, e) => s + e.amount, 0)
-  const budgetAmount  = budget?.amount ?? null
+
+  // Presupuesto: usar el del mes actual o el más reciente como fallback
+  type BudgetRow = { amount: number; month: number; year: number }
+  const allBudgets   = (budget ?? []) as BudgetRow[]
+  const thisBudget   = allBudgets.find(b => b.month === month && b.year === year)
+  const budgetAmount = thisBudget?.amount ?? allBudgets[0]?.amount ?? null
   const progressPct   = budgetAmount ? Math.round((total / budgetAmount) * 100) : 0
   const isOver        = budgetAmount ? total > budgetAmount : false
 
