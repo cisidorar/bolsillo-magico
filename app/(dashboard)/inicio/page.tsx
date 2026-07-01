@@ -105,9 +105,9 @@ export default async function DashboardPage() {
     (e: { date: string }) => parseInt(e.date.split('-')[2]) <= todayDate
   )
   const prevTotal    = prevMonthSameDate.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
-  const deltaVsLast  = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
-  const savings      = prevTotal > 0 ? prevTotal - total : null  // positivo = gasté menos
-  const savingsPct   = prevTotal > 0 && savings !== null ? Math.round((savings / prevTotal) * 100) : null
+  const deltaVsLast  = total > 0 && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
+  const savings      = total > 0 && prevTotal > 0 ? prevTotal - total : null  // positivo = gasté menos
+  const savingsPct   = savings !== null && prevTotal > 0 ? Math.round((savings / prevTotal) * 100) : null
 
   const catBudgetMap = new Map(
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
@@ -360,42 +360,78 @@ export default async function DashboardPage() {
 
           {/* Hero card */}
           <div className="hero-gradient rounded-3xl px-8 py-7 text-white flex flex-col justify-between" style={{ minHeight: '160px' }}>
-            {/* Top row: gastado + te quedan */}
-            <div className="flex items-start justify-between gap-6">
-              <div>
-                <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
-                <p className="text-5xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
-                {budgetAmount && <p className="text-sm text-white/45 mt-2">de {formatCLP(budgetAmount)} presupuestado</p>}
-              </div>
-              {budgetAmount && (
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
-                    {isOver ? 'Sobre el límite' : 'Te quedan'}
-                  </p>
-                  <p className="text-4xl font-extrabold leading-none" style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
-                    {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
+            {total === 0 ? (
+              /* ── Empty state hero ── */
+              <div className="flex flex-col justify-between h-full" style={{ minHeight: '146px' }}>
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
+                    <p className="text-5xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
+                    <p className="text-sm text-white/55 mt-2">
+                      {budgetAmount
+                        ? `Tienes ${formatCLP(budgetAmount)} disponibles`
+                        : 'Aún no hay gastos registrados'}
+                    </p>
+                  </div>
+                  {budgetAmount && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Disponible</p>
+                      <p className="text-4xl font-extrabold leading-none" style={{ color: '#34D6A2' }}>
+                        {formatCLP(budgetAmount)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-5 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                    <Zap className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-sm text-white/70">
+                    ¡Nuevo mes! Registra tu primer gasto para empezar a hacer seguimiento.
                   </p>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* ── Normal state hero ── */
+              <>
+                {/* Top row: gastado + te quedan */}
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
+                    <p className="text-5xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
+                    {budgetAmount && <p className="text-sm text-white/45 mt-2">de {formatCLP(budgetAmount)} presupuestado</p>}
+                  </div>
+                  {budgetAmount && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
+                        {isOver ? 'Sobre el límite' : 'Te quedan'}
+                      </p>
+                      <p className="text-4xl font-extrabold leading-none" style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
+                        {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-            {/* Barra de presupuesto — al fondo de la tarjeta */}
-            {budgetAmount && (
-              <div className="mt-6">
-                <div className="h-2 bg-white/15 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.min(100, progressPct)}%`,
-                      backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-xs text-white/45">{progressPct}% usado</span>
-                  <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
-                </div>
-              </div>
+                {/* Barra de presupuesto — al fondo de la tarjeta */}
+                {budgetAmount && (
+                  <div className="mt-6">
+                    <div className="h-2 bg-white/15 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, progressPct)}%`,
+                          backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-1.5">
+                      <span className="text-xs text-white/45">{progressPct}% usado</span>
+                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -503,7 +539,36 @@ export default async function DashboardPage() {
         <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1.3fr 1fr 240px' }}>
 
           {/* Col 1 — Categorías */}
-          {catSummary.length > 0 && (
+          {catSummary.length === 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
+                <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Agregar gasto</Link>
+              </div>
+              <div
+                className="card flex flex-col items-center justify-center text-center px-6 py-10"
+                style={{ borderColor: 'var(--border)', borderStyle: 'dashed', minHeight: '280px' }}
+              >
+                <div
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                  style={{ background: 'var(--primary-soft)' }}
+                >
+                  <BarChart3 className="w-7 h-7" style={{ color: 'var(--primary)' }} />
+                </div>
+                <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>Sin gastos este mes</p>
+                <p className="text-xs leading-relaxed mb-5" style={{ color: 'var(--ink-3)' }}>
+                  Cuando registres tu primer gasto, aquí verás el desglose por categoría.
+                </p>
+                <Link
+                  href="/historial"
+                  className="px-4 py-2 text-xs font-bold rounded-xl transition-all hover:opacity-90 active:scale-[.97]"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 4px 14px var(--shadow)' }}
+                >
+                  Registrar primer gasto
+                </Link>
+              </div>
+            </div>
+          ) : (
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
@@ -730,63 +795,93 @@ export default async function DashboardPage() {
             </p>
 
             {/* Monto + Te quedan */}
-            <div className="flex items-start justify-between gap-3 mb-1">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Gastado este mes</p>
-                <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
-                  {formatCLP(total)}
-                </p>
+            {total === 0 ? (
+              /* ── Empty state mobile ── */
+              <>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Gastado este mes</p>
+                    <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
+                    <p className="text-xs text-white/50 mt-1.5">
+                      {budgetAmount ? `${formatCLP(budgetAmount)} disponibles` : 'Sin gastos aún'}
+                    </p>
+                  </div>
+                  {budgetAmount && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Disponible</p>
+                      <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: '#34D6A2' }}>
+                        {formatCLP(budgetAmount)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)' }}>
+                  <Zap className="w-3.5 h-3.5 text-white/70 flex-shrink-0" />
+                  <p className="text-xs text-white/65">Registra tu primer gasto del mes</p>
+                </div>
+              </>
+            ) : (
+              /* ── Normal state mobile ── */
+              <>
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Gastado este mes</p>
+                    <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
+                      {formatCLP(total)}
+                    </p>
+                    {budgetAmount && (
+                      <p className="text-xs text-white/45 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>
+                    )}
+                  </div>
+                  {budgetAmount && (
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">
+                        {isOver ? 'Sobre el límite' : 'Te quedan'}
+                      </p>
+                      <p className="text-2xl font-extrabold leading-none tabular-nums"
+                        style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
+                        {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Barra de presupuesto */}
                 {budgetAmount && (
-                  <p className="text-xs text-white/45 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>
+                  <div className="mt-4 mb-4">
+                    <div className="h-2 bg-white/15 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{
+                        width: `${Math.min(100, progressPct)}%`,
+                        backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
+                      }} />
+                    </div>
+                    <div className="flex justify-between mt-1.5">
+                      <span className="text-xs text-white/45">{progressPct}% usado</span>
+                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                    </div>
+                  </div>
                 )}
-              </div>
-              {budgetAmount && (
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">
-                    {isOver ? 'Sobre el límite' : 'Te quedan'}
-                  </p>
-                  <p className="text-2xl font-extrabold leading-none tabular-nums"
-                    style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
-                    {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {/* Barra de presupuesto */}
-            {budgetAmount && (
-              <div className="mt-4 mb-4">
-                <div className="h-2 bg-white/15 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{
-                    width: `${Math.min(100, progressPct)}%`,
-                    backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
-                  }} />
+                {/* Chips: Por día + Proyección */}
+                <div className="flex gap-2 mt-1">
+                  <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3">
+                    <p className="text-[10px] text-white/60 font-semibold mb-1">Por día</p>
+                    <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
+                  </div>
+                  <div className="flex-1 rounded-2xl px-4 py-3"
+                    style={{ background: projOverBudget ? 'rgba(255,111,97,0.25)' : 'rgba(255,255,255,0.15)' }}>
+                    <p className="text-[10px] text-white/60 font-semibold mb-1 flex items-center gap-1">
+                      Proyección
+                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#fca5a5' }} />}
+                    </p>
+                    <p className="text-base font-extrabold tabular-nums"
+                      style={{ color: projOverBudget ? '#fca5a5' : 'white' }}>
+                      {formatCLP(projection)}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-xs text-white/45">{progressPct}% usado</span>
-                  <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
-                </div>
-              </div>
+              </>
             )}
-
-            {/* Chips: Por día + Proyección */}
-            <div className="flex gap-2 mt-1">
-              <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3">
-                <p className="text-[10px] text-white/60 font-semibold mb-1">Por día</p>
-                <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
-              </div>
-              <div className="flex-1 rounded-2xl px-4 py-3"
-                style={{ background: projOverBudget ? 'rgba(255,111,97,0.25)' : 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[10px] text-white/60 font-semibold mb-1 flex items-center gap-1">
-                  Proyección
-                  {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#fca5a5' }} />}
-                </p>
-                <p className="text-base font-extrabold tabular-nums"
-                  style={{ color: projOverBudget ? '#fca5a5' : 'white' }}>
-                  {total > 0 ? formatCLP(projection) : '—'}
-                </p>
-              </div>
-            </div>
           </div>
 
           {/* Estado de cuenta mobile */}
