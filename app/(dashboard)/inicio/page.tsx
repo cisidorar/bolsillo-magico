@@ -432,7 +432,7 @@ export default async function DashboardPage() {
                           className="h-full rounded-full transition-all"
                           style={{
                             width: `${Math.min(100, progressPct)}%`,
-                            backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
+                            backgroundColor: isOver ? '#f87171' : '#FFC23C',
                           }}
                         />
                       </div>
