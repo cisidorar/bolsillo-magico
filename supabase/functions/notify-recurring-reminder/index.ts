@@ -49,15 +49,11 @@ Deno.serve(async (req: Request) => {
   const monthStr = `${year}-${String(month).padStart(2, '0')}`
   const monthStart = `${monthStr}-01`
 
-  // Para 'due': día de hoy. Para 'overdue': día de ayer.
-  const targetDay = type === 'due' ? today : today - 1
-  const targetDate = type === 'due'
-    ? `${monthStr}-${String(today).padStart(2, '0')}`
-    : `${monthStr}-${String(today - 1).padStart(2, '0')}`
+  const targetDate = `${monthStr}-${String(today).padStart(2, '0')}`
 
-  // Para 'overdue': si ayer fue el día 0 (inicio de mes), no hay overdue del mes anterior
+  // Para 'overdue' el día 1 no hay nada atrasado en el mes actual
   if (!force && type === 'overdue' && today === 1) {
-    return new Response('First day of month — no overdue from previous day', { status: 200 })
+    return new Response('First day of month — nothing overdue yet', { status: 200 })
   }
 
   // MODO TEST: enviar correo de muestra sin DB
@@ -111,7 +107,14 @@ Deno.serve(async (req: Request) => {
     .eq('auto_register', false)
     .eq('is_active', true)
 
-  if (!force) recurringQuery.eq('billing_day', targetDay)
+  if (!force) {
+    if (type === 'due') {
+      recurringQuery.eq('billing_day', today)
+    } else {
+      // overdue: todos los días que ya pasaron este mes (no solo ayer)
+      recurringQuery.lt('billing_day', today)
+    }
+  }
 
   const { data: allRecurring, error: rErr } = await recurringQuery
 
@@ -164,9 +167,14 @@ Deno.serve(async (req: Request) => {
     const profile = profileMap.get(userId)
     if (!email || !profile) { skipped++; continue }
 
-    // Idempotencia: una notificación por usuario por tipo por día (omitir en force/test)
+    // Idempotencia:
+    // - due: una vez por día por usuario
+    // - overdue: una vez por MES por usuario (así captura pagos atrasados aunque el cron
+    //   haya fallado días anteriores — la clave cambia en cuanto empieza el nuevo mes)
     if (!force) {
-      const refKey = `${targetDate}:recurring-${type}:${userId}`
+      const refKey = type === 'due'
+        ? `${targetDate}:recurring-due:${userId}`
+        : `${monthStr}:recurring-overdue:${userId}`
       const { error: logErr } = await supabase
         .from('notification_log')
         .insert({ user_id: userId, type: `recurring_${type}`, ref_key: refKey })
