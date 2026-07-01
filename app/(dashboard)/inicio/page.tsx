@@ -232,7 +232,8 @@ export default async function DashboardPage() {
       } else if (r.billing_day > todayDate && todayDate <= 15) {
         // billing_day > hoy: posible atraso del ciclo del mes anterior (cruce de mes)
         if (r.billing_month !== null && r.billing_month !== prevM) return false
-        return !paidPrevMonthSet.has(r.id)
+        // Considerar pagado si está en junio O si el usuario lo pagó tarde en el mes actual
+        return !paidPrevMonthSet.has(r.id) && !paidThisMonthSet.has(r.id)
       }
       return false
     })
