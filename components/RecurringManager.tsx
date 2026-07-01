@@ -1,12 +1,13 @@
 'use client'
 
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, Lock, Info } from 'lucide-react'
+import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, Lock, Info, Sparkles } from 'lucide-react'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
+import { suggestCategory, type CategorySuggestion } from '@/app/actions/suggest-category'
 import ServiceLogo from './ServiceLogo'
 import type { RecurringExpense, Category, PaymentMethod } from '@/types'
 
@@ -87,6 +88,29 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   const [error, setError]           = useState('')
   const [showAllCats, setShowAllCats] = useState(false)
 
+  // Sugerencia de categoría por nombre
+  const [suggestion, setSuggestion]         = useState<CategorySuggestion | null>(null)
+  const [autoSelectedByAI, setAutoSelectedByAI] = useState(false)
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (editTarget) return   // no sugerir al editar
+    if (suggestTimer.current) clearTimeout(suggestTimer.current)
+    const name = form.name.trim()
+    if (name.length < 2) { setSuggestion(null); return }
+    suggestTimer.current = setTimeout(async () => {
+      const result = await suggestCategory(name)
+      if (result) {
+        setSuggestion(result)
+        if (!form.category_id) {
+          setForm(f => ({ ...f, category_id: result.categoryId }))
+          setAutoSelectedByAI(true)
+        }
+      }
+    }, 500)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.name])
+
   const computedMonthly = useMemo(() => {
     if (!form.cuotas) return null
     const total = parseInt(form.totalAmount)
@@ -154,6 +178,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   function openNew() {
     const defaultPm = paymentMethods.find(p => p.is_default)
     setForm({ ...DEFAULT, payment_method_id: defaultPm?.id ?? '' })
+    setSuggestion(null); setAutoSelectedByAI(false)
     setEditTarget(null); setError(''); setDeleteConfirm(false); setSheetOpen(true)
   }
 
@@ -713,7 +738,29 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               {/* Categoría */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-gray-500">Categoría</label>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-gray-500">Categoría</label>
+                    {suggestion && (() => {
+                      const sugCat = categories.find(c => c.id === suggestion.categoryId)
+                      if (!sugCat) return null
+                      const isSame = suggestion.categoryId === form.category_id
+                      const sourceLabel = suggestion.source === 'rule_exact' ? 'regla guardada'
+                        : suggestion.source === 'embedding' || suggestion.source === 'ai' ? 'IA' : 'historial'
+                      return isSame ? (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          {sourceLabel}
+                        </span>
+                      ) : (
+                        <button type="button"
+                          onClick={() => { set('category_id', suggestion.categoryId); setAutoSelectedByAI(true) }}
+                          className="flex items-center gap-1 text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-full hover:bg-brand-100 transition-colors">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          {sugCat.name} · {sourceLabel}
+                        </button>
+                      )
+                    })()}
+                  </div>
                   {categories.length > 5 && (
                     <button
                       type="button"
