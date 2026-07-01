@@ -51,10 +51,10 @@ Deno.serve(async (req: Request) => {
 
   const targetDate = `${monthStr}-${String(today).padStart(2, '0')}`
 
-  // Para 'overdue' el día 1 no hay nada atrasado en el mes actual
-  if (!force && type === 'overdue' && today === 1) {
-    return new Response('First day of month — nothing overdue yet', { status: 200 })
-  }
+  const prevMonth    = month === 1 ? 12 : month - 1
+  const prevYear     = month === 1 ? year - 1 : year
+  const prevMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
+  const prevMonthStart = `${prevMonthStr}-01`
 
   // MODO TEST: enviar correo de muestra sin DB
   if (force) {
@@ -110,46 +110,76 @@ Deno.serve(async (req: Request) => {
   if (!force) {
     if (type === 'due') {
       recurringQuery.eq('billing_day', today)
-    } else {
-      // overdue: todos los días que ya pasaron este mes (no solo ayer)
-      recurringQuery.lt('billing_day', today)
     }
+    // Para overdue: traemos todos y filtramos en JS (maneja cruce de mes)
   }
 
   const { data: allRecurring, error: rErr } = await recurringQuery
 
   if (rErr) return new Response(JSON.stringify({ error: rErr.message }), { status: 500 })
   if (!allRecurring || allRecurring.length === 0) {
-    return new Response(`No recurring expenses on day ${targetDay}`, { status: 200 })
+    return new Response(`No recurring expenses matched`, { status: 200 })
   }
 
-  // Filtrar anuales: solo los que corresponden a este mes (billing_month = month o null para mensuales)
-  const recurring = allRecurring.filter((r: { billing_month: number | null }) =>
-    r.billing_month === null || r.billing_month === month
-  )
+  // Filtrar según tipo y manejo cross-month
+  // overdue cross-month: si billing_day > today y estamos en los primeros 15 días,
+  // el cobro era del ciclo del mes anterior
+  const recurring = allRecurring.filter((r: { billing_day: number; billing_month: number | null }) => {
+    if (type === 'due') {
+      return r.billing_month === null || r.billing_month === month
+    }
+    // overdue
+    if (r.billing_day < today) {
+      // vencido en el ciclo del mes actual
+      return r.billing_month === null || r.billing_month === month
+    } else if (r.billing_day > today && today <= 15) {
+      // vencido en el ciclo del mes anterior (cruce de mes)
+      return r.billing_month === null || r.billing_month === prevMonth
+    }
+    return false
+  })
 
   if (!recurring.length) {
-    return new Response('No matching recurring expenses after month filter', { status: 200 })
+    return new Response('No matching recurring expenses after filter', { status: 200 })
   }
 
-  // 4. Gastos ya registrados este mes para cada recurrente
+  // 4. Gastos ya registrados este mes (y mes anterior para cross-month) para cada recurrente
   const recurringIds = recurring.map((r: { id: string }) => r.id)
 
-  const { data: registered } = await supabase
-    .from('expenses')
-    .select('recurring_expense_id')
-    .in('recurring_expense_id', recurringIds)
-    .gte('date', monthStart)
-    .lte('date', `${monthStr}-${String(today).padStart(2, '0')}`)  // hasta hoy inclusive
+  const [{ data: registered }, { data: prevRegistered }] = await Promise.all([
+    supabase
+      .from('expenses')
+      .select('recurring_expense_id')
+      .in('recurring_expense_id', recurringIds)
+      .gte('date', monthStart)
+      .lte('date', `${monthStr}-${String(today).padStart(2, '0')}`),
+    today <= 15
+      ? supabase
+          .from('expenses')
+          .select('recurring_expense_id')
+          .in('recurring_expense_id', recurringIds)
+          .gte('date', prevMonthStart)
+          .lt('date', monthStart)
+      : Promise.resolve({ data: [] }),
+  ])
 
   const registeredSet = new Set(
     (registered ?? []).map((e: { recurring_expense_id: string }) => e.recurring_expense_id)
+  )
+  const prevRegisteredSet = new Set(
+    (prevRegistered ?? []).map((e: { recurring_expense_id: string }) => e.recurring_expense_id)
   )
 
   // 5. Agrupar pendientes por usuario
   const pendingByUser = new Map<string, typeof recurring>()
   for (const r of recurring) {
-    if (registeredSet.has(r.id)) continue   // ya registrado — skip
+    // Determinar si es cross-month (del ciclo anterior)
+    const isCrossMonth = type === 'overdue' && r.billing_day > today && today <= 15
+    if (isCrossMonth) {
+      if (prevRegisteredSet.has(r.id)) continue  // pagado el mes anterior
+    } else {
+      if (registeredSet.has(r.id)) continue      // pagado este mes
+    }
     const list = pendingByUser.get(r.user_id) ?? []
     list.push(r)
     pendingByUser.set(r.user_id, list)

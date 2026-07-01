@@ -18,10 +18,12 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
-  const now       = new Date()
-  const month     = now.getMonth() + 1
-  const year      = now.getFullYear()
-  const todayDate = now.getDate()
+  // Usar hora de Chile (America/Santiago) para evitar desfase UTC
+  const nowUtc      = new Date()
+  const chileDate   = nowUtc.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }) // YYYY-MM-DD
+  const [year, month, todayDate] = chileDate.split('-').map(Number)
+  // now sigue siendo útil para cálculos relativos (ej: Statement ranges), pero sin usarlo para la fecha del día
+  const now = new Date(`${chileDate}T12:00:00`)
 
   const nextMonth = month === 12 ? 1 : month + 1
   const nextYear  = month === 12 ? year + 1 : year
