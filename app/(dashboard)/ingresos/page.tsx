@@ -2,7 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile } from '@/lib/utils'
 import { CalendarDays, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
-import IncomeMonthEditor from '@/components/IncomeMonthEditor'
+import IncomeSheet from '@/components/IncomeSheet'
 import IncomeEditor from '@/components/IncomeEditor'
 import type { BreakdownItem, IncomeData } from '@/components/IncomeMonthEditor'
 
@@ -108,16 +108,26 @@ export default async function IngresosPage() {
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="mb-6">
-        <h1
-          className="text-3xl font-semibold leading-tight"
-          style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-        >
-          Ingresos
-        </h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-          Registra tus ingresos mensuales variables y sigue su evolución.
-        </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1
+            className="text-3xl font-semibold leading-tight"
+            style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
+          >
+            Ingresos
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
+            Registra tus ingresos mensuales variables y sigue su evolución.
+          </p>
+        </div>
+        <IncomeSheet
+          userId={user.id}
+          month={curMonth}
+          year={curYear}
+          current={curInc}
+          prevIncome={prevInc}
+          monthName={MONTH_NAMES[curMonth - 1]}
+        />
       </div>
 
       {/* ── 4 KPI cards ────────────────────────────────────────────────────── */}
@@ -220,38 +230,6 @@ export default async function IngresosPage() {
           </div>
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>de los últimos 12 meses</p>
         </div>
-      </div>
-
-      {/* ── Editor mes actual ──────────────────────────────────────────────── */}
-      <div
-        className="card p-5 lg:p-6 mb-6"
-        style={{ borderColor: 'var(--primary)', borderWidth: '1.5px' }}
-      >
-        <div className="flex items-center gap-3 mb-5">
-          <span
-            className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-widest"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-          >
-            Actual
-          </span>
-          <div className="flex items-center gap-2">
-            <CalendarDays className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
-            <h2
-              className="text-xl font-semibold"
-              style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-            >
-              {MONTH_NAMES[curMonth - 1]}
-              <span className="ml-1.5 text-base font-normal" style={{ color: 'var(--ink-3)' }}>{curYear}</span>
-            </h2>
-          </div>
-        </div>
-        <IncomeMonthEditor
-          userId={user.id}
-          month={curMonth}
-          year={curYear}
-          current={curInc}
-          prevIncome={prevInc}
-        />
       </div>
 
       {/* ── Historial ─────────────────────────────────────────────────────── */}
