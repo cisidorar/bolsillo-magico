@@ -36,18 +36,12 @@ export default function SideNav() {
           href="/inicio"
           className="flex items-center gap-2.5 mb-8 px-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          {/* Ícono — light: azul sobre blanco / dark: blanco sobre oscuro */}
+          {/* Ícono — mismo en light y dark */}
           <img
             src="/bolsillo-magico-icono.svg"
             alt="Bolsillo Mágico"
             width={36} height={36}
-            className="flex-shrink-0 rounded-xl dark:hidden"
-          />
-          <img
-            src="/bolsillo-magico-icono-invertido.svg"
-            alt="Bolsillo Mágico"
-            width={36} height={36}
-            className="flex-shrink-0 rounded-xl hidden dark:block"
+            className="flex-shrink-0 rounded-xl"
           />
           {/* Wordmark */}
           <span className="font-display text-[15px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
