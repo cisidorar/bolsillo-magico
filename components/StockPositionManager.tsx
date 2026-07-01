@@ -485,6 +485,15 @@ export default function StockPositionManager({ userId, initialPositions }: Props
       ? [totalCostUsd, totalValueUsd]   // fallback 2 puntos: costo → valor actual
       : []
 
+  // Escape key closes form
+  useEffect(() => {
+    if (!showForm) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') cancelForm() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [showForm])
+
   // ── CRUD ─────────────────────────────────────────────────────────────────
   function openAdd() { setForm(emptyForm); setEditingId(null); setFormError(''); setShowForm(true) }
   function openEdit(pos: StockPosition) {
@@ -505,6 +514,16 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     if (isNaN(shares)    || shares    <= 0) { setFormError('Número de acciones inválido'); return }
     if (isNaN(totalPaid) || totalPaid <= 0) { setFormError('Total pagado inválido'); return }
     const avgCost = totalPaid / shares
+
+    // Bug #3: warn if adding a ticker that already exists (would silently upsert)
+    if (!editingId) {
+      const duplicate = positions.find(p => p.ticker === ticker)
+      if (duplicate) {
+        setFormError(`Ya tenés ${ticker} en el portafolio. Abrí esa posición para editarla.`)
+        setSaving(false)
+        return
+      }
+    }
 
     setSaving(true); setFormError('')
     if (editingId) {
@@ -893,13 +912,16 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
                   {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
                   {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
+                  <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>hoy</span>
                 </div>
               )}
             </div>
 
             {/* Mejor retorno */}
             <div className="card p-4 lg:p-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Mejor retorno</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
+              </p>
               {bestPos ? (
                 <>
                   <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
@@ -1024,7 +1046,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
                     {/* Cant. */}
                     <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>{pos.shares}</p>
+                      <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                      </p>
                     </div>
 
                     {/* Precio hoy */}
@@ -1101,7 +1125,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                         )}
                       </div>
                       <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                        {pos.shares} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
+                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
                       </p>
                     </div>
                     <div className="text-right shrink-0 min-w-[72px]">
