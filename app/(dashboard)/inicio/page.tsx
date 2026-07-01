@@ -548,7 +548,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Grid 3 columnas desktop ── */}
-        <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1.3fr 1fr 270px' }}>
+        <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1.15fr 1fr 310px' }}>
 
           {/* Col 1 — Categorías */}
           {catSummary.length === 0 ? (
