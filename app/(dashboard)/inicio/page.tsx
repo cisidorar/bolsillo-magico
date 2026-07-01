@@ -746,9 +746,9 @@ export default async function DashboardPage() {
             )}
 
             {atrasados.length > 0 && (
-              <div className="card overflow-hidden" style={{ background: 'rgba(239,91,82,0.06)', borderColor: '#FAD3CF' }}>
+              <div className="card overflow-hidden" style={{ background: 'rgba(239,91,82,0.08)', borderColor: 'rgba(239,91,82,0.30)' }}>
                 {/* Header */}
-                <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: '1px solid rgba(239,91,82,0.20)' }}>
+                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(239,91,82,0.15)' }}>
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
                   <h2 className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
                     {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}

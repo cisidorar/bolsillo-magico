@@ -65,18 +65,18 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
     <>
       {/* ── Botón full-width (buttonOnly mode) ── */}
       {buttonOnly ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all hover:opacity-90 active:scale-[.98]"
-          style={{
-            background: 'var(--coral)',
-            color: 'white',
-            borderTop: '1px solid rgba(239,91,82,0.25)',
-          }}
-        >
-          <Check className="w-4 h-4" />
-          Registrar pago
-        </button>
+        <div className="px-3 pb-3 pt-1">
+          <button
+            onClick={() => setOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold transition-all hover:opacity-80 active:scale-[.98]"
+            style={{
+              background: 'rgba(239,91,82,0.28)',
+              color: 'var(--coral)',
+            }}
+          >
+            Registrar pago
+          </button>
+        </div>
       ) : (
       /* ── Fila clickable ── */
       <button
