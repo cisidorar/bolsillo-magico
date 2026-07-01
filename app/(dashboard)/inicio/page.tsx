@@ -721,23 +721,28 @@ export default async function DashboardPage() {
                   const daysLeft = Math.round((close0.getTime() - today0.getTime()) / 86_400_000)
                   const daysLabel = daysLeft === 0 ? 'Cierra hoy'
                     : daysLeft === 1 ? 'Cierra mañana'
-                    : daysLeft > 0   ? `Cierra en ${daysLeft}d`
+                    : daysLeft > 0   ? `Cierra en ${daysLeft} días`
                     : 'Cerrado'
                   const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold)' : 'var(--ink-3)'
                   return (
-                    <div key={card.id} className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-                      <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
-                        <p className="text-xs font-bold truncate" style={{ color: 'var(--ink-2)' }}>{card.name}</p>
-                        <Link href={`/cuenta/${card.id}`} className="text-xs font-semibold flex-shrink-0 ml-2 hover:opacity-70" style={{ color: 'var(--primary)' }}>Ver</Link>
+                    <div key={card.id} className="card p-4" style={{ borderColor: 'var(--border)' }}>
+                      {/* Header */}
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tarjeta {card.name}</p>
+                        <Link href={`/cuenta/${card.id}`} className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver</Link>
                       </div>
-                      <div className="px-4 py-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Cupo usado</p>
-                        <div className="flex items-end justify-between gap-2">
-                          <p className="text-xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)' }}>
-                            {formatCLP(card.total)}
-                          </p>
-                          <p className="text-[10px] font-semibold pb-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
+                      {/* Fila inset */}
+                      <div className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
+                          <CreditCard className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--ink)' }}>Cupo usado</p>
+                          <p className="text-xs mt-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
+                        </div>
+                        <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                          {formatCLP(card.total)}
+                        </p>
                       </div>
                     </div>
                   )
