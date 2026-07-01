@@ -730,6 +730,7 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
+            {/* ── Tarjeta(s) de crédito ── */}
             {statementCards.length > 0 && (
               <div className="space-y-3">
                 {statementCards.map(card => {
@@ -744,21 +745,19 @@ export default async function DashboardPage() {
                   const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold)' : 'var(--ink-3)'
                   return (
                     <div key={card.id} className="card p-4" style={{ borderColor: 'var(--border)' }}>
-                      {/* Header */}
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tarjeta {card.name}</p>
-                        <Link href={`/cuenta/${card.id}`} className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver</Link>
+                        <Link href={`/cuenta/${card.id}`} className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver</Link>
                       </div>
-                      {/* Fila inset */}
                       <div className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
                           <CreditCard className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--ink)' }}>Cupo usado</p>
+                          <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--ink)' }}>Cupo usado</p>
                           <p className="text-xs mt-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
                         </div>
-                        <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                        <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                           {formatCLP(card.total)}
                         </p>
                       </div>
@@ -768,16 +767,15 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            {/* ── Pago(s) atrasado(s) ── */}
             {atrasados.length > 0 && (
               <div className="card overflow-hidden" style={{ background: 'rgba(239,91,82,0.08)', borderColor: 'rgba(239,91,82,0.30)' }}>
-                {/* Header */}
                 <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(239,91,82,0.15)' }}>
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                  <h2 className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
                     {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
                   </h2>
                 </div>
-                {/* Filas */}
                 {atrasados.map((r, i) => (
                   <OverduePaySheet
                     key={r.id}
@@ -788,7 +786,6 @@ export default async function DashboardPage() {
                     firstItem={false}
                   />
                 ))}
-                {/* Botón full-width solo cuando hay 1 ítem */}
                 {atrasados.length === 1 && (
                   <OverduePaySheet
                     atrasado={atrasados[0]}
@@ -800,11 +797,12 @@ export default async function DashboardPage() {
               </div>
             )}
 
+            {/* ── Próximos pagos ── */}
             {proximosPagos.length > 0 && (
               <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos pagos</h2>
-                  <Link href="/recurrentes?view=calendar" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+                  <Link href="/recurrentes?view=calendar" className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
                 </div>
                 <div className="space-y-2">
                   {proximosPagos.map(r => (
@@ -813,7 +811,7 @@ export default async function DashboardPage() {
                         <ServiceLogo domain={r.domain} name={r.name} size={28} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
+                        <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
                         <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
                           {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
                         </p>
@@ -825,40 +823,37 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* Resumen rápido */}
-            <div>
-              <h2 className="text-sm font-bold mb-2.5" style={{ color: 'var(--ink-2)' }}>Resumen rápido</h2>
-              <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
-                {/* Mini-boxes solo cuando hay gastos reales */}
-                {allCats.length > 0 && typedExpenses.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
-                      <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
-                      <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {allCats.length}</p>
-                      <div className="flex items-center justify-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--mint)' }} />
-                        <p className="text-[10px] font-semibold" style={{ color: 'var(--mint)' }}>dentro</p>
-                      </div>
-                    </div>
-                    <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,111,97,0.10)' }}>
-                      <p className="text-2xl font-extrabold" style={{ color: 'var(--coral)' }}>{catsExcedidas}</p>
-                      <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {allCats.length}</p>
-                      <div className="flex items-center justify-center gap-1">
-                        <XCircle className="w-3 h-3" style={{ color: 'var(--coral)' }} />
-                        <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>excedidas</p>
-                      </div>
+            {/* ── Resumen rápido ── */}
+            <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Resumen rápido</h2>
+              {allCats.length > 0 && typedExpenses.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
+                    <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
+                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {allCats.length}</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--mint)' }} />
+                      <p className="text-[10px] font-semibold" style={{ color: 'var(--mint)' }}>dentro</p>
                     </div>
                   </div>
-                )}
-                <div className="space-y-2" style={{ borderTop: typedExpenses.length > 0 ? '1px solid var(--border)' : undefined, paddingTop: typedExpenses.length > 0 ? '12px' : undefined }}>
-                  <div className="flex justify-between">
-                    <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Gastos del mes</span>
-                    <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{typedExpenses.length > 0 ? typedExpenses.length : '—'}</span>
+                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,111,97,0.10)' }}>
+                    <p className="text-2xl font-extrabold" style={{ color: 'var(--coral)' }}>{catsExcedidas}</p>
+                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {allCats.length}</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <XCircle className="w-3 h-3" style={{ color: 'var(--coral)' }} />
+                      <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>excedidas</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Categoría top</span>
-                    <span className="text-xs font-bold truncate ml-2" style={{ color: 'var(--ink)' }}>{topCat}</span>
-                  </div>
+                </div>
+              )}
+              <div className="space-y-2" style={{ borderTop: typedExpenses.length > 0 ? '1px solid var(--border)' : undefined, paddingTop: typedExpenses.length > 0 ? '12px' : undefined }}>
+                <div className="flex justify-between">
+                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Gastos del mes</span>
+                  <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{typedExpenses.length > 0 ? typedExpenses.length : '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Categoría top</span>
+                  <span className="text-xs font-bold truncate ml-2" style={{ color: 'var(--ink)' }}>{topCat}</span>
                 </div>
               </div>
             </div>
