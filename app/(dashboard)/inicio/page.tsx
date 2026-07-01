@@ -536,25 +536,28 @@ export default async function DashboardPage() {
             {/* Proyección */}
             <div
               className="card flex flex-col justify-between p-4"
-              style={{ background: projOverBudget ? 'rgba(239,91,82,0.12)' : 'var(--surface)' }}
+              style={{
+                background: projOverBudget ? 'var(--ink)' : 'var(--surface)',
+                borderColor: projOverBudget ? 'rgba(239,91,82,0.20)' : undefined,
+              }}
             >
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Proyección</p>
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: projOverBudget ? 'rgba(255,111,97,0.15)' : 'var(--primary-soft)' }}
-                >
-                  {projOverBudget
-                    ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: 'var(--coral)' }} />
-                    : <Zap           className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                  }
-                </div>
+                <p className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1"
+                  style={{ color: projOverBudget ? 'rgba(239,91,82,0.60)' : 'var(--ink-3)' }}>
+                  Proyección
+                  {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(239,91,82,0.60)' }} />}
+                </p>
+                {!projOverBudget && (
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--primary-soft)' }}>
+                    <Zap className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                  </div>
+                )}
               </div>
               <p className="text-xl font-extrabold tabular-nums leading-none truncate"
                 style={{ color: projOverBudget ? 'var(--coral)' : 'var(--ink)' }}>
                 {total > 0 ? formatCLP(projection) : '—'}
               </p>
-              <p className="text-[10px] mt-1" style={{ color: projOverBudget ? 'var(--coral)' : 'var(--ink-3)' }}>
+              <p className="text-[10px] mt-1" style={{ color: projOverBudget ? 'rgba(239,91,82,0.60)' : 'var(--ink-3)' }}>
                 {projOverBudget ? `+${formatCLP(projOverBudget)} sobre límite` : 'estimado fin de mes'}
               </p>
             </div>
@@ -936,7 +939,7 @@ export default async function DashboardPage() {
                     <div className="h-2 bg-white/15 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{
                         width: `${Math.min(100, progressPct)}%`,
-                        backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
+                        backgroundColor: isOver ? '#f87171' : '#FFC23C',
                       }} />
                     </div>
                     <div className="flex justify-between mt-1.5">
@@ -953,13 +956,14 @@ export default async function DashboardPage() {
                     <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
                   </div>
                   <div className="flex-1 rounded-2xl px-4 py-3"
-                    style={{ background: projOverBudget ? 'rgba(255,111,97,0.25)' : 'rgba(255,255,255,0.15)' }}>
-                    <p className="text-[10px] text-white/60 font-semibold mb-1 flex items-center gap-1">
+                    style={{ background: projOverBudget ? 'var(--ink)' : 'rgba(255,255,255,0.15)' }}>
+                    <p className="text-[10px] font-semibold mb-1 flex items-center gap-1"
+                      style={{ color: projOverBudget ? 'var(--coral)' : 'rgba(255,255,255,0.60)' }}>
                       Proyección
-                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: '#fca5a5' }} />}
+                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--coral)' }} />}
                     </p>
                     <p className="text-base font-extrabold tabular-nums"
-                      style={{ color: projOverBudget ? '#fca5a5' : 'white' }}>
+                      style={{ color: projOverBudget ? 'var(--coral)' : 'white' }}>
                       {formatCLP(projection)}
                     </p>
                   </div>
