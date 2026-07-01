@@ -2,7 +2,8 @@ import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
-import { formatCLP, billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
+import MonthlyBudgetInput from '@/components/MonthlyBudgetInput'
+import { formatCLP, billingPeriod, billingPeriodRange, getNowChile, monthName } from '@/lib/utils'
 import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
 
@@ -53,7 +54,7 @@ export default async function PresupuestoPage() {
     fetchEnd   = `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`
   }
 
-  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }] = await Promise.all([
+  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
@@ -67,6 +68,8 @@ export default async function PresupuestoPage() {
       .select('category_id, amount')
       .eq('user_id', user.id)
       .eq('is_active', true),
+    supabase.from('budgets').select('amount')
+      .eq('user_id', user.id).eq('month', month).eq('year', year).maybeSingle(),
   ])
 
   // Mapa de gasto por categoría del período anterior
@@ -103,14 +106,25 @@ export default async function PresupuestoPage() {
   const budgetsWithLimit = typedBudgets.length
   const totalCategories = sortedCategories.length
 
+  const monthLabelCap = monthName(month).charAt(0).toUpperCase() + monthName(month).slice(1) + ' ' + year
+
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-brand-900">Presupuesto por categoría</h1>
+        <h1 className="text-xl font-bold text-brand-900">Presupuesto — {monthLabelCap}</h1>
         <p className="text-sm text-gray-400 mt-1">
-          Define cuánto quieres gastar en cada categoría este mes.
+          Los límites aplican solo a este mes y se renuevan cada mes.
         </p>
       </div>
+
+      {/* Presupuesto mensual total */}
+      <MonthlyBudgetInput
+        userId={user.id}
+        month={month}
+        year={year}
+        currentAmount={monthlyBudget?.amount ?? null}
+        monthLabel={monthLabelCap}
+      />
 
       <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '1fr 260px' }}>
 
