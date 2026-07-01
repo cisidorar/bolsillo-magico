@@ -396,43 +396,53 @@ export default async function DashboardPage() {
             ) : (
               /* ── Normal state hero ── */
               <>
-                {/* Top row: gastado + te quedan */}
+                {/* Top row: gastado + te quedan / por día */}
                 <div className="flex items-start justify-between gap-6">
                   <div>
                     <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
-                    {budgetAmount && <p className="text-sm text-white/45 mt-2">de {formatCLP(budgetAmount)} presupuestado</p>}
+                    <p className="text-sm text-white/45 mt-2">
+                      {budgetAmount ? `de ${formatCLP(budgetAmount)} presupuestado` : `${typedExpenses.length} gasto${typedExpenses.length !== 1 ? 's' : ''} registrado${typedExpenses.length !== 1 ? 's' : ''}`}
+                    </p>
                   </div>
-                  {budgetAmount && (
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
-                        {isOver ? 'Sobre el límite' : 'Te quedan'}
-                      </p>
-                      <p className="text-5xl font-extrabold leading-none" style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
-                        {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
-                      </p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
+                      {budgetAmount ? (isOver ? 'Sobre el límite' : 'Te quedan') : 'Por día'}
+                    </p>
+                    <p className="text-5xl font-extrabold leading-none"
+                      style={{ color: budgetAmount ? (isOver ? '#f87171' : '#34D6A2') : 'rgba(255,255,255,0.90)' }}>
+                      {budgetAmount
+                        ? (isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total))
+                        : formatCLP(dailyAvg)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Barra de presupuesto (con budget) o días info (sin budget) */}
+                <div className="mt-7">
+                  {budgetAmount ? (
+                    <>
+                      <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, progressPct)}%`,
+                            backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-2">
+                        <span className="text-xs text-white/45">{progressPct}% usado</span>
+                        <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="text-xs text-white/45">Día {todayDate} de {daysInMonth}</span>
+                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                     </div>
                   )}
                 </div>
-
-                {/* Barra de presupuesto */}
-                {budgetAmount && (
-                  <div className="mt-7">
-                    <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, progressPct)}%`,
-                          backgroundColor: isOver ? '#f87171' : progressPct >= 80 ? '#FFC23C' : 'rgba(255,255,255,0.85)',
-                        }}
-                      />
-                    </div>
-                    <div className="flex justify-between mt-2">
-                      <span className="text-xs text-white/45">{progressPct}% usado</span>
-                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
-                    </div>
-                  </div>
-                )}
               </>
             )}
           </div>
