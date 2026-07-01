@@ -3,7 +3,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
-import { billingPeriod, billingPeriodRange, formatCLP, monthName } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, formatCLP, monthName, getNowChile } from '@/lib/utils'
 import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
@@ -46,7 +46,8 @@ export default async function HistorialPage({
   searchParams: Promise<{ month?: string; year?: string; q?: string; cats?: string; page?: string; view?: string }>
 }) {
   const { month: monthStr, year: yearStr, q, cats, page: pageStr, view } = await searchParams
-  const now   = new Date()
+  const { now, year: chileYear, month: chileMonth, dateStr: chileDate } = getNowChile()
+
   const isBilling = view === 'billing'
   const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const catIds = cats ? cats.split(',').filter(Boolean) : []
@@ -71,16 +72,16 @@ export default async function HistorialPage({
       .limit(5)
     const defaultCard = cards?.find(c => c.is_default) ?? cards?.[0]
     if (defaultCard?.billing_day) {
-      const bp = billingPeriod(now.toISOString().slice(0, 10), defaultCard.billing_day as number)
+      const bp = billingPeriod(chileDate, defaultCard.billing_day as number)
       month = bp.month
       year  = bp.year
     } else {
-      month = now.getMonth() + 1
-      year  = now.getFullYear()
+      month = chileMonth
+      year  = chileYear
     }
   } else {
-    month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
-    year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
+    month = monthStr ? parseInt(monthStr) : chileMonth
+    year  = yearStr  ? parseInt(yearStr)  : chileYear
   }
 
   let expenses: ExpenseWithRelations[]

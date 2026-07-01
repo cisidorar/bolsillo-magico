@@ -1,5 +1,5 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, getNowChile } from '@/lib/utils'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
@@ -18,7 +18,7 @@ export default async function AnalisisPage({
   searchParams: Promise<{ month?: string; year?: string; view?: string; bm?: string }>
 }) {
   const { month: monthStr, year: yearStr, view, bm } = await searchParams
-  const now   = new Date()
+  const { now } = getNowChile()
   const isAnual = view === 'anual'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])

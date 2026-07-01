@@ -2,7 +2,7 @@ import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
-import { formatCLP, billingPeriod, billingPeriodRange } from '@/lib/utils'
+import { formatCLP, billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
 import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
 
@@ -12,9 +12,7 @@ export default async function PresupuestoPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const now = new Date()
-  const month = now.getMonth() + 1
-  const year = now.getFullYear()
+  const { now, year, month } = getNowChile()
 
   // Buscar la tarjeta de crédito default para calcular el período de facturación anterior
   const { data: defaultCard } = await supabase

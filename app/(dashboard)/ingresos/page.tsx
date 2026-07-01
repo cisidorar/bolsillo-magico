@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCLP } from '@/lib/utils'
+import { formatCLP, getNowChile } from '@/lib/utils'
 import { CalendarDays, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
 import IncomeMonthEditor from '@/components/IncomeMonthEditor'
 import IncomeEditor from '@/components/IncomeEditor'
@@ -43,9 +43,7 @@ export default async function IngresosPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const now      = new Date()
-  const curMonth = now.getMonth() + 1
-  const curYear  = now.getFullYear()
+  const { year: curYear, month: curMonth } = getNowChile()
 
   const periods: { month: number; year: number }[] = []
   for (let i = 0; i < 12; i++) {

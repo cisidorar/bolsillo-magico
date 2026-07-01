@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCLP } from '@/lib/utils'
+import { formatCLP, getNowChile } from '@/lib/utils'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import ServiceLogo from '@/components/ServiceLogo'
@@ -34,9 +34,7 @@ export default async function RecurrentesPage({
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const now   = new Date()
-  const month = now.getMonth() + 1
-  const year  = now.getFullYear()
+  const { now, year, month } = getNowChile()
 
   // Últimos 3 meses para promedio
   const threeMonthsAgo = new Date(year, now.getMonth() - 3, 1)

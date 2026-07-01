@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Fecha actual en zona horaria de Chile (America/Santiago).
+ * Evita el desfase UTC que hace que el servidor muestre el día siguiente
+ * después de las 20:00-21:00 hora chilena.
+ */
+export function getNowChile(): { now: Date; year: number; month: number; todayDate: number; dateStr: string } {
+  const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }) // YYYY-MM-DD
+  const [year, month, todayDate] = dateStr.split('-').map(Number)
+  const now = new Date(`${dateStr}T12:00:00`)
+  return { now, year, month, todayDate, dateStr }
+}
+
 /** Formatea un número como peso chileno: $1.234.567 */
 export function formatCLP(amount: number): string {
   return new Intl.NumberFormat('es-CL', {

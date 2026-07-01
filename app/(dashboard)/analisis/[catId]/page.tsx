@@ -1,5 +1,5 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, isEmoji } from '@/lib/utils'
+import { formatCLP, monthName, isEmoji, getNowChile } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import CatExpenseList from '@/components/CatExpenseList'
 import MonthNav from '@/components/MonthNav'
@@ -20,10 +20,10 @@ export default async function CategoriaDetallePage({
   const { catId } = await params
   const { month: monthStr, year: yearStr, view } = await searchParams
 
-  const now     = new Date()
-  const year    = yearStr ? parseInt(yearStr) : now.getFullYear()
+  const { now, year: chileYear, month: chileMonth } = getNowChile()
+  const year    = yearStr ? parseInt(yearStr) : chileYear
   const isAnual = !monthStr   // modo anual si no viene el mes
-  const month   = monthStr ? parseInt(monthStr) : now.getMonth() + 1
+  const month   = monthStr ? parseInt(monthStr) : chileMonth
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
