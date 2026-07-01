@@ -463,8 +463,17 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   }, 0)
   const todayChangePct = totalValueUsd > 0 ? (todayChangeUsd / (totalValueUsd - todayChangeUsd)) * 100 : 0
 
-  const posUp   = positions.filter(p => (quotes[p.ticker]?.changePercent ?? 0) > 0).length
-  const posDown = positions.filter(p => (quotes[p.ticker]?.changePercent ?? 0) < 0).length
+  // posUp/posDown basados en retorno TOTAL (precio actual vs costo), no en cambio del día
+  const posUp   = positions.filter(p => {
+    const q = quotes[p.ticker]
+    if (!q) return false
+    return p.shares * q.price > p.shares * p.avg_cost_usd
+  }).length
+  const posDown = positions.filter(p => {
+    const q = quotes[p.ticker]
+    if (!q) return false
+    return p.shares * q.price < p.shares * p.avg_cost_usd
+  }).length
 
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
     const q    = quotes[p.ticker]
@@ -915,7 +924,6 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
                   {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
                   {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
-                  <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>hoy</span>
                 </div>
               )}
             </div>
