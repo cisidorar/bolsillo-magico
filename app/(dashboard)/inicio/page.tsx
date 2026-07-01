@@ -8,11 +8,12 @@ import {
   Wallet, BarChart3, ArrowRight, Zap,
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
+import EmptyStateCTA from '@/components/EmptyStateCTA'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
-import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod } from '@/types'
+import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -543,7 +544,6 @@ export default async function DashboardPage() {
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
-                <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Agregar gasto</Link>
               </div>
               <div
                 className="card flex flex-col items-center justify-center text-center px-6 py-12"
@@ -559,13 +559,10 @@ export default async function DashboardPage() {
                 <p className="text-xs leading-relaxed mb-5" style={{ color: 'var(--ink-3)' }}>
                   Cuando registres tu primer gasto, aquí verás el desglose por categoría.
                 </p>
-                <Link
-                  href="/historial"
-                  className="px-4 py-2 text-xs font-bold rounded-xl transition-all hover:opacity-90 active:scale-[.97]"
-                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 4px 14px var(--shadow)' }}
-                >
-                  Registrar primer gasto
-                </Link>
+                <EmptyStateCTA
+                  categories={(categories ?? []) as Category[]}
+                  paymentMethods={(paymentMethods ?? []) as PaymentMethod[]}
+                />
               </div>
             </div>
           ) : (
@@ -687,8 +684,8 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {/* Col 3 — Próximos pagos + Resumen rápido */}
-          <div className="space-y-4">
+          {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
+          <div className="space-y-4" style={{ gridColumn: '3' }}>
 
             {statementCards.length > 0 && (
               <div>
