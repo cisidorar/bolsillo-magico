@@ -6,7 +6,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
 import type { ExpenseWithRelations, CategoryBudget } from '@/types'
-import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank, ShieldCheck, CalendarClock } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
 import IncomeEditor from '@/components/IncomeEditor'
@@ -204,12 +204,18 @@ export default async function AnalisisPage({
     : null
 
   // ── Payment method breakdown ──────────────────────────────────────────────
-  const byPM: Record<string, { name: string; total: number; domain?: string | null }> = {}
+  const byPM: Record<string, { id: string | null; name: string; total: number; count: number; cardType: string | null; domain?: string | null }> = {}
   selectedExpenses.forEach(e => {
     const key  = e.payment_method?.id ?? 'efectivo'
     const name = e.payment_method?.name ?? 'Efectivo'
-    if (!byPM[key]) byPM[key] = { name, total: 0, domain: (e.payment_method as any)?.domain ?? null }
+    if (!byPM[key]) byPM[key] = {
+      id: e.payment_method?.id ?? null,
+      name, total: 0, count: 0,
+      cardType: e.payment_method?.card_type ?? null,
+      domain: (e.payment_method as any)?.domain ?? null,
+    }
     byPM[key].total += e.amount
+    byPM[key].count++
   })
   const pmSummary = Object.values(byPM).sort((a, b) => b.total - a.total)
 
@@ -372,20 +378,8 @@ export default async function AnalisisPage({
   const surplusPct       = surplus !== null && prevMonthIncome > 0 ? Math.round((surplus / prevMonthIncome) * 100) : null
   const globalBudget     = (monthBudgetRow as { amount?: number } | null)?.amount ?? null
 
-  // ── Health score (0–100) ─────────────────────────────────────────────────
-  // Signal 1: sueldo del mes anterior alcanzó para cubrir los gastos de este mes
-  const earnsMore = prevMonthIncome > 0 ? prevMonthIncome > totalSelected : null
-  const sig1pts   = prevMonthIncome > 0 ? (earnsMore ? 25 : 0) : 15  // neutral si no hay ingreso previo
-
-  // Signal 2: spending trend vs prev month
-  const spendingDown = delta !== null ? delta < 0 : null
-  const sig2pts = delta === null ? 15
-    : delta < -10 ? 25
-    : delta < 0 ? 20
-    : delta < 10 ? 15
-    : delta < 30 ? 8 : 0
-
-  // Signal 3: category budget compliance
+  // ── Insumos del health score ──────────────────────────────────────────────
+  // Category budget compliance
   const catsOverBudget = catSummary.filter(c => {
     const limit = catBudgetMap.get(c.id) ?? null
     if (!limit) return false
@@ -394,9 +388,8 @@ export default async function AnalisisPage({
     return c.total > limit && !allRecurring
   })
   const numExcedidas = catsOverBudget.length
-  const sig3pts = numExcedidas === 0 ? 25 : numExcedidas === 1 ? 18 : numExcedidas === 2 ? 10 : 0
 
-  // Signal 4: monthly projection vs global budget
+  // Proyección mensual vs presupuesto global
   const daysInMonth  = new Date(year, month, 0).getDate()
   const projection   = isCurrentMonth && now.getDate() > 3
     ? Math.round((totalSelected / now.getDate()) * daysInMonth)
@@ -407,22 +400,6 @@ export default async function AnalisisPage({
     : null
   const projInflatedByTop = projection !== null && projectionWithoutTop !== null && globalBudget !== null
     && projection > globalBudget && projectionWithoutTop <= globalBudget * 1.05
-  const sig4pts = !projection ? 15
-    : !globalBudget ? 15
-    : projection <= globalBudget ? 25
-    : projection <= globalBudget * 1.1 ? 15
-    : projection <= globalBudget * 1.3 ? 8 : 0
-
-  const healthScore = sig1pts + sig2pts + sig3pts + sig4pts
-  // Remap 0-65 → Alerta, 66-75 → Atención, 76-88 → En camino, 89-100 → Buena salud
-  // (our max without income is 15+25+25+25=90, with income 25+25+25+25=100)
-  const healthLabel = healthScore >= 80 ? 'Buena salud'
-    : healthScore >= 60 ? 'En camino'
-    : healthScore >= 40 ? 'Atención'
-    : 'Alerta'
-  const healthColor = healthScore >= 80 ? '#1FBE8D'
-    : healthScore >= 60 ? '#4D93FF'
-    : healthScore >= 40 ? '#FFC23C' : '#FF6F61'
 
   // ── Construcción de patrimonio: tasa de ahorro + fondo de emergencia ─────
   // Convención de la app: el sueldo del mes ANTERIOR financia los gastos del mes.
@@ -548,6 +525,49 @@ export default async function AnalisisPage({
 
   const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0
     || activeRecurring.length > 0 || (netWorth !== null && netWorth.current.total_clp > 0)
+
+  // UX: no mostrar meses vacíos al inicio del gráfico — con poca historia el chart
+  // se veía "roto". Se recorta al primer mes con datos, manteniendo mínimo 6 barras.
+  const firstDataIdx = ratePoints.findIndex(p => p.rate !== null)
+  const trimmedRatePoints = firstDataIdx === -1
+    ? ratePoints.slice(-6)
+    : ratePoints.slice(Math.min(firstDataIdx, ratePoints.length - 6))
+
+  // ── F5: Health score (0–100) — ahora premia construir patrimonio ─────────
+  // Mix: tasa de ahorro (30) · fondo de emergencia (25) · disciplina de presupuesto (25) · deuda comprometida (20)
+  // "Neutral" cuando falta el dato: no castigamos por no haber registrado aún.
+  const scoreRate = isCurrentMonth ? projectedRate : surplusPct
+  const sAhorro = scoreRate === null ? 18
+    : scoreRate >= 20 ? 30
+    : scoreRate >= 10 ? 23
+    : scoreRate >= 0 ? 14
+    : scoreRate >= -10 ? 6 : 0
+  const sFondo = monthsCovered === null ? 12
+    : monthsCovered >= 6 ? 25
+    : monthsCovered >= 3 ? 20
+    : monthsCovered >= 1 ? 12 : 6
+  const sCompromiso = commitRatio === null ? 10
+    : commitRatio < 20 ? 20
+    : commitRatio <= 35 ? 12 : 4
+  let sDisciplina = numExcedidas === 0 ? 25 : numExcedidas === 1 ? 17 : numExcedidas === 2 ? 10 : 3
+  if (projection !== null && globalBudget !== null && projection > globalBudget * 1.1 && !projInflatedByTop) {
+    sDisciplina = Math.max(0, sDisciplina - 7)
+  }
+  const healthScore = sAhorro + sFondo + sCompromiso + sDisciplina
+  const healthLabel = healthScore >= 80 ? 'Buena salud'
+    : healthScore >= 60 ? 'En camino'
+    : healthScore >= 40 ? 'Atención'
+    : 'Alerta'
+  const healthColor = healthScore >= 80 ? '#1FBE8D'
+    : healthScore >= 60 ? '#4D93FF'
+    : healthScore >= 40 ? '#FFC23C' : '#FF6F61'
+  const healthSummary = healthScore >= 80
+    ? 'Vas muy bien: ahorras, tienes respaldo y tus compromisos están bajo control.'
+    : healthScore >= 60
+    ? 'Vas en buen camino. Revisa las señales en amarillo para subir tu puntaje.'
+    : healthScore >= 40
+    ? 'Atención: hay señales que necesitan cuidado. Parte por la más roja.'
+    : 'Alerta: tus finanzas necesitan un ajuste este mes. Una señal a la vez.'
 
   // ── Oportunidades de mejora ───────────────────────────────────────────────
   type Oportunidad = {
@@ -1599,9 +1619,7 @@ export default async function AnalisisPage({
                   </span>
                   {/* Summary visible on mobile only */}
                   <p className="text-xs mt-2 leading-relaxed lg:hidden" style={{ color: 'var(--ink-2)' }}>
-                    {numExcedidas === 0
-                      ? 'Vas bien: tus gastos están bajo control este mes.'
-                      : `Vas bien, pero ${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedió su límite.`}
+                    {healthSummary}
                   </p>
                 </div>
               </div>
@@ -1609,96 +1627,96 @@ export default async function AnalisisPage({
               {/* Signals */}
               <div className="flex-1 min-w-0">
                 <div className="hidden lg:block mb-3">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu mes en cuatro señales</p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu salud financiera en cuatro señales</p>
                   <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    {numExcedidas === 0
-                      ? 'Vas bien: tus gastos están bajo control. Sigue así.'
-                      : `Vas bien, pero ${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedió su límite. Vigila esos gastos.`}
+                    {healthSummary}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {/* Signal 1: earns more */}
+                  {/* Señal 1: tasa de ahorro (30 pts) */}
                   <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: earnsMore === false ? 'rgba(255,111,97,0.18)' : 'rgba(31,190,141,0.18)' }}>
-                        {earnsMore === false
-                          ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
-                          : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
+                        style={{ background: scoreRate === null ? 'rgba(148,163,184,0.15)' : scoreRate >= 10 ? 'rgba(31,190,141,0.18)' : scoreRate >= 0 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
+                        <PiggyBank className="w-3.5 h-3.5"
+                          style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 10 ? '#1FBE8D' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }} />
                       </div>
                       <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {earnsMore === false ? 'Gastos superan ingresos' : 'Gastas menos de lo que ganas'}
+                        {scoreRate === null ? 'Tasa de ahorro' : scoreRate >= 20 ? 'Ahorro sano' : scoreRate >= 10 ? 'Ahorro moderado' : scoreRate >= 0 ? 'Ahorro bajo' : 'Gastas más de lo que ganas'}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: surplus !== null ? (surplus > 0 ? '#1FBE8D' : '#FF6F61') : 'var(--ink-3)' }}>
-                      {surplus !== null
-                        ? (surplus > 0 ? `Saldo de ${prevMonthName}: ${formatCLP(surplus)}` : `Déficit de ${formatCLP(Math.abs(surplus))} vs sueldo de ${prevMonthName}`)
-                        : `Sin ingreso registrado de ${prevMonthName}`}
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 10 ? '#1FBE8D' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }}>
+                      {scoreRate !== null
+                        ? `${scoreRate}% del sueldo ${isCurrentMonth ? 'proyectado al cierre' : 'quedó guardado'}`
+                        : `Registra tu ingreso de ${prevMonthName} para medirla`}
                     </p>
                   </div>
 
-                  {/* Signal 2: spending trend */}
+                  {/* Señal 2: fondo de emergencia (25 pts) */}
                   <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: delta === null ? 'rgba(148,163,184,0.15)' : delta < 0 ? 'rgba(31,190,141,0.18)' : 'rgba(255,111,97,0.18)' }}>
-                        {delta === null || delta === 0
-                          ? <Minus className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
-                          : delta < 0
-                            ? <TrendingDown className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />
-                            : <TrendingUp className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />}
+                        style={{ background: monthsCovered === null ? 'rgba(148,163,184,0.15)' : monthsCovered >= 3 ? 'rgba(31,190,141,0.18)' : 'rgba(255,193,60,0.18)' }}>
+                        <ShieldCheck className="w-3.5 h-3.5"
+                          style={{ color: monthsCovered === null ? 'var(--ink-3)' : monthsCovered >= 3 ? '#1FBE8D' : '#FFC23C' }} />
                       </div>
                       <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {delta === null ? 'Sin comparación' : delta < 0 ? 'Tu gasto va a la baja' : 'Tu gasto subió'}
+                        {monthsCovered === null ? 'Fondo de emergencia' : monthsCovered >= 6 ? 'Fondo completo' : monthsCovered >= 3 ? 'Fondo en zona segura' : 'Fondo en construcción'}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: delta === null ? 'var(--ink-3)' : delta < 0 ? '#1FBE8D' : '#FF6F61' }}>
-                      {delta !== null ? `${delta > 0 ? '+' : ''}${delta}% frente a ${prevMonthName}` : 'Primer mes registrado'}
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: monthsCovered === null ? 'var(--ink-3)' : monthsCovered >= 3 ? '#1FBE8D' : '#FFC23C' }}>
+                      {monthsCovered !== null
+                        ? `Tus ahorros cubren ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} de gasto`
+                        : 'Registra tus ahorros para medirlo'}
                     </p>
                   </div>
 
-                  {/* Signal 3: category budgets */}
+                  {/* Señal 3: deuda comprometida / ingreso (20 pts) */}
                   <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : 'rgba(31,190,141,0.18)' }}>
-                        {numExcedidas > 0
-                          ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
-                          : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
+                        style={{ background: commitRatio === null ? 'rgba(148,163,184,0.15)' : commitRatio > 35 ? 'rgba(255,111,97,0.18)' : commitRatio >= 20 ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
+                        <CalendarClock className="w-3.5 h-3.5"
+                          style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : commitRatio >= 20 ? '#FFC23C' : '#1FBE8D' }} />
                       </div>
                       <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {numExcedidas === 0 ? 'Presupuestos en orden' : `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`}
+                        {commitRatio === null ? 'Deuda comprometida' : commitRatio > 35 ? 'Compromiso alto' : commitRatio >= 20 ? 'Compromiso moderado' : 'Compromiso holgado'}
                       </p>
                     </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: numExcedidas > 0 ? '#FF6F61' : 'var(--ink-3)' }}>
-                      {numExcedidas > 0
-                        ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
-                        : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Sin presupuestos definidos'}
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : commitRatio >= 20 ? '#FFC23C' : '#1FBE8D' }}>
+                      {commitRatio !== null
+                        ? `${commitRatio}% del ingreso ya está comprometido (sano: <35%)`
+                        : commitNext > 0 ? 'Registra tu ingreso para medirla' : 'Sin cuotas ni fijos pendientes'}
                     </p>
                   </div>
 
-                  {/* Signal 4: projection */}
+                  {/* Señal 4: disciplina de presupuesto (25 pts) */}
                   {(() => {
-                    const projOver = projection !== null && globalBudget !== null && projection > globalBudget * 1.05
-                    const sigColor = projOver ? '#FFC23C' : '#4D93FF'
-                    const sigBg    = projOver ? 'rgba(255,193,60,0.18)' : 'rgba(77,147,255,0.18)'
-                    const title    = projInflatedByTop ? 'Proyección algo justa'
-                      : projOver ? 'Proyección elevada'
-                      : 'Proyección del mes'
-                    const subtitle = projInflatedByTop
-                      ? 'Al día por una compra única'
-                      : projection
-                        ? `${formatCLP(projection)} estimado al cierre`
-                        : isCurrentMonth ? 'Pocos días para proyectar' : 'Mes completado'
+                    const projOver = projection !== null && globalBudget !== null && projection > globalBudget * 1.1 && !projInflatedByTop
+                    const bad = numExcedidas > 0 || projOver
+                    const title = numExcedidas > 0
+                      ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`
+                      : projOver ? 'Proyección sobre presupuesto'
+                      : projInflatedByTop ? 'Al día, salvo una compra única'
+                      : 'Presupuestos en orden'
+                    const subtitle = numExcedidas > 0
+                      ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
+                      : projOver && projection !== null ? `${formatCLP(projection)} estimado al cierre`
+                      : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Define límites para afinar esta señal'
                     return (
                       <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
                         <div className="flex items-center gap-2 mb-1.5">
-                          <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: sigBg }}>
-                            <Clock className="w-3.5 h-3.5" style={{ color: sigColor }} />
+                          <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : projOver ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
+                            {numExcedidas > 0
+                              ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
+                              : projOver
+                                ? <Clock className="w-3.5 h-3.5" style={{ color: '#FFC23C' }} />
+                                : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
                           </div>
                           <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>{title}</p>
                         </div>
-                        <p className="text-[10px] font-semibold pl-9" style={{ color: projInflatedByTop || projOver ? '#FFC23C' : 'var(--ink-3)' }}>
+                        <p className="text-[10px] font-semibold pl-9" style={{ color: bad ? (numExcedidas > 0 ? '#FF6F61' : '#FFC23C') : 'var(--ink-3)' }}>
                           {subtitle}
                         </p>
                       </div>
@@ -1713,7 +1731,7 @@ export default async function AnalisisPage({
         {/* ── Construcción de patrimonio: F1 tasa de ahorro + F2 fondo de emergencia ── */}
         {showPatrimonio && (
           <PatrimonioCards
-            ratePoints={ratePoints}
+            ratePoints={trimmedRatePoints}
             currentRate={surplusPct}
             currentSaved={surplus}
             avg6={rateAvg6}
@@ -1778,6 +1796,21 @@ export default async function AnalisisPage({
 
         {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
         {totalSelected > 0 ? (
+          <>
+          {/* Resumen narrativo del mes — para leer de un vistazo antes de los gráficos */}
+          {insight && (
+            <div className="card p-4 mb-5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(255,194,60,0.15)' }}>
+                <Zap className="w-4 h-4" style={{ color: 'var(--gold)' }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu mes en una frase</p>
+                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{insight}</p>
+              </div>
+            </div>
+          )}
+
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
             {/* Tendencia 6 meses */}
@@ -1931,10 +1964,108 @@ export default async function AnalisisPage({
                     </Link>
                   )
                 })}
+                {/* Acceso directo a definir límites cuando faltan */}
+                {catSummary.some(c => !catBudgetMap.get(c.id)) && (
+                  <Link href="/presupuesto"
+                    className="flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-bold transition-colors hover:bg-black/5"
+                    style={{ color: 'var(--primary)', borderTop: '1px solid var(--border)' }}>
+                    Definir límites por categoría <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
             </div>
 
           </div>
+
+          {/* ── Comportamiento: medios de pago + día de la semana ─────────────── */}
+          <div className="mt-5 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
+
+            {/* Medios de pago */}
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Con qué pagaste</p>
+                <Link href="/metodos" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
+                  Ver
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {pmSummary.slice(0, 5).map(pm => {
+                  const share = pct(pm.total, totalSelected)
+                  const isCredit = pm.cardType === 'credit' && pm.id
+                  const row = (
+                    <div className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--surface)' }}>
+                        {pm.domain
+                          ? <ServiceLogo domain={pm.domain} name={pm.name} size={28} />
+                          : <CreditCard className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--ink)' }}>{pm.name}</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                          {share}% del mes · {pm.count} gasto{pm.count !== 1 ? 's' : ''}
+                          {isCredit ? ' · crédito' : ''}
+                        </p>
+                      </div>
+                      <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                        {formatCLP(pm.total)}
+                      </p>
+                      {isCredit && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                    </div>
+                  )
+                  return isCredit
+                    ? <Link key={pm.id} href={`/cuenta/${pm.id}`} className="block transition-opacity hover:opacity-80">{row}</Link>
+                    : <div key={pm.id ?? 'efectivo'}>{row}</div>
+                })}
+              </div>
+              {/* Cuánto del mes pasó por crédito — clave si pagas casi todo con tarjeta */}
+              {(() => {
+                const creditTotal = pmSummary.filter(p => p.cardType === 'credit').reduce((s, p) => s + p.total, 0)
+                if (creditTotal === 0) return null
+                const creditPct = pct(creditTotal, totalSelected)
+                return (
+                  <p className="text-[11px] mt-3 px-1" style={{ color: 'var(--ink-3)' }}>
+                    El <span className="font-bold" style={{ color: 'var(--ink-2)' }}>{creditPct}%</span> de tus gastos fue con crédito:
+                    revisa "Ya comprometido" para ver cuándo lo pagarás.
+                  </p>
+                )
+              })()}
+            </div>
+
+            {/* Día de la semana */}
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cuándo gastas</p>
+                <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{monthName(month)}</span>
+              </div>
+              <div className="flex items-end gap-2" style={{ height: 110 }}>
+                {byWeekday.map((d, i) => {
+                  const h = d.total > 0 ? Math.max(Math.round((d.total / maxWeekday) * 74), 6) : 2
+                  const isPeak = i === peakDowIdx && d.total > 0
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
+                      <p className="text-[9px] font-bold tabular-nums" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
+                        {d.total > 0 ? `$${Math.round(d.total / 1000)}k` : ''}
+                      </p>
+                      <div className="w-full rounded-t-lg"
+                        style={{ height: h, background: isPeak ? 'var(--primary)' : d.total > 0 ? 'rgba(77,147,255,0.30)' : 'var(--border)' }} />
+                      <p className="text-[10px] font-semibold" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
+                        {weekdayLabels[i]}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+              {byWeekday[peakDowIdx].total > 0 && (
+                <p className="text-[11px] mt-3 px-1" style={{ color: 'var(--ink-3)' }}>
+                  Tu día fuerte es el <span className="font-bold" style={{ color: 'var(--ink-2)' }}>{weekdayLabels[peakDowIdx]}</span>
+                  {' '}({formatCLP(byWeekday[peakDowIdx].total)} en {byWeekday[peakDowIdx].count} gasto{byWeekday[peakDowIdx].count !== 1 ? 's' : ''}).
+                  {weekendPct >= 30 && <> El fin de semana se lleva el {weekendPct}% del mes.</>}
+                </p>
+              )}
+            </div>
+
+          </div>
+          </>
         ) : (
           /* Empty state */
           <div className="card text-center py-14 flex flex-col items-center gap-3">
@@ -1945,6 +2076,11 @@ export default async function AnalisisPage({
               <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin gastos en {monthName(month)}</p>
               <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Registra gastos para ver tu análisis</p>
             </div>
+            <Link href="/inicio"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 18px var(--shadow)' }}>
+              Registrar un gasto <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
         )}
           </>

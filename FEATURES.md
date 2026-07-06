@@ -174,7 +174,7 @@ Las cuotas ya se registran (`total_installments`, `paid_installments`) pero solo
 **~~F4. Patrimonio neto en el tiempo~~** ✅ _Implementado julio 2026 — card en /analisis con snapshot mensual automático (`net_worth_snapshots`), gráfico de evolución y desglose acciones/depósitos/ahorro. Requiere aplicar `supabase/migrations/20260705_net_worth_snapshots.sql`_
 Ya se registran acciones, depósitos a plazo y cuentas de ahorro por separado, pero falta la vista de **patrimonio neto total y su evolución mensual**. Probablemente el gráfico más adictivo y valioso de la categoría. Requiere un snapshot mensual de activos (`net_worth_snapshots`). 
 
-**F5. Rebalancear el health score para premiar el ahorro**
+**~~F5. Rebalancear el health score para premiar el ahorro~~** ✅ _Implementado julio 2026 — nuevo mix: tasa de ahorro (30) · fondo de emergencia (25) · disciplina de presupuesto (25) · deuda comprometida (20). Señales faltantes puntúan neutral (no castigan por no registrar). Las 4 tarjetas de señales y los textos de resumen se reescribieron acorde_
 Las 4 señales actuales son 100% defensivas (castigan gastar de más); ninguna premia ahorrar o invertir. Nuevo mix propuesto: **tasa de ahorro (30) · fondo de emergencia en meses (25) · deuda comprometida/ingreso (20) · disciplina de presupuesto (25)**. Convierte el score de "¿me pasé?" a "¿estoy construyendo patrimonio?".
 
 ### 🟡 Impacto medio — mejora conceptual del marco

@@ -436,6 +436,31 @@ export default function PatrimonioCards({
                     {avgMonthlyExpense !== null ? formatCLP(avgMonthlyExpense) : '—'}
                   </p>
                 </div>
+                {/* Próximo hito accionable */}
+                {avgMonthlyExpense !== null && monthsCovered < 6 && (() => {
+                  const targetMonths = monthsCovered < 3 ? 3 : 6
+                  const missing = targetMonths * avgMonthlyExpense - totalSavings
+                  if (missing <= 0) return null
+                  return (
+                    <div className="flex items-center justify-between rounded-2xl px-3 py-2.5"
+                      style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--mint)' }}>
+                        Próximo hito: {targetMonths} meses
+                      </p>
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--mint)' }}>
+                        faltan {formatCLP(missing)}
+                      </p>
+                    </div>
+                  )
+                })()}
+                {avgMonthlyExpense !== null && monthsCovered >= 6 && (
+                  <div className="flex items-center justify-between rounded-2xl px-3 py-2.5"
+                    style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}>
+                    <p className="text-xs font-semibold" style={{ color: 'var(--mint)' }}>
+                      Meta lograda: tu fondo está completo
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           ) : (
@@ -533,19 +558,22 @@ export default function PatrimonioCards({
                 {commitMonths.map((m, i) => {
                   const hFixed = Math.round((m.fixed / maxCommit) * 88)
                   const hCard  = Math.round((m.card / maxCommit) * 88)
-                  const dim = i === 0 ? 1 : 0.4
+                  // Colores sólidos con alpha en vez de opacity: la opacidad sobre
+                  // fondo oscuro ensuciaba el gold (se veía café)
+                  const goldBg = i === 0 ? 'var(--gold)'    : 'rgba(255,194,60,0.30)'
+                  const cardBg = i === 0 ? 'var(--primary)' : 'rgba(77,147,255,0.30)'
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 min-w-0">
                       <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {m.total > 0 ? `$${Math.round(m.total / 1000)}k` : '—'}
+                        {m.total > 0 ? `$${Math.round(m.total / 1000)}k` : ''}
                       </p>
                       <div className="w-full flex flex-col justify-end" style={{ minHeight: 2 }}>
                         {m.card > 0 && (
-                          <div className="w-full rounded-t-lg" style={{ height: Math.max(hCard, 4), background: 'var(--primary)', opacity: dim }} />
+                          <div className="w-full rounded-t-lg" style={{ height: Math.max(hCard, 4), background: cardBg }} />
                         )}
                         {m.fixed > 0 && (
                           <div className={`w-full ${m.card > 0 ? '' : 'rounded-t-lg'}`}
-                            style={{ height: Math.max(hFixed, 4), background: 'var(--gold)', opacity: dim }} />
+                            style={{ height: Math.max(hFixed, 4), background: goldBg }} />
                         )}
                         {m.total === 0 && <div className="w-full rounded-t-lg" style={{ height: 2, background: 'var(--border)' }} />}
                       </div>
