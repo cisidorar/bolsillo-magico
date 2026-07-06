@@ -86,31 +86,77 @@ async function stooqDailyCandles(ticker: string, reasons: string[]): Promise<Dai
   const fmt  = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
   const to   = new Date()
   const from = new Date(Date.now() - LOOKBACK_D * 86_400_000)
-  // Stooq usa sufijo .us para el mercado americano, en minúsculas
-  const url = `https://stooq.com/q/d/l/?s=${ticker.toLowerCase()}.us&d1=${fmt(from)}&d2=${fmt(to)}&i=d`
+  // Stooq usa sufijo .us para el mercado americano, en minúsculas.
+  // Intento 1: con rango de fechas. Intento 2: histórico completo (algunos mirrors ignoran d1/d2).
+  const sym  = `${ticker.toLowerCase()}.us`
+  const urls = [
+    `https://stooq.com/q/d/l/?s=${sym}&d1=${fmt(from)}&d2=${fmt(to)}&i=d`,
+    `https://stooq.com/q/d/l/?s=${sym}&i=d`,
+  ]
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, {
+        headers: YF_HEADERS, cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT),
+      })
+      if (!r.ok) { reasons.push(`Stooq ${r.status}`); continue }
+      const text  = await r.text()
+      const lines = text.trim().split('\n')
+      // CSV: Date,Open,High,Low,Close,Volume
+      if (lines.length < 31 || !lines[0].toLowerCase().startsWith('date')) {
+        // Mostrar qué devolvió realmente (límite diario, HTML, "No data", etc.)
+        reasons.push(`Stooq respondió: "${text.trim().slice(0, 60)}"`)
+        continue
+      }
+      const closes: number[] = []
+      const dates:  string[] = []
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',')
+        const close = parseFloat(cols[4])
+        if (!cols[0] || isNaN(close)) continue
+        dates.push(cols[0])
+        closes.push(close)
+      }
+      if (closes.length < 30) { reasons.push(`Stooq con ${closes.length} velas (mín 30)`); continue }
+      return { closes: closes.slice(-430), dates: dates.slice(-430) }
+    } catch (err) {
+      reasons.push(`Stooq error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    }
+  }
+  return null
+}
+
+// ── Alpha Vantage (cuarta fuente — requiere key gratis, 25 req/día) ─────────
+// Con el cache de 12 h y un solo usuario, 25 req/día es más que suficiente.
+
+async function alphaVantageDailyCandles(
+  ticker: string, key: string, reasons: string[],
+): Promise<DailyCandles | null> {
+  const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${ticker}&outputsize=full&apikey=${key}`
   try {
-    const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT) })
-    if (!r.ok) { reasons.push(`Stooq ${r.status}`); return null }
-    const text  = await r.text()
-    const lines = text.trim().split('\n')
-    // CSV: Date,Open,High,Low,Close,Volume
-    if (lines.length < 31 || !lines[0].toLowerCase().startsWith('date')) {
-      reasons.push('Stooq sin datos para el símbolo')
+    const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10_000) })
+    if (!r.ok) { reasons.push(`AlphaVantage ${r.status}`); return null }
+    const d = await r.json() as Record<string, unknown>
+    if (typeof d['Note'] === 'string' || typeof d['Information'] === 'string') {
+      reasons.push('AlphaVantage: límite diario alcanzado')
       return null
     }
+    const series = d['Time Series (Daily)'] as Record<string, { '4. close': string }> | undefined
+    if (!series) { reasons.push('AlphaVantage sin serie para el símbolo'); return null }
+    const entries = Object.entries(series)
+      .sort((a, b) => a[0].localeCompare(b[0]))   // fecha ascendente
+      .slice(-430)
     const closes: number[] = []
     const dates:  string[] = []
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',')
-      const close = parseFloat(cols[4])
-      if (!cols[0] || isNaN(close)) continue
-      dates.push(cols[0])
-      closes.push(close)
+    for (const [date, row] of entries) {
+      const c = parseFloat(row['4. close'])
+      if (isNaN(c)) continue
+      dates.push(date)
+      closes.push(c)
     }
-    if (closes.length < 30) { reasons.push(`Stooq con ${closes.length} velas (mín 30)`); return null }
+    if (closes.length < 30) { reasons.push(`AlphaVantage con ${closes.length} velas`); return null }
     return { closes, dates }
   } catch (err) {
-    reasons.push(`Stooq error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    reasons.push(`AlphaVantage error: ${err instanceof Error ? err.message : 'desconocido'}`)
     return null
   }
 }
@@ -148,10 +194,13 @@ export async function GET(request: Request) {
 
     const reasons: string[] = []
     if (!candles) {
-      // Cadena de fuentes: Finnhub (si hay key) → Yahoo → Stooq
+      // Cadena de fuentes: Finnhub (si hay key) → Yahoo → Stooq → Alpha Vantage (si hay key)
+      const avKey = process.env.ALPHAVANTAGE_API_KEY
       if (apiKey) candles = await fhDailyCandles(symbol, apiKey, reasons)
       if (!candles) candles = await yahooDailyCandles(symbol, reasons)
       if (!candles) candles = await stooqDailyCandles(symbol, reasons)
+      if (!candles && avKey) candles = await alphaVantageDailyCandles(symbol, avKey, reasons)
+      if (!candles && !avKey) reasons.push('AlphaVantage sin configurar (ALPHAVANTAGE_API_KEY)')
       if (candles) {
         supabase.from('price_cache').upsert(
           {

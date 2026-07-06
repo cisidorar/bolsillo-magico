@@ -57,7 +57,7 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 
 ## Validaciones pendientes
 
-- [x] ~~Velas diarias de Finnhub~~ — confirmado que el plan free bloquea `/stock/candle` (403). Resuelto con cadena de 3 fuentes: **Finnhub → Yahoo (`v8/finance/chart`, range=2y) → Stooq (CSV `q/d/l`, sufijo `.us`, sin API key)**. El 502 incluye `detail` con la respuesta de cada proveedor y el cliente lo muestra en la card de error — si vuelve a fallar, el mensaje dice exactamente quién y por qué. Alternativa futura si las 3 fallan: Alpha Vantage con key gratis (25 req/día alcanza de sobra para un usuario con cache de 12 h).
+- [x] ~~Velas diarias~~ — cadena de 4 fuentes: **Finnhub → Yahoo → Stooq → Alpha Vantage**. Diagnóstico real en la red de Cas (jul 2026): Finnhub 403 (plan free), Yahoo 429 (bloqueo por IP), Stooq respuesta no-CSV. Stooq ahora usa headers de navegador + reintento sin rango de fechas + muestra los primeros 60 chars de lo que respondió. Alpha Vantage (`TIME_SERIES_DAILY`, outputsize=full) se activa con `ALPHAVANTAGE_API_KEY` en `.env.local` — key gratis, 25 req/día, suficiente con cache 12 h. El 502 lista la respuesta de cada proveedor y el cliente la muestra en la card de error.
 - [ ] Aplicar migración `20260706_watchlist.sql` en Supabase.
 
 ## Roadmap
