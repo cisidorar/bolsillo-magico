@@ -277,14 +277,11 @@ export default async function IngresosPage() {
       </div>
 
       {/* ── Historial ─────────────────────────────────────────────────────── */}
-      <h2
-        className="text-base font-semibold mb-3"
-        style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-      >
-        Historial de ingresos
-      </h2>
-
-      <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+      <div className="card overflow-hidden">
+        <div className="px-4 lg:px-6 pt-4 pb-3">
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Historial de ingresos</p>
+        </div>
+        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
         {periods.slice(1).map(({ month, year }) => {
           const key     = `${year}-${month}`
           const income  = incomeMap[key] ?? null
@@ -361,6 +358,7 @@ export default async function IngresosPage() {
             </div>
           )
         })}
+        </div>
       </div>
 
     </div>

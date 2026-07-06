@@ -54,7 +54,10 @@ export default async function MetodosPage() {
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-4">
-      <h1 className="text-xl font-bold text-brand-900 mb-5">Métodos de pago</h1>
+      <div className="mb-5">
+        <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Métodos de pago</h1>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Administra tus cuentas, tarjetas y días de facturación.</p>
+      </div>
       <PaymentMethodManager
         paymentMethods={methods}
         userId={user.id}

@@ -133,8 +133,8 @@ export default async function RecurrentesPage({
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-brand-900">Gastos recurrentes</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Visualiza, gestiona y controla tus gastos que se repiten cada mes.</p>
+          <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Gastos recurrentes</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Visualiza, gestiona y controla tus gastos que se repiten cada mes.</p>
         </div>
       </div>
 
@@ -148,11 +148,11 @@ export default async function RecurrentesPage({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
 
           {/* Carga mensual — azul */}
-          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 6px 24px rgba(43,124,246,.35)' }}>
+          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 8px 18px var(--shadow)' }}>
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
               <CircleDollarSign className="w-5 h-5 text-white" />
             </div>
-            <p className="text-[11px] font-bold text-white/70 uppercase tracking-widest mb-1">Carga mensual</p>
+            <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-1">Carga mensual</p>
             <p className="text-2xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
             <p className="text-[11px] text-white/60 mt-1">
               {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
@@ -164,7 +164,7 @@ export default async function RecurrentesPage({
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
               <CalendarClock className="w-5 h-5 text-emerald-600" />
             </div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Próximo cargo</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Próximo cargo</p>
             {nextPayment ? (
               <>
                 <p className="text-sm font-bold text-gray-900 leading-tight">
@@ -184,7 +184,7 @@ export default async function RecurrentesPage({
             <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center mb-3">
               <TrendingUp className="w-5 h-5 text-violet-600" />
             </div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Promedio mensual</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Promedio mensual</p>
             <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(avgMonthly)}</p>
             <p className="text-[11px] text-gray-400 mt-1">Últimos 3 meses</p>
           </div>
@@ -194,7 +194,7 @@ export default async function RecurrentesPage({
             <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center mb-3">
               <Sparkles className="w-5 h-5 text-orange-600" />
             </div>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto anual estimado</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto anual estimado</p>
             <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(yearlyEstimate)}</p>
             <p className="text-[11px] text-gray-400 mt-1">en base a carga mensual actual</p>
           </div>

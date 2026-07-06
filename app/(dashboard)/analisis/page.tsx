@@ -704,7 +704,7 @@ export default async function AnalisisPage({
       <div className="flex items-start justify-between mb-5">
         <div>
           {/* Desktop: "Resumen anual" cuando isAnual, "Análisis" siempre en mobile */}
-          <h1 className="text-xl font-bold text-brand-900">
+          <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
             {isAnual ? (
               <>
                 <span className="hidden lg:inline">Resumen anual</span>

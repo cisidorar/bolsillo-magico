@@ -300,7 +300,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
           <div className="pointer-events-auto">
             <div
               className="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-white shadow-2xl"
-              style={{ background: '#0A1F44', boxShadow: '0 8px 32px rgba(10,31,68,.45)' }}
+              style={{ background: 'var(--ink)', boxShadow: '0 8px 18px var(--shadow)' }}
             >
               <p className="flex-1 text-sm font-bold">
                 {selectedIds.size} gasto{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}

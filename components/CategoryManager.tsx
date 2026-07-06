@@ -158,8 +158,8 @@ export default function CategoryManager({ categories: init, userId, expenseCount
       {/* ── Page header ─────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-brand-900">Categorías</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Organiza y personaliza tus categorías de gastos.</p>
+          <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Categorías</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Organiza y personaliza tus categorías de gastos.</p>
         </div>
         <button
           onClick={openNew}

@@ -236,7 +236,7 @@ export default async function HistorialPage({
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-brand-900">Historial</h1>
+        <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Historial</h1>
         <MonthNav
           month={month}
           year={year}
