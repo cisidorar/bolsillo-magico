@@ -42,12 +42,21 @@ export default async function HistorialPage({
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
-  // Vista por defecto según la preferencia budget_period (el toggle manual gana)
+  // Vista por defecto según la preferencia budget_period (el toggle manual gana).
+  // Select acotado a esta sola columna crítica: si en el futuro se agrega otra
+  // columna al select y esa columna no existe todavía en la DB, Postgrest
+  // falla la consulta COMPLETA (data vuelve null) — eso rompió antes la
+  // detección de tema oscuro al combinarla con una columna no migrada.
   const { data: prefRow } = await supabase
-    .from('profiles').select('budget_period, date_format').eq('id', user!.id).maybeSingle()
+    .from('profiles').select('budget_period').eq('id', user!.id).maybeSingle()
   const prefBilling = prefRow?.budget_period === 'billing'
   const isBilling = view === 'billing' || (view !== 'purchase' && prefBilling)
-  const dateFormat = (prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat
+
+  // Query independiente para date_format: si esta columna no existe aún,
+  // no debe afectar el cálculo de isBilling de arriba.
+  const { data: dateFormatRow } = await supabase
+    .from('profiles').select('date_format').eq('id', user!.id).maybeSingle()
+  const dateFormat = (dateFormatRow?.date_format ?? 'DD/MM/AAAA') as DateFormat
 
   // Cuando se carga billing sin mes explícito, determinar el período de estado ABIERTO.
   // Un período ya cerrado (billing_day < hoy) corresponde al mes siguiente.

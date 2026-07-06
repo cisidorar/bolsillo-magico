@@ -12,9 +12,9 @@
     --ink:          #0E2A52;
     --ink-2:        #5B6B82;
     --ink-3:        #94A3B8;
-    --primary:      var(--accent-primary, #4D93FF);
-    --primary-ink:  var(--accent-ink, #FFFFFF);
-    --primary-soft: var(--accent-soft, #E8EFFE);
+    --primary:      #4D93FF;
+    --primary-ink:  #FFFFFF;
+    --primary-soft: #E8EFFE;
     --gold:         #FFC23C;
     --mint:         #1FBE8D;
     --coral:        #FF6F61;
@@ -40,9 +40,9 @@
     --ink:          #EAF1FB;
     --ink-2:        #9DB0CC;
     --ink-3:        #64748B;
-    --primary:      var(--accent-primary-dark, #4D93FF);
-    --primary-ink:  var(--accent-ink-dark, #07122A);
-    --primary-soft: var(--accent-soft-dark, #16233D);
+    --primary:      #4D93FF;
+    --primary-ink:  #07122A;
+    --primary-soft: #16233D;
     --gold:         #FFD166;
     --mint:         #34D6A2;
     --coral:        #FF8478;

@@ -1,6 +1,6 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -38,9 +38,13 @@ export default async function DashboardPage() {
 
   // ── Preferencia budget_period: mes calendario o período de facturación ────
   // Se resuelve ANTES del fetch principal porque define el rango de gastos.
-  const [{ data: profile }, { data: paymentMethods }] = await Promise.all([
+  // payday_last_business_day va en un select aparte: si esa columna todavía
+  // no existe en la DB, no debe tumbar el fetch de budget_period/period_card_id
+  // (Postgrest falla la consulta COMPLETA cuando una sola columna no existe).
+  const [{ data: profile }, { data: paymentMethods }, { data: paydayPrefRow }] = await Promise.all([
     supabase.from('profiles').select('display_name, payday, budget_period, period_card_id').eq('id', user!.id).maybeSingle(),
     supabase.from('payment_methods').select('*').eq('user_id', user!.id).order('sort_order'),
+    supabase.from('profiles').select('payday_last_business_day').eq('id', user!.id).maybeSingle(),
   ])
 
   const creditCandidates = ((paymentMethods ?? []) as PaymentMethod[])
@@ -208,8 +212,19 @@ export default async function DashboardPage() {
 
   // Cuenta regresiva al día de sueldo (configurable en Ajustes)
   const payday = (profile as { payday?: number | null } | null)?.payday ?? null
+  const paydayIsLastBusinessDay = (paydayPrefRow as { payday_last_business_day?: boolean } | null)?.payday_last_business_day ?? false
   let daysToPayday: number | null = null
-  if (payday) {
+  if (paydayIsLastBusinessDay) {
+    const dim = new Date(year, month, 0).getDate()
+    const effectiveThis = lastBusinessDay(year, month)
+    if (todayDate <= effectiveThis) {
+      daysToPayday = effectiveThis - todayDate
+    } else {
+      const nextM = month === 12 ? 1 : month + 1
+      const nextY = month === 12 ? year + 1 : year
+      daysToPayday = (dim - todayDate) + lastBusinessDay(nextY, nextM)
+    }
+  } else if (payday) {
     const dim = new Date(year, month, 0).getDate()
     const effectivePayday = Math.min(payday, dim)  // ej: día 30 en febrero
     if (todayDate <= effectivePayday) {

@@ -60,6 +60,20 @@ export function relativeDate(dateStr: string, dateFormat: DateFormat = 'DD/MM/AA
   return formatNumericDate(date, dateFormat)
 }
 
+/**
+ * Último día hábil (lunes a viernes) de un mes dado. No considera feriados,
+ * solo fines de semana. Usado por "Día de sueldo → Último día hábil".
+ */
+export function lastBusinessDay(year: number, month: number): number {
+  let day = new Date(year, month, 0).getDate() // último día calendario del mes
+  let dow = new Date(year, month - 1, day).getDay() // 0=Dom..6=Sáb
+  while (dow === 0 || dow === 6) {
+    day -= 1
+    dow = new Date(year, month - 1, day).getDay()
+  }
+  return day
+}
+
 /** Porcentaje seguro (evita división por 0) */
 export function pct(value: number, total: number): number {
   if (!total) return 0

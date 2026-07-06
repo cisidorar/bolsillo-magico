@@ -5,31 +5,38 @@ import { CalendarDays, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
-  userId: string
-  payday: number | null
+  userId:          string
+  payday:          number | null
+  lastBusinessDay?: boolean
 }
 
 /**
  * Selector del día de sueldo. Personaliza el hero de inicio
  * ("Tu sueldo llega en N días") y alimentará el calendario de flujo de caja.
+ * Además del día fijo (1–31), admite "Último día hábil" — el sueldo cae el
+ * último día de lunes a viernes del mes (se recalcula mes a mes).
  */
-export default function PaydaySelect({ userId, payday: initPayday }: Props) {
+export default function PaydaySelect({ userId, payday: initPayday, lastBusinessDay: initLastBusinessDay }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
   const [payday, setPayday] = useState<number | null>(initPayday)
+  const [lastBusinessDay, setLastBusinessDay] = useState(!!initLastBusinessDay)
   const [saved, setSaved]   = useState(false)
 
-  const save = (day: number | null) => {
+  const save = (day: number | null, lbd: boolean) => {
     setPayday(day)
+    setLastBusinessDay(lbd)
     setSaved(false)
     startTransition(async () => {
-      await supabase.from('profiles').update({ payday: day }).eq('id', userId)
+      await supabase.from('profiles')
+        .update({ payday: day, payday_last_business_day: lbd })
+        .eq('id', userId)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     })
   }
 
-  // Días típicos de pago en Chile + "último día"
+  // Días típicos de pago en Chile
   const QUICK_DAYS = [1, 5, 15, 25, 28, 30]
 
   return (
@@ -49,9 +56,11 @@ export default function PaydaySelect({ userId, payday: initPayday }: Props) {
             )}
           </div>
           <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            {payday
-              ? `Cada ${payday} del mes. Verás la cuenta regresiva en tu inicio.`
-              : 'Cuéntanos qué día te pagan y te mostramos cuánto falta.'}
+            {lastBusinessDay
+              ? 'Cada último día hábil del mes. Verás la cuenta regresiva en tu inicio.'
+              : payday
+                ? `Cada ${payday} del mes. Verás la cuenta regresiva en tu inicio.`
+                : 'Cuéntanos qué día te pagan y te mostramos cuánto falta.'}
           </p>
         </div>
       </div>
@@ -61,16 +70,27 @@ export default function PaydaySelect({ userId, payday: initPayday }: Props) {
           <button
             key={d}
             type="button"
-            onClick={() => save(d)}
+            onClick={() => save(d, false)}
             disabled={isPending}
             className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
-            style={payday === d
+            style={!lastBusinessDay && payday === d
               ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
               : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
           >
             {d}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => save(null, true)}
+          disabled={isPending}
+          className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
+          style={lastBusinessDay
+            ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
+            : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+        >
+          Último hábil
+        </button>
         {/* Día custom */}
         <input
           type="number"
@@ -80,15 +100,15 @@ export default function PaydaySelect({ userId, payday: initPayday }: Props) {
           defaultValue={payday !== null && !QUICK_DAYS.includes(payday) ? payday : undefined}
           onBlur={e => {
             const v = parseInt(e.target.value)
-            if (!isNaN(v) && v >= 1 && v <= 31 && v !== payday) save(v)
+            if (!isNaN(v) && v >= 1 && v <= 31 && (v !== payday || lastBusinessDay)) save(v, false)
           }}
           className="w-14 px-2 py-1 rounded-full text-[11px] font-bold text-center border-0 outline-none"
           style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
         />
-        {payday !== null && (
+        {(payday !== null || lastBusinessDay) && (
           <button
             type="button"
-            onClick={() => save(null)}
+            onClick={() => save(null, false)}
             disabled={isPending}
             className="px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all"
             style={{ color: 'var(--coral)' }}

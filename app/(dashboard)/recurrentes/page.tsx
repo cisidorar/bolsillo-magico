@@ -35,10 +35,6 @@ export default async function RecurrentesPage({
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const { data: prefRow } = await supabase
-    .from('profiles').select('week_start').eq('id', user.id).maybeSingle()
-  const weekStart = (prefRow?.week_start === 'sunday' ? 'sunday' : 'monday') as 'monday' | 'sunday'
-
   const { now, year, month, todayDate } = getNowChile()
 
   // Últimos 3 meses para promedio
@@ -231,7 +227,7 @@ export default async function RecurrentesPage({
 
         {/* Calendario */}
         <div className={!isCalendar ? 'hidden lg:block' : 'block'}>
-          <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} weekStart={weekStart} />
+          <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
         </div>
       </div>
     </div>
