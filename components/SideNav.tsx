@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp } from 'lucide-react'
+import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import UserMenu from './UserMenu'
@@ -14,6 +14,7 @@ const navItems = [
   { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
   { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones'  },
   { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
+  { href: '/ajustes',      icon: Settings,   label: 'Ajustes'      },
 ]
 
 interface Props {
@@ -64,7 +65,11 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
         <nav className="flex flex-col gap-0.5 flex-1">
           {navItems.map(item => {
             const Icon   = item.icon
-            const active = pathname.startsWith(item.href)
+            // /ajustes/perfil tiene su propia entrada (el bloque de usuario),
+            // así que no debe marcar "Ajustes" como activo también.
+            const active = item.href === '/ajustes'
+              ? pathname.startsWith('/ajustes') && !pathname.startsWith('/ajustes/perfil')
+              : pathname.startsWith(item.href)
 
             return (
               <Link
