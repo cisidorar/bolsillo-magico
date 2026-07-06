@@ -152,3 +152,6 @@ Schema changes go in `supabase/schema.sql` (full) or in a new migration file und
 - **Loading skeletons** mirror the actual page layout using `animate-pulse` divs. Each route has a `loading.tsx`.
 - **Insights and "vs anterior" chips** always show both a % change and the absolute CLP difference when comparing months.
 - **Icons for categories** render with their actual category icon (via `isEmoji` + `getCategoryIcon`), not with `getExpenseIcon`. Use `getExpenseIcon` only for individual expense rows (description-matching).
+- **Montos siempre en CLP completo** con `formatCLP()` — nunca abreviaturas tipo `$120k` o `$1.2M` en la vista mensual ni en labels de gráficos (usar `text-[9px]` + `whitespace-nowrap` si el espacio aprieta). Única excepción: la tabla anual densa (`fmtCell`) donde el CLP completo no cabe físicamente.
+- **Labels de mes en gráficos SVG:** cuidar el escalado del viewBox — un viewBox angosto estirado a todo el ancho agiganta la tipografía. Usar viewBox ancho (~560) con fontSize 9 y el mes bajo cada barra (capitalize).
+- **Secciones de /analisis mensual siempre dentro de una `.card`** con su header interno (título `text-sm font-bold` + subtítulo/acciones), como Patrimonio y "Con qué pagaste" — nunca títulos sueltos sobre el fondo de página.

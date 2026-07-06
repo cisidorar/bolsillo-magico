@@ -381,7 +381,7 @@ export default async function CategoriaDetallePage({
 
               {maxMonth > 1 && (
                 <p className="text-[9px] text-gray-300 font-medium tabular-nums mb-1">
-                  {maxMonth >= 1000000 ? `${(maxMonth / 1000000).toFixed(1)}M` : `${Math.round(maxMonth / 1000)}k`}
+                  {formatCLP(maxMonth)}
                 </p>
               )}
 
@@ -394,8 +394,8 @@ export default async function CategoriaDetallePage({
                   const href = `/analisis/${catId}?month=${mMonth}&year=${mYear}${viewParam}`
                   return (
                     <Link key={m.key} href={href} className="flex-1 flex flex-col items-center gap-1 group">
-                      <span className={`text-[9px] tabular-nums leading-none font-semibold ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
-                        {m.total > 0 ? (m.total >= 1000000 ? `${(m.total / 1000000).toFixed(1)}M` : `${Math.round(m.total / 1000)}k`) : ''}
+                      <span className={`text-[9px] tabular-nums leading-none font-semibold whitespace-nowrap ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
+                        {m.total > 0 ? formatCLP(m.total) : ''}
                       </span>
                       <div className="w-full flex-1 flex items-end">
                         <div

@@ -43,16 +43,17 @@ interface Props {
   netWorth: NetWorthResult | null
 }
 
-/** Mini gráfico SVG de barras +/- para la tasa de ahorro (12 meses). */
+/** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
 function RateBars({ points }: { points: RatePoint[] }) {
-  const W = 264, H = 64, gap = 5
+  // viewBox ancho para que la tipografía NO se agigante al estirarse al contenedor
+  const W = 560, H = 86, gap = 8
   const n = points.length
   const barW = (W - gap * (n - 1)) / n
 
   const values = points.map(p => p.rate).filter((r): r is number => r !== null)
   const posMax = Math.max(...values.map(v => Math.max(v, 0)), 10)
   const negMax = Math.max(...values.map(v => Math.max(-v, 0)), 0)
-  const usable = H - 14 // deja espacio para labels
+  const usable = H - 20 // deja espacio para los labels de mes
   const scale  = usable / (posMax + negMax || 1)
   const baseY  = 2 + posMax * scale
 
@@ -62,24 +63,31 @@ function RateBars({ points }: { points: RatePoint[] }) {
       <line x1={0} y1={baseY} x2={W} y2={baseY} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 3" />
       {points.map((p, i) => {
         const x = i * (barW + gap)
+        const label = (
+          <text key={`l${i}`} x={x + barW / 2} y={H - 4} fontSize="9" fontWeight="600"
+            fill="var(--ink-3)" textAnchor="middle" style={{ textTransform: 'capitalize' }}>
+            {p.label}
+          </text>
+        )
         if (p.rate === null) {
           // Mes sin ingreso registrado: marcador tenue en la base
-          return <rect key={i} x={x} y={baseY - 2} width={barW} height={2} rx={1} fill="var(--border)" />
+          return [
+            <rect key={i} x={x} y={baseY - 2} width={barW} height={2} rx={1} fill="var(--border)" />,
+            label,
+          ]
         }
         const h = Math.max(Math.abs(p.rate) * scale, 2)
         const y = p.rate >= 0 ? baseY - h : baseY
-        return (
+        return [
           <rect
             key={i}
             x={x} y={y} width={barW} height={h} rx={2}
             fill={p.rate >= 0 ? 'var(--mint)' : 'var(--coral)'}
             opacity={i === points.length - 1 ? 1 : 0.55 + (i / points.length) * 0.4}
-          />
-        )
+          />,
+          label,
+        ]
       })}
-      {/* Labels primer y último mes */}
-      <text x={0} y={H - 2} fontSize="9" fontWeight="600" fill="var(--ink-3)">{points[0]?.label}</text>
-      <text x={W} y={H - 2} fontSize="9" fontWeight="600" fill="var(--ink-3)" textAnchor="end">{points[points.length - 1]?.label}</text>
     </svg>
   )
 }
@@ -564,8 +572,8 @@ export default function PatrimonioCards({
                   const cardBg = i === 0 ? 'var(--primary)' : 'rgba(77,147,255,0.30)'
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 min-w-0">
-                      <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {m.total > 0 ? `$${Math.round(m.total / 1000)}k` : ''}
+                      <p className="text-[9px] font-bold tabular-nums whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
+                        {m.total > 0 ? formatCLP(m.total) : ''}
                       </p>
                       <div className="w-full flex flex-col justify-end" style={{ minHeight: 2 }}>
                         {m.card > 0 && (
@@ -577,7 +585,7 @@ export default function PatrimonioCards({
                         )}
                         {m.total === 0 && <div className="w-full rounded-t-lg" style={{ height: 2, background: 'var(--border)' }} />}
                       </div>
-                      <p className="text-[10px] font-semibold capitalize" style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
+                      <p className="text-[9px] font-semibold capitalize" style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
                         {m.label}
                       </p>
                     </div>

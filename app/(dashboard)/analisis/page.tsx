@@ -1759,11 +1759,11 @@ export default async function AnalisisPage({
         {/* Trigger AI analysis in background when there are expenses */}
         {totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
 
-        {/* ── Oportunidades de mejora ─────────────────────────────────────────── */}
+        {/* ── Oportunidades de mejora — header dentro de la card, como las demás ── */}
         {finalOportunidades.length > 0 && (
-          <div className="mb-5">
+          <div className="card p-4 lg:p-5 mb-5">
             <div className="flex items-center gap-2 mb-3">
-              <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</h2>
+              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</p>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                 {finalOportunidades.length} sugerencia{finalOportunidades.length > 1 ? 's' : ''}
               </span>
@@ -1774,9 +1774,9 @@ export default async function AnalisisPage({
                 </span>
               )}
             </div>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch">
               {finalOportunidades.map((op, i) => (
-                <div key={i} className="card p-4 flex flex-col gap-3">
+                <div key={i} className="rounded-2xl px-3 py-3 flex flex-col gap-2.5" style={{ background: 'var(--surface-2)' }}>
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                       style={{ background: op.iconBg }}>
@@ -1828,7 +1828,7 @@ export default async function AnalisisPage({
                 const avg       = nonZero.length > 0 ? Math.round(nonZero.reduce((s, m) => s + m.total, 0) / nonZero.length) : 0
                 const BAR_H     = 160  // px — height of bar area
                 const avgPx     = avg > 0 ? Math.round((avg / maxMonth) * BAR_H) : 0
-                const avgLabel  = avg >= 1_000_000 ? `$${(avg/1_000_000).toFixed(1)}M` : `$${Math.round(avg/1_000)}k`
+                const avgLabel  = formatCLP(avg)
                 return (
                   <>
                     {/* Promedio label */}
@@ -1841,7 +1841,7 @@ export default async function AnalisisPage({
                     {/* Max label */}
                     {maxMonth > 1 && (
                       <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
-                        {maxMonth >= 1_000_000 ? `${(maxMonth/1_000_000).toFixed(1)}M` : `${Math.round(maxMonth/1000)}k`}
+                        {formatCLP(maxMonth)}
                       </p>
                     )}
                     {/* Chart */}
@@ -1864,9 +1864,9 @@ export default async function AnalisisPage({
                           return (
                             <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`}
                               className="flex-1 flex flex-col items-center gap-0.5 group h-full justify-end">
-                              <span className="text-[9px] tabular-nums leading-none font-semibold mb-0.5"
+                              <span className="text-[9px] tabular-nums leading-none font-semibold mb-0.5 whitespace-nowrap"
                                 style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}>
-                                {m.total > 0 ? (m.total >= 1_000_000 ? `${(m.total/1_000_000).toFixed(1)}M` : `${Math.round(m.total/1000)}k`) : ''}
+                                {m.total > 0 ? formatCLP(m.total) : ''}
                               </span>
                               <div
                                 className={`w-full rounded-t-xl transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_14px_rgba(77,147,255,0.4)]' : ''} ${barClass}`}
@@ -1890,17 +1890,17 @@ export default async function AnalisisPage({
               })()}
             </div>
 
-            {/* Categorías vs. presupuesto */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Categorías vs. presupuesto</h2>
+            {/* Categorías vs. presupuesto — header dentro de la card, como las demás */}
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Categorías vs. presupuesto</p>
                 <div className="flex items-center gap-3 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#1FBE8D' }} />OK</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FFC23C' }} />Cerca</span>
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FF6F61' }} />Excedido</span>
                 </div>
               </div>
-              <div className="card overflow-hidden">
+              <div>
                 {catSummary.map((c, idx) => {
                   const limit        = catBudgetMap.get(c.id) ?? null
                   const over         = limit ? c.total > limit : false
@@ -1918,7 +1918,7 @@ export default async function AnalisisPage({
                       key={c.id}
                       href={`/analisis/${c.id}?month=${month}&year=${year}`}
                       className="flex flex-col px-4 py-3 transition-colors hover:bg-black/5 active:bg-black/10"
-                      style={{ borderTop: idx > 0 ? '1px solid var(--border)' : undefined }}
+                      style={{ borderTop: '1px solid var(--border)' }}
                     >
                       <div className="flex items-center gap-3 mb-2">
                         <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -2043,8 +2043,8 @@ export default async function AnalisisPage({
                   const isPeak = i === peakDowIdx && d.total > 0
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      <p className="text-[9px] font-bold tabular-nums" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
-                        {d.total > 0 ? `$${Math.round(d.total / 1000)}k` : ''}
+                      <p className="text-[9px] font-bold tabular-nums whitespace-nowrap" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
+                        {d.total > 0 ? formatCLP(d.total) : ''}
                       </p>
                       <div className="w-full rounded-t-lg"
                         style={{ height: h, background: isPeak ? 'var(--primary)' : d.total > 0 ? 'rgba(77,147,255,0.30)' : 'var(--border)' }} />
