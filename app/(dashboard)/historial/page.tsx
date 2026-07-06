@@ -48,11 +48,16 @@ export default async function HistorialPage({
   const { month: monthStr, year: yearStr, q, cats, page: pageStr, view } = await searchParams
   const { now, year: chileYear, month: chileMonth, dateStr: chileDate } = getNowChile()
 
-  const isBilling = view === 'billing'
   const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const catIds = cats ? cats.split(',').filter(Boolean) : []
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+
+  // Vista por defecto según la preferencia budget_period (el toggle manual gana)
+  const { data: prefRow } = await supabase
+    .from('profiles').select('budget_period').eq('id', user!.id).maybeSingle()
+  const prefBilling = prefRow?.budget_period === 'billing'
+  const isBilling = view === 'billing' || (view !== 'purchase' && prefBilling)
 
   // Cuando se carga billing sin mes explícito, determinar el período de estado ABIERTO.
   // Un período ya cerrado (billing_day < hoy) corresponde al mes siguiente.
@@ -221,7 +226,7 @@ export default async function HistorialPage({
   }, {})
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  const baseParams = { month, year, q, cats: catIds.join(',') || undefined, view: isBilling ? 'billing' : undefined }
+  const baseParams = { month, year, q, cats: catIds.join(',') || undefined, view: view || undefined }
   const prevHref = (!isBilling && page > 1) ? buildHref({ ...baseParams, page: page - 1 }) : null
   const nextHref = (!isBilling && page < totalPages) ? buildHref({ ...baseParams, page: page + 1 }) : null
 
@@ -242,7 +247,7 @@ export default async function HistorialPage({
           year={year}
           basePath="/historial"
           extraParams={{
-            ...(isBilling ? { view: 'billing' } : {}),
+            ...(view ? { view } : {}),
             ...(q        ? { q }                : {}),
             ...(catIds.length > 0 ? { cats: catIds.join(',') } : {}),
           }}
@@ -374,7 +379,7 @@ export default async function HistorialPage({
 
       {/* Filters */}
       <div className="mb-4">
-        <HistorialFilters categories={categories ?? []} month={month} year={year} />
+        <HistorialFilters categories={categories ?? []} month={month} year={year} defaultView={prefBilling ? 'billing' : 'purchase'} />
       </div>
 
       {/* Banners */}

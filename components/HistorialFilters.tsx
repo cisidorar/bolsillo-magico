@@ -11,9 +11,10 @@ interface Props {
   categories: Category[]
   month: number
   year: number
+  defaultView?: 'purchase' | 'billing'
 }
 
-export default function HistorialFilters({ categories, month, year }: Props) {
+export default function HistorialFilters({ categories, month, year, defaultView = 'purchase' }: Props) {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -21,7 +22,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
 
   const initialQ    = searchParams.get('q')    ?? ''
   const initialCats = (searchParams.get('cats') ?? '').split(',').filter(Boolean)
-  const initialView = (searchParams.get('view') ?? 'purchase') as 'purchase' | 'billing'
+  const initialView = (searchParams.get('view') ?? defaultView) as 'purchase' | 'billing'
 
   const [query,   setQuery]   = useState(initialQ)
   const [catIds,  setCatIds]  = useState<string[]>(initialCats)
@@ -35,7 +36,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
   useEffect(() => {
     setQuery(searchParams.get('q') ?? '')
     setCatIds((searchParams.get('cats') ?? '').split(',').filter(Boolean))
-    setView((searchParams.get('view') ?? 'purchase') as 'purchase' | 'billing')
+    setView((searchParams.get('view') ?? defaultView) as 'purchase' | 'billing')
   }, [searchParams])
 
   // Cleanup debounce on unmount
@@ -61,9 +62,9 @@ export default function HistorialFilters({ categories, month, year }: Props) {
     params.set('year',  String(year))
     if (q)            params.set('q',    q)
     if (cats.length)  params.set('cats', cats.join(','))
-    if (v === 'billing') params.set('view', 'billing')
+    if (v !== defaultView) params.set('view', v)
     startTransition(() => router.push(`${pathname}?${params.toString()}`))
-  }, [router, pathname, month, year])
+  }, [router, pathname, month, year, defaultView])
 
   function handleSearch(val: string) {
     setQuery(val)
@@ -87,7 +88,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
       // Al cambiar a billing, omitir month/year para que el server
       // detecte el período de estado ABIERTO automáticamente
       const params = new URLSearchParams()
-      params.set('view', 'billing')
+      if (defaultView !== 'billing') params.set('view', 'billing')
       if (query) params.set('q', query)
       if (catIds.length) params.set('cats', catIds.join(','))
       startTransition(() => router.push(`${pathname}?${params.toString()}`))
@@ -102,7 +103,7 @@ export default function HistorialFilters({ categories, month, year }: Props) {
     pushParams('', [], view)
   }
 
-  const hasFilters = query.length > 0 || catIds.length > 0 || view === 'billing'
+  const hasFilters = query.length > 0 || catIds.length > 0 || view !== defaultView
   const hasCatOrQuery = query.length > 0 || catIds.length > 0
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]))
 

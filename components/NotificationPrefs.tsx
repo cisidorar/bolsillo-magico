@@ -11,9 +11,11 @@ interface Props {
   notifyMonthly:   boolean
   notifyRecurring: boolean
   budgetAlertPct:  number   // umbral de la primera alerta (50–95)
+  billingAlertDays: number  // días de anticipación del aviso de cierre (1–7)
 }
 
-const PCT_OPTIONS = [60, 70, 80, 90]
+const PCT_OPTIONS  = [60, 70, 80, 90]
+const DAYS_OPTIONS = [1, 2, 3, 5]
 
 interface ToggleItem {
   key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring'
@@ -30,6 +32,7 @@ export default function NotificationPrefs({
   notifyMonthly:   initMonthly,
   notifyRecurring: initRecurring,
   budgetAlertPct:  initPct,
+  billingAlertDays: initDays,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -46,6 +49,14 @@ export default function NotificationPrefs({
     setAlertPct(pct)
     startTransition(async () => {
       await supabase.from('profiles').update({ budget_alert_pct: pct }).eq('id', userId)
+    })
+  }
+
+  const [alertDays, setAlertDays] = useState(initDays)
+  const saveDays = (d: number) => {
+    setAlertDays(d)
+    startTransition(async () => {
+      await supabase.from('profiles').update({ billing_alert_days: d }).eq('id', userId)
     })
   }
 
@@ -66,7 +77,7 @@ export default function NotificationPrefs({
       dbCol:    'notify_billing',
       icon:     <CreditCard className="w-5 h-5" style={{ color: '#7C3AED' }} />,
       title:    'Cierre de tarjeta',
-      subtitle: 'Recibe un aviso 1-2 días antes del cierre de cada tarjeta de crédito.',
+      subtitle: `Recibe un aviso ${alertDays} día${alertDays !== 1 ? 's' : ''} antes del cierre de cada tarjeta de crédito.`,
     },
     {
       key:      'notifyBudget',
@@ -132,6 +143,30 @@ export default function NotificationPrefs({
             />
           </button>
         </div>
+
+        {/* Anticipación del aviso de cierre de tarjeta */}
+        {item.key === 'notifyBilling' && state.notifyBilling && (
+          <div className="flex items-center gap-2 px-4 pb-4 pl-[72px]">
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisarme</span>
+            <div className="flex items-center gap-1">
+              {DAYS_OPTIONS.map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => saveDays(d)}
+                  disabled={isPending}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
+                  style={alertDays === d
+                    ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
+                    : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  {d} día{d !== 1 ? 's' : ''}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>antes</span>
+          </div>
+        )}
 
         {/* Umbral personalizable de la alerta de presupuesto */}
         {item.key === 'notifyBudget' && state.notifyBudget && (

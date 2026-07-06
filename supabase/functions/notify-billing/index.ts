@@ -45,26 +45,34 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
-  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1)
-  const dayAfter = new Date(now); dayAfter.setDate(now.getDate() + 2)
-  const targetDays = [tomorrow.getDate(), dayAfter.getDate()]
-
+  // Todas las tarjetas de crédito con día de corte: el filtro por días de
+  // anticipación es POR USUARIO (profiles.billing_alert_days, default 2).
   const { data: methods, error: mErr } = await supabase
     .from('payment_methods')
     .select('id, name, billing_day, user_id')
     .eq('card_type', 'credit')
-    .in('billing_day', targetDays)
+    .not('billing_day', 'is', null)
 
   if (mErr) return new Response(JSON.stringify({ error: mErr.message }), { status: 500 })
-  if (!methods || methods.length === 0) return new Response('No billing reminders today', { status: 200 })
+  if (!methods || methods.length === 0) return new Response('No credit cards', { status: 200 })
 
   const userIds = [...new Set(methods.map(m => m.user_id))]
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, display_name, notify_billing')
+    .select('id, display_name, notify_billing, billing_alert_days')
     .in('id', userIds)
     .eq('notify_billing', true)
+
+  // Días hasta el próximo cierre, con clamp a fin de mes (billing_day 30 en feb)
+  function daysUntilClose(billingDay: number): number {
+    const y = now.getFullYear(), m0 = now.getMonth(), today = now.getDate()
+    const lastThis  = new Date(y, m0 + 1, 0).getDate()
+    const closeThis = Math.min(billingDay, lastThis)
+    if (closeThis >= today) return closeThis - today
+    const lastNext = new Date(y, m0 + 2, 0).getDate()
+    return (lastThis - today) + Math.min(billingDay, lastNext)
+  }
 
   const { data: authUsers } = await supabase.auth.admin.listUsers()
 
@@ -80,7 +88,10 @@ Deno.serve(async (req: Request) => {
     const email = emailMap.get(method.user_id)
     if (!email) { skipped++; continue }
 
-    const daysUntil = method.billing_day === tomorrow.getDate() ? 1 : 2
+    // Enviar solo cuando faltan exactamente los días configurados por el usuario
+    const alertDays = (profile as { billing_alert_days?: number }).billing_alert_days ?? 2
+    const daysUntil = daysUntilClose(method.billing_day)
+    if (daysUntil !== alertDays) { skipped++; continue }
     const refKey    = `${now.toISOString().slice(0, 10)}:billing:${method.id}`
 
     const { error: logErr } = await supabase
@@ -128,9 +139,11 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
-        subject: daysUntil === 1
+        subject: daysUntil === 0
+          ? `Tu tarjeta ${method.name} cierra hoy · Bolsillo Mágico`
+          : daysUntil === 1
           ? `Tu tarjeta ${method.name} cierra mañana · Bolsillo Mágico`
-          : `Tu tarjeta ${method.name} cierra en 2 días · Bolsillo Mágico`,
+          : `Tu tarjeta ${method.name} cierra en ${daysUntil} días · Bolsillo Mágico`,
         html: billingEmailHtml({
           displayName,
           cardName:    method.name,
@@ -188,7 +201,7 @@ function billingEmailHtml({
   fmtCLP: (n: number) => string
   siteUrl: string
 }) {
-  const urgencyText = daysUntil === 1 ? 'cierra mañana' : 'cierra en 2 días'
+  const urgencyText = daysUntil === 0 ? 'cierra hoy' : daysUntil === 1 ? 'cierra mañana' : `cierra en ${daysUntil} días`
   // Recordatorio = ámbar
   const accent = '#F59E0B'
   const accentBg = '#FFF8E8'

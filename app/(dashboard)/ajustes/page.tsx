@@ -113,6 +113,7 @@ export default async function AjustesPage() {
               notifyMonthly={profile?.notify_monthly ?? false}
               notifyRecurring={profile?.notify_recurring ?? true}
               budgetAlertPct={profile?.budget_alert_pct ?? 80}
+              billingAlertDays={profile?.billing_alert_days ?? 2}
             />
           </section>
         </div>

@@ -1,6 +1,6 @@
 # Plan: Configuración del usuario en el SideNav + preferencias de visualización
 
-_Creado: julio 2026 — estado: **Fases 1 y 2 implementadas** (jul 2026) · Fase 3 = backlog. Migración pendiente de aplicar: `20260707_budget_period.sql`._
+_Creado: julio 2026 — estado: **Fases 1, 2 y 3 implementadas** (jul 2026). Migraciones pendientes de aplicar: `20260707_budget_period.sql` y `20260707_billing_alert_days.sql`._
 
 ## Objetivo
 
@@ -86,11 +86,11 @@ La infraestructura ya existe — `currentStatementRange()` y `billingPeriod()` e
 ## Fase 3 — Más preferencias candidatas (backlog del menú)
 
 Orden sugerido por valor:
-1. **Default de vista billing en Historial/Análisis** sincronizado con `budget_period` (los toggles manuales siguen ganando).
-2. **`billing_alert_days`** (1–7): días de anticipación del aviso de cierre de tarjeta — hoy fijo 1–2 en `notify-billing`.
-3. **Tarjeta predeterminada** editable desde Preferencias (hoy solo vía `is_default` en Métodos).
-4. **Ocultar secciones de /analisis** (ej: esconder "Cuándo gastas" si no le interesa) — `profiles.hidden_sections text[]`.
-5. Exportación rápida del mes desde el UserMenu.
+1. ✅ **Default de vista billing en Historial** sincronizado con `budget_period`: `view=purchase|billing` explícito en URL cuando difiere del default; el toggle manual gana siempre. (Análisis no tiene toggle billing en la vista mensual — n/a.)
+2. ✅ **`billing_alert_days`** (1/2/3/5): chips bajo el toggle "Cierre de tarjeta"; `notify-billing` ahora trae todas las tarjetas y filtra por usuario con `daysUntilClose()` (clamp fin de mes), asunto/urgencia dinámicos.
+3. ✅ (ya existía) **Tarjeta predeterminada** editable vía `is_default` en Métodos de pago; `period_card_id` cubre el caso del corte.
+4. Pendiente (baja prioridad): **Ocultar secciones de /analisis** — `profiles.hidden_sections text[]`.
+5. ✅ **Exportación rápida del mes (CSV)** desde el UserMenu (`/api/export?from&to` del 1 al día de hoy).
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { ChevronUp, ChevronDown, ChevronRight, Sparkles, Bell, Moon, Sun, LogOut } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Sparkles, Bell, Moon, Sun, LogOut, Download } from 'lucide-react'
 import { saveThemeAction } from '@/app/actions/theme'
 
 interface Props {
@@ -118,6 +118,24 @@ export default function UserMenu({ name, email, avatarUrl }: Props) {
               <Bell className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
               Notificaciones
             </Link>
+
+            {/* Export rápido del mes en curso */}
+            {(() => {
+              const n = new Date()
+              const from = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`
+              const to = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+              return (
+                <a
+                  href={`/api/export?from=${from}&to=${to}`}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/5"
+                  style={{ color: 'var(--ink-2)' }}
+                >
+                  <Download className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                  Exportar mes (CSV)
+                </a>
+              )
+            })()}
 
             {/* Tema — toggle inline */}
             <button
