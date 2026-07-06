@@ -53,7 +53,14 @@ Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 
 
 ### Avisos in-app (cómo funcionan hoy)
 
-Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **secuencialmente** (cuida el rate limit de Finnhub, 60 req/min free; el server cachea 12 h así que tras la primera visita del día es instantáneo). Cada fila muestra un chip "N señales" coloreado por la señal más severa (coral > gold > mint). Abrir la fila muestra el detalle completo.
+Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **secuencialmente con pausa de 400 ms** (AV free también limita por minuto). Cada fila muestra un chip "N señales" coloreado por la señal más severa (coral > gold > mint). Tocar la fila abre el detalle en popup.
+
+### Presupuesto de cuota (dimensionado para ~15 favoritos, 2 visitas/día)
+
+- Velas: cache **24 h** (los cierres diarios cambian una vez al día) → máx 15 req/día a Alpha Vantage, límite free 25. La segunda visita del día consume 0.
+- Fallos: cache negativo 1 h → los reintentos automáticos no queman cuota; "Reintentar" fuerza con `?force=1`.
+- Quotes (precio en vivo): Finnhub `/quote`, gratis, se refresca en cada visita — independiente de las velas.
+- Headroom si algún día se queda corto: Twelve Data (free 800 req/día) como quinta fuente, o segunda key de AV.
 
 ## Validaciones pendientes
 

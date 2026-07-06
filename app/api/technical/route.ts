@@ -5,7 +5,9 @@ import { analyze, type DailyCandles, type TechnicalAnalysis } from '@/lib/techni
 // ── Config ─────────────────────────────────────────────────────────────────────
 
 const TICKER_RE  = /^[A-Z0-9.\-]{1,12}$/
-const DAILY_TTL  = 12 * 60 * 60   // 12 h — con velas diarias basta refrescar 2 veces al día
+// 24 h: las velas diarias cambian una sola vez al día (cierre de mercado).
+// Con 15 favoritos → máx 15 requests/día a Alpha Vantage (límite free: 25).
+const DAILY_TTL  = 24 * 60 * 60
 const FAIL_TTL   = 60 * 60        // 1 h — cache negativo: no quemar cuota reintentando fallas
 const FH_TIMEOUT = 8_000
 const LOOKBACK_D = 430            // ~14 meses de calendario → ≥252 días hábiles + SMA200

@@ -203,13 +203,18 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     }
   }, [])
 
-  // Avisos in-app: al entrar se precargan las señales de todos los favoritos
-  // (secuencial para cuidar el rate limit; el servidor cachea 12 h)
+  // Avisos in-app: al entrar se precargan las señales de todos los favoritos.
+  // Secuencial + pausa: Alpha Vantage free también limita por minuto, y con
+  // ~15 favoritos en frío una ráfaga podría rebotar. El cache de 24 h hace que
+  // en visitas siguientes esto sea instantáneo y sin requests.
   useEffect(() => {
     const tickers = initialItems.map(i => i.ticker)
     fetchQuotes(tickers)
     ;(async () => {
-      for (const t of tickers) await fetchAnalysis(t)
+      for (const t of tickers) {
+        await fetchAnalysis(t)
+        await new Promise(res => setTimeout(res, 400))
+      }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
