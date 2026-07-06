@@ -162,6 +162,7 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
   const [quotes,     setQuotes]     = useState<Record<string, Quote>>({})
   const [expanded,   setExpanded]   = useState<string | null>(null)
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
+  const [errDetails, setErrDetails] = useState<Record<string, string>>({})
 
   // Buscador (popup)
   const [showSearch, setShowSearch] = useState(false)
@@ -189,9 +190,14 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     setAnalyses(prev => ({ ...prev, [ticker]: prev[ticker] && prev[ticker] !== 'error' ? prev[ticker] : 'loading' }))
     try {
       const r = await fetch(`/api/technical?symbol=${ticker}`)
-      if (!r.ok) throw new Error()
+      if (!r.ok) {
+        const body = await r.json().catch(() => null) as { detail?: string } | null
+        if (body?.detail) setErrDetails(prev => ({ ...prev, [ticker]: body.detail! }))
+        throw new Error()
+      }
       const data = await r.json() as { analysis: TechnicalAnalysis }
       setAnalyses(prev => ({ ...prev, [ticker]: data.analysis }))
+      setErrDetails(prev => { const { [ticker]: _omit, ...rest } = prev; return rest })
     } catch {
       setAnalyses(prev => ({ ...prev, [ticker]: 'error' }))
     }
@@ -502,7 +508,9 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                           No pudimos obtener los datos de {item.ticker}
                         </p>
                         <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                          Puede ser un problema momentáneo del proveedor o un ticker no soportado.
+                          {errDetails[item.ticker]
+                            ? <>Respuesta de los proveedores: {errDetails[item.ticker]}</>
+                            : 'Puede ser un problema momentáneo del proveedor o un ticker no soportado.'}
                         </p>
                       </div>
                       <button

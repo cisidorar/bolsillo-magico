@@ -57,7 +57,7 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 
 ## Validaciones pendientes
 
-- [x] ~~Velas diarias de Finnhub~~ — confirmado en producción que el plan free bloquea `/stock/candle` (403). Resuelto (jul 2026): `yahooDailyCandles()` como fallback (Yahoo `v8/finance/chart`, range=2y, mismo patrón query1/query2 + YF_HEADERS que `stock-price`). Finnhub se intenta primero por si el plan cambia.
+- [x] ~~Velas diarias de Finnhub~~ — confirmado que el plan free bloquea `/stock/candle` (403). Resuelto con cadena de 3 fuentes: **Finnhub → Yahoo (`v8/finance/chart`, range=2y) → Stooq (CSV `q/d/l`, sufijo `.us`, sin API key)**. El 502 incluye `detail` con la respuesta de cada proveedor y el cliente lo muestra en la card de error — si vuelve a fallar, el mensaje dice exactamente quién y por qué. Alternativa futura si las 3 fallan: Alpha Vantage con key gratis (25 req/día alcanza de sobra para un usuario con cache de 12 h).
 - [ ] Aplicar migración `20260706_watchlist.sql` en Supabase.
 
 ## Roadmap

@@ -16,7 +16,9 @@ export interface TechnicalResponse {
 
 // ── Finnhub daily candles ──────────────────────────────────────────────────────
 
-async function fhDailyCandles(ticker: string, key: string): Promise<DailyCandles | null> {
+async function fhDailyCandles(
+  ticker: string, key: string, reasons: string[],
+): Promise<DailyCandles | null> {
   const to   = Math.floor(Date.now() / 1000)
   const from = to - LOOKBACK_D * 86_400
   try {
@@ -24,15 +26,18 @@ async function fhDailyCandles(ticker: string, key: string): Promise<DailyCandles
       `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
       { cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT) },
     )
-    if (!r.ok) { console.warn('[technical] Finnhub status', r.status, ticker, '— probando Yahoo'); return null }
+    if (!r.ok) { reasons.push(`Finnhub ${r.status}`); return null }
     const d = await r.json() as { s?: string; c?: number[]; t?: number[] }
-    if (d.s !== 'ok' || !Array.isArray(d.c) || d.c.length < 30 || !Array.isArray(d.t)) return null
+    if (d.s !== 'ok' || !Array.isArray(d.c) || d.c.length < 30 || !Array.isArray(d.t)) {
+      reasons.push(`Finnhub sin datos (s=${d.s})`)
+      return null
+    }
     return {
       closes: d.c,
       dates:  d.t.map(ts => new Date(ts * 1000).toISOString().slice(0, 10)),
     }
   } catch (err) {
-    console.warn('[technical] Finnhub error', ticker, err)
+    reasons.push(`Finnhub error: ${err instanceof Error ? err.message : 'desconocido'}`)
     return null
   }
 }
@@ -44,7 +49,7 @@ const YF_HEADERS = {
   'Accept':     'application/json',
 }
 
-async function yahooDailyCandles(ticker: string): Promise<DailyCandles | null> {
+async function yahooDailyCandles(ticker: string, reasons: string[]): Promise<DailyCandles | null> {
   const path = `/v8/finance/chart/${ticker}?range=2y&interval=1d&includePrePost=false`
   try {
     let r = await fetch(`https://query1.finance.yahoo.com${path}`, {
@@ -53,7 +58,7 @@ async function yahooDailyCandles(ticker: string): Promise<DailyCandles | null> {
     if (!r.ok) r = await fetch(`https://query2.finance.yahoo.com${path}`, {
       headers: YF_HEADERS, cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT),
     })
-    if (!r.ok) { console.error('[technical] Yahoo status', r.status, ticker); return null }
+    if (!r.ok) { reasons.push(`Yahoo ${r.status}`); return null }
     const cd  = await r.json()
     const res = cd?.chart?.result?.[0]
     const ts: number[]              = res?.timestamp ?? []
@@ -66,11 +71,46 @@ async function yahooDailyCandles(ticker: string): Promise<DailyCandles | null> {
       closes.push(c)
       dates.push(new Date(ts[i] * 1000).toISOString().slice(0, 10))
     }
-    if (closes.length < 30) return null
+    if (closes.length < 30) { reasons.push(`Yahoo con ${closes.length} velas (mín 30)`); return null }
     // Últimos ~14 meses (misma ventana que Finnhub)
     return { closes: closes.slice(-430), dates: dates.slice(-430) }
   } catch (err) {
-    console.error('[technical] Yahoo error', ticker, err)
+    reasons.push(`Yahoo error: ${err instanceof Error ? err.message : 'desconocido'}`)
+    return null
+  }
+}
+
+// ── Stooq (tercera fuente, CSV sin API key — ideal para uso personal) ────────
+
+async function stooqDailyCandles(ticker: string, reasons: string[]): Promise<DailyCandles | null> {
+  const fmt  = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
+  const to   = new Date()
+  const from = new Date(Date.now() - LOOKBACK_D * 86_400_000)
+  // Stooq usa sufijo .us para el mercado americano, en minúsculas
+  const url = `https://stooq.com/q/d/l/?s=${ticker.toLowerCase()}.us&d1=${fmt(from)}&d2=${fmt(to)}&i=d`
+  try {
+    const r = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT) })
+    if (!r.ok) { reasons.push(`Stooq ${r.status}`); return null }
+    const text  = await r.text()
+    const lines = text.trim().split('\n')
+    // CSV: Date,Open,High,Low,Close,Volume
+    if (lines.length < 31 || !lines[0].toLowerCase().startsWith('date')) {
+      reasons.push('Stooq sin datos para el símbolo')
+      return null
+    }
+    const closes: number[] = []
+    const dates:  string[] = []
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',')
+      const close = parseFloat(cols[4])
+      if (!cols[0] || isNaN(close)) continue
+      dates.push(cols[0])
+      closes.push(close)
+    }
+    if (closes.length < 30) { reasons.push(`Stooq con ${closes.length} velas (mín 30)`); return null }
+    return { closes, dates }
+  } catch (err) {
+    reasons.push(`Stooq error: ${err instanceof Error ? err.message : 'desconocido'}`)
     return null
   }
 }
@@ -106,10 +146,12 @@ export async function GET(request: Request) {
       if (age < DAILY_TTL && stored?.closes && stored.closes.length >= 30) candles = stored
     }
 
+    const reasons: string[] = []
     if (!candles) {
-      // Finnhub primero (si hay key y el plan lo permite), Yahoo como fallback
-      if (apiKey) candles = await fhDailyCandles(symbol, apiKey)
-      if (!candles) candles = await yahooDailyCandles(symbol)
+      // Cadena de fuentes: Finnhub (si hay key) → Yahoo → Stooq
+      if (apiKey) candles = await fhDailyCandles(symbol, apiKey, reasons)
+      if (!candles) candles = await yahooDailyCandles(symbol, reasons)
+      if (!candles) candles = await stooqDailyCandles(symbol, reasons)
       if (candles) {
         supabase.from('price_cache').upsert(
           {
@@ -128,8 +170,9 @@ export async function GET(request: Request) {
     }
 
     if (!candles) {
+      console.error('[technical] todas las fuentes fallaron para', symbol, '—', reasons.join(' · '))
       return NextResponse.json(
-        { error: 'Sin velas diarias para este símbolo — verifica el ticker' },
+        { error: 'Sin velas diarias para este símbolo', detail: reasons.join(' · ') },
         { status: 502 },
       )
     }
