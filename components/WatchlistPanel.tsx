@@ -176,17 +176,9 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     } catch { /* silencioso: el panel funciona sin quote */ }
   }, [])
 
-  useEffect(() => {
-    fetchQuotes(initialItems.map(i => i.ticker))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // ── Análisis técnico on-demand ────────────────────────────────────────────
-  async function toggleExpand(ticker: string) {
-    if (expanded === ticker) { setExpanded(null); return }
-    setExpanded(ticker)
-    if (analyses[ticker] && analyses[ticker] !== 'error') return
-    setAnalyses(prev => ({ ...prev, [ticker]: 'loading' }))
+  // ── Análisis técnico ──────────────────────────────────────────────────────
+  const fetchAnalysis = useCallback(async (ticker: string) => {
+    setAnalyses(prev => ({ ...prev, [ticker]: prev[ticker] && prev[ticker] !== 'error' ? prev[ticker] : 'loading' }))
     try {
       const r = await fetch(`/api/technical?symbol=${ticker}`)
       if (!r.ok) throw new Error()
@@ -195,6 +187,25 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     } catch {
       setAnalyses(prev => ({ ...prev, [ticker]: 'error' }))
     }
+  }, [])
+
+  // Avisos in-app: al entrar se precargan las señales de todos los favoritos
+  // (secuencial para cuidar el rate limit; el servidor cachea 12 h)
+  useEffect(() => {
+    const tickers = initialItems.map(i => i.ticker)
+    fetchQuotes(tickers)
+    ;(async () => {
+      for (const t of tickers) await fetchAnalysis(t)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function toggleExpand(ticker: string) {
+    if (expanded === ticker) { setExpanded(null); return }
+    setExpanded(ticker)
+    const a = analyses[ticker]
+    if (a && a !== 'error') return
+    await fetchAnalysis(ticker)
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -213,6 +224,7 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     setItems(prev => [...prev, data as WatchlistItem])
     setInput('')
     fetchQuotes([t])
+    fetchAnalysis(t)
   }
 
   async function removeTicker(item: WatchlistItem) {
@@ -293,7 +305,23 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                     fallbackColor={avatarColor(item.ticker)}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
+                      {/* Aviso in-app: nº de señales activas sin abrir la fila */}
+                      {typeof a === 'object' && a.signals.length > 0 && (() => {
+                        const strongest: SignalTone = a.signals.some(s => s.tone === 'coral') ? 'coral'
+                          : a.signals.some(s => s.tone === 'gold') ? 'gold'
+                          : a.signals.some(s => s.tone === 'mint') ? 'mint' : 'neutral'
+                        const t = TONE_STYLE[strongest]
+                        return (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: t.bg, color: t.color }}>
+                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: t.color }} />
+                            {a.signals.length} señal{a.signals.length !== 1 ? 'es' : ''}
+                          </span>
+                        )
+                      })()}
+                    </div>
                     {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
                   </div>
                   {q && (
