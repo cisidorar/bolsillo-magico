@@ -1,6 +1,6 @@
 # Plan: Configuración del usuario en el SideNav + preferencias de visualización
 
-_Creado: julio 2026 — estado: **Fase 1 implementada** (jul 2026) · Fase 2 pendiente._
+_Creado: julio 2026 — estado: **Fases 1 y 2 implementadas** (jul 2026) · Fase 3 = backlog. Migración pendiente de aplicar: `20260707_budget_period.sql`._
 
 ## Objetivo
 
@@ -46,7 +46,7 @@ Acercar la configuración al usuario (hoy vive solo en `/ajustes`, al final del 
 
 ---
 
-## Fase 2 — Preferencia estrella: presupuesto por mes o por facturación ⭐
+## Fase 2 — Preferencia estrella: presupuesto por mes o por facturación ⭐ ✅ _(implementada jul 2026: `BudgetPeriodSelect.tsx` en Preferencias; inicio completo — hero, categorías, presupuesto, días, proyección y pro-rata — mide sobre el statement cuando billing está activo)_
 
 **Qué:** el usuario elige cómo mide el inicio:
 - `calendar` (default): "Gastado este mes" = mes calendario (comportamiento actual).

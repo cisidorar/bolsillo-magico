@@ -1,6 +1,6 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, getNowChile } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -36,14 +36,44 @@ export default async function DashboardPage() {
   const twoMonthsAgo        = new Date(year, now.getMonth() - 2, 1)
   const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
 
+  // ── Preferencia budget_period: mes calendario o período de facturación ────
+  // Se resuelve ANTES del fetch principal porque define el rango de gastos.
+  const [{ data: profile }, { data: paymentMethods }] = await Promise.all([
+    supabase.from('profiles').select('display_name, payday, budget_period, period_card_id').eq('id', user!.id).maybeSingle(),
+    supabase.from('payment_methods').select('*').eq('user_id', user!.id).order('sort_order'),
+  ])
+
+  const creditCandidates = ((paymentMethods ?? []) as PaymentMethod[])
+    .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+  const prefPeriod   = (profile as { budget_period?: string } | null)?.budget_period ?? 'calendar'
+  const prefCardId   = (profile as { period_card_id?: string | null } | null)?.period_card_id ?? null
+  const periodCard   = creditCandidates.find(c => c.id === prefCardId)
+    ?? creditCandidates.find(c => (c as { is_default?: boolean }).is_default)
+    ?? creditCandidates[0]
+    ?? null
+  const isBillingMode = prefPeriod === 'billing' && periodCard !== null
+
+  // Rango del período: statement de la tarjeta o mes calendario
+  const stmt = isBillingMode ? currentStatementRange(periodCard!.billing_day!) : null
+  const addDay = (d: string) => {
+    const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1)
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  }
+  const mainStart  = isBillingMode ? stmt!.start : `${year}-${monthStr}-01`
+  const mainEndEx  = isBillingMode ? addDay(stmt!.end) : `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+  // Período anterior (para el pro-rata "vs anterior")
+  const prevStmtM  = stmt ? (stmt.month === 1 ? 12 : stmt.month - 1) : prevM
+  const prevStmtY  = stmt ? (stmt.month === 1 ? stmt.year - 1 : stmt.year) : prevY
+  const prevRange  = stmt ? billingPeriodRange(prevStmtM, prevStmtY, periodCard!.billing_day!) : null
+  const prevStart  = prevRange ? prevRange.start : `${prevY}-${prevMStr}-01`
+  const prevEndEx  = prevRange ? addDay(prevRange.end) : `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`
+
   const [
     { data: expenses },
     { data: budget },
     { data: categories },
-    { data: paymentMethods },
     { data: recurring },
     { data: categoryBudgets },
-    { data: profile },
     { data: allRecurringExpenses },
     { data: statementExpenses },
     { data: prevMonthExpenses },
@@ -52,20 +82,18 @@ export default async function DashboardPage() {
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*), recurring_expense:recurring_expenses(id,name,domain)')
       .eq('user_id', user!.id)
-      .gte('date', `${year}-${monthStr}-01`)
-      .lt('date',  `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
+      .gte('date', mainStart)
+      .lt('date',  mainEndEx)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false }),
     supabase.from('budgets').select('amount, month, year')
       .eq('user_id', user!.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
     supabase.from('categories').select('*').eq('user_id', user!.id).order('sort_order'),
-    supabase.from('payment_methods').select('*').eq('user_id', user!.id).order('sort_order'),
     supabase
       .from('recurring_expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
       .eq('user_id', user!.id).eq('is_active', true).order('billing_day'),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
-    supabase.from('profiles').select('display_name, payday').eq('id', user!.id).maybeSingle(),
     supabase
       .from('expenses')
       .select('recurring_expense_id, date')
@@ -82,8 +110,8 @@ export default async function DashboardPage() {
       .from('expenses')
       .select('amount, date')
       .eq('user_id', user!.id)
-      .gte('date', `${prevY}-${prevMStr}-01`)
-      .lt('date',  `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`),
+      .gte('date', prevStart)
+      .lt('date',  prevEndEx),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -99,17 +127,29 @@ export default async function DashboardPage() {
   const typedExpenses = (expenses ?? []) as ExpenseWithRelations[]
   const total         = typedExpenses.reduce((s, e) => s + e.amount, 0)
 
-  // Presupuesto: usar el del mes actual o el más reciente como fallback
+  // Presupuesto: en modo billing aplica el del mes del estado de cuenta
   type BudgetRow = { amount: number; month: number; year: number }
   const allBudgets   = (budget ?? []) as BudgetRow[]
-  const thisBudget   = allBudgets.find(b => b.month === month && b.year === year)
+  const budgetMonth  = stmt ? stmt.month : month
+  const budgetYear   = stmt ? stmt.year : year
+  const thisBudget   = allBudgets.find(b => b.month === budgetMonth && b.year === budgetYear)
   const budgetAmount = thisBudget?.amount ?? allBudgets[0]?.amount ?? null
   const progressPct   = budgetAmount ? Math.round((total / budgetAmount) * 100) : 0
   const isOver        = budgetAmount ? total > budgetAmount : false
 
-  // Mes anterior — al mismo día
+  // Días del período (mes calendario o statement)
+  const dayDiff = (a: string, b: string) =>
+    Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000)
+  const periodDays      = stmt ? dayDiff(stmt.start, stmt.end) + 1 : new Date(year, month, 0).getDate()
+  const periodDayNumber = stmt ? Math.min(dayDiff(stmt.start, dateStr) + 1, periodDays) : todayDate
+
+  // Período anterior — al mismo día (pro-rata)
+  const prevCutoff = prevRange
+    ? (() => { const c = new Date(prevRange.start + 'T12:00:00'); c.setDate(c.getDate() + periodDayNumber - 1)
+        return `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, '0')}-${String(c.getDate()).padStart(2, '0')}` })()
+    : null
   const prevMonthSameDate = (prevMonthExpenses ?? []).filter(
-    (e: { date: string }) => parseInt(e.date.split('-')[2]) <= todayDate
+    (e: { date: string }) => prevCutoff ? e.date <= prevCutoff : parseInt(e.date.split('-')[2]) <= todayDate
   )
   const prevTotal    = prevMonthSameDate.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
   const deltaVsLast  = total > 0 && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
@@ -184,13 +224,19 @@ export default async function DashboardPage() {
     : daysToPayday === 1 ? 'Sueldo mañana'
     : `Sueldo en ${daysToPayday} días`
 
-  // KPIs
-  const daysElapsed   = todayDate
-  const daysInMonth   = new Date(year, month, 0).getDate()
-  const daysRemaining = daysInMonth - todayDate
+  // KPIs — sobre el período activo (mes calendario o statement)
+  const daysElapsed   = periodDayNumber
+  const daysInMonth   = periodDays
+  const daysRemaining = periodDays - periodDayNumber
   const dailyAvg      = daysElapsed > 0 && total > 0 ? Math.round(total / daysElapsed) : 0
   const projection    = dailyAvg > 0 ? Math.round(dailyAvg * daysInMonth) : 0
   const projOverBudget = budgetAmount && projection > budgetAmount ? projection - budgetAmount : null
+
+  // Labels del período para el hero
+  const fmtShort = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }).replace('.', '')
+  const gastadoLabel     = isBillingMode ? 'Gastado este período' : 'Gastado este mes'
+  const periodWord       = isBillingMode ? 'este período' : 'este mes'
+  const periodRangeLabel = stmt ? `${fmtShort(stmt.start)} – ${fmtShort(stmt.end)} · ${periodCard!.name}` : null
 
   // Estados de cuenta
   const creditCards = ((paymentMethods ?? []) as PaymentMethod[])
@@ -403,11 +449,11 @@ export default async function DashboardPage() {
               <div className="flex flex-col gap-5">
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
                     <p className="text-sm text-white/55 mt-2">
                       {budgetAmount
-                        ? `Tienes ${formatCLP(budgetAmount)} disponibles este mes`
+                        ? `Tienes ${formatCLP(budgetAmount)} disponibles ${periodWord}`
                         : 'Aún no hay gastos registrados'}
                     </p>
                   </div>
@@ -435,7 +481,7 @@ export default async function DashboardPage() {
                 {/* Top row: gastado + te quedan / por día */}
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Gastado este mes</p>
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
                     <p className="text-sm text-white/45 mt-2">
                       {budgetAmount ? `de ${formatCLP(budgetAmount)} presupuestado` : `${typedExpenses.length} gasto${typedExpenses.length !== 1 ? 's' : ''} registrado${typedExpenses.length !== 1 ? 's' : ''}`}
@@ -474,7 +520,7 @@ export default async function DashboardPage() {
                     </>
                   ) : (
                     <div className="flex justify-between">
-                      <span className="text-xs text-white/45">Día {todayDate} de {daysInMonth}</span>
+                      <span className="text-xs text-white/45">Día {daysElapsed} de {daysInMonth}{periodRangeLabel ? ` · ${periodRangeLabel}` : ''}</span>
                       <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                     </div>
                   )}
@@ -921,7 +967,7 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Gastado este mes</p>
+                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
                     <p className="text-xs text-white/50 mt-1.5">
                       {budgetAmount ? `${formatCLP(budgetAmount)} disponibles` : 'Sin gastos aún'}
@@ -946,7 +992,7 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Gastado este mes</p>
+                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
                       {formatCLP(total)}
                     </p>

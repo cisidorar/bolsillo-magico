@@ -17,6 +17,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import ExportForm from '@/components/ExportForm'
 import NotificationPrefs from '@/components/NotificationPrefs'
 import PaydaySelect from '@/components/PaydaySelect'
+import BudgetPeriodSelect from '@/components/BudgetPeriodSelect'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,14 @@ export default async function AjustesPage() {
           <section id="preferencias" className="scroll-mt-6">
             <SectionHeader icon={Sparkles} label="Preferencias" color="#1FBE8D" />
             <div className="space-y-3">
+              <BudgetPeriodSelect
+                userId={user.id}
+                budgetPeriod={profile?.budget_period ?? 'calendar'}
+                periodCardId={profile?.period_card_id ?? null}
+                creditCards={((paymentMethods ?? []) as { id: string; name: string; billing_day: number | null; card_type: string }[])
+                  .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+                  .map(pm => ({ id: pm.id, name: pm.name, billing_day: pm.billing_day! }))}
+              />
               <PaydaySelect userId={user.id} payday={profile?.payday ?? null} />
               <div className="card overflow-hidden">
                 <div className="flex items-center gap-2 px-4 pt-3.5 pb-0">
