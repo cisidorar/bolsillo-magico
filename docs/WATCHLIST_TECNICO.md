@@ -56,7 +56,7 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 
 ## Validaciones pendientes
 
-- [ ] **Confirmar que la key de Finnhub entrega velas diarias** (`resolution=D`). El código ya usa M/W en stock-history sin problemas, pero D no está verificado en producción. Si falla: error 502 "Sin velas diarias" → cambiar fuente solo en `fhDailyCandles()` (candidato: Yahoo Finance chart API, misma forma closes/dates).
+- [x] ~~Velas diarias de Finnhub~~ — confirmado en producción que el plan free bloquea `/stock/candle` (403). Resuelto (jul 2026): `yahooDailyCandles()` como fallback (Yahoo `v8/finance/chart`, range=2y, mismo patrón query1/query2 + YF_HEADERS que `stock-price`). Finnhub se intenta primero por si el plan cambia.
 - [ ] Aplicar migración `20260706_watchlist.sql` en Supabase.
 
 ## Roadmap
