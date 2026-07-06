@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -298,6 +298,16 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const [errDetails, setErrDetails] = useState<Record<string, string>>({})
 
+  // Sección plegable: cerrada por defecto, recuerda la preferencia
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('watchlistOpen') === '1') setOpen(true)
+  }, [])
+  const toggleOpen = () => setOpen(v => {
+    try { localStorage.setItem('watchlistOpen', v ? '0' : '1') } catch { /* modo privado */ }
+    return !v
+  })
+
   // Buscador (popup)
   const [showSearch, setShowSearch] = useState(false)
   const [query,      setQuery]      = useState('')
@@ -415,19 +425,47 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="mt-6">
-      {/* Header + form */}
+      {/* Header plegable + acción Seguir */}
       <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={toggleOpen}
+          className="flex items-center gap-2 min-w-0 text-left transition-opacity hover:opacity-80"
+          aria-expanded={open}
+        >
           <Star className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--gold)' }} />
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Favoritos en seguimiento</p>
           {items.length > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
               {items.length}
             </span>
           )}
-        </div>
+          {/* Aviso in-app visible aún con la lista plegada */}
+          {!open && (() => {
+            const withSignals = items.filter(i => {
+              const a = analyses[i.ticker]
+              return typeof a === 'object' && a.signals.length > 0
+            })
+            if (withSignals.length === 0) return null
+            const anyCoral = withSignals.some(i => {
+              const a = analyses[i.ticker]
+              return typeof a === 'object' && a.signals.some(s => s.tone === 'coral')
+            })
+            const c = anyCoral ? 'var(--coral)' : 'var(--mint)'
+            const bg = anyCoral ? 'rgba(255,111,97,0.12)' : 'rgba(31,190,141,0.12)'
+            return (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{ background: bg, color: c }}>
+                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: c }} />
+                {withSignals.length} con señales
+              </span>
+            )
+          })()}
+          {open
+            ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+            : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+        </button>
         <button
-          onClick={openSearch}
+          onClick={() => { setOpen(true); openSearch() }}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
           style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
         >
@@ -544,8 +582,8 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
         </div>
       )}
 
-      {/* Empty state */}
-      {items.length === 0 ? (
+      {/* Empty state / lista — solo cuando la sección está desplegada */}
+      {!open ? null : items.length === 0 ? (
         <div className="card px-6 py-8 text-center">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sigue acciones o ETFs sin tener posición</p>
           <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
@@ -616,14 +654,6 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                       <div className="h-2.5 w-10 rounded-md mt-1.5 ml-auto" style={{ background: 'var(--surface-2)' }} />
                     </div>
                   )}
-                  <button
-                    onClick={e => { e.stopPropagation(); removeTicker(item) }}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl flex-shrink-0 transition-colors hover:bg-black/10"
-                    style={{ color: 'var(--ink-3)' }}
-                    aria-label={`Dejar de seguir ${item.ticker}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
                   <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
                 </div>
               </div>
@@ -637,6 +667,7 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
         const ticker = expanded
         const q = quotes[ticker]
         const a = analyses[ticker]
+        const item = items.find(i => i.ticker === ticker)
         return (
           <div
             className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
@@ -711,6 +742,20 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                   </div>
                 ) : (
                   <TechnicalDetail a={a} />
+                )}
+
+                {/* Dejar de seguir — vive en el popup, no en la fila */}
+                {item && (
+                  <div className="px-4 pb-4">
+                    <button
+                      onClick={() => { removeTicker(item); setExpanded(null) }}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl border transition-colors hover:bg-black/5"
+                      style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'transparent' }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Dejar de seguir {ticker}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
