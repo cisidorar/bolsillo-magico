@@ -198,9 +198,9 @@ export default async function PresupuestoPage() {
               <div className="flex items-center gap-3">
                 <div
                   className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}
+                  style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}
                 >
-                  <PiggyBank className="w-4 h-4" style={{ color: '#1B6DD4' }} />
+                  <PiggyBank className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                 </div>
                 <div>
                   <p className="text-[11px] text-gray-400 font-medium leading-tight">Total presupuestado</p>
@@ -258,7 +258,7 @@ export default async function PresupuestoPage() {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${Math.round(budgetsWithLimit / totalCategories * 100)}%`,
-                      background: budgetsWithLimit === 0 ? '#D1D5DB' : '#1B6DD4',
+                      background: budgetsWithLimit === 0 ? '#D1D5DB' : 'var(--primary)',
                     }}
                   />
                 </div>

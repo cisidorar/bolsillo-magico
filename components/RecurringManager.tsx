@@ -962,7 +962,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   <button onClick={closeSheet} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors">
                     Cancelar
                   </button>
-                  <button onClick={save} disabled={saving} className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5" style={{ backgroundColor: '#1B6DD4' }}>
+                  <button onClick={save} disabled={saving} className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5" style={{ backgroundColor: 'var(--primary)' }}>
                     {saving
                       ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                       : <><Check className="w-4 h-4" />{editTarget ? 'Guardar' : 'Agregar'}</>

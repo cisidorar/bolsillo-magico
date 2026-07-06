@@ -41,7 +41,7 @@ export default function UpdatePasswordPage() {
   return (
     <div
       className="min-h-svh flex items-center justify-center px-5 py-10"
-      style={{ background: 'linear-gradient(160deg, #0F4489 0%, #1B6DD4 100%)' }}
+      style={{ background: 'linear-gradient(160deg, #0F4489 0%, #2B7CF6 100%)' }}
     >
       <div className="w-full max-w-sm">
 
@@ -64,7 +64,7 @@ export default function UpdatePasswordPage() {
               background:#F5F8FF; border:1.5px solid #DAEDF8;
               border-radius:14px; padding:0 14px; height:52px;
             }
-            .field:focus-within { border-color:#1B6DD4; box-shadow:0 0 0 3px rgba(27,109,212,.12); }
+            .field:focus-within { border-color:#2B7CF6; box-shadow:0 0 0 3px rgba(43,124,246,.12); }
             .field input {
               flex:1; background:transparent; border:none; outline:none;
               font-size:15px; color:#0D2A3A; font-family:inherit; min-width:0;
@@ -130,8 +130,8 @@ export default function UpdatePasswordPage() {
                 className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-60"
                 style={{
                   height: 52,
-                  background: loading ? '#8EBBD8' : '#1B6DD4',
-                  boxShadow: loading ? 'none' : '0 6px 20px rgba(27,109,212,.35)',
+                  background: loading ? '#8EBBD8' : '#2B7CF6',
+                  boxShadow: loading ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
                   border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                 }}
               >

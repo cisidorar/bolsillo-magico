@@ -173,7 +173,7 @@ export default function CalendarioPagos({ items }: Props) {
         {/* Leyenda */}
         <div className="flex items-center gap-5 px-4 py-2.5 border-t border-gray-100">
           <div className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#1B6DD4' }} />
+            <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--primary)' }} />
             <span className="text-xs text-gray-400">Hoy</span>
           </div>
           <div className="flex items-center gap-1.5">

@@ -926,7 +926,7 @@ export default async function AnalisisPage({
                               width: 'min(22px, 100%)', height: barH > 0 ? `${barH}px` : '3px',
                               margin: '0 auto', borderRadius: '5px 5px 2px 2px',
                               background: isPeakBar
-                                ? 'linear-gradient(180deg, #3b82f6 0%, #1B6DD4 100%)'
+                                ? 'linear-gradient(180deg, #4D93FF 0%, #2B7CF6 100%)'
                                 : isCurrentBar
                                   ? 'linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%)'
                                   : 'var(--bar-color, #D5E6FF)',
@@ -948,7 +948,7 @@ export default async function AnalisisPage({
                           ) : (
                             <div style={{
                               width: 'min(22px, 100%)', height: '28px', margin: '0 auto',
-                              borderRadius: '5px', border: '1.5px dashed rgba(27,109,212,0.25)',
+                              borderRadius: '5px', border: '1.5px dashed rgba(43,124,246,0.25)',
                             }} />
                           )}
                         </div>
@@ -967,7 +967,7 @@ export default async function AnalisisPage({
                     <span className="text-[10px] text-gray-400">Real</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-0 rounded-full border border-dashed border-[#1B6DD4]/30" />
+                    <div className="w-5 h-0 rounded-full border border-dashed border-[#2B7CF6]/30" />
                     <span className="text-[10px] text-gray-400">Proyectado</span>
                   </div>
                 </div>
@@ -1061,7 +1061,7 @@ export default async function AnalisisPage({
                 <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: '320px' }}>
 
                   {/* Tarjeta azul: total + promedio */}
-                  <div className="rounded-3xl p-5 flex flex-col" style={{ background: '#1B6DD4' }}>
+                  <div className="rounded-3xl p-5 flex flex-col" style={{ background: 'var(--primary)' }}>
                     <p className="text-[9px] font-bold uppercase tracking-widest mb-3"
                       style={{ color: 'rgba(255,255,255,0.6)' }}>
                       Total gastado en {year}
@@ -1345,7 +1345,7 @@ export default async function AnalisisPage({
                                 </span>
                                 {isCurrentM && (
                                   <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full flex-shrink-0"
-                                    style={{ background: '#1B6DD4', color: 'white' }}>
+                                    style={{ background: 'var(--primary)', color: 'white' }}>
                                     Actual
                                   </span>
                                 )}

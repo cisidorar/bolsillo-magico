@@ -23,8 +23,8 @@ const SPINNER = (
 
 const BTN_STYLE = (disabled: boolean) => ({
   height: 52,
-  background: disabled ? '#8EBBD8' : '#1B6DD4',
-  boxShadow: disabled ? 'none' : '0 6px 20px rgba(27,109,212,.35)',
+  background: disabled ? '#8EBBD8' : '#2B7CF6',
+  boxShadow: disabled ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
   border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
 })
 
@@ -142,7 +142,7 @@ function LoginForm() {
   const mobileSubtitle  = mode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta gratis'
 
   return (
-    <div className="min-h-svh" style={{ background: 'linear-gradient(160deg, #0F4489 0%, #1B6DD4 100%)' }}>
+    <div className="min-h-svh" style={{ background: 'linear-gradient(160deg, #0F4489 0%, #2B7CF6 100%)' }}>
       <div className="min-h-svh lg:flex">
 
         {/* Panel izquierdo — solo desktop */}
@@ -183,7 +183,7 @@ function LoginForm() {
 
             {/* Header — solo desktop */}
             <div className="hidden lg:block mb-8">
-              <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#1B6DD4' }}>Bolsillo Mágico</p>
+              <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#2B7CF6' }}>Bolsillo Mágico</p>
               <h2 className="text-2xl font-extrabold text-gray-900">{desktopTitle}</h2>
               <p className="text-sm text-gray-400 mt-1">{desktopSubtitle}</p>
             </div>
@@ -196,7 +196,7 @@ function LoginForm() {
                   background:#F5F8FF; border:1.5px solid #DAEDF8;
                   border-radius:14px; padding:0 14px; height:52px;
                 }
-                .field:focus-within { border-color:#1B6DD4; box-shadow:0 0 0 3px rgba(27,109,212,.12); }
+                .field:focus-within { border-color:#2B7CF6; box-shadow:0 0 0 3px rgba(43,124,246,.12); }
                 .field input {
                   flex:1; background:transparent; border:none; outline:none;
                   font-size:15px; color:#0D2A3A; font-family:inherit; min-width:0;

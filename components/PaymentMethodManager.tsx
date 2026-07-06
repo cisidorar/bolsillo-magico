@@ -363,7 +363,7 @@ function FormPanel({
             onClick={onSave}
             disabled={saving}
             className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-            style={{ backgroundColor: '#1B6DD4' }}
+            style={{ backgroundColor: 'var(--primary)' }}
           >
             {saving
               ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -559,7 +559,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                           <span className="text-[11px] text-gray-400">Admin {formatCLP(m.admin_fee)}</span>
                         )}
                         {stmt && (
-                          <span className="text-[11px] font-bold tabular-nums" style={{ color: '#1B6DD4' }}>
+                          <span className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--primary)' }}>
                             {formatCLP(stmt.total)}
                           </span>
                         )}
@@ -625,7 +625,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
             'flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed rounded-3xl text-sm font-bold transition-colors',
             expandedId === 'new' ? 'border-blue-400 bg-blue-50/40' : 'hover:bg-blue-50/30'
           )}
-          style={{ borderColor: expandedId === 'new' ? '#1B6DD4' : '#D5E6FF', color: '#1B6DD4' }}
+          style={{ borderColor: expandedId === 'new' ? 'var(--primary)' : 'var(--border)', color: 'var(--primary)' }}
         >
           <Plus className="w-4 h-4" />
           Agregar método de pago

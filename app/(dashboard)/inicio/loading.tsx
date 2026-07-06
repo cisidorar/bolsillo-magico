@@ -2,7 +2,7 @@ export default function LoadingInicio() {
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-2 space-y-4 animate-pulse">
       {/* Hero card skeleton */}
-      <div className="rounded-3xl p-6 h-48" style={{ backgroundColor: '#1B6DD4', opacity: 0.15 }} />
+      <div className="rounded-3xl p-6 h-48" style={{ backgroundColor: 'var(--primary)', opacity: 0.15 }} />
 
       {/* Category cards skeleton */}
       <div>

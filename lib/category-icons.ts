@@ -68,7 +68,7 @@ export const ICON_OPTIONS: IconOption[] = [
   { name: 'Landmark',    icon: Landmark,     label: 'Banco',        defaultColor: '#185FA5', defaultBg: '#E6F1FB' },
   // Varios
   { name: 'Gift',        icon: Gift,         label: 'Regalos',      defaultColor: '#BE185D', defaultBg: '#FCE7F3' },
-  { name: 'RefreshCw',   icon: RefreshCw,    label: 'Suscripciones',defaultColor: '#1B6DD4', defaultBg: '#EEF4FF' },
+  { name: 'RefreshCw',   icon: RefreshCw,    label: 'Suscripciones',defaultColor: '#2B7CF6', defaultBg: '#EEF4FF' },
   { name: 'Globe',       icon: Globe,        label: 'Internacional', defaultColor: '#0E7490', defaultBg: '#E0F7FA' },
   { name: 'Zap',         icon: Zap,          label: 'Imprevistos',  defaultColor: '#B45309', defaultBg: '#FEF3C7' },
   { name: 'ShoppingBag', icon: ShoppingBag,  label: 'Compras',      defaultColor: '#F59E0B', defaultBg: '#FEF3C7' },

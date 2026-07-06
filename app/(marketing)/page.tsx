@@ -21,7 +21,7 @@ function AppPreview() {
       {/* Glow behind phone */}
       <div style={{
         position:'absolute', inset:-40, borderRadius:'50%',
-        background:'radial-gradient(ellipse, rgba(27,109,212,.35) 0%, transparent 70%)',
+        background:'radial-gradient(ellipse, rgba(43,124,246,.35) 0%, transparent 70%)',
         pointerEvents:'none',
       }} />
 
@@ -54,7 +54,7 @@ function AppPreview() {
           }}>
             {/* Hero card */}
             <div style={{
-              background:'linear-gradient(140deg,#0F3D8C,#1B6DD4)',
+              background:'linear-gradient(140deg,#0F3D8C,#2B7CF6)',
               borderRadius:20,
               padding:'14px 14px 12px',
               color:'#fff',
@@ -76,7 +76,7 @@ function AppPreview() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, marginBottom:10 }}>
               {[
                 { icon:'🍽️', name:'Comida',    amt:'$228.500', pct:91, c:'#E03C31', bg:'#FDEDEC' },
-                { icon:'🚗', name:'Transporte', amt:'$54.000',  pct:43, c:'#1B6DD4', bg:'#EEF4FF' },
+                { icon:'🚗', name:'Transporte', amt:'$54.000',  pct:43, c:'#2B7CF6', bg:'#EEF4FF' },
               ].map(c => (
                 <div key={c.name} style={{ background:'#fff', borderRadius:14, padding:'10px 10px 8px', border:'.5px solid #D5E6FF' }}>
                   <div style={{ width:28, height:28, borderRadius:9, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, marginBottom:6 }}>{c.icon}</div>
@@ -115,7 +115,7 @@ function AppPreview() {
                 <svg viewBox="0 0 100 100" width={110} height={110}>
                   {[
                     { pct:46.8, color:'#E03C31', offset:0 },
-                    { pct:11.1, color:'#1B6DD4', offset:46.8 },
+                    { pct:11.1, color:'#2B7CF6', offset:46.8 },
                     { pct:15.8, color:'#0D9488', offset:57.9 },
                     { pct:26.3, color:'#7C3AED', offset:73.7 },
                   ].map((s, i) => {
@@ -137,7 +137,7 @@ function AppPreview() {
               {[
                 { icon:'🍽️', name:'Comida',      pct:46.8, color:'#E03C31', bg:'#FDEDEC' },
                 { icon:'🎮', name:'Ocio',         pct:15.8, color:'#0D9488', bg:'#CCFBF1' },
-                { icon:'🚗', name:'Transporte',   pct:11.1, color:'#1B6DD4', bg:'#EEF4FF' },
+                { icon:'🚗', name:'Transporte',   pct:11.1, color:'#2B7CF6', bg:'#EEF4FF' },
               ].map(c => (
                 <div key={c.name} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
                   <div style={{ width:28, height:28, borderRadius:9, background:c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 }}>{c.icon}</div>
@@ -193,7 +193,7 @@ function AppPreview() {
                   background: [0,1,2].indexOf(active) === i ? '#EEF4FF' : 'transparent',
                   fontSize:14,
                 }}>{icon}</div>
-                <div style={{ width:4, height:4, borderRadius:2, background: [0,1,2].indexOf(active)===i?'#1B6DD4':'transparent' }} />
+                <div style={{ width:4, height:4, borderRadius:2, background: [0,1,2].indexOf(active)===i?'#2B7CF6':'transparent' }} />
               </div>
             ))}
           </div>
@@ -205,7 +205,7 @@ function AppPreview() {
         {screens.map((s, i) => (
           <button key={i} onClick={() => setActive(i)} style={{
             fontSize:10, fontWeight:700, padding:'4px 12px', borderRadius:100, border:'none', cursor:'pointer',
-            background: active===i ? '#1B6DD4' : 'rgba(255,255,255,.2)',
+            background: active===i ? '#2B7CF6' : 'rgba(255,255,255,.2)',
             color: active===i ? '#fff' : 'rgba(255,255,255,.6)',
             transition:'all .3s',
           }}>{s}</button>
@@ -256,7 +256,7 @@ export default function LandingPage() {
 
         .btn-primary {
           display:inline-flex; align-items:center; justify-content:center; gap:8px;
-          background:#fff; color:#1B6DD4; font-weight:800; font-size:16px;
+          background:#fff; color:#2B7CF6; font-weight:800; font-size:16px;
           padding:16px 36px; border-radius:100px; text-decoration:none;
           box-shadow:0 12px 40px rgba(0,0,0,.22);
           transition:transform .2s, box-shadow .2s;
@@ -324,7 +324,7 @@ export default function LandingPage() {
 
         {/* ══════════ HERO ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0F4489 0%,#1B6DD4 100%)',
+          background:'linear-gradient(160deg,#0F4489 0%,#2B7CF6 100%)',
           minHeight:'100svh',
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
           padding:'90px 24px 60px',
@@ -334,7 +334,7 @@ export default function LandingPage() {
         }} className="hero-layout">
 
           {/* Background orbs */}
-          <div style={{ position:'absolute', top:'10%', right:'-10%', width:500, height:500, borderRadius:'50%', background:'radial-gradient(circle,rgba(27,109,212,.25),transparent 70%)', pointerEvents:'none' }} />
+          <div style={{ position:'absolute', top:'10%', right:'-10%', width:500, height:500, borderRadius:'50%', background:'radial-gradient(circle,rgba(43,124,246,.25),transparent 70%)', pointerEvents:'none' }} />
           <div style={{ position:'absolute', bottom:'-5%', left:'-10%', width:400, height:400, borderRadius:'50%', background:'radial-gradient(circle,rgba(10,64,140,.4),transparent 70%)', pointerEvents:'none' }} />
 
           {/* Text side */}
@@ -398,7 +398,7 @@ export default function LandingPage() {
         <section style={{ background:'#fff', padding:'96px 24px' }}>
           <div className="section-inner">
             <div data-reveal style={{ textAlign:'center', marginBottom:56 }}>
-              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
+              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#2B7CF6', textTransform:'uppercase', marginBottom:12 }}>
                 tan fácil como parece
               </p>
               <h2 style={{ fontSize:'clamp(28px,5vw,42px)', fontWeight:900, color:'#0a1f44', lineHeight:1.1, letterSpacing:'-0.02em' }}>
@@ -412,7 +412,7 @@ export default function LandingPage() {
                   n:'01', icon:'✉️',
                   title:'Crea tu cuenta',
                   desc:'Solo tu email. Sin tarjeta, sin trucos. En 30 segundos ya estás adentro.',
-                  color:'#1B6DD4', bg:'#EEF4FF',
+                  color:'#2B7CF6', bg:'#EEF4FF',
                 },
                 {
                   n:'02', icon:'⚡',
@@ -455,7 +455,7 @@ export default function LandingPage() {
         <section style={{ background:'#EEF4FF', padding:'96px 24px' }}>
           <div className="section-inner">
             <div data-reveal style={{ textAlign:'center', marginBottom:56 }}>
-              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#1B6DD4', textTransform:'uppercase', marginBottom:12 }}>
+              <p style={{ fontSize:11, fontWeight:800, letterSpacing:'.1em', color:'#2B7CF6', textTransform:'uppercase', marginBottom:12 }}>
                 todo lo que necesitas
               </p>
               <h2 style={{ fontSize:'clamp(28px,5vw,42px)', fontWeight:900, color:'#0a1f44', lineHeight:1.1, letterSpacing:'-0.02em' }}>
@@ -497,13 +497,13 @@ export default function LandingPage() {
 
         {/* ══════════ CTA FINAL ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0F4489 0%,#1B6DD4 100%)',
+          background:'linear-gradient(160deg,#0F4489 0%,#2B7CF6 100%)',
           padding:'100px 24px',
           textAlign:'center',
           position:'relative',
           overflow:'hidden',
         }}>
-          <div style={{ position:'absolute', top:'-20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(27,109,212,.3),transparent 65%)', pointerEvents:'none' }} />
+          <div style={{ position:'absolute', top:'-20%', left:'50%', transform:'translateX(-50%)', width:600, height:600, borderRadius:'50%', background:'radial-gradient(circle,rgba(43,124,246,.3),transparent 65%)', pointerEvents:'none' }} />
 
           <div data-reveal style={{ position:'relative' }}>
             <div style={{ width:80, height:80, position:'relative', margin:'0 auto 24px' }}>

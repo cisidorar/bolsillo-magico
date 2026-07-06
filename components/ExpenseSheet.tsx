@@ -618,7 +618,7 @@ export default function ExpenseSheet({
           <Trash2 className="w-4 h-4" />
           Eliminar
         </button>
-        <button onClick={save} disabled={saving || deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors" style={{ backgroundColor: '#1B6DD4' }}>
+        <button onClick={save} disabled={saving || deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors" style={{ backgroundColor: 'var(--primary)' }}>
           {saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar cambios</>}
         </button>
       </div>
@@ -915,7 +915,7 @@ export default function ExpenseSheet({
             onClick={save}
             disabled={saving}
             className="w-full py-3 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
-            style={{ backgroundColor: '#1B6DD4' }}
+            style={{ backgroundColor: 'var(--primary)' }}
           >
             {saving ? 'Guardando...' : 'Guardar gasto'}
           </button>
@@ -1012,7 +1012,7 @@ export default function ExpenseSheet({
               onClick={save}
               disabled={saving}
               className="w-full py-3.5 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
-              style={{ backgroundColor: '#1B6DD4' }}
+              style={{ backgroundColor: 'var(--primary)' }}
             >
               {saving ? 'Guardando...' : 'Guardar gasto'}
             </button>

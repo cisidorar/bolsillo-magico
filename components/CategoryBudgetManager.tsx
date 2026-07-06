@@ -224,7 +224,7 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
             <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.round(withLimit / rows.length * 100)}%`, background: '#1B6DD4' }}
+                style={{ width: `${Math.round(withLimit / rows.length * 100)}%`, background: 'var(--primary)' }}
               />
             </div>
           </div>

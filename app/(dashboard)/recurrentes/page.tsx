@@ -148,7 +148,7 @@ export default async function RecurrentesPage({
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
 
           {/* Carga mensual — azul */}
-          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1" style={{ backgroundColor: '#1B6DD4', boxShadow: '0 6px 24px rgba(27,109,212,.35)' }}>
+          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 6px 24px rgba(43,124,246,.35)' }}>
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
               <CircleDollarSign className="w-5 h-5 text-white" />
             </div>

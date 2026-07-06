@@ -58,8 +58,8 @@ export default function ImportCSV() {
         className="flex items-center gap-4 w-full px-4 py-4 hover:bg-gray-50/70 transition-colors group text-left"
       >
         <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-          <Upload className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+          style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+          <Upload className="w-5 h-5" style={{ color: 'var(--primary)' }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900">Importar desde CSV</p>
@@ -103,7 +103,7 @@ export default function ImportCSV() {
                     key={c}
                     className="text-[10px] font-bold px-2 py-1 rounded-lg"
                     style={{
-                      background: c.includes('✓') ? '#EEF4FF' : '#1B6DD4',
+                      background: c.includes('✓') ? 'var(--primary-soft)' : 'var(--primary)',
                       color:      c.includes('✓') ? '#155BB0' : '#fff',
                     }}
                   >
@@ -144,7 +144,7 @@ export default function ImportCSV() {
                 <button
                   onClick={handleImport}
                   className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm"
-                  style={{ background: '#1B6DD4', boxShadow: '0 4px 16px rgba(27,109,212,.35)' }}
+                  style={{ background: 'var(--primary)', boxShadow: '0 4px 16px rgba(43,124,246,.35)' }}
                 >
                   Importar gastos →
                 </button>
@@ -155,7 +155,7 @@ export default function ImportCSV() {
               <div className="flex flex-col items-center gap-3 py-8">
                 <div
                   className="w-10 h-10 rounded-full border-4 border-brand-100"
-                  style={{ borderTopColor: '#1B6DD4', animation: 'spin 1s linear infinite' }}
+                  style={{ borderTopColor: 'var(--primary)', animation: 'spin 1s linear infinite' }}
                 />
                 <p className="text-sm font-bold text-brand-600">Importando...</p>
                 <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
@@ -184,7 +184,7 @@ export default function ImportCSV() {
                 <button
                   onClick={() => { setOpen(false); reset() }}
                   className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm"
-                  style={{ background: '#1B6DD4', boxShadow: '0 4px 16px rgba(27,109,212,.35)' }}
+                  style={{ background: 'var(--primary)', boxShadow: '0 4px 16px rgba(43,124,246,.35)' }}
                 >
                   Listo ✓
                 </button>
@@ -203,7 +203,7 @@ export default function ImportCSV() {
                 <button
                   onClick={reset}
                   className="w-full py-3.5 rounded-2xl font-extrabold text-sm text-brand-600"
-                  style={{ background: '#EEF4FF', border: '1.5px solid #D5E6FF' }}
+                  style={{ background: 'var(--primary-soft)', border: '1.5px solid #D5E6FF' }}
                 >
                   Intentar de nuevo
                 </button>

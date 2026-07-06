@@ -205,7 +205,7 @@ export default async function CuentaPage({ params }: { params: Promise<{ cardId:
                   className="h-full rounded-full transition-all"
                   style={{
                     width: `${Math.min(100, periodPct)}%`,
-                    backgroundColor: daysLeft <= 3 && daysLeft >= 0 ? '#F59E0B' : '#1B6DD4',
+                    backgroundColor: daysLeft <= 3 && daysLeft >= 0 ? '#F59E0B' : 'var(--primary)',
                   }}
                 />
               </div>

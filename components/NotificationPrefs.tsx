@@ -78,7 +78,7 @@ export default function NotificationPrefs({
     {
       key:      'notifyMonthly',
       dbCol:    'notify_monthly',
-      icon:     <Bell className="w-5 h-5" style={{ color: '#1B6DD4' }} />,
+      icon:     <Bell className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Resumen mensual',
       subtitle: 'Email con tu resumen de gastos el primer día de cada mes.',
     },
@@ -100,8 +100,8 @@ export default function NotificationPrefs({
           <div
             className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
-              '--cat-bg':    item.key === 'notifyBilling' ? '#F5F3FF' : item.key === 'notifyBudget' ? '#FFF7ED' : item.key === 'notifyRecurring' ? '#ECFDF5' : '#EEF4FF',
-              '--cat-color': item.key === 'notifyBilling' ? '#7C3AED' : item.key === 'notifyBudget' ? '#EA580C' : item.key === 'notifyRecurring' ? '#059669' : '#1B6DD4',
+              '--cat-bg':    item.key === 'notifyBilling' ? '#F5F3FF' : item.key === 'notifyBudget' ? '#FFF7ED' : item.key === 'notifyRecurring' ? '#ECFDF5' : 'var(--primary-soft)',
+              '--cat-color': item.key === 'notifyBilling' ? '#7C3AED' : item.key === 'notifyBudget' ? '#EA580C' : item.key === 'notifyRecurring' ? '#059669' : 'var(--primary)',
             } as React.CSSProperties}
           >
             {item.icon}

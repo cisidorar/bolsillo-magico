@@ -51,7 +51,7 @@ export default function ThemeToggle() {
         role="switch"
         aria-checked={dark}
         className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200"
-        style={{ backgroundColor: dark ? '#1B6DD4' : '#d1d5db' }}
+        style={{ backgroundColor: dark ? 'var(--primary)' : '#d1d5db' }}
       >
         <span
           className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200"

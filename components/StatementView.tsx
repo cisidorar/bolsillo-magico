@@ -26,7 +26,7 @@ export default function StatementView({ expenses, categories, paymentMethods }: 
     return (
       <div className="card flex flex-col items-center justify-center py-14 text-center gap-2">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1" style={{ background: '#EEF4FF' }}>
-          <Receipt className="w-6 h-6" style={{ color: '#1B6DD4' }} />
+          <Receipt className="w-6 h-6" style={{ color: 'var(--primary)' }} />
         </div>
         <p className="text-sm font-bold text-gray-600">Sin movimientos</p>
         <p className="text-xs text-gray-400">No hay gastos registrados en este período</p>
@@ -69,7 +69,7 @@ export default function StatementView({ expenses, categories, paymentMethods }: 
 
               <div className="card overflow-hidden divide-y divide-gray-50">
                 {dayExpenses.map((e, idx) => {
-                  const catColor = e.category?.color ?? '#1B6DD4'
+                  const catColor = e.category?.color ?? 'var(--primary)'
                   const catBg    = e.category?.bg_color ?? '#EEF4FF'
 
                   const recurDomain = e.recurring_expense?.domain

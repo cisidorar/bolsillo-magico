@@ -169,7 +169,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
               )}
 
               {/* Left accent */}
-              <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#1B6DD4', opacity: 0.4 }} />
+              <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--primary)', opacity: 0.4 }} />
 
               {/* Date label */}
               <span className="text-sm font-bold text-gray-700 capitalize flex-1">

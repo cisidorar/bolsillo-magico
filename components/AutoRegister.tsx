@@ -34,7 +34,7 @@ export default function AutoRegister() {
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: '#EEF4FF' }}
         >
-          <RefreshCw className="w-4 h-4" style={{ color: '#1B6DD4' }} />
+          <RefreshCw className="w-4 h-4" style={{ color: 'var(--primary)' }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-gray-800 mb-0.5">Gastos registrados automáticamente</p>

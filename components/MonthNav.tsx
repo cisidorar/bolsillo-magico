@@ -53,7 +53,7 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
       >
         {monthName(month)} {year !== now.getFullYear() ? year : ''}
         {isCurrentMonth && (
-          <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: '#1B6DD4' }} />
+          <span className="block w-1 h-1 rounded-full mx-auto mt-0.5" style={{ backgroundColor: 'var(--primary)' }} />
         )}
       </button>
 

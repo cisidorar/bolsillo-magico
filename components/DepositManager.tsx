@@ -48,7 +48,7 @@ function domainFromSavingsName(name: string): string | null {
 }
 
 function avatarColor(name: string): string {
-  const palette = ['#1B6DD4','#1FBE8D','#FF6F61','#FBC23C','#A78BFA','#F472B6','#34D399','#FB923C']
+  const palette = ['#2B7CF6','#1FBE8D','#FF6F61','#FBC23C','#A78BFA','#F472B6','#34D399','#FB923C']
   let h = 0
   for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
   return palette[Math.abs(h) % palette.length]

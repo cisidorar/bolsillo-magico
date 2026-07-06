@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     { color: '#3B6D11', bg_color: '#EAF3DE' },
     { color: '#3C3489', bg_color: '#EEEDFE' },
     { color: '#A32D2D', bg_color: '#FCEBEB' },
-    { color: '#1B6DD4', bg_color: '#EEF4FF' },
+    { color: '#2B7CF6', bg_color: '#EEF4FF' },
     { color: '#5F5E5A', bg_color: '#F1EFE8' },
   ]
 

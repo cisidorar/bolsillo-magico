@@ -41,7 +41,7 @@ export default async function CategoriaDetallePage({
   const realNextM     = now.getMonth() === 11 ? 1  : now.getMonth() + 2
   const realNextY     = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear()
 
-  const [{ data: category }, { data: expenses }, { data: trendExpenses }, { data: anualExpenses }] = await Promise.all([
+  const [{ data: category }, { data: expenses }, { data: trendExpenses }, { data: anualExpenses }, { data: catBudgetRow }] = await Promise.all([
     supabase.from('categories').select('*').eq('id', catId).eq('user_id', user!.id).maybeSingle(),
     // Gastos del mes seleccionado (modo mensual)
     isAnual
@@ -77,6 +77,8 @@ export default async function CategoriaDetallePage({
           .order('date', { ascending: false })
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: null }),
+    // Límite de la categoría (para proyección vs presupuesto)
+    supabase.from('category_budgets').select('amount').eq('user_id', user!.id).eq('category_id', catId).maybeSingle(),
   ])
 
   if (!category) notFound()
@@ -105,10 +107,23 @@ export default async function CategoriaDetallePage({
   const prevMonthNum  = month === 1 ? 12 : month - 1
   const prevMonthYear = month === 1 ? year - 1 : year
   const prevKey       = `${prevMonthYear}-${String(prevMonthNum).padStart(2, '0')}`
-  const prevTotal     = (trendExpenses ?? [])
-    .filter(e => e.date.startsWith(prevKey))
-    .reduce((s, e) => s + e.amount, 0)
+  const isCurrentMonth = selectedKey === currentKey
+  const todayDay       = now.getDate()
+  const prevExpensesArr = (trendExpenses ?? []).filter(e => e.date.startsWith(prevKey))
+  // Pro-rata: en el mes en curso comparar solo hasta el mismo día del mes anterior
+  const prevForDelta  = isCurrentMonth
+    ? prevExpensesArr.filter(e => parseInt(e.date.split('-')[2]) <= todayDay)
+    : prevExpensesArr
+  const prevTotal     = prevForDelta.reduce((s, e) => s + e.amount, 0)
   const delta         = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
+
+  // Proyección al cierre (solo mes en curso, con al menos 4 días de datos)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const projection  = isCurrentMonth && todayDay > 3 && total > 0
+    ? Math.round((total / todayDay) * daysInMonth)
+    : null
+  const catLimit = (catBudgetRow as { amount?: number } | null)?.amount ?? null
+  const projOver = projection !== null && catLimit !== null && projection > catLimit
 
   const completedMonths = monthData.filter(m => m.key !== currentKey && m.total > 0)
   const avgMonthly      = completedMonths.length > 0
@@ -275,15 +290,38 @@ export default async function CategoriaDetallePage({
                   </p>
                 </div>
               )}
-              <p className="text-[10px] text-white/40">{prevTotal > 0 ? formatCLP(prevTotal) : 'sin datos'}</p>
-            </div>
-            <div className="bg-white/15 rounded-2xl px-3 py-2.5">
-              <p className="text-[10px] text-white/60 font-semibold mb-0.5">Promedio</p>
-              <p className="text-sm font-extrabold text-white tabular-nums leading-tight">
-                {avgMonthly > 0 ? formatCLP(avgMonthly) : '—'}
+              <p className="text-[10px] text-white/40">
+                {prevTotal > 0
+                  ? `${formatCLP(prevTotal)}${isCurrentMonth ? ` al día ${todayDay}` : ''}`
+                  : 'sin datos'}
               </p>
-              <p className="text-[10px] text-white/40">últimos meses</p>
             </div>
+            {isCurrentMonth ? (
+              /* Mes en curso: proyección al cierre (el promedio ya está en la card de tendencia) */
+              <div className="bg-white/15 rounded-2xl px-3 py-2.5">
+                <p className="text-[10px] text-white/60 font-semibold mb-0.5">Proyección</p>
+                <p className={`text-sm font-extrabold tabular-nums leading-tight ${projOver ? 'text-red-300' : 'text-white'}`}>
+                  {projection !== null ? formatCLP(projection) : '—'}
+                </p>
+                <p className={`text-[10px] ${projOver ? 'text-red-300 font-semibold' : 'text-white/40'}`}>
+                  {projection === null
+                    ? 'pocos días aún'
+                    : projOver
+                      ? `sobre el límite de ${formatCLP(catLimit!)}`
+                      : catLimit !== null
+                        ? `límite ${formatCLP(catLimit)}`
+                        : 'estimado al cierre'}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white/15 rounded-2xl px-3 py-2.5">
+                <p className="text-[10px] text-white/60 font-semibold mb-0.5">Promedio</p>
+                <p className="text-sm font-extrabold text-white tabular-nums leading-tight">
+                  {avgMonthly > 0 ? formatCLP(avgMonthly) : '—'}
+                </p>
+                <p className="text-[10px] text-white/40">últimos meses</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -361,17 +399,17 @@ export default async function CategoriaDetallePage({
                       </span>
                       <div className="w-full flex-1 flex items-end">
                         <div
-                          className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(27,109,212,0.35)]' : isCurrent ? 'bar-current' : 'bar-inactive'}`}
+                          className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(43,124,246,0.35)]' : isCurrent ? 'bar-current' : 'bar-inactive'}`}
                           style={{
                             height: `${h}px`,
-                            ...(isSelected ? { backgroundColor: '#1B6DD4' } : {}),
+                            ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}),
                             opacity: m.total === 0 ? 0.25 : 1,
                           }}
                         />
                       </div>
                       <span
                         className="text-[10px] capitalize leading-none font-semibold"
-                        style={{ color: isSelected ? '#1B6DD4' : isCurrent ? '#4D8FFF' : '#9CA3AF' }}
+                        style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : '#9CA3AF' }}
                       >
                         {m.label}
                       </span>

@@ -38,7 +38,7 @@ function fmtPct(n: number, showSign = true): string {
 
 // ── Ticker avatar color (deterministic) ───────────────────────────────────────
 const AVATAR_PALETTE = [
-  '#1B6DD4','#1FBE8D','#FF6F61','#FBC23C',
+  '#2B7CF6','#1FBE8D','#FF6F61','#FBC23C',
   '#A78BFA','#F472B6','#34D399','#FB923C','#60A5FA','#F87171',
 ]
 function tickerColor(ticker: string): string {

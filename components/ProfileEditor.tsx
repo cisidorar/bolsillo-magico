@@ -138,7 +138,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
       {/* ── Card Perfil ─────────────────────────────────────────────────────── */}
       <div className="card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
-          <User className="w-4 h-4 flex-shrink-0" style={{ color: '#1B6DD4' }} />
+          <User className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
           <p className="text-sm font-bold text-gray-700">Perfil</p>
         </div>
 
@@ -152,7 +152,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
               ) : (
                 <div
                   className="w-14 h-14 rounded-full flex items-center justify-center"
-                  style={{ background: 'linear-gradient(135deg, #1B6DD4 0%, #0A3F84 100%)' }}
+                  style={{ background: 'var(--primary)' }}
                 >
                   <span className="text-white font-bold text-2xl select-none">{initial}</span>
                 </div>
@@ -183,7 +183,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
               onClick={() => setEditing(true)}
               disabled={uploading}
               className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-50"
-              style={{ backgroundColor: '#1B6DD4' }}
+              style={{ backgroundColor: 'var(--primary)' }}
             >
               <Pencil className="w-3.5 h-3.5" />
               Editar
@@ -211,7 +211,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
               <button onClick={cancelName} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 <X className="w-3.5 h-3.5" /> Cancelar
               </button>
-              <button onClick={saveName} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: '#1B6DD4' }}>
+              <button onClick={saveName} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--primary)' }}>
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 {saving ? 'Guardando…' : 'Guardar'}
               </button>
@@ -226,7 +226,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
       {/* ── Card Seguridad ───────────────────────────────────────────────────── */}
       <div className="card overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-100">
-          <Shield className="w-4 h-4 flex-shrink-0" style={{ color: '#1B6DD4' }} />
+          <Shield className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
           <p className="text-sm font-bold text-gray-700">Seguridad</p>
         </div>
 
@@ -281,7 +281,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
                     onClick={saveEmail}
                     disabled={emailSaving}
                     className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60"
-                    style={{ backgroundColor: '#1B6DD4' }}
+                    style={{ backgroundColor: 'var(--primary)' }}
                   >
                     {emailSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     {emailSaving ? 'Enviando…' : 'Enviar confirmación'}
@@ -360,7 +360,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl }:
                     onClick={savePassword}
                     disabled={passSaving}
                     className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60"
-                    style={{ backgroundColor: '#1B6DD4' }}
+                    style={{ backgroundColor: 'var(--primary)' }}
                   >
                     {passSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     {passSaving ? 'Guardando…' : 'Actualizar contraseña'}

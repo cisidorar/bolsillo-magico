@@ -256,8 +256,8 @@ export default async function HistorialPage({
           <div className="lg:hidden mb-4 space-y-2">
             <div className="card p-4 flex items-center gap-3">
               <div className="cat-icon-bg w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#1B6DD4' } as React.CSSProperties}>
-                <Wallet className="w-5 h-5" style={{ color: '#1B6DD4' }} />
+                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
               </div>
               <div>
                 <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
@@ -317,7 +317,7 @@ export default async function HistorialPage({
             {/* Total */}
             <div className="card p-5 flex items-center gap-4">
               <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#4D93FF' } as React.CSSProperties}>
+                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': '#4D93FF' } as React.CSSProperties}>
                 <Wallet className="w-7 h-7" style={{ color: '#4D93FF' }} />
               </div>
               <div className="min-w-0">
