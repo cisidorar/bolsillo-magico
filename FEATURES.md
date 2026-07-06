@@ -57,6 +57,7 @@ Next.js 15 App Router · Supabase (auth + Postgres + RLS + Storage) · TypeScrip
 
 ### Inversiones
 - Acciones US con cotizaciones en vivo (Finnhub) e historial por ticker
+- **Watchlist con señales técnicas** _(julio 2026)_: tickers favoritos sin posición (`watchlist`, migración `20260706_watchlist.sql`), panel expandible por ticker con RSI 14 (Wilder), SMA 20/50/200, cruces dorado/muerte, rango 52 semanas, soportes/resistencias por pivotes (`lib/technical.ts` — matemática determinista, cero IA) vía `/api/technical` (velas diarias Finnhub cacheadas 12h en `price_cache` con clave `{SYM}_D1Y`). Señales explícitamente informativas, con disclaimer. Fase 2 pendiente: edge function diaria de alertas por email + `target_price`
 - **Depósitos a plazo**: CRUD completo con progreso al vencimiento, interés devengado lineal, próximos vencimientos y sección de vencidos _(julio 2026)_
 - Cuentas de ahorro con TAE, interés compuesto diario y proyecciones 30d/12m
 - Toggle compartido de 3 vistas (Acciones / Depósitos / Ahorro)

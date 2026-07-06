@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import StockPositionManager from '@/components/StockPositionManager'
 import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
+import WatchlistPanel, { type WatchlistItem } from '@/components/WatchlistPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isAhorro    = sp.view === 'ahorro'
   const isDepositos = sp.view === 'depositos'
 
-  const [{ data: stocks }, { data: savings }, { data: deposits }] = await Promise.all([
+  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
@@ -70,6 +71,11 @@ export default async function InversionesPage({ searchParams }: Props) {
       .select('*')
       .eq('user_id', user.id)
       .order('maturity_date', { ascending: true }),
+    supabase
+      .from('watchlist')
+      .select('id, ticker')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true }),
   ])
 
   const stockCount   = stocks?.length   ?? 0
@@ -108,10 +114,16 @@ export default async function InversionesPage({ searchParams }: Props) {
           initialDeposits={(deposits ?? []) as TermDeposit[]}
         />
       ) : (
-        <StockPositionManager
-          userId={user.id}
-          initialPositions={(stocks ?? []) as StockPosition[]}
-        />
+        <>
+          <StockPositionManager
+            userId={user.id}
+            initialPositions={(stocks ?? []) as StockPosition[]}
+          />
+          <WatchlistPanel
+            userId={user.id}
+            initialItems={(watchlist ?? []) as WatchlistItem[]}
+          />
+        </>
       )}
 
     </div>
