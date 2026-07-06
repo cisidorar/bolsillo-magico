@@ -43,13 +43,15 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 
 | Señal | Umbral | Tono |
 |---|---|---|
+| **Divergencia alcista/bajista precio-RSI** | 2 pivotes en ~90 días: precio LL + RSI HL (alcista) o precio HH + RSI LH (bajista), 2º pivote en últimos 20 días, delta RSI >2 | mint / coral |
 | RSI sobreventa / sobrecompra | ≤30 / ≥70 (Wilder 14) | mint / gold |
 | Cruce dorado / de la muerte | SMA50 vs SMA200, cruce en últimos 10 días | mint / coral |
-| Sobre / bajo SMA200 | precio vs media | neutral / gold |
-| Cerca de soporte / resistencia | ≤3% del nivel pivote más cercano | mint / gold |
+| Cerca de soporte / resistencia | ≤3% del nivel; el título incluye toques y semanas vigente | mint / gold |
 | Zona máximo / mínimo 52 semanas | ≤2% del máx / ≤5% del mín | gold / coral |
 
-Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 cierres, clusterizados si están a <1.5% entre sí; se muestran los 2 más cercanos a cada lado del precio.
+**Enfoque de largo plazo (decisión jul 2026, Cas invierte ~1 vez/semana):** el popup lidera con un **veredicto en 1-2 frases** (tendencia + divergencia/nivel, generado por código en `analyze()`), gráfico de 12 meses con SMA200 y niveles dibujados, tendencia de fondo con **persistencia** ("N semanas sobre su media de 200"), **niveles con historia** (`LevelInfo`: toques, primer toque, semanas vigente) y rendimiento 1m/6m/1a. El RSI y el rango 52s quedan al final como momentum secundario. Nada de variación intradía como protagonista.
+
+Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 cierres, clusterizados si están a <1.5% entre sí conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio.
 
 ### Avisos in-app (cómo funcionan hoy)
 

@@ -61,16 +61,160 @@ function RsiBar({ value }: { value: number }) {
   )
 }
 
-// ── Panel técnico de un ticker ────────────────────────────────────────────────
+// ── Gráfico de 12 meses con niveles dibujados ────────────────────────────────
+
+function PriceChart({ a }: { a: TechnicalAnalysis }) {
+  const W = 560, H = 200, padL = 6, padR = 52, padT = 10, padB = 20
+  const pts = a.chart
+  if (pts.length < 10) return null
+
+  const levels = [
+    ...a.supportLevels.map(l => ({ ...l, kind: 'support' as const })),
+    ...a.resistanceLevels.map(l => ({ ...l, kind: 'resistance' as const })),
+  ]
+  const values = [
+    ...pts.map(p => p.close),
+    ...pts.map(p => p.sma200).filter((v): v is number => v !== null),
+    ...levels.map(l => l.price),
+  ]
+  const min = Math.min(...values) * 0.99
+  const max = Math.max(...values) * 1.01
+  const rng = max - min || 1
+
+  const x = (i: number) => padL + (i / (pts.length - 1)) * (W - padL - padR)
+  const y = (v: number) => padT + (1 - (v - min) / rng) * (H - padT - padB)
+
+  const priceLine = pts.map((p, i) => `${x(i)},${y(p.close)}`).join(' ')
+  const smaPts = pts.map((p, i) => (p.sma200 !== null ? `${x(i)},${y(p.sma200)}` : null)).filter(Boolean) as string[]
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
+      {/* Niveles horizontales con precio a la derecha */}
+      {levels.map(l => {
+        const ly = y(l.price)
+        const color = l.kind === 'support' ? 'var(--mint)' : 'var(--gold)'
+        return (
+          <g key={`${l.kind}-${l.price}`}>
+            <line x1={padL} y1={ly} x2={W - padR} y2={ly} stroke={color} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.7" />
+            <text x={W - padR + 4} y={ly + 3} fontSize="10" fontWeight="700" fill={color}>
+              {fmtUSD(l.price)}
+            </text>
+          </g>
+        )
+      })}
+      {/* SMA200 */}
+      {smaPts.length > 1 && (
+        <polyline points={smaPts.join(' ')} fill="none" stroke="var(--ink-3)" strokeWidth="1.5"
+          strokeDasharray="2 3" opacity="0.8" />
+      )}
+      {/* Precio */}
+      <polyline points={priceLine} fill="none" stroke="var(--primary)" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={x(pts.length - 1)} cy={y(pts[pts.length - 1].close)} r="3.5" fill="var(--primary)" />
+      {/* Fechas */}
+      <text x={padL} y={H - 5} fontSize="10" fontWeight="600" fill="var(--ink-3)">{fmtDateLabel(pts[0].date)}</text>
+      <text x={W - padR} y={H - 5} fontSize="10" fontWeight="600" fill="var(--ink-3)" textAnchor="end">{fmtDateLabel(pts[pts.length - 1].date)}</text>
+    </svg>
+  )
+}
+
+const MONTHS_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+function fmtDateLabel(dateStr: string): string {
+  const [y, m] = dateStr.split('-').map(Number)
+  return `${MONTHS_ES[m - 1]} ${String(y).slice(2)}`
+}
+
+// ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
 function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
+  const trendColor = a.trend.aboveSma200 === null ? 'var(--ink-3)'
+    : a.trend.aboveSma200 && a.trend.sma200Rising !== false ? 'var(--mint)'
+    : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
+    : 'var(--gold)'
 
   return (
     <div className="px-4 pb-4 space-y-3">
 
-      {/* Señales */}
+      {/* 1. Veredicto */}
+      <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
+        style={{ background: 'var(--surface-2)', borderLeft: `3px solid ${trendColor}` }}>
+        <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.verdict}</p>
+      </div>
+
+      {/* 2. Gráfico 12 meses con niveles y SMA200 */}
+      <div className="rounded-2xl px-3 pt-3 pb-2" style={{ background: 'var(--surface-2)' }}>
+        <div className="flex items-center justify-between mb-1 px-0.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Últimos 12 meses</p>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+              <span className="inline-block w-3 border-t-2" style={{ borderColor: 'var(--primary)' }} /> precio
+            </span>
+            <span className="flex items-center gap-1 text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+              <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: 'var(--ink-3)' }} /> media 200d
+            </span>
+          </div>
+        </div>
+        <PriceChart a={a} />
+      </div>
+
+      {/* 3. Tendencia de fondo + rendimiento */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia de fondo</p>
+          {a.trend.aboveSma200 !== null ? (
+            <>
+              <p className="text-xs font-extrabold" style={{ color: trendColor }}>
+                {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su media de 200d hace {a.trend.weeksInState} sem.
+              </p>
+              <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs la media`}
+                {a.trend.sma200Rising !== null && ` · media ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
+              </p>
+            </>
+          ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
+        </div>
+        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rendimiento</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {([['1m', a.returns.m1], ['6m', a.returns.m6], ['1a', a.returns.y1]] as const).map(([label, v]) => (
+              <span key={label} className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums"
+                style={v === null
+                  ? { background: 'var(--surface)', color: 'var(--ink-3)' }
+                  : { background: v >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: v >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                {label} {v !== null ? `${v > 0 ? '+' : ''}${v}%` : '—'}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Niveles con historia */}
+      {(a.supportLevels.length > 0 || a.resistanceLevels.length > 0) && (
+        <div className="space-y-1.5">
+          {a.resistanceLevels.map(l => (
+            <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
+              <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                <span className="font-bold" style={{ color: 'var(--gold)' }}>Resistencia {fmtUSD(l.price)}</span>
+                {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+              </p>
+            </div>
+          ))}
+          {a.supportLevels.map(l => (
+            <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
+              <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                <span className="font-bold" style={{ color: 'var(--mint)' }}>Soporte {fmtUSD(l.price)}</span>
+                {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 5. Señales (incluye divergencias) */}
       {a.signals.length > 0 ? (
         <div className="space-y-2">
           {a.signals.map(s => {
@@ -88,11 +232,11 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
         </div>
       ) : (
         <p className="text-xs rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-          Sin señales destacadas hoy: el precio se mueve en rango normal.
+          Sin señales de giro esta semana: el precio se mueve dentro de su rango normal.
         </p>
       )}
 
-      {/* Indicadores */}
+      {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
           <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
@@ -100,7 +244,6 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
           </p>
           {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
         </div>
-
         <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
           <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango 52 semanas</p>
           <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
@@ -114,40 +257,11 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
         </div>
       </div>
 
-      {/* Medias + niveles */}
-      <div className="grid grid-cols-3 gap-2">
-        {([['SMA 20', a.sma20], ['SMA 50', a.sma50], ['SMA 200', a.sma200]] as const).map(([label, v]) => (
-          <div key={label} className="rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
-            <p className="text-xs font-extrabold tabular-nums mt-0.5"
-              style={{ color: v === null ? 'var(--ink-3)' : a.price >= v ? 'var(--mint)' : 'var(--coral)' }}>
-              {v !== null ? fmtUSD(v) : '—'}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {(a.supports.length > 0 || a.resistances.length > 0) && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Soportes</p>
-            {a.supports.length > 0 ? a.supports.map(s => (
-              <p key={s} className="text-xs font-bold tabular-nums" style={{ color: 'var(--mint)' }}>{fmtUSD(s)}</p>
-            )) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
-          </div>
-          <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Resistencias</p>
-            {a.resistances.length > 0 ? a.resistances.map(r => (
-              <p key={r} className="text-xs font-bold tabular-nums" style={{ color: 'var(--gold)' }}>{fmtUSD(r)}</p>
-            )) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
-          </div>
-        </div>
-      )}
-
       <p className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
         <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-        Señales informativas al cierre del {a.asOf}. No son recomendación de compra o venta: los indicadores técnicos
-        tienen falsos positivos y un soporte roto se convierte en caída. La decisión es siempre tuya.
+        Lectura informativa al cierre del {a.asOf}. No es recomendación de compra o venta: los indicadores
+        tienen falsos positivos, una divergencia puede tardar semanas en confirmarse y un soporte roto se
+        convierte en caída. La decisión es siempre tuya.
       </p>
     </div>
   )
