@@ -1,10 +1,15 @@
 import Link from 'next/link'
-import { PiggyBank, ShieldCheck, ArrowRight } from 'lucide-react'
+import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
   rate: number | null  // % del ingreso no gastado; null = sin ingreso registrado
+}
+
+export interface CommitMonth {
+  label: string  // 'ago', 'sep', …
+  total: number  // CLP comprometido ese mes
 }
 
 interface Props {
@@ -19,6 +24,13 @@ interface Props {
   monthsCovered: number | null     // totalSavings / avgMonthlyExpense
   monthLabel: string               // 'Julio'
   prevMonthLabel: string           // 'Junio' (el sueldo que financió este mes)
+  // F3: deuda comprometida a futuro
+  commitMonths: CommitMonth[]      // próximos 6 meses
+  commitNext: number               // CLP comprometido el próximo mes
+  commitRatio: number | null       // % del ingreso mensual ya comprometido
+  cuotasPendingTotal: number       // CLP total de cuotas que faltan por pagar
+  fixedMonthlyTotal: number        // CLP mensual en recurrentes indefinidos
+  freeMonthLabel: string | null    // primer mes donde baja el compromiso
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro (12 meses). */
@@ -70,6 +82,8 @@ export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12,
   totalSavings, savingsCount, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
+  commitMonths, commitNext, commitRatio,
+  cuotasPendingTotal, fixedMonthlyTotal, freeMonthLabel,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -92,6 +106,22 @@ export default function PatrimonioCards({
 
   const rateColor = currentRate === null ? 'var(--ink-3)'
     : currentRate >= 0 ? 'var(--mint)' : 'var(--coral)'
+
+  // Semáforo de deuda comprometida (regla ~35% del ingreso)
+  const hasCommit = commitMonths.some(m => m.total > 0)
+  const ratioColor = commitRatio === null ? 'var(--ink-3)'
+    : commitRatio > 35 ? 'var(--coral)'
+    : commitRatio >= 20 ? 'var(--gold)'
+    : 'var(--mint)'
+  const ratioBg = commitRatio === null ? 'rgba(148,163,184,0.15)'
+    : commitRatio > 35 ? 'rgba(255,111,97,0.14)'
+    : commitRatio >= 20 ? 'rgba(255,194,60,0.15)'
+    : 'rgba(31,190,141,0.14)'
+  const ratioLabel = commitRatio === null ? null
+    : commitRatio > 35 ? 'Compromiso alto'
+    : commitRatio >= 20 ? 'Compromiso moderado'
+    : 'Compromiso holgado'
+  const maxCommit = Math.max(...commitMonths.map(m => m.total), 1)
 
   return (
     <div className="mb-5">
@@ -273,6 +303,96 @@ export default function PatrimonioCards({
         </div>
 
       </div>
+
+      {/* ── Card 3: Ya comprometido (F3) ──────────────────────────────────── */}
+      {hasCommit && (
+        <div className="card p-4 lg:p-5 mt-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(255,194,60,0.15)' }}>
+                <CalendarClock className="w-4 h-4" style={{ color: 'var(--gold)' }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight" style={{ color: 'var(--ink)' }}>Ya comprometido</p>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Cuotas y fijos que ya debes en los próximos meses</p>
+              </div>
+            </div>
+            <Link href="/recurrentes" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
+              Ver
+            </Link>
+          </div>
+
+          <div className="lg:grid lg:gap-6 lg:items-start space-y-4 lg:space-y-0" style={{ gridTemplateColumns: '260px 1fr' }}>
+
+            {/* Izquierda: cifra + ratio */}
+            <div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-3xl font-extrabold tabular-nums leading-none"
+                  style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+                  {formatCLP(commitNext)}
+                </p>
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                comprometido para {commitMonths[0]?.label} antes de gastar $1
+              </p>
+              {ratioLabel ? (
+                <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                  style={{ background: ratioBg, color: ratioColor }}>
+                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: ratioColor }} />
+                  {ratioLabel} · {commitRatio}% del ingreso
+                </span>
+              ) : (
+                <p className="text-[10px] mt-2 font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  Registra tu ingreso para ver qué % ya está comprometido
+                </p>
+              )}
+
+              {/* Desglose — filas inset */}
+              <div className="space-y-2 mt-3">
+                <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Cuotas pendientes</p>
+                  <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(cuotasPendingTotal)}</p>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Fijos mensuales</p>
+                  <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(fixedMonthlyTotal)}/mes</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Derecha: barras próximos 6 meses */}
+            <div>
+              <div className="flex items-end gap-2 lg:gap-3" style={{ height: 120 }}>
+                {commitMonths.map((m, i) => {
+                  const h = Math.max(Math.round((m.total / maxCommit) * 88), m.total > 0 ? 6 : 2)
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 min-w-0">
+                      <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {m.total > 0 ? `$${Math.round(m.total / 1000)}k` : '—'}
+                      </p>
+                      <div className="w-full rounded-t-lg transition-all"
+                        style={{
+                          height: h,
+                          background: i === 0 ? 'var(--gold)' : 'rgba(255,194,60,0.35)',
+                        }} />
+                      <p className="text-[10px] font-semibold capitalize" style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
+                        {m.label}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+              {freeMonthLabel && (
+                <p className="text-[11px] mt-2 font-semibold" style={{ color: 'var(--mint)' }}>
+                  En <span className="capitalize">{freeMonthLabel}</span> se te libera plata: terminan cuotas antes de ese mes.
+                </p>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

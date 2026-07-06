@@ -55,7 +55,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -116,6 +116,12 @@ export default async function AnalisisPage({
       .from('savings_accounts')
       .select('balance')
       .eq('user_id', user!.id),
+    // Recurrentes activos para deuda comprometida a futuro (F3)
+    supabase
+      .from('recurring_expenses')
+      .select('amount, billing_month, total_installments, paid_installments')
+      .eq('user_id', user!.id)
+      .eq('is_active', true),
   ])
 
   const catBudgetMap = new Map(
@@ -460,7 +466,53 @@ export default async function AnalisisPage({
   const monthsCovered = avgMonthlyExpense !== null && totalSavings > 0
     ? totalSavings / avgMonthlyExpense
     : null
-  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0
+  // F3: deuda comprometida a futuro — cuotas pendientes + recurrentes por mes
+  type RecurringLite = { amount: number; billing_month: number | null; total_installments: number | null; paid_installments: number }
+  const activeRecurring = (recurringRaw ?? []) as RecurringLite[]
+  const commitMonths: { label: string; total: number }[] = []
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    let total = 0
+    for (const r of activeRecurring) {
+      if (r.total_installments !== null) {
+        // Cuotas fijas: quedan N-P; caen en los próximos N-P meses
+        const remaining = Math.max(0, r.total_installments - r.paid_installments)
+        if (i <= remaining) total += r.amount
+      } else if (r.billing_month !== null) {
+        // Anual: solo en su mes de cobro
+        if (d.getMonth() + 1 === r.billing_month) total += r.amount
+      } else {
+        // Indefinido mensual
+        total += r.amount
+      }
+    }
+    commitMonths.push({ label: d.toLocaleString('es-CL', { month: 'short' }).replace('.', ''), total })
+  }
+  const commitNext = commitMonths[0]?.total ?? 0
+  // Ingreso de referencia: el sueldo de ESTE mes financia el próximo (convención de la app);
+  // fallback al ingreso más reciente registrado
+  let refIncome = incomeByKey[`${now.getFullYear()}-${now.getMonth() + 1}`] ?? 0
+  if (refIncome === 0) {
+    for (let i = 1; i <= 12 && refIncome === 0; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      refIncome = incomeByKey[`${d.getFullYear()}-${d.getMonth() + 1}`] ?? 0
+    }
+  }
+  const commitRatio = refIncome > 0 && commitNext > 0 ? Math.round((commitNext / refIncome) * 100) : null
+  const cuotasPendingTotal = activeRecurring.reduce((s, r) => {
+    if (r.total_installments === null) return s
+    return s + Math.max(0, r.total_installments - r.paid_installments) * r.amount
+  }, 0)
+  const fixedMonthlyTotal = activeRecurring
+    .filter(r => r.total_installments === null && r.billing_month === null)
+    .reduce((s, r) => s + r.amount, 0)
+  // Primer mes futuro donde baja el compromiso (se libera plata)
+  let freeMonthLabel: string | null = null
+  for (let i = 1; i < commitMonths.length; i++) {
+    if (commitMonths[i].total < commitMonths[i - 1].total) { freeMonthLabel = commitMonths[i].label; break }
+  }
+
+  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0 || activeRecurring.length > 0
 
   // ── Oportunidades de mejora ───────────────────────────────────────────────
   type Oportunidad = {
@@ -1637,6 +1689,12 @@ export default async function AnalisisPage({
             monthsCovered={monthsCovered}
             monthLabel={monthName(month)}
             prevMonthLabel={prevMonthName}
+            commitMonths={commitMonths}
+            commitNext={commitNext}
+            commitRatio={commitRatio}
+            cuotasPendingTotal={cuotasPendingTotal}
+            fixedMonthlyTotal={fixedMonthlyTotal}
+            freeMonthLabel={freeMonthLabel}
           />
         )}
 

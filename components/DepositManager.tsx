@@ -1,15 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, X, TrendingUp, Landmark, Trash2, ChevronRight,
-  ArrowUp, ArrowDown, CalendarDays,
+  Plus, X, Landmark, Trash2, ChevronRight,
+  ArrowUp, CalendarDays,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
+import InversionesToggle from '@/components/InversionesToggle'
 import type { SavingsAccount } from '@/app/(dashboard)/inversiones/page'
 
 // ── Dominio por nombre de banco/fintech ───────────────────────────────────────
@@ -175,9 +174,7 @@ const emptyForm: FormState = {
 }
 
 export default function DepositManager({ userId, initialSavings }: Props) {
-  const supabase     = createClient()
-  const searchParams = useSearchParams()
-  const isAhorro     = searchParams.get('view') === 'ahorro'
+  const supabase = createClient()
 
   const [savings,       setSavings]       = useState<SavingsAccount[]>(initialSavings)
   const [showForm,      setShowForm]      = useState(false)
@@ -299,26 +296,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
         {/* Tabs + Agregar — derecha */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
-            <Link
-              href="/inversiones"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                !isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Acciones</span>
-            </Link>
-            <Link
-              href="/inversiones?view=ahorro"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-              }`}
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Ahorro</span>
-            </Link>
-          </div>
+          <InversionesToggle active="ahorro" />
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
@@ -422,9 +400,9 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
-                    Ganás por día
+                    Ganas por día
                   </span>
-                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)', fontFamily: 'ui-monospace, monospace' }}>
+                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
                     +{fmtCLP(previewDaily)}
                   </span>
                 </div>
@@ -539,7 +517,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
           </div>
           <p className="text-base font-bold mb-1" style={{ color: 'var(--ink)' }}>Sin cuentas de ahorro</p>
           <p className="text-sm mb-5 max-w-xs" style={{ color: 'var(--ink-3)' }}>
-            Registrá tu cuenta para ver cuánto estás ganando cada día.
+            Registra tu cuenta para ver cuánto estás ganando cada día.
           </p>
           <button
             onClick={openAdd}
@@ -559,11 +537,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
           {/* Hero card */}
           <div
             className="rounded-3xl overflow-hidden"
-            style={{
-              flex: '40 1 0',
-              background: 'linear-gradient(135deg, #1B6DD4 0%, #1557b0 100%)',
-              boxShadow: '0 8px 32px rgba(27,109,212,0.35)',
-            }}
+            style={{ flex: '40 1 0', background: 'var(--primary)', boxShadow: '0 8px 18px var(--shadow)' }}
           >
             {/* Valor total */}
             <div className="px-5 pt-5 pb-4">

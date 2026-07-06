@@ -55,6 +55,12 @@ Next.js 15 App Router · Supabase (auth + Postgres + RLS + Storage) · TypeScrip
 - Alerta visual cuando se supera el límite
 - Comparación gasto real vs presupuesto por categoría
 
+### Inversiones
+- Acciones US con cotizaciones en vivo (Finnhub) e historial por ticker
+- **Depósitos a plazo**: CRUD completo con progreso al vencimiento, interés devengado lineal, próximos vencimientos y sección de vencidos _(julio 2026)_
+- Cuentas de ahorro con TAE, interés compuesto diario y proyecciones 30d/12m
+- Toggle compartido de 3 vistas (Acciones / Depósitos / Ahorro)
+
 ### Métodos de pago
 - Creación de tarjetas de débito, crédito, efectivo y digital
 - Día de facturación configurable por tarjeta (1–31)
@@ -160,7 +166,7 @@ La métrica #1 predictora de resultado financiero a largo plazo. Hoy `surplus = 
 **~~F2. Fondo de emergencia en "meses cubiertos"~~** ✅ _Implementado julio 2026 — card junto a tasa de ahorro en /analisis_
 Primer hito que recomienda cualquier asesor antes de invertir (regla 3–6 meses de gasto). Conectar `savings_accounts` (saldo líquido) con el gasto promedio mensual que ya se calcula → mostrar **cuántos meses de gasto cubren los ahorros**. Cálculo trivial, muy motivante. Data: ya existe.
 
-**F3. Deuda comprometida a futuro** (punto ciego crítico en Chile)
+**~~F3. Deuda comprometida a futuro~~** ✅ _Implementado julio 2026 — card "Ya comprometido" en /analisis: 6 meses futuros, ratio vs ingreso (semáforo 20/35%), desglose cuotas vs fijos, aviso de mes en que se libera plata_
 Las cuotas ya se registran (`total_installments`, `paid_installments`) pero solo mes a mes. Panel "Ya comprometido" que sume **cuotas pendientes + recurrentes por cada mes futuro**, más la ratio **deuda comprometida / ingreso mensual** (semáforo sobre ~35%). Diferencia entre "me queda plata" y "me queda plata que ya debo". Data: ya está en `recurring_expenses`.
 
 ### 🟠 Impacto alto — requiere modelo de datos nuevo mínimo

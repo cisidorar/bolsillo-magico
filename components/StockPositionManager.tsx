@@ -1,15 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, X, TrendingUp, Landmark, Pencil,
+  Plus, X, TrendingUp, Pencil,
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
+import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPosition } from '@/app/(dashboard)/inversiones/page'
 import type { TickerHistory } from '@/app/api/stock-history/route'
 
@@ -365,8 +364,6 @@ const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' 
 
 export default function StockPositionManager({ userId, initialPositions }: Props) {
   const supabase     = createClient()
-  const searchParams = useSearchParams()
-  const isAhorro     = searchParams.get('view') === 'ahorro'
 
   const [positions,      setPositions]      = useState<StockPosition[]>(initialPositions)
   const [quotes,         setQuotes]         = useState<Quotes>({})
@@ -613,26 +610,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
         {/* Tabs + Agregar — derecha */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
-            <Link
-              href="/inversiones"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                !isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-              }`}
-            >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Acciones</span>
-            </Link>
-            <Link
-              href="/inversiones?view=ahorro"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                isAhorro ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-              }`}
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Ahorro</span>
-            </Link>
-          </div>
+          <InversionesToggle active="acciones" />
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
