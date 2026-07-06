@@ -186,10 +186,10 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
   }, [])
 
   // ── Análisis técnico ──────────────────────────────────────────────────────
-  const fetchAnalysis = useCallback(async (ticker: string) => {
+  const fetchAnalysis = useCallback(async (ticker: string, force = false) => {
     setAnalyses(prev => ({ ...prev, [ticker]: prev[ticker] && prev[ticker] !== 'error' ? prev[ticker] : 'loading' }))
     try {
-      const r = await fetch(`/api/technical?symbol=${ticker}`)
+      const r = await fetch(`/api/technical?symbol=${ticker}${force ? '&force=1' : ''}`)
       if (!r.ok) {
         const body = await r.json().catch(() => null) as { detail?: string } | null
         if (body?.detail) setErrDetails(prev => ({ ...prev, [ticker]: body.detail! }))
@@ -562,7 +562,7 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                       </p>
                     </div>
                     <button
-                      onClick={() => fetchAnalysis(ticker)}
+                      onClick={() => fetchAnalysis(ticker, true)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95"
                       style={{ background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
                     >

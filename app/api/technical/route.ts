@@ -6,8 +6,15 @@ import { analyze, type DailyCandles, type TechnicalAnalysis } from '@/lib/techni
 
 const TICKER_RE  = /^[A-Z0-9.\-]{1,12}$/
 const DAILY_TTL  = 12 * 60 * 60   // 12 h — con velas diarias basta refrescar 2 veces al día
+const FAIL_TTL   = 60 * 60        // 1 h — cache negativo: no quemar cuota reintentando fallas
 const FH_TIMEOUT = 8_000
 const LOOKBACK_D = 430            // ~14 meses de calendario → ≥252 días hábiles + SMA200
+
+// Marcador de fallo guardado en price_cache (cache negativo)
+interface FailMarker { failed: true; reasons: string[] }
+function isFailMarker(v: unknown): v is FailMarker {
+  return typeof v === 'object' && v !== null && (v as FailMarker).failed === true
+}
 
 export interface TechnicalResponse {
   ticker:   string
@@ -169,6 +176,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const symbol = (searchParams.get('symbol') ?? '').trim().toUpperCase()
+  const force  = searchParams.get('force') === '1'   // "Reintentar" salta el cache negativo
   if (!TICKER_RE.test(symbol)) return NextResponse.json({ error: 'Símbolo inválido' }, { status: 400 })
 
   const apiKey = process.env.FINNHUB_API_KEY
@@ -188,8 +196,18 @@ export async function GET(request: Request) {
 
     if (cached) {
       const age = (now - new Date(cached.fetched_at).getTime()) / 1000
-      const stored = cached.history7d as DailyCandles | null
-      if (age < DAILY_TTL && stored?.closes && stored.closes.length >= 30) candles = stored
+      const stored = cached.history7d as DailyCandles | FailMarker | null
+      if (isFailMarker(stored)) {
+        // Fallo reciente cacheado: no volver a gastar cuota de proveedores
+        if (!force && age < FAIL_TTL) {
+          return NextResponse.json(
+            { error: 'Sin velas diarias para este símbolo', detail: `${stored.reasons.join(' · ')} — reintento automático en ~1 h (o usa Reintentar)` },
+            { status: 502 },
+          )
+        }
+      } else if (age < DAILY_TTL && stored?.closes && stored.closes.length >= 30) {
+        candles = stored
+      }
     }
 
     const reasons: string[] = []
@@ -220,6 +238,20 @@ export async function GET(request: Request) {
 
     if (!candles) {
       console.error('[technical] todas las fuentes fallaron para', symbol, '—', reasons.join(' · '))
+      // Cache negativo: registrar el fallo para no quemar cuota en cada carga
+      supabase.from('price_cache').upsert(
+        {
+          ticker:     cacheKey,
+          price:      0,
+          change_pct: 0,
+          name:       `${symbol} daily 1y (failed)`,
+          history7d:  { failed: true, reasons } as unknown as number[],
+          fetched_at: new Date(now).toISOString(),
+        },
+        { onConflict: 'ticker' },
+      ).then(({ error }) => {
+        if (error) console.error('[technical] fail-cache write error:', symbol, error.message)
+      })
       return NextResponse.json(
         { error: 'Sin velas diarias para este símbolo', detail: reasons.join(' · ') },
         { status: 502 },
