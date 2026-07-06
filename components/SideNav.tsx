@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Settings, Plus, RefreshCw, Wallet, TrendingUp } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
+import UserMenu from './UserMenu'
 
 const navItems = [
   { href: '/inicio',      icon: Home,      label: 'Inicio'      },
@@ -14,10 +14,15 @@ const navItems = [
   { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
   { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones'  },
   { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
-  { href: '/ajustes',     icon: Settings,  label: 'Ajustes'     },
 ]
 
-export default function SideNav() {
+interface Props {
+  userName:  string
+  userEmail: string
+  avatarUrl: string | null
+}
+
+export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
   const pathname   = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -85,6 +90,9 @@ export default function SideNav() {
             )
           })}
         </nav>
+
+        {/* ── Usuario y configuración ────────────────────────── */}
+        <UserMenu name={userName} email={userEmail} avatarUrl={avatarUrl} />
 
         {/* ── Divider ────────────────────────────────────────── */}
         <div className="mb-3 mt-2" style={{ borderTop: '1px solid var(--border)' }} />

@@ -1,6 +1,6 @@
 # Plan: Configuración del usuario en el SideNav + preferencias de visualización
 
-_Creado: julio 2026 — estado: **pendiente de implementación** (plan aprobado por Cas)._
+_Creado: julio 2026 — estado: **Fase 1 implementada** (jul 2026) · Fase 2 pendiente._
 
 ## Objetivo
 
@@ -8,7 +8,7 @@ Acercar la configuración al usuario (hoy vive solo en `/ajustes`, al final del 
 
 ---
 
-## Fase 1 — Menú de usuario en el SideNav
+## Fase 1 — Menú de usuario en el SideNav ✅ _(implementada jul 2026: `components/UserMenu.tsx`, SideNav sin item Ajustes, layout pasa perfil)_
 
 **Qué:** bloque de usuario al fondo del SideNav, **arriba del botón "Nuevo gasto"**, reemplazando la entrada "Ajustes" del menú superior (no duplicar).
 
