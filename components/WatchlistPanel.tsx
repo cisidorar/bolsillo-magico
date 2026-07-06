@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -214,8 +214,7 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function toggleExpand(ticker: string) {
-    if (expanded === ticker) { setExpanded(null); return }
+  async function openDetail(ticker: string) {
     setExpanded(ticker)
     const a = analyses[ticker]
     if (a && a !== 'error') return
@@ -428,15 +427,14 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
           {items.map(item => {
             const q = quotes[item.ticker]
             const a = analyses[item.ticker]
-            const isOpen = expanded === item.ticker
             return (
               <div key={item.id}>
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => toggleExpand(item.ticker)}
-                  onKeyDown={e => e.key === 'Enter' && toggleExpand(item.ticker)}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5"
+                  onClick={() => openDetail(item.ticker)}
+                  onKeyDown={e => e.key === 'Enter' && openDetail(item.ticker)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group"
                 >
                   <ServiceLogo
                     domain={q?.domain ?? null}
@@ -487,50 +485,99 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                  {isOpen
-                    ? <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-                    : <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                  <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
                 </div>
-
-                {/* Panel técnico */}
-                {isOpen && (
-                  a === 'loading' || a === undefined ? (
-                    <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-2.5"
-                      style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                      <span className="text-xs font-semibold">Calculando indicadores de {item.ticker}…</span>
-                    </div>
-                  ) : a === 'error' ? (
-                    <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3"
-                      style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.2)' }}>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
-                          No pudimos obtener los datos de {item.ticker}
-                        </p>
-                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                          {errDetails[item.ticker]
-                            ? <>Respuesta de los proveedores: {errDetails[item.ticker]}</>
-                            : 'Puede ser un problema momentáneo del proveedor o un ticker no soportado.'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={e => { e.stopPropagation(); fetchAnalysis(item.ticker) }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95"
-                        style={{ background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        Reintentar
-                      </button>
-                    </div>
-                  ) : (
-                    <TechnicalDetail a={a} />
-                  )
-                )}
               </div>
             )
           })}
         </div>
       )}
+
+      {/* ── Popup de detalle técnico ─────────────────────────────────────── */}
+      {expanded !== null && (() => {
+        const ticker = expanded
+        const q = quotes[ticker]
+        const a = analyses[ticker]
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            onClick={e => { if (e.target === e.currentTarget) setExpanded(null) }}
+          >
+            <div
+              className="w-full lg:max-w-lg rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col"
+              style={{ background: 'var(--surface)', maxHeight: '88dvh' }}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              {/* Header: ticker + quote */}
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <ServiceLogo
+                  domain={q?.domain ?? null}
+                  name={ticker}
+                  size={40}
+                  fallbackColor={avatarColor(ticker)}
+                />
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--ink)' }}>{ticker}</h2>
+                  {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
+                </div>
+                {q && (
+                  <div className="text-right flex-shrink-0 mr-1">
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
+                    <p className="text-[11px] font-semibold tabular-nums"
+                      style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setExpanded(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="overflow-y-auto pt-4">
+                {a === 'loading' || a === undefined ? (
+                  <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-2.5"
+                    style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                    <span className="text-xs font-semibold">Calculando indicadores de {ticker}…</span>
+                  </div>
+                ) : a === 'error' ? (
+                  <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3"
+                    style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.2)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+                        No pudimos obtener los datos de {ticker}
+                      </p>
+                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                        {errDetails[ticker]
+                          ? <>Respuesta de los proveedores: {errDetails[ticker]}</>
+                          : 'Puede ser un problema momentáneo del proveedor o un ticker no soportado.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => fetchAnalysis(ticker)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95"
+                      style={{ background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Reintentar
+                    </button>
+                  </div>
+                ) : (
+                  <TechnicalDetail a={a} />
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

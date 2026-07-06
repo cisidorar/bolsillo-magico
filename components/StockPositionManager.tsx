@@ -977,9 +977,9 @@ export default function StockPositionManager({ userId, initialPositions }: Props
             <span></span>
           </div>
 
-          {/* Rows */}
+          {/* Rows — ordenadas por dinero invertido (mayor primero) */}
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {positions.map(pos => {
+            {[...positions].sort((a, b) => b.shares * b.avg_cost_usd - a.shares * a.avg_cost_usd).map(pos => {
               const q            = quotes[pos.ticker]
               const currentPrice = q?.price ?? null
               const changePct    = q?.changePercent ?? null
