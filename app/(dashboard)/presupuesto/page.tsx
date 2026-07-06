@@ -65,7 +65,7 @@ export default async function PresupuestoPage() {
       .lte('date', fetchEnd),
     supabase
       .from('recurring_expenses')
-      .select('category_id, amount')
+      .select('category_id, amount, billing_month, total_installments, paid_installments')
       .eq('user_id', user.id)
       .eq('is_active', true),
     supabase.from('budgets').select('amount, month, year')
@@ -96,6 +96,18 @@ export default async function PresupuestoPage() {
   }
   const totalRecurring = Object.values(recurringByCategory).reduce((s, v) => s + v, 0)
 
+  // Piso comprometido de ESTE mes: fijos indefinidos + cuotas vigentes + anuales del mes.
+  // Un límite menor que esto es imposible de cumplir desde el día 1.
+  type RecLite = { amount: number; billing_month: number | null; total_installments: number | null; paid_installments: number | null }
+  const committedFloor = ((recurring ?? []) as RecLite[]).reduce((s, r) => {
+    if (r.total_installments != null) {
+      const remaining = r.total_installments - (r.paid_installments ?? 0)
+      return remaining > 0 ? s + r.amount : s
+    }
+    if (r.billing_month != null) return r.billing_month === month ? s + r.amount : s
+    return s + r.amount
+  }, 0)
+
   // Ordenar categorías de mayor a menor gasto del mes pasado
   const sortedCategories = [...(categories ?? [])].sort(
     (a, b) => (spendingMap.get(b.id) ?? 0) - (spendingMap.get(a.id) ?? 0)
@@ -111,6 +123,7 @@ export default async function PresupuestoPage() {
   const allMonthlyBudgets = (monthlyBudget ?? []) as BudgetRow[]
   const thisMonthBudget = allMonthlyBudgets.find(b => b.month === month && b.year === year)
   const defaultBudgetAmount = thisMonthBudget?.amount ?? allMonthlyBudgets[0]?.amount ?? null
+  const budgetBelowFloor = defaultBudgetAmount !== null && committedFloor > 0 && defaultBudgetAmount < committedFloor
 
   const monthLabelCap = monthName(month).charAt(0).toUpperCase() + monthName(month).slice(1) + ' ' + year
 
@@ -131,6 +144,36 @@ export default async function PresupuestoPage() {
         currentAmount={defaultBudgetAmount}
         monthLabel={monthLabelCap}
       />
+
+      {/* Piso comprometido: fijos + cuotas del mes que el límite debe cubrir sí o sí */}
+      {committedFloor > 0 && (
+        budgetBelowFloor ? (
+          <div className="card p-4 mb-5 flex items-start gap-3"
+            style={{ background: 'rgba(255,111,97,0.08)', border: '1.5px solid rgba(255,111,97,0.25)' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(255,111,97,0.15)' }}>
+              <RefreshCw className="w-4 h-4" style={{ color: 'var(--coral)' }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
+                Tu límite no alcanza para tus gastos fijos
+              </p>
+              <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                Solo en fijos y cuotas este mes ya tienes comprometidos{' '}
+                <span className="font-bold tabular-nums">{formatCLP(committedFloor)}</span>, pero tu límite es{' '}
+                <span className="font-bold tabular-nums">{formatCLP(defaultBudgetAmount!)}</span>. Súbelo al menos a esa cifra
+                o revisa tus recurrentes.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs mb-5 px-1 flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
+            <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+            De tu límite, <span className="font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(committedFloor)}</span>
+            &nbsp;ya están comprometidos en fijos y cuotas este mes.
+          </p>
+        )
+      )}
 
       <div className="lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: '1fr 260px' }}>
 

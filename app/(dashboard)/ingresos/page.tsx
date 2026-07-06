@@ -104,6 +104,20 @@ export default async function IngresosPage() {
 
   const sparkSeries = [...periods].reverse().map(p => incomeMap[`${p.year}-${p.month}`]?.amount ?? 0)
 
+  // Tasa de ahorro por mes: el sueldo de M-1 financia los gastos de M (convención de la app).
+  // Solo meses cerrados con ingreso y gasto — el mes en curso es parcial y engaña.
+  const rateFor = (p: { month: number; year: number }): number | null => {
+    const pm  = p.month === 1 ? 12 : p.month - 1
+    const py  = p.month === 1 ? p.year - 1 : p.year
+    const inc = incomeMap[`${py}-${pm}`]?.amount ?? 0
+    const exp = expenseMap[`${p.year}-${p.month}`] ?? 0
+    if (inc <= 0 || exp <= 0) return null
+    return Math.round(((inc - exp) / inc) * 100)
+  }
+  const closedRates = periods.slice(1, 7).map(rateFor).filter((r): r is number => r !== null)
+  const rateAvg6    = closedRates.length > 0 ? Math.round(closedRates.reduce((s, v) => s + v, 0) / closedRates.length) : null
+  const rateBars    = [...periods.slice(1, 7)].reverse().map(rateFor)  // viejo → reciente
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
@@ -130,8 +144,8 @@ export default async function IngresosPage() {
         />
       </div>
 
-      {/* ── 4 KPI cards ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      {/* ── 5 KPI cards ────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
 
         {/* Ingreso este mes */}
         <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3">
@@ -230,6 +244,36 @@ export default async function IngresosPage() {
           </div>
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>de los últimos 12 meses</p>
         </div>
+
+        {/* Tasa de ahorro — misma métrica que /analisis, cerrando el loop del link "Ver" */}
+        <div className="card p-4 lg:p-5 col-span-2 lg:col-span-1 flex flex-col justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+              Tasa de ahorro
+            </p>
+            <p
+              className="text-xl lg:text-2xl font-extrabold tabular-nums leading-tight"
+              style={{
+                fontFamily: 'Fredoka, sans-serif',
+                color: rateAvg6 === null ? 'var(--ink-3)' : rateAvg6 >= 0 ? 'var(--mint)' : 'var(--coral)',
+              }}
+            >
+              {rateAvg6 !== null ? `${rateAvg6}%` : '—'}
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+              {rateAvg6 !== null ? 'promedio 6 meses cerrados' : 'registra ingresos y gastos'}
+            </p>
+          </div>
+          <div className="flex items-end gap-0.5 h-7">
+            {rateBars.map((r, i) => {
+              if (r === null) return <div key={i} className="flex-1 rounded-sm" style={{ height: 3, background: 'var(--border)' }} />
+              const maxAbs = Math.max(...rateBars.map(v => Math.abs(v ?? 0)), 10)
+              const h = Math.max(4, Math.round((Math.abs(r) / maxAbs) * 24))
+              return <div key={i} className="flex-1 rounded-sm transition-all"
+                style={{ height: h, background: r >= 0 ? 'var(--mint)' : 'var(--coral)', opacity: 0.4 + (i / rateBars.length) * 0.6 }} />
+            })}
+          </div>
+        </div>
       </div>
 
       {/* ── Historial ─────────────────────────────────────────────────────── */}
@@ -289,10 +333,11 @@ export default async function IngresosPage() {
                   ? <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(income.amount)}</p>
                   : <p className="text-sm" style={{ color: 'var(--ink-3)' }}>—</p>
                 }
-                {surplus !== null && expense > 0 && (
+                {surplus !== null && expense > 0 && prevInc && (
                   <p className="text-[10px] font-semibold tabular-nums mt-0.5"
                     style={{ color: surplus >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {surplus >= 0 ? 'Sobró ' : 'Déficit '}{formatCLP(Math.abs(surplus))}
+                    {' '}· {surplus >= 0 ? '' : '−'}{Math.abs(Math.round((surplus / prevInc.amount) * 100))}% del sueldo
                   </p>
                 )}
               </div>

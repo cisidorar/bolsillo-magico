@@ -488,16 +488,26 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                 </div>
 
-                {isCuotas && (
-                  <div className="mt-2.5 ml-[52px] flex items-center gap-2">
-                    <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${(progress ?? 0) * 100}%`, backgroundColor: '#1B6DD4' }} />
+                {isCuotas && (() => {
+                  const remaining = (item.total_installments ?? 0) - (item.paid_installments ?? 0)
+                  // Última cuota cae en el mes actual + cuotas restantes (misma convención que "Ya comprometido")
+                  const endDate = new Date()
+                  endDate.setMonth(endDate.getMonth() + remaining)
+                  const endLabel = endDate.toLocaleDateString('es-CL', { month: 'long', year: endDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined })
+                  return (
+                    <div className="mt-2.5 ml-[52px] flex items-center gap-2">
+                      <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${(progress ?? 0) * 100}%`, background: 'var(--primary)' }} />
+                      </div>
+                      <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+                        {item.paid_installments ?? 0}/{item.total_installments} cuotas
+                        {remaining > 0 && !isCompleted && (
+                          <span style={{ color: 'var(--mint)' }} className="font-semibold capitalize"> · termina en {endLabel}</span>
+                        )}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
-                      {item.paid_installments ?? 0}/{item.total_installments} cuotas
-                    </span>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
             )
           })}
