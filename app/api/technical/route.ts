@@ -24,7 +24,7 @@ async function fhDailyCandles(ticker: string, key: string): Promise<DailyCandles
       `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
       { cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT) },
     )
-    if (!r.ok) { console.error('[technical] status', r.status, ticker); return null }
+    if (!r.ok) { console.warn('[technical] Finnhub status', r.status, ticker, '— probando Yahoo'); return null }
     const d = await r.json() as { s?: string; c?: number[]; t?: number[] }
     if (d.s !== 'ok' || !Array.isArray(d.c) || d.c.length < 30 || !Array.isArray(d.t)) return null
     return {
@@ -32,7 +32,45 @@ async function fhDailyCandles(ticker: string, key: string): Promise<DailyCandles
       dates:  d.t.map(ts => new Date(ts * 1000).toISOString().slice(0, 10)),
     }
   } catch (err) {
-    console.error('[technical] fetch error', ticker, err)
+    console.warn('[technical] Finnhub error', ticker, err)
+    return null
+  }
+}
+
+// ── Yahoo Finance daily candles (fallback — mismo patrón que stock-price) ────
+
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept':     'application/json',
+}
+
+async function yahooDailyCandles(ticker: string): Promise<DailyCandles | null> {
+  const path = `/v8/finance/chart/${ticker}?range=2y&interval=1d&includePrePost=false`
+  try {
+    let r = await fetch(`https://query1.finance.yahoo.com${path}`, {
+      headers: YF_HEADERS, cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT),
+    })
+    if (!r.ok) r = await fetch(`https://query2.finance.yahoo.com${path}`, {
+      headers: YF_HEADERS, cache: 'no-store', signal: AbortSignal.timeout(FH_TIMEOUT),
+    })
+    if (!r.ok) { console.error('[technical] Yahoo status', r.status, ticker); return null }
+    const cd  = await r.json()
+    const res = cd?.chart?.result?.[0]
+    const ts: number[]              = res?.timestamp ?? []
+    const rawCloses: (number|null)[] = res?.indicators?.quote?.[0]?.close ?? []
+    const closes: number[] = []
+    const dates:  string[] = []
+    for (let i = 0; i < ts.length; i++) {
+      const c = rawCloses[i]
+      if (c === null || c === undefined) continue
+      closes.push(c)
+      dates.push(new Date(ts[i] * 1000).toISOString().slice(0, 10))
+    }
+    if (closes.length < 30) return null
+    // Últimos ~14 meses (misma ventana que Finnhub)
+    return { closes: closes.slice(-430), dates: dates.slice(-430) }
+  } catch (err) {
+    console.error('[technical] Yahoo error', ticker, err)
     return null
   }
 }
@@ -48,7 +86,6 @@ export async function GET(request: Request) {
   if (!TICKER_RE.test(symbol)) return NextResponse.json({ error: 'Símbolo inválido' }, { status: 400 })
 
   const apiKey = process.env.FINNHUB_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'FINNHUB_API_KEY no configurada' }, { status: 503 })
 
   try {
     const supabase = await createClient()
@@ -70,7 +107,9 @@ export async function GET(request: Request) {
     }
 
     if (!candles) {
-      candles = await fhDailyCandles(symbol, apiKey)
+      // Finnhub primero (si hay key y el plan lo permite), Yahoo como fallback
+      if (apiKey) candles = await fhDailyCandles(symbol, apiKey)
+      if (!candles) candles = await yahooDailyCandles(symbol)
       if (candles) {
         supabase.from('price_cache').upsert(
           {
@@ -90,7 +129,7 @@ export async function GET(request: Request) {
 
     if (!candles) {
       return NextResponse.json(
-        { error: 'Sin velas diarias para este símbolo (¿plan de Finnhub o ticker inválido?)' },
+        { error: 'Sin velas diarias para este símbolo — verifica el ticker' },
         { status: 502 },
       )
     }

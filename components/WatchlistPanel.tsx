@@ -171,8 +171,9 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     try {
       const r = await fetch(`/api/stock-price?symbols=${tickers.join(',')}`)
       if (!r.ok) return
-      const data = await r.json() as Record<string, Quote>
-      setQuotes(prev => ({ ...prev, ...data }))
+      // La route devuelve { quotes, marketOpen, marketLabel }
+      const data = await r.json() as { quotes?: Record<string, Quote> }
+      if (data.quotes) setQuotes(prev => ({ ...prev, ...data.quotes }))
     } catch { /* silencioso: el panel funciona sin quote */ }
   }, [])
 
@@ -324,13 +325,19 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                     </div>
                     {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
                   </div>
-                  {q && (
+                  {q ? (
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
                       <p className="text-[11px] font-semibold tabular-nums"
                         style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                         {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
                       </p>
+                    </div>
+                  ) : (
+                    /* Skeleton mientras llega la cotización */
+                    <div className="text-right flex-shrink-0 animate-pulse">
+                      <div className="h-3.5 w-16 rounded-md ml-auto" style={{ background: 'var(--surface-2)' }} />
+                      <div className="h-2.5 w-10 rounded-md mt-1.5 ml-auto" style={{ background: 'var(--surface-2)' }} />
                     </div>
                   )}
                   <button
@@ -349,14 +356,31 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                 {/* Panel técnico */}
                 {isOpen && (
                   a === 'loading' || a === undefined ? (
-                    <div className="flex items-center gap-2 px-4 pb-4" style={{ color: 'var(--ink-3)' }}>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span className="text-xs">Calculando indicadores…</span>
+                    <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-2.5"
+                      style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                      <span className="text-xs font-semibold">Calculando indicadores de {item.ticker}…</span>
                     </div>
                   ) : a === 'error' ? (
-                    <p className="text-xs px-4 pb-4" style={{ color: 'var(--coral)' }}>
-                      No se pudieron obtener velas diarias para {item.ticker}. Reintenta o revisa el ticker.
-                    </p>
+                    <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3"
+                      style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.2)' }}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+                          No pudimos obtener los datos de {item.ticker}
+                        </p>
+                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                          Puede ser un problema momentáneo del proveedor o un ticker no soportado.
+                        </p>
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); fetchAnalysis(item.ticker) }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95"
+                        style={{ background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Reintentar
+                      </button>
+                    </div>
                   ) : (
                     <TechnicalDetail a={a} />
                   )
