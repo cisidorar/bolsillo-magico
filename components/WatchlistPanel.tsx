@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronDown, ChevronUp, Star, Info, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
+import type { SearchResult } from '@/app/api/stock-search/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -159,11 +160,17 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
 
   const [items,      setItems]      = useState<WatchlistItem[]>(initialItems)
   const [quotes,     setQuotes]     = useState<Record<string, Quote>>({})
-  const [input,      setInput]      = useState('')
-  const [adding,     setAdding]     = useState(false)
-  const [addError,   setAddError]   = useState('')
   const [expanded,   setExpanded]   = useState<string | null>(null)
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
+
+  // Buscador (popup)
+  const [showSearch, setShowSearch] = useState(false)
+  const [query,      setQuery]      = useState('')
+  const [results,    setResults]    = useState<SearchResult[]>([])
+  const [searching,  setSearching]  = useState(false)
+  const [addingSym,  setAddingSym]  = useState<string | null>(null)
+  const [addError,   setAddError]   = useState('')
+  const searchSeq = useRef(0)
 
   // ── Quotes de los favoritos ────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
@@ -209,21 +216,48 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
     await fetchAnalysis(ticker)
   }
 
+  // ── Búsqueda con debounce ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!showSearch) return
+    const q = query.trim()
+    if (q.length < 2) { setResults([]); setSearching(false); return }
+    setSearching(true)
+    const seq = ++searchSeq.current
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/stock-search?q=${encodeURIComponent(q)}`)
+        const data = r.ok ? await r.json() as { results: SearchResult[] } : { results: [] }
+        if (searchSeq.current === seq) setResults(data.results)
+      } catch {
+        if (searchSeq.current === seq) setResults([])
+      } finally {
+        if (searchSeq.current === seq) setSearching(false)
+      }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [query, showSearch])
+
+  function openSearch() {
+    setShowSearch(true); setQuery(''); setResults([]); setAddError('')
+  }
+  function closeSearch() {
+    setShowSearch(false); setQuery(''); setResults([]); setAddError('')
+  }
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
-  async function addTicker() {
-    const t = input.trim().toUpperCase()
-    if (!TICKER_RE.test(t)) { setAddError('Ticker inválido (ej: AAPL, VOO, QQQ)'); return }
-    if (items.some(i => i.ticker === t)) { setAddError('Ya está en tus favoritos'); return }
-    setAdding(true); setAddError('')
+  async function addSymbol(symbol: string) {
+    const t = symbol.trim().toUpperCase()
+    if (!TICKER_RE.test(t)) { setAddError('Ticker inválido'); return }
+    if (items.some(i => i.ticker === t)) return
+    setAddingSym(t); setAddError('')
     const { data, error } = await supabase
       .from('watchlist')
       .insert({ user_id: userId, ticker: t })
       .select('id, ticker')
       .single()
-    setAdding(false)
+    setAddingSym(null)
     if (error) { setAddError(error.message); return }
     setItems(prev => [...prev, data as WatchlistItem])
-    setInput('')
     fetchQuotes([t])
     fetchAnalysis(t)
   }
@@ -248,41 +282,140 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={e => { setInput(e.target.value.toUpperCase()); setAddError('') }}
-            onKeyDown={e => e.key === 'Enter' && addTicker()}
-            placeholder="AAPL, VOO…"
-            maxLength={12}
-            className="w-28 sm:w-36 text-sm border px-3 py-2 uppercase"
-            style={{
-              color: 'var(--ink)', background: 'var(--surface)', borderColor: 'var(--border)',
-              borderRadius: 12, outline: 'none',
-            }}
-          />
-          <button
-            onClick={addTicker}
-            disabled={adding || !input.trim()}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] disabled:opacity-50"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-          >
-            <Plus className="w-4 h-4" strokeWidth={2.5} />
-            <span className="hidden sm:inline">Seguir</span>
-          </button>
-        </div>
+        <button
+          onClick={openSearch}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+          Seguir
+        </button>
       </div>
-      {addError && <p className="text-xs font-medium mb-2" style={{ color: 'var(--coral)' }}>{addError}</p>}
+
+      {/* ── Popup de búsqueda por nombre ─────────────────────────────────── */}
+      {showSearch && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.65)' }}
+          onClick={e => { if (e.target === e.currentTarget) closeSearch() }}
+        >
+          <div
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col"
+            style={{ background: 'var(--surface)', maxHeight: '80dvh' }}
+          >
+            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Buscar acción o ETF</h2>
+              <button
+                onClick={closeSearch}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Input */}
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-center gap-2.5 border px-4 py-3"
+                style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', borderRadius: 12 }}>
+                <Search className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => { setQuery(e.target.value); setAddError('') }}
+                  placeholder="ej: Apple, Netflix, Vanguard S&P 500…"
+                  maxLength={40}
+                  autoFocus
+                  className="flex-1 text-sm bg-transparent outline-none border-0 min-w-0"
+                  style={{ color: 'var(--ink)' }}
+                />
+                {searching && <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+              </div>
+              {addError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{addError}</p>}
+            </div>
+
+            {/* Resultados */}
+            <div className="px-5 pb-5 overflow-y-auto flex-1">
+              {query.trim().length < 2 ? (
+                <p className="text-xs text-center py-8" style={{ color: 'var(--ink-3)' }}>
+                  Escribe el nombre de la empresa o del fondo — también funciona con el ticker.
+                </p>
+              ) : !searching && results.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin resultados para “{query.trim()}”</p>
+                  {TICKER_RE.test(query.trim().toUpperCase()) && (
+                    <button
+                      onClick={() => addSymbol(query.trim().toUpperCase())}
+                      disabled={addingSym !== null}
+                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85 disabled:opacity-50"
+                      style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                    >
+                      Seguir “{query.trim().toUpperCase()}” de todas formas
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {results.map(r => {
+                    const followed = items.some(i => i.ticker === r.symbol)
+                    const busy = addingSym === r.symbol
+                    return (
+                      <div key={r.symbol} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-extrabold text-white"
+                          style={{ background: avatarColor(r.symbol) }}>
+                          {r.symbol.slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
+                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                            {r.symbol} · {r.type === 'etf' ? 'ETF' : 'Acción'}
+                          </p>
+                        </div>
+                        {followed ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
+                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                            <Check className="w-3.5 h-3.5" /> Siguiendo
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => addSymbol(r.symbol)}
+                            disabled={busy}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                          >
+                            {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" strokeWidth={3} />}
+                            Seguir
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Empty state */}
       {items.length === 0 ? (
         <div className="card px-6 py-8 text-center">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sigue acciones o ETFs sin tener posición</p>
           <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            Agrega un ticker y toca la fila para ver sus señales técnicas: RSI, medias móviles,
-            soportes, resistencias y distancia a máximos del año.
+            Busca por nombre (Apple, Netflix, Vanguard…) y toca la fila para ver sus señales técnicas:
+            RSI, medias móviles, soportes, resistencias y distancia a máximos del año.
           </p>
+          <button
+            onClick={openSearch}
+            className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85"
+            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 18px var(--shadow)' }}
+          >
+            <Search className="w-3.5 h-3.5" />
+            Buscar y seguir
+          </button>
         </div>
       ) : (
         <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>

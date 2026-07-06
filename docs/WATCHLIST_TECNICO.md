@@ -36,7 +36,8 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 | `supabase/migrations/20260706_watchlist.sql` | Tabla `watchlist` con RLS. Incluye `target_price numeric` **ya migrado pero sin UI** — reservado para alertas de precio objetivo |
 | `lib/technical.ts` | Indicadores puros: `smaLast`, `rsiWilder`, `pivotLevels`, `analyze()`. Sin dependencias, testeable |
 | `app/api/technical/route.ts` | Auth + validación ticker + fetch velas + cache + `analyze()` server-side |
-| `components/WatchlistPanel.tsx` | UI completa: form agregar, filas con quote + badge de señales, panel `TechnicalDetail` |
+| `components/WatchlistPanel.tsx` | UI completa: popup de búsqueda, filas con quote + badge de señales, panel `TechnicalDetail` |
+| `app/api/stock-search/route.ts` | Búsqueda por nombre o ticker: Finnhub `/search` primero, fallback Yahoo `v1/finance/search`; filtra a acciones/ETFs con símbolo US limpio |
 
 ### Señales y umbrales (en `analyze()`)
 
