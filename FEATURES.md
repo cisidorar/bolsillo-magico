@@ -87,6 +87,8 @@ Next.js 15 App Router · Supabase (auth + Postgres + RLS + Storage) · TypeScrip
 - Nombre de display y foto de avatar (Storage de Supabase)
 - Tema claro / oscuro sincronizado con Supabase
 - Preferencias de notificaciones por tipo
+- **Umbral de alerta de presupuesto configurable** (60/70/80/90%, antes fijo en 80%) — chips inline bajo el toggle; el edge function `notify-budget` respeta el umbral por usuario _(julio 2026)_
+- **Día de sueldo** (`profiles.payday`): selector con días típicos chilenos (1/5/15/25/28/30) + campo custom; muestra cuenta regresiva "Sueldo en N días" en el inicio (desktop y mobile) y alimentará el calendario de flujo de caja (F8). Requiere `supabase/migrations/20260705_user_prefs.sql` _(julio 2026)_
 
 ### Seguridad (OWASP Top 10 auditado)
 - Auth con JWT validado en cada request (no solo cookie)

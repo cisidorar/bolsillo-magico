@@ -10,7 +10,10 @@ interface Props {
   notifyBudget:    boolean
   notifyMonthly:   boolean
   notifyRecurring: boolean
+  budgetAlertPct:  number   // umbral de la primera alerta (50–95)
 }
+
+const PCT_OPTIONS = [60, 70, 80, 90]
 
 interface ToggleItem {
   key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring'
@@ -26,6 +29,7 @@ export default function NotificationPrefs({
   notifyBudget:    initBudget,
   notifyMonthly:   initMonthly,
   notifyRecurring: initRecurring,
+  budgetAlertPct:  initPct,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -36,6 +40,14 @@ export default function NotificationPrefs({
     notifyMonthly:   initMonthly,
     notifyRecurring: initRecurring,
   })
+  const [alertPct, setAlertPct] = useState(initPct)
+
+  const savePct = (pct: number) => {
+    setAlertPct(pct)
+    startTransition(async () => {
+      await supabase.from('profiles').update({ budget_alert_pct: pct }).eq('id', userId)
+    })
+  }
 
   const toggle = (key: keyof typeof state, dbCol: string) => {
     const newVal = !state[key]
@@ -61,7 +73,7 @@ export default function NotificationPrefs({
       dbCol:    'notify_budget',
       icon:     <Target className="w-5 h-5" style={{ color: '#EA580C' }} />,
       title:    'Alertas de presupuesto',
-      subtitle: 'Aviso cuando alcances el 80% y el 100% de tu presupuesto mensual.',
+      subtitle: `Aviso cuando alcances el ${alertPct}% y el 100% de tu presupuesto mensual.`,
     },
     {
       key:      'notifyMonthly',
@@ -82,7 +94,8 @@ export default function NotificationPrefs({
   return (
     <div className="card overflow-hidden divide-y divide-gray-50 dark:divide-[#1a2744]">
       {items.map(item => (
-        <div key={item.key} className="flex items-center gap-4 px-4 py-4">
+        <div key={item.key}>
+        <div className="flex items-center gap-4 px-4 py-4">
           {/* Icon */}
           <div
             className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -118,6 +131,30 @@ export default function NotificationPrefs({
               }`}
             />
           </button>
+        </div>
+
+        {/* Umbral personalizable de la alerta de presupuesto */}
+        {item.key === 'notifyBudget' && state.notifyBudget && (
+          <div className="flex items-center gap-2 px-4 pb-4 pl-[72px]">
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisarme al</span>
+            <div className="flex items-center gap-1">
+              {PCT_OPTIONS.map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => savePct(p)}
+                  disabled={isPending}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
+                  style={alertPct === p
+                    ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
+                    : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  {p}%
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         </div>
       ))}
     </div>

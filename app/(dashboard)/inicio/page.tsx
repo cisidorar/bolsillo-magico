@@ -65,7 +65,7 @@ export default async function DashboardPage() {
       .select('*, category:categories(*), payment_method:payment_methods(*)')
       .eq('user_id', user!.id).eq('is_active', true).order('billing_day'),
     supabase.from('category_budgets').select('*').eq('user_id', user!.id),
-    supabase.from('profiles').select('display_name').eq('id', user!.id).maybeSingle(),
+    supabase.from('profiles').select('display_name, payday').eq('id', user!.id).maybeSingle(),
     supabase
       .from('expenses')
       .select('recurring_expense_id, date')
@@ -165,6 +165,24 @@ export default async function DashboardPage() {
   const dateLabel      = dateLabelRaw.charAt(0).toUpperCase() + dateLabelRaw.slice(1)
   const monthLabel     = now.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
   const monthLabelCap  = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
+
+  // Cuenta regresiva al día de sueldo (configurable en Ajustes)
+  const payday = (profile as { payday?: number | null } | null)?.payday ?? null
+  let daysToPayday: number | null = null
+  if (payday) {
+    const dim = new Date(year, month, 0).getDate()
+    const effectivePayday = Math.min(payday, dim)  // ej: día 30 en febrero
+    if (todayDate <= effectivePayday) {
+      daysToPayday = effectivePayday - todayDate
+    } else {
+      const nextDim = new Date(year, month + 1, 0).getDate()
+      daysToPayday = (dim - todayDate) + Math.min(payday, nextDim)
+    }
+  }
+  const paydayLabel = daysToPayday === null ? null
+    : daysToPayday === 0 ? '¡Hoy llega tu sueldo!'
+    : daysToPayday === 1 ? 'Sueldo mañana'
+    : `Sueldo en ${daysToPayday} días`
 
   // KPIs
   const daysElapsed   = todayDate
@@ -353,13 +371,25 @@ export default async function DashboardPage() {
             </h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>{dateLabel}</p>
           </div>
-          {/* Month badge */}
-          <div
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
-            style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}
-          >
-            <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
-            {monthLabelCap}
+          <div className="flex items-center gap-2">
+            {/* Payday badge */}
+            {paydayLabel && (
+              <div
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
+                style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: daysToPayday === 0 ? 'var(--mint)' : 'var(--ink-2)' }}
+              >
+                <Wallet className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+                {paydayLabel}
+              </div>
+            )}
+            {/* Month badge */}
+            <div
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}
+            >
+              <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+              {monthLabelCap}
+            </div>
           </div>
         </div>
 
@@ -872,10 +902,18 @@ export default async function DashboardPage() {
           <div className="hero-gradient rounded-3xl px-5 pt-5 pb-4 text-white flex flex-col" style={{ gap: '0' }}>
 
             {/* Saludo */}
-            <p className="text-base font-bold text-white mb-4 flex items-center gap-2">
-              {greeting}, {displayName}
-              <GreetIcon className="w-4 h-4 flex-shrink-0" style={{ color: greetIconColor }} />
-            </p>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <p className="text-base font-bold text-white flex items-center gap-2 min-w-0">
+                {greeting}, {displayName}
+                <GreetIcon className="w-4 h-4 flex-shrink-0" style={{ color: greetIconColor }} />
+              </p>
+              {paydayLabel && (
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.15)', color: daysToPayday === 0 ? '#34D6A2' : 'rgba(255,255,255,0.85)' }}>
+                  {paydayLabel}
+                </span>
+              )}
+            </div>
 
             {/* Monto + Te quedan */}
             {total === 0 ? (

@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, display_name, notify_budget')
+    .select('id, display_name, notify_budget, budget_alert_pct')
     .in('id', userIds)
     .eq('notify_budget', true)
 
@@ -94,9 +94,11 @@ Deno.serve(async (req: Request) => {
     const pct    = Math.round((total / budget.amount) * 100)
     const fmtCLP = (n: number) => '$' + n.toLocaleString('es-CL', { maximumFractionDigits: 0 })
 
+    // Umbral personalizado por usuario (default 80%)
+    const threshold = (profile as { budget_alert_pct?: number }).budget_alert_pct ?? 80
     let alertType: 'budget_80' | 'budget_100' | null = null
-    if (pct >= 100)     alertType = 'budget_100'
-    else if (pct >= 80) alertType = 'budget_80'
+    if (pct >= 100)            alertType = 'budget_100'
+    else if (pct >= threshold) alertType = 'budget_80'
 
     if (!alertType) { skipped++; continue }
 
@@ -124,7 +126,7 @@ Deno.serve(async (req: Request) => {
         to: email,
         subject: alertType === 'budget_100'
           ? `Superaste tu presupuesto de ${monthCap} · Bolsillo Mágico`
-          : `Llevas el 80% de tu presupuesto de ${monthCap} · Bolsillo Mágico`,
+          : `Llevas el ${threshold}% de tu presupuesto de ${monthCap} · Bolsillo Mágico`,
         html: budgetEmailHtml({
           displayName,
           alertType,
@@ -135,6 +137,7 @@ Deno.serve(async (req: Request) => {
           fmtCLP,
           siteUrl: SITE_URL,
           monthLabel: monthCap,
+          threshold,
         }),
       }),
     })
@@ -177,6 +180,7 @@ function budgetEmailHtml({
   fmtCLP,
   siteUrl,
   monthLabel,
+  threshold = 80,
 }: {
   displayName: string
   alertType: 'budget_80' | 'budget_100'
@@ -187,6 +191,7 @@ function budgetEmailHtml({
   fmtCLP: (n: number) => string
   siteUrl: string
   monthLabel: string
+  threshold?: number
 }) {
   const isOver      = alertType === 'budget_100'
   const barPct      = Math.min(100, pct)
@@ -195,7 +200,7 @@ function budgetEmailHtml({
   const accentBg    = isOver ? '#FFF4F3' : '#FFF8E8'
   const accentBdr   = isOver ? '#FAD3CF' : '#FBE6B5'
   const barColor    = isOver ? '#EF5B52' : '#F59E0B'
-  const title       = isOver ? 'Superaste tu presupuesto' : 'Llevas el 80% de tu presupuesto'
+  const title       = isOver ? 'Superaste tu presupuesto' : `Llevas el ${threshold}% de tu presupuesto`
   const subtitle    = isOver
     ? `Ya gastaste <strong style="color:${accent}">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas.`
     : `Te quedan <strong style="color:#2B7CF6">${fmtCLP(remaining)}</strong> para lo que resta del mes.`
