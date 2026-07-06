@@ -20,17 +20,22 @@ export default function AjustesNav() {
   const pathname = usePathname()
 
   return (
-    <div className="flex items-center gap-2 mb-6 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0">
+    <div
+      className="flex items-center gap-2 mb-6 overflow-x-auto scrollbar-none -mx-4 px-4 lg:mx-0 lg:px-0 pb-4 border-b flex-wrap"
+      style={{ borderColor: 'var(--border)' }}
+    >
       {SECTIONS.map(s => {
         const active = pathname === s.href
         return (
           <Link
             key={s.href}
             href={s.href}
-            className="px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex-shrink-0"
+            className={`px-4 py-[9px] rounded-full text-xs font-bold whitespace-nowrap transition-colors flex-shrink-0 ${
+              active ? '' : 'hover:bg-[var(--surface)] hover:!text-[var(--ink)]'
+            }`}
             style={active
-              ? { background: 'var(--primary)', border: '1.5px solid var(--primary)', color: 'var(--primary-ink)' }
-              : { background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}
+              ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
+              : { background: 'transparent', color: 'var(--ink-2)' }}
           >
             {s.label}
           </Link>

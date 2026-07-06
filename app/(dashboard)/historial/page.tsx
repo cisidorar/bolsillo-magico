@@ -3,7 +3,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
-import { billingPeriod, billingPeriodRange, formatCLP, monthName, getNowChile } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
 import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
@@ -11,17 +11,6 @@ import type { ExpenseWithRelations } from '@/types'
 export const revalidate = 0
 
 const PAGE_SIZE = 50
-
-function dateLabel(dateStr: string): string {
-  const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
-  const yestStr = yesterday.toISOString().split('T')[0]
-  if (dateStr === todayStr)  return 'Hoy'
-  if (dateStr === yestStr)   return 'Ayer'
-  const d = new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'short' })
-}
 
 function buildHref(params: Record<string, string | number | undefined>) {
   const p = new URLSearchParams()
@@ -55,9 +44,10 @@ export default async function HistorialPage({
 
   // Vista por defecto según la preferencia budget_period (el toggle manual gana)
   const { data: prefRow } = await supabase
-    .from('profiles').select('budget_period').eq('id', user!.id).maybeSingle()
+    .from('profiles').select('budget_period, date_format').eq('id', user!.id).maybeSingle()
   const prefBilling = prefRow?.budget_period === 'billing'
   const isBilling = view === 'billing' || (view !== 'purchase' && prefBilling)
+  const dateFormat = (prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat
 
   // Cuando se carga billing sin mes explícito, determinar el período de estado ABIERTO.
   // Un período ya cerrado (billing_day < hoy) corresponde al mes siguiente.
@@ -437,9 +427,10 @@ export default async function HistorialPage({
         </div>
       ) : (
         <HistorialExpenses
+          dateFormat={dateFormat}
           groups={sortedDates.map(date => ({
             date,
-            label: dateLabel(date),
+            label: relativeDate(date, dateFormat),
             dayTotal: grouped[date].reduce((s, e) => s + e.amount, 0),
             expenses: grouped[date],
           }))}

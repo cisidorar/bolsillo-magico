@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatCLP, cn } from '@/lib/utils'
+import { formatCLP, cn, type DateFormat } from '@/lib/utils'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { Square, CheckSquare, Trash2, X, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
@@ -21,7 +21,7 @@ interface Group {
   expenses: ExpenseWithRelations[]
 }
 
-export default function HistorialExpenses({ groups }: { groups: Group[] }) {
+export default function HistorialExpenses({ groups, dateFormat }: { groups: Group[]; dateFormat?: DateFormat }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -288,7 +288,7 @@ export default function HistorialExpenses({ groups }: { groups: Group[] }) {
                 })}
               </div>
             ) : !isCollapsed ? (
-              <ExpenseList expenses={group.expenses} />
+              <ExpenseList expenses={group.expenses} dateFormat={dateFormat} />
             ) : null}
           </div>
         )

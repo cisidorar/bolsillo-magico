@@ -20,27 +20,33 @@ export interface RecurringWithRelations {
 
 interface Props {
   items: RecurringWithRelations[]
+  weekStart?: 'monday' | 'sunday'
 }
 
-const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const WEEKDAYS_MONDAY = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const WEEKDAYS_SUNDAY = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 function effectiveDay(billingDay: number, year: number, month: number): number {
   return Math.min(billingDay, new Date(year, month, 0).getDate())
 }
 
-function startOffset(year: number, month: number): number {
-  return (new Date(year, month - 1, 1).getDay() + 6) % 7
+/** Offset del día 1 del mes respecto al primer día de la semana elegido */
+function startOffset(year: number, month: number, weekStart: 'monday' | 'sunday'): number {
+  const jsDay = new Date(year, month - 1, 1).getDay() // 0=Dom..6=Sáb
+  return weekStart === 'sunday' ? jsDay : (jsDay + 6) % 7
 }
 
-export default function CalendarioPagos({ items }: Props) {
+export default function CalendarioPagos({ items, weekStart = 'monday' }: Props) {
   const now   = new Date()
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [year,  setYear]  = useState(now.getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
+  const WEEKDAYS = weekStart === 'sunday' ? WEEKDAYS_SUNDAY : WEEKDAYS_MONDAY
+
   const activeItems  = items.filter(r => r.is_active)
   const daysInMonth  = new Date(year, month, 0).getDate()
-  const offset       = startOffset(year, month)
+  const offset       = startOffset(year, month, weekStart)
   const today        = now.getMonth() + 1 === month && now.getFullYear() === year ? now.getDate() : null
   const monthTotal   = activeItems.reduce((s, r) => s + r.amount, 0)
 

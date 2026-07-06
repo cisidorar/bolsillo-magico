@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { formatCLP, relativeDate, isEmoji } from '@/lib/utils'
+import { formatCLP, relativeDate, isEmoji, type DateFormat } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { detectDomain } from '@/lib/services'
@@ -16,9 +16,10 @@ interface Props {
   expenses: ExpenseWithRelations[]
   categories: Category[]
   paymentMethods: PaymentMethod[]
+  dateFormat?: DateFormat
 }
 
-export default function StatementView({ expenses, categories, paymentMethods }: Props) {
+export default function StatementView({ expenses, categories, paymentMethods, dateFormat }: Props) {
   const router = useRouter()
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
 
@@ -57,7 +58,7 @@ export default function StatementView({ expenses, categories, paymentMethods }: 
         {sortedDates.map(date => {
           const dayExpenses = grouped[date]
           const dayTotal    = dayExpenses.reduce((s, e) => s + e.amount, 0)
-          const label       = relativeDate(date)
+          const label       = relativeDate(date, dateFormat)
 
           return (
             <div key={date}>

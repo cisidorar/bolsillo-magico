@@ -31,8 +31,24 @@ export function monthName(month: number): string {
   return new Date(2000, month - 1, 1).toLocaleString('es-CL', { month: 'long' })
 }
 
-/** Fecha relativa corta: "Hoy", "Ayer", "lun 9 jun" */
-export function relativeDate(dateStr: string): string {
+/** Formato de fecha elegido en Ajustes → Preferencias → Idioma y región */
+export type DateFormat = 'DD/MM/AAAA' | 'MM/DD/AAAA' | 'AAAA-MM-DD'
+
+/** Formatea una fecha en formato numérico según la preferencia del usuario */
+export function formatNumericDate(date: Date, format: DateFormat = 'DD/MM/AAAA'): string {
+  const dd   = String(date.getDate()).padStart(2, '0')
+  const mm   = String(date.getMonth() + 1).padStart(2, '0')
+  const yyyy = date.getFullYear()
+  switch (format) {
+    case 'MM/DD/AAAA': return `${mm}/${dd}/${yyyy}`
+    case 'AAAA-MM-DD': return `${yyyy}-${mm}-${dd}`
+    case 'DD/MM/AAAA':
+    default:            return `${dd}/${mm}/${yyyy}`
+  }
+}
+
+/** Fecha relativa corta: "Hoy", "Ayer", o numérica según preferencia (default DD/MM/AAAA) */
+export function relativeDate(dateStr: string, dateFormat: DateFormat = 'DD/MM/AAAA'): string {
   const date = new Date(dateStr + 'T12:00:00')
   const today = new Date()
   const yesterday = new Date(today)
@@ -41,7 +57,7 @@ export function relativeDate(dateStr: string): string {
   if (date.toDateString() === today.toDateString()) return 'Hoy'
   if (date.toDateString() === yesterday.toDateString()) return 'Ayer'
 
-  return date.toLocaleString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' })
+  return formatNumericDate(date, dateFormat)
 }
 
 /** Porcentaje seguro (evita división por 0) */

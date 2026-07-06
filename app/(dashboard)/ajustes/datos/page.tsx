@@ -12,9 +12,9 @@ export default async function DatosPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+    <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
-      <div>
+      <div className="card overflow-hidden">
         <div className="flex items-center gap-4 px-4 pt-4 pb-2">
           <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
@@ -28,7 +28,9 @@ export default async function DatosPage() {
         <ExportForm />
       </div>
 
-      <ImportCSV />
+      <div className="card overflow-hidden">
+        <ImportCSV />
+      </div>
 
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { formatCLP, relativeDate, isEmoji } from '@/lib/utils'
+import { formatCLP, relativeDate, isEmoji, type DateFormat } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { getExpenseIcon } from '@/lib/expense-icons'
@@ -14,9 +14,10 @@ import { PaymentIcon } from './PaymentIcon'
 interface Props {
   expenses: ExpenseWithRelations[]
   showDate?: boolean
+  dateFormat?: DateFormat
 }
 
-export default function ExpenseList({ expenses, showDate }: Props) {
+export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
 
   if (expenses.length === 0) return null
@@ -87,7 +88,7 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                     </span>
                   )}
                   {showDate && (
-                    <span className="text-[10px] text-gray-400">· {relativeDate(e.date)}</span>
+                    <span className="text-[10px] text-gray-400">· {relativeDate(e.date, dateFormat)}</span>
                   )}
                 </div>
               </div>
@@ -98,7 +99,7 @@ export default function ExpenseList({ expenses, showDate }: Props) {
                   −{formatCLP(e.amount)}
                 </p>
                 {!showDate && (
-                  <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date, dateFormat)}</p>
                 )}
               </div>
             </button>

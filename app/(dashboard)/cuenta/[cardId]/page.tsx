@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
-import { formatCLP, currentStatementRange, billingPeriod, billingPeriodRange } from '@/lib/utils'
+import { formatCLP, currentStatementRange, billingPeriod, billingPeriodRange, type DateFormat } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import ServiceLogo from '@/components/ServiceLogo'
@@ -24,6 +24,10 @@ export default async function CuentaPage({ params }: { params: Promise<{ cardId:
 
   if (!cardData || cardData.card_type !== 'credit') notFound()
   const card = cardData as PaymentMethod
+
+  const { data: prefRow } = await supabase
+    .from('profiles').select('date_format').eq('id', user.id).maybeSingle()
+  const dateFormat = (prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat
 
   const billingDay = card.billing_day!
   const now        = new Date()
@@ -231,6 +235,7 @@ export default async function CuentaPage({ params }: { params: Promise<{ cardId:
             expenses={currentExpenses}
             categories={allCategories ?? []}
             paymentMethods={allPaymentMethods ?? []}
+            dateFormat={dateFormat}
           />
 
         </div>
