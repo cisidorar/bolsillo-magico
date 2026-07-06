@@ -148,4 +148,47 @@ Un link compartible de solo lectura del resumen mensual (sin auth) para mostrar 
 
 ---
 
-_Última actualización: junio 2026 — ingresos implementado_
+## Mejoras de metodología financiera (análisis especialista, jul 2026)
+
+Estas propuestas no son features sueltas: apuntan a las variables que un asesor financiero mira primero. Hoy la app controla muy bien el **gasto**, pero las tres palancas que realmente construyen patrimonio —**tasa de ahorro, patrimonio neto y deuda comprometida a futuro**— están ausentes o desconectadas. Ordenadas por impacto/esfuerzo (la data necesaria en su mayoría **ya existe** en el schema).
+
+### 🔴 Impacto máximo — reutiliza data existente
+
+**~~F1. Tasa de ahorro (savings rate) histórica~~** ✅ _Implementado julio 2026 — sección "Construcción de patrimonio" en /analisis (`components/PatrimonioCards.tsx`)_
+La métrica #1 predictora de resultado financiero a largo plazo. Hoy `surplus = ingreso mes anterior − gastos` es un número puntual que no se acumula ni historiza. Guardar el surplus mensual y mostrar la **tasa de ahorro (% del ingreso no gastado) con promedio móvil de 6/12 meses**. Un mes puede estar "en verde" bajo presupuesto y ahorrar 0%. Data: ya está en `incomes` + `expenses`.
+
+**~~F2. Fondo de emergencia en "meses cubiertos"~~** ✅ _Implementado julio 2026 — card junto a tasa de ahorro en /analisis_
+Primer hito que recomienda cualquier asesor antes de invertir (regla 3–6 meses de gasto). Conectar `savings_accounts` (saldo líquido) con el gasto promedio mensual que ya se calcula → mostrar **cuántos meses de gasto cubren los ahorros**. Cálculo trivial, muy motivante. Data: ya existe.
+
+**F3. Deuda comprometida a futuro** (punto ciego crítico en Chile)
+Las cuotas ya se registran (`total_installments`, `paid_installments`) pero solo mes a mes. Panel "Ya comprometido" que sume **cuotas pendientes + recurrentes por cada mes futuro**, más la ratio **deuda comprometida / ingreso mensual** (semáforo sobre ~35%). Diferencia entre "me queda plata" y "me queda plata que ya debo". Data: ya está en `recurring_expenses`.
+
+### 🟠 Impacto alto — requiere modelo de datos nuevo mínimo
+
+**F4. Patrimonio neto en el tiempo**
+Ya se registran acciones, depósitos a plazo y cuentas de ahorro por separado, pero falta la vista de **patrimonio neto total y su evolución mensual**. Probablemente el gráfico más adictivo y valioso de la categoría. Requiere un snapshot mensual de activos (`net_worth_snapshots`). 
+
+**F5. Rebalancear el health score para premiar el ahorro**
+Las 4 señales actuales son 100% defensivas (castigan gastar de más); ninguna premia ahorrar o invertir. Nuevo mix propuesto: **tasa de ahorro (30) · fondo de emergencia en meses (25) · deuda comprometida/ingreso (20) · disciplina de presupuesto (25)**. Convierte el score de "¿me pasé?" a "¿estoy construyendo patrimonio?".
+
+### 🟡 Impacto medio — mejora conceptual del marco
+
+**F6. Presupuesto con marco necesidades/deseos/ahorro (50/30/20)**
+El presupuesto hoy es un tope plano por categoría. Agregar un flag `budget_type` en `categories` (necesidad / deseo / ahorro) permite mostrar el **mix real vs el ideal 50/30/20** — mucho más accionable que un monto por categoría.
+
+**F7. Retorno real ajustado por inflación / UF en inversiones**
+En Chile es casi obligatorio: un depósito al 12% con IPC 4% rinde 8% real; mostrar solo la tasa nominal engaña. Usando `annual_rate` + serie UF/IPC (vía `price_cache`), mostrar **rentabilidad real** en el módulo de inversiones.
+
+**F8. Calendario de flujo de caja (timing de liquidez)**
+Distinto del presupuesto: previene sobregiros por *timing*. Con las fechas de sueldo, recurrentes y cierres de tarjeta ya conocidas, anticipar "el 5 tienes $X, pero el 8 se van $Y en cuotas".
+
+### Orden de ejecución sugerido
+
+1. **F1 + F2** (tasa de ahorro + fondo de emergencia) — máximo impacto, mínimo esfuerzo, data existente.
+2. **F3** (deuda comprometida) — resuelve un dolor real chileno con data existente.
+3. **F4** (patrimonio neto en el tiempo) — la métrica más motivante.
+4. **F5** (rebalancear health score) — una vez que F1–F4 aportan las señales nuevas.
+
+---
+
+_Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8)_

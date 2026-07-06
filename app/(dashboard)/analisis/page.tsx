@@ -9,6 +9,7 @@ import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, C
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
 import IncomeEditor from '@/components/IncomeEditor'
+import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
 
 export const revalidate = 0
 
@@ -48,7 +49,13 @@ export default async function AnalisisPage({
   const fetchStartDate = new Date(fetchStartBase)
   const fetchStart = `${fetchStartDate.getFullYear()}-${String(fetchStartDate.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }] = await Promise.all([
+  // Ventana de 12 meses (anclada a HOY) para la tasa de ahorro histórica
+  const rateStartD  = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+  const rateStart   = `${rateStartD.getFullYear()}-${String(rateStartD.getMonth() + 1).padStart(2, '0')}-01`
+  const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
+
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -91,6 +98,24 @@ export default async function AnalisisPage({
       .eq('status', 'active')
       .order('severity', { ascending: false })
       .limit(3),
+    // Ingresos de los últimos ~13 meses (el sueldo de M-1 financia M)
+    supabase
+      .from('incomes')
+      .select('month, year, amount')
+      .eq('user_id', user!.id)
+      .gte('year', rateStartD.getFullYear() - 1),
+    // Totales de gasto liviano para la ventana de 12 meses (solo amount + date)
+    supabase
+      .from('expenses')
+      .select('amount, date')
+      .eq('user_id', user!.id)
+      .gte('date', rateStart)
+      .lt('date', rateEnd),
+    // Saldos líquidos en cuentas de ahorro
+    supabase
+      .from('savings_accounts')
+      .select('balance')
+      .eq('user_id', user!.id),
   ])
 
   const catBudgetMap = new Map(
@@ -386,6 +411,56 @@ export default async function AnalisisPage({
   const healthColor = healthScore >= 80 ? '#1FBE8D'
     : healthScore >= 60 ? '#4D93FF'
     : healthScore >= 40 ? '#FFC23C' : '#FF6F61'
+
+  // ── Construcción de patrimonio: tasa de ahorro + fondo de emergencia ─────
+  // Convención de la app: el sueldo del mes ANTERIOR financia los gastos del mes.
+  const incomeByKey: Record<string, number> = {}
+  for (const inc of (incomes12Raw ?? []) as { month: number; year: number; amount: number }[]) {
+    incomeByKey[`${inc.year}-${inc.month}`] = inc.amount
+  }
+  const expenseByKey: Record<string, number> = {}
+  for (const e of (expenses12Raw ?? []) as { amount: number; date: string }[]) {
+    const d = new Date(e.date + 'T12:00:00')
+    const k = `${d.getFullYear()}-${d.getMonth() + 1}`
+    expenseByKey[k] = (expenseByKey[k] ?? 0) + e.amount
+  }
+
+  // Serie de 12 meses anclada a HOY (más antiguo → más reciente)
+  const ratePoints: RatePoint[] = []
+  const completedRates: { rate: number; monthsAgo: number }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const k = `${d.getFullYear()}-${d.getMonth() + 1}`
+    const pd = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    const prevIncomeAmt = incomeByKey[`${pd.getFullYear()}-${pd.getMonth() + 1}`] ?? 0
+    const monthExpense  = expenseByKey[k] ?? 0
+    const rate = prevIncomeAmt > 0
+      ? Math.round(((prevIncomeAmt - monthExpense) / prevIncomeAmt) * 100)
+      : null
+    ratePoints.push({ label: d.toLocaleString('es-CL', { month: 'short' }).replace('.', ''), rate })
+    if (rate !== null && i >= 1) completedRates.push({ rate, monthsAgo: i })  // excluye el mes en curso (parcial)
+  }
+  const ratesLast6  = completedRates.filter(r => r.monthsAgo <= 6).map(r => r.rate)
+  const ratesLast12 = completedRates.map(r => r.rate)
+  const rateAvg6  = ratesLast6.length  > 0 ? Math.round(ratesLast6.reduce((s, v) => s + v, 0) / ratesLast6.length)   : null
+  const rateAvg12 = ratesLast12.length > 0 ? Math.round(ratesLast12.reduce((s, v) => s + v, 0) / ratesLast12.length) : null
+
+  // Fondo de emergencia: ahorros líquidos / gasto promedio de meses completados
+  const savingsBalances  = ((savingsRaw ?? []) as { balance: number }[]).map(s => s.balance)
+  const totalSavings     = savingsBalances.reduce((s, v) => s + v, 0)
+  const completedExpenses: number[] = []
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const t = expenseByKey[`${d.getFullYear()}-${d.getMonth() + 1}`] ?? 0
+    if (t > 0) completedExpenses.push(t)
+  }
+  const avgMonthlyExpense = completedExpenses.length > 0
+    ? Math.round(completedExpenses.reduce((s, v) => s + v, 0) / completedExpenses.length)
+    : null
+  const monthsCovered = avgMonthlyExpense !== null && totalSavings > 0
+    ? totalSavings / avgMonthlyExpense
+    : null
+  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0
 
   // ── Oportunidades de mejora ───────────────────────────────────────────────
   type Oportunidad = {
@@ -1546,6 +1621,23 @@ export default async function AnalisisPage({
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Construcción de patrimonio: F1 tasa de ahorro + F2 fondo de emergencia ── */}
+        {showPatrimonio && (
+          <PatrimonioCards
+            ratePoints={ratePoints}
+            currentRate={surplusPct}
+            currentSaved={surplus}
+            avg6={rateAvg6}
+            avg12={rateAvg12}
+            totalSavings={totalSavings}
+            savingsCount={savingsBalances.length}
+            avgMonthlyExpense={avgMonthlyExpense}
+            monthsCovered={monthsCovered}
+            monthLabel={monthName(month)}
+            prevMonthLabel={prevMonthName}
+          />
         )}
 
         {/* Trigger AI analysis in background when there are expenses */}
