@@ -142,7 +142,7 @@ function LoginForm() {
   const mobileSubtitle  = mode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta gratis'
 
   return (
-    <div className="min-h-svh" style={{ background: 'linear-gradient(160deg, #0F4489 0%, #2B7CF6 100%)' }}>
+    <div className="min-h-svh" style={{ background: '#2B7CF6' }}>
       <div className="min-h-svh lg:flex">
 
         {/* Panel izquierdo — solo desktop */}

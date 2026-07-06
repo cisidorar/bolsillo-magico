@@ -926,9 +926,9 @@ export default async function AnalisisPage({
                               width: 'min(22px, 100%)', height: barH > 0 ? `${barH}px` : '3px',
                               margin: '0 auto', borderRadius: '5px 5px 2px 2px',
                               background: isPeakBar
-                                ? 'linear-gradient(180deg, #4D93FF 0%, #2B7CF6 100%)'
+                                ? 'var(--primary)'
                                 : isCurrentBar
-                                  ? 'linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%)'
+                                  ? '#4D93FF'
                                   : 'var(--bar-color, #D5E6FF)',
                               transition: 'height 0.2s ease', position: 'relative',
                             }} className="dark:[--bar-color:#2d4f7a]">

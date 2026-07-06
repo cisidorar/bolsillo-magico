@@ -54,7 +54,7 @@ function AppPreview() {
           }}>
             {/* Hero card */}
             <div style={{
-              background:'linear-gradient(140deg,#0F3D8C,#2B7CF6)',
+              background:'#2B7CF6',
               borderRadius:20,
               padding:'14px 14px 12px',
               color:'#fff',
@@ -324,7 +324,7 @@ export default function LandingPage() {
 
         {/* ══════════ HERO ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0F4489 0%,#2B7CF6 100%)',
+          background:'#2B7CF6',
           minHeight:'100svh',
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
           padding:'90px 24px 60px',
@@ -497,7 +497,7 @@ export default function LandingPage() {
 
         {/* ══════════ CTA FINAL ══════════ */}
         <section style={{
-          background:'linear-gradient(160deg,#0F4489 0%,#2B7CF6 100%)',
+          background:'#2B7CF6',
           padding:'100px 24px',
           textAlign:'center',
           position:'relative',

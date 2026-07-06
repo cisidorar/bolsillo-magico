@@ -41,7 +41,7 @@ export default function UpdatePasswordPage() {
   return (
     <div
       className="min-h-svh flex items-center justify-center px-5 py-10"
-      style={{ background: 'linear-gradient(160deg, #0F4489 0%, #2B7CF6 100%)' }}
+      style={{ background: '#2B7CF6' }}
     >
       <div className="w-full max-w-sm">
 
