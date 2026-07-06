@@ -85,7 +85,7 @@ export default function UserMenu({ name, email, avatarUrl }: Props) {
         >
           {/* Header: perfil */}
           <Link
-            href="/ajustes#perfil"
+            href="/ajustes/perfil"
             onClick={() => setOpen(false)}
             className="flex items-center gap-3 px-3.5 py-3.5 transition-colors hover:bg-black/5 border-b"
             style={{ borderColor: 'var(--border)' }}
@@ -101,7 +101,7 @@ export default function UserMenu({ name, email, avatarUrl }: Props) {
           {/* Accesos */}
           <div className="py-1">
             <Link
-              href="/ajustes#preferencias"
+              href="/ajustes/preferencias"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/5"
               style={{ color: 'var(--ink-2)' }}
@@ -110,7 +110,7 @@ export default function UserMenu({ name, email, avatarUrl }: Props) {
               Preferencias
             </Link>
             <Link
-              href="/ajustes#notificaciones"
+              href="/ajustes/notificaciones"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-3.5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/5"
               style={{ color: 'var(--ink-2)' }}
