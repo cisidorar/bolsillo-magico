@@ -166,12 +166,12 @@ La métrica #1 predictora de resultado financiero a largo plazo. Hoy `surplus = 
 **~~F2. Fondo de emergencia en "meses cubiertos"~~** ✅ _Implementado julio 2026 — card junto a tasa de ahorro en /analisis_
 Primer hito que recomienda cualquier asesor antes de invertir (regla 3–6 meses de gasto). Conectar `savings_accounts` (saldo líquido) con el gasto promedio mensual que ya se calcula → mostrar **cuántos meses de gasto cubren los ahorros**. Cálculo trivial, muy motivante. Data: ya existe.
 
-**~~F3. Deuda comprometida a futuro~~** ✅ _Implementado julio 2026 — card "Ya comprometido" en /analisis: 6 meses futuros, ratio vs ingreso (semáforo 20/35%), desglose cuotas vs fijos, aviso de mes en que se libera plata_
+**~~F3. Deuda comprometida a futuro~~** ✅ _Implementado julio 2026 — card "Ya comprometido" en /analisis: 6 meses futuros con barras apiladas (cuotas/fijos + tarjeta por facturar vía `billingPeriod`), ratio vs ingreso (semáforo 20/35%), desglose y aviso de mes en que se libera plata. La tasa de ahorro del mes en curso muestra la **proyección al cierre** (la tasa cruda al día 5 era engañosa)_
 Las cuotas ya se registran (`total_installments`, `paid_installments`) pero solo mes a mes. Panel "Ya comprometido" que sume **cuotas pendientes + recurrentes por cada mes futuro**, más la ratio **deuda comprometida / ingreso mensual** (semáforo sobre ~35%). Diferencia entre "me queda plata" y "me queda plata que ya debo". Data: ya está en `recurring_expenses`.
 
 ### 🟠 Impacto alto — requiere modelo de datos nuevo mínimo
 
-**F4. Patrimonio neto en el tiempo**
+**~~F4. Patrimonio neto en el tiempo~~** ✅ _Implementado julio 2026 — card en /analisis con snapshot mensual automático (`net_worth_snapshots`), gráfico de evolución y desglose acciones/depósitos/ahorro. Requiere aplicar `supabase/migrations/20260705_net_worth_snapshots.sql`_
 Ya se registran acciones, depósitos a plazo y cuentas de ahorro por separado, pero falta la vista de **patrimonio neto total y su evolución mensual**. Probablemente el gráfico más adictivo y valioso de la categoría. Requiere un snapshot mensual de activos (`net_worth_snapshots`). 
 
 **F5. Rebalancear el health score para premiar el ahorro**

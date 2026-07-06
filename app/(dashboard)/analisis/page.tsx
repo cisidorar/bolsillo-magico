@@ -1,5 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, getNowChile } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
+import { computeAndSnapshotNetWorth } from '@/lib/net-worth'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
@@ -123,6 +124,11 @@ export default async function AnalisisPage({
       .eq('user_id', user!.id)
       .eq('is_active', true),
   ])
+
+  // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual)
+  const netWorth = !isAnual
+    ? await computeAndSnapshotNetWorth(supabase, user!.id, now)
+    : null
 
   const catBudgetMap = new Map(
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
@@ -466,29 +472,56 @@ export default async function AnalisisPage({
   const monthsCovered = avgMonthlyExpense !== null && totalSavings > 0
     ? totalSavings / avgMonthlyExpense
     : null
-  // F3: deuda comprometida a futuro — cuotas pendientes + recurrentes por mes
+  // UX: tasa de ahorro proyectada — al inicio de mes la tasa cruda es engañosa
+  // (día 5 con pocos gastos ≈ 98%). Para el mes en curso proyectamos el gasto al cierre.
+  const projectedRate = isCurrentMonth && prevMonthIncome > 0 && projection !== null
+    ? Math.round(((prevMonthIncome - projection) / prevMonthIncome) * 100)
+    : null
+  // La barra del mes en curso también usa la proyección (la tasa cruda parcial engaña)
+  if (ratePoints.length > 0) {
+    ratePoints[ratePoints.length - 1] = { ...ratePoints[ratePoints.length - 1], rate: projectedRate }
+  }
+
+  // F3: deuda comprometida a futuro — cuotas + recurrentes + tarjetas por facturar
   type RecurringLite = { amount: number; billing_month: number | null; total_installments: number | null; paid_installments: number }
   const activeRecurring = (recurringRaw ?? []) as RecurringLite[]
-  const commitMonths: { label: string; total: number }[] = []
+
+  // Compras ya hechas con tarjeta de crédito cuyo estado de cuenta cae en meses futuros
+  const nowMonthIdx = now.getFullYear() * 12 + now.getMonth()
+  const cardByOffset: number[] = new Array(7).fill(0)
+  typedExpenses.forEach(e => {
+    const pm = e.payment_method
+    if (!pm || pm.card_type !== 'credit' || !pm.billing_day) return
+    const stmt = billingPeriod(e.date, pm.billing_day)
+    const offset = (stmt.year * 12 + (stmt.month - 1)) - nowMonthIdx
+    if (offset >= 1 && offset <= 6) cardByOffset[offset] += e.amount
+  })
+
+  const commitMonths: { label: string; fixed: number; card: number; total: number }[] = []
   for (let i = 1; i <= 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    let total = 0
+    let fixed = 0
     for (const r of activeRecurring) {
       if (r.total_installments !== null) {
         // Cuotas fijas: quedan N-P; caen en los próximos N-P meses
         const remaining = Math.max(0, r.total_installments - r.paid_installments)
-        if (i <= remaining) total += r.amount
+        if (i <= remaining) fixed += r.amount
       } else if (r.billing_month !== null) {
         // Anual: solo en su mes de cobro
-        if (d.getMonth() + 1 === r.billing_month) total += r.amount
+        if (d.getMonth() + 1 === r.billing_month) fixed += r.amount
       } else {
         // Indefinido mensual
-        total += r.amount
+        fixed += r.amount
       }
     }
-    commitMonths.push({ label: d.toLocaleString('es-CL', { month: 'short' }).replace('.', ''), total })
+    const card = cardByOffset[i]
+    commitMonths.push({
+      label: d.toLocaleString('es-CL', { month: 'short' }).replace('.', ''),
+      fixed, card, total: fixed + card,
+    })
   }
   const commitNext = commitMonths[0]?.total ?? 0
+  const cardNextTotal = commitMonths[0]?.card ?? 0
   // Ingreso de referencia: el sueldo de ESTE mes financia el próximo (convención de la app);
   // fallback al ingreso más reciente registrado
   let refIncome = incomeByKey[`${now.getFullYear()}-${now.getMonth() + 1}`] ?? 0
@@ -506,13 +539,15 @@ export default async function AnalisisPage({
   const fixedMonthlyTotal = activeRecurring
     .filter(r => r.total_installments === null && r.billing_month === null)
     .reduce((s, r) => s + r.amount, 0)
-  // Primer mes futuro donde baja el compromiso (se libera plata)
+  // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
+  // Se compara solo la parte fija: la tarjeta varía mes a mes y no es "liberación".
   let freeMonthLabel: string | null = null
   for (let i = 1; i < commitMonths.length; i++) {
-    if (commitMonths[i].total < commitMonths[i - 1].total) { freeMonthLabel = commitMonths[i].label; break }
+    if (commitMonths[i].fixed < commitMonths[i - 1].fixed) { freeMonthLabel = commitMonths[i].label; break }
   }
 
-  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0 || activeRecurring.length > 0
+  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0
+    || activeRecurring.length > 0 || (netWorth !== null && netWorth.current.total_clp > 0)
 
   // ── Oportunidades de mejora ───────────────────────────────────────────────
   type Oportunidad = {
@@ -1689,12 +1724,17 @@ export default async function AnalisisPage({
             monthsCovered={monthsCovered}
             monthLabel={monthName(month)}
             prevMonthLabel={prevMonthName}
+            projectedRate={projectedRate}
+            dayOfMonth={now.getDate()}
+            isCurrentMonth={isCurrentMonth}
             commitMonths={commitMonths}
             commitNext={commitNext}
             commitRatio={commitRatio}
             cuotasPendingTotal={cuotasPendingTotal}
             fixedMonthlyTotal={fixedMonthlyTotal}
+            cardNextTotal={cardNextTotal}
             freeMonthLabel={freeMonthLabel}
+            netWorth={netWorth}
           />
         )}
 

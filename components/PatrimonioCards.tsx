@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock } from 'lucide-react'
+import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
+import type { NetWorthResult } from '@/lib/net-worth'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -9,7 +10,9 @@ export interface RatePoint {
 
 export interface CommitMonth {
   label: string  // 'ago', 'sep', …
-  total: number  // CLP comprometido ese mes
+  fixed: number  // CLP en cuotas + fijos + anuales
+  card:  number  // CLP ya cargado a tarjetas de crédito que se factura ese mes
+  total: number
 }
 
 interface Props {
@@ -24,13 +27,20 @@ interface Props {
   monthsCovered: number | null     // totalSavings / avgMonthlyExpense
   monthLabel: string               // 'Julio'
   prevMonthLabel: string           // 'Junio' (el sueldo que financió este mes)
+  // UX: proyección para el mes en curso (la tasa cruda al día 5 es engañosa)
+  projectedRate: number | null     // tasa estimada al cierre del mes
+  dayOfMonth: number               // día de hoy (contexto del avance)
+  isCurrentMonth: boolean          // el mes seleccionado es el mes en curso
   // F3: deuda comprometida a futuro
   commitMonths: CommitMonth[]      // próximos 6 meses
-  commitNext: number               // CLP comprometido el próximo mes
+  commitNext: number               // CLP comprometido el próximo mes (fijos + tarjeta)
   commitRatio: number | null       // % del ingreso mensual ya comprometido
   cuotasPendingTotal: number       // CLP total de cuotas que faltan por pagar
   fixedMonthlyTotal: number        // CLP mensual en recurrentes indefinidos
-  freeMonthLabel: string | null    // primer mes donde baja el compromiso
+  cardNextTotal: number            // CLP ya cargado a tarjetas que se paga el próximo mes
+  freeMonthLabel: string | null    // primer mes donde bajan los fijos
+  // F4: patrimonio neto
+  netWorth: NetWorthResult | null
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro (12 meses). */
@@ -78,12 +88,42 @@ function fmtMonths(v: number): string {
   return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
+const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+
+/** Gráfico de área SVG del patrimonio neto (histórico de snapshots). */
+function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
+  const W = 560, H = 120, padX = 4, padTop = 10, padBot = 18
+  const n = points.length
+  if (n < 2) return null
+  const totals = points.map(p => p.total)
+  const min = Math.min(...totals)
+  const max = Math.max(...totals)
+  const range = max - min || 1
+  const xs = points.map((_, i) => padX + (i / (n - 1)) * (W - padX * 2))
+  const ys = totals.map(t => padTop + (1 - (t - min) / range) * (H - padTop - padBot))
+  const line = xs.map((x, i) => `${x},${ys[i]}`).join(' ')
+  const area = `${padX},${H - padBot} ${line} ${W - padX},${H - padBot}`
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
+      <polygon points={area} fill="var(--primary)" opacity="0.10" />
+      <polyline points={line} fill="none" stroke="var(--primary)" strokeWidth="2.5"
+        strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill="var(--primary)" />
+      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="7" fill="var(--primary)" opacity="0.2" />
+      <text x={padX} y={H - 4} fontSize="10" fontWeight="600" fill="var(--ink-3)">{points[0].label}</text>
+      <text x={W - padX} y={H - 4} fontSize="10" fontWeight="600" fill="var(--ink-3)" textAnchor="end">{points[n - 1].label}</text>
+    </svg>
+  )
+}
+
 export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12,
   totalSavings, savingsCount, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
+  projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
-  cuotasPendingTotal, fixedMonthlyTotal, freeMonthLabel,
+  cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
+  netWorth,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -104,8 +144,14 @@ export default function PatrimonioCards({
     : 'Fondo inicial'
   const coveredPct = monthsCovered !== null ? Math.min(monthsCovered / 6, 1) * 100 : 0
 
-  const rateColor = currentRate === null ? 'var(--ink-3)'
-    : currentRate >= 0 ? 'var(--mint)' : 'var(--coral)'
+  // Para el mes en curso la cifra principal es la PROYECCIÓN al cierre:
+  // al día 5 casi no hay gastos y la tasa cruda (~98%) engaña.
+  const displayRate = isCurrentMonth
+    ? (projectedRate ?? null)
+    : currentRate
+  const tooEarly = isCurrentMonth && projectedRate === null
+  const rateColor = displayRate === null ? 'var(--ink-3)'
+    : displayRate >= 0 ? 'var(--mint)' : 'var(--coral)'
 
   // Semáforo de deuda comprometida (regla ~35% del ingreso)
   const hasCommit = commitMonths.some(m => m.total > 0)
@@ -123,11 +169,104 @@ export default function PatrimonioCards({
     : 'Compromiso holgado'
   const maxCommit = Math.max(...commitMonths.map(m => m.total), 1)
 
+  // F4: patrimonio neto
+  const nw = netWorth && netWorth.current.total_clp > 0 ? netWorth : null
+  const nwPoints = nw
+    ? nw.snapshots.slice(-13).map(s => ({ label: MONTH_SHORT[s.month - 1], total: s.total_clp }))
+    : []
+  const nwPrev = nw && nw.snapshots.length >= 2 ? nw.snapshots[nw.snapshots.length - 2] : null
+  const nwDelta = nw && nwPrev ? nw.current.total_clp - nwPrev.total_clp : null
+  const nwDeltaPct = nwDelta !== null && nwPrev && nwPrev.total_clp > 0
+    ? Math.round((nwDelta / nwPrev.total_clp) * 1000) / 10
+    : null
+  const nwBreakdown = nw ? [
+    { label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
+    { label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=depositos' },
+    { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro' },
+  ].filter(b => b.value > 0) : []
+
   return (
     <div className="mb-5">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Construcción de patrimonio</h2>
       </div>
+
+      {/* ── Card 0: Patrimonio neto (F4) ──────────────────────────────────── */}
+      {nw && (
+        <div className="card p-4 lg:p-5 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'var(--primary-soft)' }}>
+                <Gem className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold leading-tight" style={{ color: 'var(--ink)' }}>Patrimonio neto</p>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Todo lo que tienes invertido y ahorrado, sumado</p>
+              </div>
+            </div>
+            <Link href="/inversiones" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
+              Ver
+            </Link>
+          </div>
+
+          <div className="lg:grid lg:gap-6 lg:items-start space-y-4 lg:space-y-0" style={{ gridTemplateColumns: '260px 1fr' }}>
+
+            {/* Izquierda: total + delta + desglose */}
+            <div>
+              <p className="text-3xl font-extrabold tabular-nums leading-none"
+                style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+                {formatCLP(nw.current.total_clp)}
+              </p>
+              {nwDelta !== null ? (
+                <p className="text-[11px] mt-1.5 font-semibold tabular-nums"
+                  style={{ color: nwDelta >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  {nwDelta >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta))}
+                  {nwDeltaPct !== null && ` (${nwDelta >= 0 ? '+' : ''}${nwDeltaPct}%)`} vs el mes pasado
+                </p>
+              ) : (
+                <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Primer registro: desde ahora tu evolución se guarda mes a mes.
+                </p>
+              )}
+
+              <div className="space-y-2 mt-3">
+                {nwBreakdown.map(({ label, value, color, Icon, href }) => (
+                  <Link key={label} href={href}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-opacity hover:opacity-80"
+                    style={{ background: 'var(--surface-2)' }}>
+                    <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
+                      <Icon className="w-3.5 h-3.5" style={{ color }} />
+                    </div>
+                    <p className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>{label}</p>
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(value)}</p>
+                  </Link>
+                ))}
+              </div>
+              {!nw.stocksPriced && (
+                <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>
+                  Abre Acciones para actualizar precios de mercado; mientras tanto se usa el último valor disponible.
+                </p>
+              )}
+            </div>
+
+            {/* Derecha: evolución */}
+            <div>
+              {nwPoints.length >= 2 ? (
+                <NetWorthChart points={nwPoints} />
+              ) : (
+                <div className="rounded-2xl px-4 py-6 text-center h-full flex flex-col justify-center" style={{ background: 'var(--surface-2)' }}>
+                  <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>Tu gráfico se está construyendo</p>
+                  <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                    Cada mes guardamos una foto de tu patrimonio. Desde el próximo mes verás aquí la curva de crecimiento.
+                  </p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
 
@@ -152,25 +291,44 @@ export default function PatrimonioCards({
 
           {hasRateData ? (
             <>
-              {/* Cifra del mes */}
+              {/* Cifra del mes: proyección si el mes va en curso, real si ya cerró */}
               <div className="flex items-baseline gap-2">
                 <p className="text-3xl font-extrabold tabular-nums leading-none"
                   style={{ fontFamily: 'Fredoka, sans-serif', color: rateColor }}>
-                  {currentRate !== null ? `${currentRate}%` : '—'}
+                  {displayRate !== null ? `${displayRate}%` : '—'}
                 </p>
-                {currentRate !== null && (
+                {displayRate !== null && (
                   <span className="text-[11px] font-bold" style={{ color: rateColor }}>
-                    {currentRate >= 0 ? 'ahorrado' : 'déficit'} en {monthLabel.toLowerCase()}
+                    {isCurrentMonth
+                      ? 'proyectado al cierre'
+                      : `${displayRate >= 0 ? 'ahorrado' : 'déficit'} en ${monthLabel.toLowerCase()}`}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                {currentSaved !== null
-                  ? currentSaved >= 0
-                    ? <>Guardaste <span className="font-bold" style={{ color: 'var(--mint)' }}>{formatCLP(currentSaved)}</span> del sueldo de {prevMonthLabel.toLowerCase()}</>
-                    : <>Gastaste <span className="font-bold" style={{ color: 'var(--coral)' }}>{formatCLP(Math.abs(currentSaved))}</span> más que el sueldo de {prevMonthLabel.toLowerCase()}</>
-                  : `Sin ingreso registrado en ${prevMonthLabel.toLowerCase()}`}
-              </p>
+              {isCurrentMonth ? (
+                tooEarly ? (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                    Recién empieza {monthLabel.toLowerCase()} (día {dayOfMonth}): con pocos días de gastos
+                    todavía no se puede proyectar una tasa confiable.
+                  </p>
+                ) : (
+                  <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                    Si sigues gastando a este ritmo, cerrarás {monthLabel.toLowerCase()} ahorrando{' '}
+                    <span className="font-bold" style={{ color: rateColor }}>{displayRate}%</span> del sueldo de {prevMonthLabel.toLowerCase()}.
+                    {currentRate !== null && (
+                      <> Al día {dayOfMonth} llevas {currentRate}% sin gastar — ese número baja solo a medida que avanza el mes.</>
+                    )}
+                  </p>
+                )
+              ) : (
+                <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                  {currentSaved !== null
+                    ? currentSaved >= 0
+                      ? <>Guardaste <span className="font-bold" style={{ color: 'var(--mint)' }}>{formatCLP(currentSaved)}</span> del sueldo de {prevMonthLabel.toLowerCase()}</>
+                      : <>Gastaste <span className="font-bold" style={{ color: 'var(--coral)' }}>{formatCLP(Math.abs(currentSaved))}</span> más que el sueldo de {prevMonthLabel.toLowerCase()}</>
+                    : `Sin ingreso registrado en ${prevMonthLabel.toLowerCase()}`}
+                </p>
+              )}
 
               {/* Histórico 12 meses */}
               <div className="mt-4">
@@ -315,7 +473,7 @@ export default function PatrimonioCards({
               </div>
               <div>
                 <p className="text-sm font-bold leading-tight" style={{ color: 'var(--ink)' }}>Ya comprometido</p>
-                <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Cuotas y fijos que ya debes en los próximos meses</p>
+                <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Cuotas, fijos y compras con tarjeta que ya debes</p>
               </div>
             </div>
             <Link href="/recurrentes" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
@@ -350,6 +508,14 @@ export default function PatrimonioCards({
 
               {/* Desglose — filas inset */}
               <div className="space-y-2 mt-3">
+                {cardNextTotal > 0 && (
+                  <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                    <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
+                      Tarjeta: ya gastado, se paga en <span className="capitalize">{commitMonths[0]?.label}</span>
+                    </p>
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--primary)' }}>{formatCLP(cardNextTotal)}</p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                   <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Cuotas pendientes</p>
                   <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(cuotasPendingTotal)}</p>
@@ -361,27 +527,43 @@ export default function PatrimonioCards({
               </div>
             </div>
 
-            {/* Derecha: barras próximos 6 meses */}
+            {/* Derecha: barras apiladas próximos 6 meses (fijos + tarjeta) */}
             <div>
               <div className="flex items-end gap-2 lg:gap-3" style={{ height: 120 }}>
                 {commitMonths.map((m, i) => {
-                  const h = Math.max(Math.round((m.total / maxCommit) * 88), m.total > 0 ? 6 : 2)
+                  const hFixed = Math.round((m.fixed / maxCommit) * 88)
+                  const hCard  = Math.round((m.card / maxCommit) * 88)
+                  const dim = i === 0 ? 1 : 0.4
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 min-w-0">
                       <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
                         {m.total > 0 ? `$${Math.round(m.total / 1000)}k` : '—'}
                       </p>
-                      <div className="w-full rounded-t-lg transition-all"
-                        style={{
-                          height: h,
-                          background: i === 0 ? 'var(--gold)' : 'rgba(255,194,60,0.35)',
-                        }} />
+                      <div className="w-full flex flex-col justify-end" style={{ minHeight: 2 }}>
+                        {m.card > 0 && (
+                          <div className="w-full rounded-t-lg" style={{ height: Math.max(hCard, 4), background: 'var(--primary)', opacity: dim }} />
+                        )}
+                        {m.fixed > 0 && (
+                          <div className={`w-full ${m.card > 0 ? '' : 'rounded-t-lg'}`}
+                            style={{ height: Math.max(hFixed, 4), background: 'var(--gold)', opacity: dim }} />
+                        )}
+                        {m.total === 0 && <div className="w-full rounded-t-lg" style={{ height: 2, background: 'var(--border)' }} />}
+                      </div>
                       <p className="text-[10px] font-semibold capitalize" style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
                         {m.label}
                       </p>
                     </div>
                   )
                 })}
+              </div>
+              {/* Leyenda */}
+              <div className="flex items-center gap-4 mt-2">
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'var(--gold)' }} /> Cuotas y fijos
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: 'var(--primary)' }} /> Tarjeta por facturar
+                </span>
               </div>
               {freeMonthLabel && (
                 <p className="text-[11px] mt-2 font-semibold" style={{ color: 'var(--mint)' }}>
