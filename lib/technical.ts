@@ -33,10 +33,19 @@ export interface ChartPoint {
   sma200: number | null
 }
 
+/** Lectura técnica agregada — regla automática, NO asesoría financiera. */
+export interface TechnicalRating {
+  label: 'favorable' | 'neutral' | 'unfavorable'
+  score: number          // suma ponderada de señales (−8 a +8 aprox)
+  pros:  number          // señales a favor
+  cons:  number          // señales en contra
+}
+
 export interface TechnicalAnalysis {
   price:        number
   asOf:         string
   verdict:      string                 // conclusión en 1-2 frases, generada por código
+  rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
     aboveSma200:  boolean | null
@@ -350,6 +359,29 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Está frente a una resistencia con historia.'
   else verdict += ' Sin señales de giro relevantes esta semana.'
 
+  // ── Lectura técnica agregada (regla automática, no asesoría) ─────────────
+  // Suma ponderada de las mismas señales que se muestran; umbrales ±3.
+  let score = 0
+  if (aboveSma200 === true)  score += sma200Rising === true  ? 2 : 1
+  if (aboveSma200 === false) score -= sma200Rising === false ? 2 : 1
+  if (divergence === 'bullish') score += 2
+  if (divergence === 'bearish') score -= 2
+  if (cross === 'golden') score += 2
+  if (cross === 'death')  score -= 2
+  if (rsi14 !== null && rsi14 <= 30) score += 1
+  if (rsi14 !== null && rsi14 >= 70) score -= 1
+  if (signals.some(s => s.kind === 'near_support'))    score += 1
+  if (signals.some(s => s.kind === 'near_resistance')) score -= 1
+  if (distLowPct <= 5) score -= 1   // "cuchillo cayendo": mínimos anuales restan
+  const pros = signals.filter(s => s.tone === 'mint').length
+  const cons = signals.filter(s => s.tone === 'coral').length
+  const rating: TechnicalRating = {
+    score,
+    pros,
+    cons,
+    label: score >= 3 ? 'favorable' : score <= -3 ? 'unfavorable' : 'neutral',
+  }
+
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
   const chartStart = start252
   const chartLen   = closes.length - chartStart
@@ -363,7 +395,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict,
+    price, asOf, verdict, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, divergence,
     supportLevels, resistanceLevels,

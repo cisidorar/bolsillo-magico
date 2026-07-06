@@ -134,8 +134,28 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
     : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
     : 'var(--gold)'
 
+  const ratingUi = a.rating.label === 'favorable'
+    ? { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)',  text: 'Lectura técnica: a favor de compra' }
+    : a.rating.label === 'unfavorable'
+    ? { color: 'var(--coral)', bg: 'rgba(255,111,97,0.12)',  text: 'Lectura técnica: en contra de compra' }
+    : { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)',  text: 'Lectura técnica: mixta — esperar' }
+
   return (
     <div className="px-4 pb-4 space-y-3">
+
+      {/* 0. Lectura técnica agregada (regla automática) */}
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg }}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold" style={{ color: ratingUi.color }}>{ratingUi.text}</p>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
+            style={{ background: 'var(--surface)', color: ratingUi.color }}>
+            {a.rating.pros} a favor · {a.rating.cons} en contra
+          </span>
+        </div>
+        <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+          Regla automática sobre los indicadores de abajo — no es asesoría financiera ni predice el futuro.
+        </p>
+      </div>
 
       {/* 1. Veredicto */}
       <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"

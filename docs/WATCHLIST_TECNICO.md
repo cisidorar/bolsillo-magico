@@ -41,6 +41,10 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 
 ### Señales y umbrales (en `analyze()`)
 
+### Lectura técnica agregada (rating)
+
+`TechnicalRating` suma las mismas señales visibles con pesos: tendencia SMA200 ±1/±2 (según pendiente), divergencia ±2, cruce dorado/muerte ±2, RSI extremo ±1, soporte/resistencia cercano ±1, mínimos anuales −1. Umbrales: ≥+3 "a favor de compra" (mint) · ≤−3 "en contra" (coral) · resto "mixta — esperar" (gold). Se muestra como banner al tope del popup con contador de señales a favor/en contra y la leyenda fija "regla automática — no es asesoría financiera". Es el mismo concepto del "technical rating" de TradingView: transparente, determinista y derivado solo de lo que el usuario ve abajo.
+
 | Señal | Umbral | Tono |
 |---|---|---|
 | **Divergencia alcista/bajista precio-RSI** | 2 pivotes en ~90 días: precio LL + RSI HL (alcista) o precio HH + RSI LH (bajista), 2º pivote en últimos 20 días, delta RSI >2 | mint / coral |
