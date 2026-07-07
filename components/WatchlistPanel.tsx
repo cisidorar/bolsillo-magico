@@ -191,6 +191,10 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
 }) {
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
+  // Distancias de niveles contra el precio EN VIVO (el análisis es al cierre de
+  // ayer; sin esto se llegó a mostrar "piso a −0.5%" con el piso ya perforado)
+  const pxNow = livePrice ?? a.price
+  const distNow = (levelPrice: number) => Math.round(((levelPrice - pxNow) / pxNow) * 1000) / 10
   const trendColor = a.trend.aboveSma200 === null ? 'var(--ink-3)'
     : a.trend.aboveSma200 && a.trend.sma200Rising !== false ? 'var(--mint)'
     : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
@@ -247,7 +251,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
             </div>
             {stop && (
               <p className="text-[10px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                Piso más cercano: {fmtUSD(stop.price)} ({stop.distPct > 0 ? '+' : ''}{stop.distPct}%). Muchos lo usan de referencia: si el precio lo atraviesa hacia abajo, es señal de alerta para la posición.
+                Piso más cercano: {fmtUSD(stop.price)} ({distNow(stop.price) > 0 ? '+' : ''}{distNow(stop.price)}%). Muchos lo usan de referencia: si el precio lo atraviesa hacia abajo, es señal de alerta para la posición.
               </p>
             )}
           </div>
@@ -342,26 +346,46 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           {/* 4. Niveles con historia */}
           {(a.supportLevels.length > 0 || a.resistanceLevels.length > 0) && (
             <div className="space-y-1.5">
-              {a.resistanceLevels.map(l => (
-                <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
-                  <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                    <span className="font-bold" style={{ color: 'var(--gold)' }}>Techo {fmtUSD(l.price)}</span>
-                    <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
-                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
-                  </p>
-                </div>
-              ))}
-              {a.supportLevels.map(l => (
-                <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
-                  <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                    <span className="font-bold" style={{ color: 'var(--mint)' }}>Piso {fmtUSD(l.price)}</span>
-                    <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
-                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
-                  </p>
-                </div>
-              ))}
+              {a.resistanceLevels.map(l => {
+                const d = distNow(l.price)
+                const crossedUp = pxNow > l.price   // el precio en vivo ya lo superó
+                return (
+                  <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
+                    <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                      <span className="font-bold" style={{ color: 'var(--gold)' }}>Techo {fmtUSD(l.price)}</span>
+                      <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
+                      {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
+                      {crossedUp && (
+                        <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                          style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
+                          hoy por encima
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )
+              })}
+              {a.supportLevels.map(l => {
+                const d = distNow(l.price)
+                const brokenDown = pxNow < l.price  // el precio en vivo ya lo perforó
+                return (
+                  <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
+                    <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                      <span className="font-bold" style={{ color: 'var(--mint)' }}>Piso {fmtUSD(l.price)}</span>
+                      <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
+                      {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
+                      {brokenDown && (
+                        <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                          style={{ background: 'rgba(255,111,97,0.14)', color: 'var(--coral)' }}>
+                          hoy por debajo — ojo
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )
+              })}
               <p className="text-[9px] font-semibold px-1" style={{ color: 'var(--ink-3)' }}>
                 Piso (soporte): precio donde antes dejó de caer · Techo (resistencia): donde antes dejó de subir.
               </p>

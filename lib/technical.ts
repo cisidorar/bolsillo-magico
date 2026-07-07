@@ -516,7 +516,20 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
 
   // Señales de nivel solo con ≥2 toques: un nivel de 1 toque es demasiado débil
   // para anunciar "está tocando un piso que la frenó antes" (frenó UNA vez).
-  if (supportLevels.length > 0 && supportLevels[0].touches >= 2 && pctDiff(price, supportLevels[0].price) <= 3) {
+  // Si piso Y techo están ambos a ≤3%, el precio está atrapado en un rango
+  // estrecho: decirlo por separado ("muchos compran aquí" + "muchos venden
+  // aquí") es contradictorio — se fusiona en una sola señal de rango.
+  const nearSup = supportLevels.length > 0 && supportLevels[0].touches >= 2 && pctDiff(price, supportLevels[0].price) <= 3
+  const nearRes = resistanceLevels.length > 0 && resistanceLevels[0].touches >= 2 && pctDiff(price, resistanceLevels[0].price) <= 3
+  if (nearSup && nearRes) {
+    const s = supportLevels[0], r = resistanceLevels[0]
+    signals.push({
+      kind: 'range_squeeze', tone: 'neutral', trigger: true,
+      title: `Atrapada en un rango estrecho (${fmtLevel(s.price)} – ${fmtLevel(r.price)})`,
+      detail: 'Tiene un piso muy cerca por abajo y un techo muy cerca por arriba. En estos casos lo habitual es esperar a ver hacia qué lado rompe: hacia arriba suele leerse como fuerza, hacia abajo como debilidad — anticiparse es apostar.',
+      tech: `Soporte ${fmtLevel(s.price)} y resistencia ${fmtLevel(r.price)} simultáneos`,
+    })
+  } else if (nearSup) {
     const l = supportLevels[0]
     signals.push({
       kind: 'near_support', tone: 'mint', trigger: true,
@@ -524,8 +537,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
       detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de caer ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: muchos suelen comprar ahí. Pero si esta vez lo atraviesa hacia abajo, ese piso deja de servir.`,
       tech: `Soporte en ${fmtLevel(l.price)}`,
     })
-  }
-  if (resistanceLevels.length > 0 && resistanceLevels[0].touches >= 2 && pctDiff(price, resistanceLevels[0].price) <= 3) {
+  } else if (nearRes) {
     const l = resistanceLevels[0]
     signals.push({
       kind: 'near_resistance', tone: 'gold', trigger: true,
@@ -648,6 +660,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   else if (divergence === 'bearish') verdict += ' Además, la subida muestra señales de agotamiento — puede venir una pausa.'
   else if (macdCross === 'bullish')  verdict += ' El impulso de las últimas semanas giró al alza.'
   else if (macdCross === 'bearish')  verdict += ' El impulso de las últimas semanas se está debilitando.'
+  else if (signals.some(s => s.kind === 'range_squeeze'))   verdict += ' Está atrapada entre un piso y un techo muy cercanos: atenta a hacia qué lado rompe.'
   else if (signals.some(s => s.kind === 'near_support'))    verdict += ' Ahora mismo está tocando un piso que antes la frenó.'
   else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Ahora mismo está frente a un techo que antes la frenó.'
   else verdict += ' Esta semana no pasó nada fuera de lo normal.'
