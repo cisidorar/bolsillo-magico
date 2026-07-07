@@ -131,8 +131,11 @@ Tables in Supabase (all with RLS, all scoped to `user_id`):
 | `budgets` | Monthly total budget; unique per `(user_id, month, year)` |
 | `category_budgets` | Per-category budget limits; unique per `(user_id, category_id)` |
 | `profiles` | `display_name`, `avatar_url` (Supabase Storage bucket `avatars`) |
+| `usd_purchases` | Billetera USD: `usd_amount` (numeric USD), `total_paid_clp` (CLP totales, comisión incluida), `purchase_date` |
 
 All `amount` values are **integers in Chilean Pesos (CLP)** — no decimals ever. Format with `formatCLP()` from `lib/utils.ts`.
+
+**Currency convention (jul 2026):** todo el flujo de la app es CLP, excepto el mundo inversión en USD (acciones y billetera USD). La entrada a ese mundo se registra en CLP ("pagué X CLP por N USD" — la comisión queda absorbida en la tasa implícita, sin campo aparte); desde ahí saldo y rendimiento se muestran en USD, porque es raro que ese dinero vuelva a Chile. La conversión a CLP aparece solo como dato secundario y en el patrimonio global (`usd_clp` en `net_worth_snapshots`).
 
 Schema changes go in `supabase/schema.sql` (full) or in a new migration file under `supabase/`.
 

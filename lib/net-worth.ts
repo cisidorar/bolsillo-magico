@@ -10,6 +10,7 @@ export interface NetWorthSnapshot {
   stocks_clp:   number
   deposits_clp: number
   savings_clp:  number
+  usd_clp:      number   // caja de dólares valorizada al USDCLP en caché
   total_clp:    number
 }
 
@@ -41,11 +42,12 @@ export async function computeAndSnapshotNetWorth(
   userId: string,
   now: Date,
 ): Promise<NetWorthResult> {
-  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: history }] = await Promise.all([
+  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: history }] = await Promise.all([
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd').eq('user_id', userId),
     supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
-    supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, total_clp')
+    supabase.from('usd_purchases').select('usd_amount, total_paid_clp').eq('user_id', userId),
+    supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, usd_clp, total_clp')
       .eq('user_id', userId).order('year').order('month'),
   ])
 
@@ -57,11 +59,14 @@ export async function computeAndSnapshotNetWorth(
   const depositsClp = (deposits ?? []).reduce((s, d) =>
     s + d.amount + depositAccrued(d.amount, Number(d.interest_rate), d.start_date, d.maturity_date), 0)
 
-  // ── Acciones: precio de caché × USD/CLP; fallback al costo ───────────────
+  // ── Acciones y dólares: precio de caché × USD/CLP; fallback al costo ─────
   let stocksClp = 0
+  let usdClp = 0
   let stocksPriced = true
   const positions = stocks ?? []
-  if (positions.length > 0) {
+  const usdPurchases = usdRows ?? []
+  const totalUsdCash = usdPurchases.reduce((s, r) => s + Number(r.usd_amount), 0)
+  if (positions.length > 0 || totalUsdCash > 0) {
     const tickers = positions.map(p => p.ticker)
     const { data: cached } = await supabase
       .from('price_cache')
@@ -78,15 +83,21 @@ export async function computeAndSnapshotNetWorth(
       // Preferimos excluir la conversión solo si no hay FX; en ese caso el valor queda en 0 y se marca stocksPriced=false.
       if (fx !== null) stocksClp += Math.round(usd * fx)
     }
+    // Caja de dólares: al FX de mercado; sin FX, fallback al costo (lo pagado
+    // en CLP es un piso real conocido, a diferencia de las acciones).
+    usdClp = fx !== null
+      ? Math.round(totalUsdCash * fx)
+      : usdPurchases.reduce((s, r) => s + r.total_paid_clp, 0)
   }
 
-  const totalClp = stocksClp + depositsClp + savingsClp
+  const totalClp = stocksClp + depositsClp + savingsClp + usdClp
   const current: NetWorthSnapshot = {
     month: now.getMonth() + 1,
     year:  now.getFullYear(),
     stocks_clp:   stocksClp,
     deposits_clp: depositsClp,
     savings_clp:  savingsClp,
+    usd_clp:      usdClp,
     total_clp:    totalClp,
   }
 

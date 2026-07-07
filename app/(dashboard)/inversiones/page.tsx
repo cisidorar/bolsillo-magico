@@ -4,6 +4,7 @@ import StockPositionManager from '@/components/StockPositionManager'
 import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
 import WatchlistPanel, { type WatchlistItem } from '@/components/WatchlistPanel'
+import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +79,15 @@ export default async function InversionesPage({ searchParams }: Props) {
       .order('created_at', { ascending: true }),
   ])
 
+  // Billetera USD — solo se usa en la vista ahorro, query aparte para no tocar el tuple
+  const { data: usdPurchases } = isAhorro
+    ? await supabase
+        .from('usd_purchases')
+        .select('id, usd_amount, total_paid_clp, purchase_date, notes')
+        .eq('user_id', user.id)
+        .order('purchase_date', { ascending: false })
+    : { data: null }
+
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
@@ -104,10 +114,16 @@ export default async function InversionesPage({ searchParams }: Props) {
 
       {/* ── Content */}
       {isAhorro ? (
-        <DepositManager
-          userId={user.id}
-          initialSavings={(savings ?? []) as SavingsAccount[]}
-        />
+        <>
+          <DepositManager
+            userId={user.id}
+            initialSavings={(savings ?? []) as SavingsAccount[]}
+          />
+          <UsdWalletManager
+            userId={user.id}
+            initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
+          />
+        </>
       ) : isDepositos ? (
         <TermDepositManager
           userId={user.id}

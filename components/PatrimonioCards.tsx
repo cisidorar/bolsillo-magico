@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark } from 'lucide-react'
+import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult } from '@/lib/net-worth'
 
@@ -191,6 +191,7 @@ export default function PatrimonioCards({
     { label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
     { label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=depositos' },
     { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro' },
+    { label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=ahorro' },
   ].filter(b => b.value > 0) : []
 
   return (
