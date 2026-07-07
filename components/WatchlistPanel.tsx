@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target, Activity, BarChart3, Gauge } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target, Activity, BarChart3, Gauge, Newspaper, ExternalLink } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
+import type { NewsResponse } from '@/app/api/stock-news/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -183,11 +184,24 @@ function fmtDateLabel(dateStr: string): string {
 
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
-function TechnicalDetail({ a, position, livePrice }: {
+function TechnicalDetail({ a, ticker, position, livePrice }: {
   a:         TechnicalAnalysis
+  ticker:    string
   position?: OwnedPosition        // solo si el ticker está en cartera
   livePrice?: number              // quote en vivo; fallback al cierre del análisis
 }) {
+  // Noticias on-demand: la IA solo RESUME titulares (Finnhub), jamás toca el
+  // análisis técnico. Cache 12 h server-side; el estado se resetea por ticker
+  // vía key={ticker} en el call site.
+  const [news, setNews] = useState<NewsResponse | 'loading' | 'error' | null>(null)
+  async function loadNews() {
+    setNews('loading')
+    try {
+      const r = await fetch(`/api/stock-news?symbol=${ticker}`)
+      if (!r.ok) throw new Error()
+      setNews(await r.json() as NewsResponse)
+    } catch { setNews('error') }
+  }
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
   // Distancias de niveles contra el precio EN VIVO (el análisis es al cierre de
@@ -285,6 +299,53 @@ function TechnicalDetail({ a, position, livePrice }: {
       <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Para entrar con base</p>
         <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.entryPlan}</p>
+      </div>
+
+      {/* 1.7 Noticias on-demand — lo único que las velas no pueden explicar */}
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
+        {news === null ? (
+          <button onClick={loadNews} className="flex items-center gap-2 text-xs font-bold w-full text-left transition-opacity hover:opacity-80"
+            style={{ color: bigMove ? 'var(--coral)' : 'var(--primary)' }}>
+            <Newspaper className="w-3.5 h-3.5 flex-shrink-0" />
+            {bigMove ? '¿Qué está pasando hoy? — ver noticias' : '¿Qué está pasando? — ver noticias'}
+          </button>
+        ) : news === 'loading' ? (
+          <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+            <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            Buscando y resumiendo noticias de {ticker}…
+          </p>
+        ) : news === 'error' ? (
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+            No se pudieron obtener noticias.{' '}
+            <button onClick={loadNews} className="underline underline-offset-2 font-bold" style={{ color: 'var(--primary)' }}>Reintentar</button>
+          </p>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <Newspaper className="w-3 h-3" /> Noticias recientes
+            </p>
+            <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>
+              {news.summary ?? (news.headlines.length === 0
+                ? 'Sin noticias relevantes en los últimos días.'
+                : 'No se pudo generar el resumen — estos son los titulares:')}
+            </p>
+            {news.headlines.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {news.headlines.map(h => (
+                  <a key={h.url} href={h.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-start gap-1.5 text-[11px] leading-snug transition-opacity hover:opacity-75"
+                    style={{ color: 'var(--ink-2)' }}>
+                    <ExternalLink className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: 'var(--ink-3)' }} />
+                    <span>{h.title} <span style={{ color: 'var(--ink-3)' }}>· {h.source}</span></span>
+                  </a>
+                ))}
+              </div>
+            )}
+            <p className="text-[9px] mt-2 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+              Resumen automático de titulares — puede omitir contexto; no es recomendación ni afecta la lectura técnica.
+            </p>
+          </>
+        )}
       </div>
 
       {/* 2. Gráfico 12 meses con niveles y SMA200 */}
@@ -1148,7 +1209,9 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                   </div>
                 ) : (
                   <TechnicalDetail
+                    key={ticker}
                     a={a}
+                    ticker={ticker}
                     position={positions[ticker]}
                     livePrice={q?.price}
                   />

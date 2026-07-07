@@ -122,6 +122,10 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 ### Fase 3 — Emails (cuando Cas lo pida — HOY NO)
 Edge function diaria post-cierre (patrón `notify-*` + pg_cron ya montado) que evalúe watchlist y mande email con señales nuevas vs día anterior (dedupe vía `notification_log`, patrón existente). Toggle en Ajustes → Notificaciones.
 
+### Noticias on-demand con resumen IA (jul 2026 — implementado)
+
+Lo único que las velas no pueden explicar es el **porqué** de un movimiento. Botón "¿Qué está pasando?" en el detalle (destacado en coral cuando hay movimiento fuerte intradía): `GET /api/stock-news?symbol=SYM` → Finnhub `/company-news` (últimos 7 días, gratis) → DeepSeek/compatible (`AI_API_KEY`/`AI_API_URL`/`AI_MODEL`, mismo patrón que `analyze-month`) resume en 2-4 frases en español simple. **La IA solo resume titulares — jamás calcula ni opina del rating** (regla en el system prompt: sin recomendación de compra/venta, sin inventar datos). Sanitización de titulares, validación del JSON, top 3 titulares con link. Cache 12 h en `price_cache` clave `{SYM}_NEWS` (payload en `history7d` jsonb) — incluye el caso "sin noticias" para no re-consultar. On-demand siempre: nunca automático para los 30 favoritos.
+
 ### Fase 4 — DeepSeek narrador → DESCARTADA (jul 2026)
 **Decisión: sin IA.** El usuario no es profesional, pero el conjunto de señales es finito (~14 casos conocidos), así que las explicaciones en lenguaje cotidiano se generan por código: `TechnicalSignal.title`/`detail` van en simple ("Está tocando un piso que ya la frenó 3 veces") y el término técnico queda en `TechnicalSignal.tech` como etiqueta secundaria chica en la UI ("Soporte en $180") — se entiende sin saber nada y se aprende el término de paso. Plantillas deterministas cubren el 100% de los casos sin costo, latencia, rate-limit ni riesgo de que la IA alucine una recomendación; coherente con el principio rector. La IA solo aportaría en preguntas libres ("¿por qué cayó hoy?"), que requieren noticias, no análisis técnico — si algún día se quiere, va como botón "explícame más" aparte, nunca reemplazando el copy determinista.
 
