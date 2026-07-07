@@ -75,7 +75,7 @@ export default async function InversionesPage({ searchParams }: Props) {
       .order('maturity_date', { ascending: true }),
     supabase
       .from('watchlist')
-      .select('id, ticker, target_price')
+      .select('id, ticker, target_price, target_direction')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
   ])

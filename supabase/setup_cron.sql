@@ -73,6 +73,24 @@ select cron.schedule(
   $$
 );
 
+-- 5. Precio objetivo de favoritos (Inversiones → Acciones) — todos los días a
+--    las 23:00 UTC, media hora después del cron de sync-prices (22:30 UTC),
+--    para que price_history ya tenga el cierre del día.
+select cron.schedule(
+  'notify-watchlist-target-daily',
+  '0 23 * * *',   -- 23:00 UTC = 20:00 CLT
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-watchlist-target',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;
 
@@ -81,3 +99,4 @@ select cron.schedule(
 -- select cron.unschedule('notify-budget-daily');
 -- select cron.unschedule('notify-monthly-summary');
 -- select cron.unschedule('notify-recurring-reminder');
+-- select cron.unschedule('notify-watchlist-target-daily');

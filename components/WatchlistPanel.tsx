@@ -11,19 +11,25 @@ import type { NewsResponse } from '@/app/api/stock-news/route'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface WatchlistItem {
-  id:           string
-  ticker:       string
-  target_price: number | null
+  id:               string
+  ticker:           string
+  target_price:     number | null
+  target_direction: 'above' | 'below' | null
 }
 
 /**
- * Dirección del precio objetivo según cartera:
- * - Sin posición → objetivo de ENTRADA: alcanzado si el precio cae hasta ahí (price ≤ target).
- * - Con posición → objetivo de SALIDA: alcanzado si el precio sube hasta ahí (price ≥ target).
+ * Dirección explícita del precio objetivo — se guarda al definirlo, NO se
+ * infiere de si tienes posición (eso rompía objetivos de entrada por ruptura:
+ * "avísame si SUBE a 198" con la acción sin posición se leía al revés).
+ * 'above' = avisar cuando el precio SUBE hasta ahí (ruptura / toma de ganancias).
+ * 'below' = avisar cuando el precio BAJA hasta ahí (compra en caída / stop-loss).
+ * Filas viejas sin dirección guardada (previas a este fix) caen al comportamiento
+ * anterior según cartera, para no romper objetivos ya definidos.
  */
 function targetReached(item: WatchlistItem, price: number | undefined, owned: boolean): boolean {
   if (item.target_price === null || price === undefined) return false
-  return owned ? price >= item.target_price : price <= item.target_price
+  const dir = item.target_direction ?? (owned ? 'above' : 'below')
+  return dir === 'above' ? price >= item.target_price : price <= item.target_price
 }
 
 /** A ≤3% del precio objetivo sin haberlo alcanzado — entra al radar "al ojo". */
@@ -678,21 +684,26 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
   }
 
   // ── Precio objetivo ───────────────────────────────────────────────────────
-  const [targetInput, setTargetInput] = useState<string | null>(null)  // null = no editando
-  const [targetBusy,  setTargetBusy]  = useState(false)
-  useEffect(() => { setTargetInput(null) }, [expanded])  // cerrar editor al cambiar de ticker
+  const [targetInput,    setTargetInput]    = useState<string | null>(null)  // null = no editando
+  const [targetDirOverride, setTargetDirOverride] = useState<'above' | 'below' | null>(null)  // null = auto según precio actual
+  const [targetBusy,     setTargetBusy]     = useState(false)
+  useEffect(() => { setTargetInput(null); setTargetDirOverride(null) }, [expanded])  // cerrar editor al cambiar de ticker
 
-  async function saveTarget(item: WatchlistItem, value: number | null) {
+  async function saveTarget(item: WatchlistItem, value: number | null, direction: 'above' | 'below' | null) {
     setTargetBusy(true)
     const { error } = await supabase
       .from('watchlist')
-      .update({ target_price: value })
+      // target_notified=false: un objetivo nuevo (o editado) vuelve a poder avisar por correo
+      .update({ target_price: value, target_direction: value === null ? null : direction, target_notified: false })
       .eq('id', item.id)
       .eq('user_id', userId)
     setTargetBusy(false)
     if (error) return
-    setItems(prev => prev.map(i => i.id === item.id ? { ...i, target_price: value } : i))
+    setItems(prev => prev.map(i => i.id === item.id
+      ? { ...i, target_price: value, target_direction: value === null ? null : direction }
+      : i))
     setTargetInput(null)
+    setTargetDirOverride(null)
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -704,7 +715,7 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
     const { data, error } = await supabase
       .from('watchlist')
       .insert({ user_id: userId, ticker: t })
-      .select('id, ticker, target_price')
+      .select('id, ticker, target_price, target_direction')
       .single()
     setAddingSym(null)
     if (error) { setAddError(error.message); return }
@@ -1098,86 +1109,125 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                 </button>
               </div>
 
-              {/* Precio objetivo — entrada (sin posición) o salida (en cartera) */}
+              {/* Precio objetivo — entrada (sin posición) o salida (en cartera), con dirección explícita */}
               {item && (() => {
-                const isOwned  = owned.has(ticker)
-                const reached  = targetReached(item, q?.price, isOwned)
+                const isOwned = owned.has(ticker)
+                const reached = targetReached(item, q?.price, isOwned)
+                const dirLabel = (d: 'above' | 'below') => d === 'above' ? 'suba a' : 'baje a'
+
+                // Mientras se edita: dirección auto-inferida (¿el valor tipeado está sobre o bajo el precio actual?),
+                // salvo que el usuario la haya sobreescrito con el toggle.
+                const enteredVal   = targetInput !== null ? parseFloat(targetInput) : NaN
+                const inferredDir: 'above' | 'below' =
+                  q && Number.isFinite(enteredVal) && enteredVal < q.price ? 'below' : 'above'
+                const effectiveDir = targetDirOverride ?? inferredDir
+
                 return (
-                  <div className="flex items-center gap-2.5 px-5 lg:px-6 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
-                    <Target className="w-4 h-4 flex-shrink-0" style={{ color: reached ? 'var(--primary)' : 'var(--ink-3)' }} />
-                    {targetInput !== null ? (
-                      <>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step="0.01"
-                          value={targetInput}
-                          onChange={e => setTargetInput(e.target.value)}
-                          placeholder={isOwned ? 'Precio de salida en USD' : 'Precio de entrada en USD'}
-                          autoFocus
-                          className="flex-1 min-w-0 text-xs font-semibold outline-none border rounded-xl px-3 py-1.5"
-                          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                        />
+                  <div className="px-5 lg:px-6 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex items-center gap-2.5">
+                      <Target className="w-4 h-4 flex-shrink-0" style={{ color: reached ? 'var(--primary)' : 'var(--ink-3)' }} />
+                      {targetInput !== null ? (
+                        <>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.01"
+                            value={targetInput}
+                            onChange={e => setTargetInput(e.target.value)}
+                            placeholder={isOwned ? 'Precio de salida en USD' : 'Precio de entrada en USD'}
+                            autoFocus
+                            className="flex-1 min-w-0 text-xs font-semibold outline-none border rounded-xl px-3 py-1.5"
+                            style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                          />
+                          <button
+                            onClick={() => {
+                              const v = parseFloat(targetInput)
+                              if (Number.isFinite(v) && v > 0) saveTarget(item, Math.round(v * 100) / 100, effectiveDir)
+                            }}
+                            disabled={targetBusy}
+                            className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => { setTargetInput(null); setTargetDirOverride(null) }}
+                            className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors"
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : item.target_price !== null ? (
+                        <>
+                          <p className="flex-1 min-w-0 text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            Objetivo de {isOwned ? 'salida' : 'entrada'}: cuando {dirLabel(item.target_direction ?? (isOwned ? 'above' : 'below'))}{' '}
+                            <span className="font-bold" style={{ color: 'var(--ink)' }}>{fmtUSD(item.target_price)}</span>
+                            {reached ? (
+                              <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+                                style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                                Llegó a tu precio
+                              </span>
+                            ) : q && (
+                              <span className="ml-2 text-[10px] font-bold" style={{ color: 'var(--ink-3)' }}>
+                                a {(Math.abs(q.price - item.target_price) / item.target_price * 100).toFixed(1)}% de distancia
+                              </span>
+                            )}
+                          </p>
+                          <button
+                            onClick={() => {
+                              setTargetInput(String(item.target_price))
+                              setTargetDirOverride(item.target_direction)
+                            }}
+                            className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5"
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => saveTarget(item, null, null)}
+                            disabled={targetBusy}
+                            className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5 disabled:opacity-50"
+                            style={{ background: 'transparent', color: 'var(--coral)' }}
+                          >
+                            Quitar
+                          </button>
+                        </>
+                      ) : (
                         <button
-                          onClick={() => {
-                            const v = parseFloat(targetInput)
-                            if (Number.isFinite(v) && v > 0) saveTarget(item, Math.round(v * 100) / 100)
-                          }}
-                          disabled={targetBusy}
-                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                          style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                          onClick={() => setTargetInput('')}
+                          className="flex-1 text-left text-xs font-semibold transition-opacity hover:opacity-75"
+                          style={{ color: 'var(--ink-3)' }}
                         >
-                          Guardar
+                          Definir precio objetivo de {isOwned ? 'salida' : 'entrada'} — te avisamos por correo cuando llegue
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Toggle de dirección: evita el error de "ya alcanzado" cuando el objetivo es por ruptura (sube) y no por caída (baja) */}
+                    {targetInput !== null && (
+                      <div className="flex items-center gap-1.5 mt-2 ml-[26px]">
+                        <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisar cuando el precio:</span>
+                        <button
+                          onClick={() => setTargetDirOverride('above')}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors"
+                          style={effectiveDir === 'above'
+                            ? { background: 'rgba(31,190,141,0.16)', color: 'var(--mint)' }
+                            : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                        >
+                          ↑ suba a ese valor
                         </button>
                         <button
-                          onClick={() => setTargetInput(null)}
-                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors"
-                          style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                          onClick={() => setTargetDirOverride('below')}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors"
+                          style={effectiveDir === 'below'
+                            ? { background: 'rgba(255,111,97,0.16)', color: 'var(--coral)' }
+                            : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
                         >
-                          Cancelar
+                          ↓ baje a ese valor
                         </button>
-                      </>
-                    ) : item.target_price !== null ? (
-                      <>
-                        <p className="flex-1 min-w-0 text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                          Objetivo de {isOwned ? 'salida' : 'entrada'}:{' '}
-                          <span className="font-bold" style={{ color: 'var(--ink)' }}>{fmtUSD(item.target_price)}</span>
-                          {reached ? (
-                            <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
-                              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                              Llegó a tu precio
-                            </span>
-                          ) : q && (
-                            <span className="ml-2 text-[10px] font-bold" style={{ color: 'var(--ink-3)' }}>
-                              a {(Math.abs(q.price - item.target_price) / item.target_price * 100).toFixed(1)}% de distancia
-                            </span>
-                          )}
-                        </p>
-                        <button
-                          onClick={() => setTargetInput(String(item.target_price))}
-                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5"
-                          style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => saveTarget(item, null)}
-                          disabled={targetBusy}
-                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5 disabled:opacity-50"
-                          style={{ background: 'transparent', color: 'var(--coral)' }}
-                        >
-                          Quitar
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setTargetInput('')}
-                        className="flex-1 text-left text-xs font-semibold transition-opacity hover:opacity-75"
-                        style={{ color: 'var(--ink-3)' }}
-                      >
-                        Definir precio objetivo de {isOwned ? 'salida' : 'entrada'} — te avisamos con un chip cuando llegue
-                      </button>
+                      </div>
                     )}
                   </div>
                 )
