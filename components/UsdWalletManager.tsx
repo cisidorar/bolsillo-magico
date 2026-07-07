@@ -159,7 +159,134 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
         </button>
       </div>
 
-      {purchases.length === 0 && !showForm ? (
+      {/* ── Modal agregar/editar aporte ──────────────────────────────────── */}
+      {showForm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.65)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowForm(false) }}
+        >
+          <div
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+            style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+          >
+            {/* Handle mobile */}
+            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
+                {editId ? 'Editar aporte' : 'Nuevo aporte'}
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    Pesos pagados (total)
+                  </label>
+                  <input
+                    type="text" inputMode="numeric" placeholder="950.000"
+                    value={fmtInputCLP(form.clp)}
+                    onChange={e => setForm(f => ({ ...f, clp: e.target.value.replace(/\D/g, '') }))}
+                    className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    Dólares recibidos
+                  </label>
+                  <input
+                    type="text" inputMode="decimal" placeholder="1000,00"
+                    value={form.usd}
+                    onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                    className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                  />
+                </div>
+              </div>
+
+              {/* Tasa implícita en vivo: hace visible la comisión sin pedirla aparte */}
+              {(() => {
+                const clp = parseInt(form.clp || '0')
+                const usd = parseFloat(form.usd.replace(',', '.'))
+                if (!clp || !Number.isFinite(usd) || usd <= 0) return null
+                return (
+                  <div
+                    className="px-4 py-2.5 rounded-xl flex items-center gap-2"
+                    style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
+                      Tasa implícita
+                    </span>
+                    <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
+                      {formatCLP(Math.round(clp / usd))}/USD
+                    </span>
+                  </div>
+                )
+              })()}
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Fecha
+                </label>
+                <input
+                  type="date" value={form.date} max={todayStr()}
+                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  className="w-full text-sm border px-4 py-3 outline-none"
+                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Nota (opcional)
+                </label>
+                <input
+                  type="text" placeholder="Racional" maxLength={60}
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full text-sm border px-4 py-3 outline-none"
+                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                />
+              </div>
+
+              {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={save} disabled={busy}
+                  className="flex-1 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-all active:scale-[.98] flex items-center justify-center gap-2"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                >
+                  {busy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  {editId ? 'Guardar cambios' : 'Registrar aporte'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {purchases.length === 0 ? (
         <div className="card px-6 py-8 text-center">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Registra tus compras de dólares</p>
           <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
@@ -207,82 +334,6 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   Si lo trajeras hoy ≈ {formatCLP(Math.round(available * fx))} (dólar {formatCLP(Math.round(fx))})
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Form agregar/editar */}
-          {showForm && (
-            <div className="rounded-2xl p-3.5 mb-3" style={{ background: 'var(--surface-2)' }}>
-              <div className="flex items-center justify-between mb-2.5">
-                <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
-                  {editId ? 'Editar aporte' : 'Nuevo aporte'}
-                </p>
-                <button onClick={() => setShowForm(false)} className="w-7 h-7 flex items-center justify-center rounded-full"
-                  style={{ background: 'var(--surface)', color: 'var(--ink-3)' }}>
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Pesos pagados (total)</span>
-                  <input
-                    type="text" inputMode="numeric" placeholder="950.000"
-                    value={fmtInputCLP(form.clp)}
-                    onChange={e => setForm(f => ({ ...f, clp: e.target.value.replace(/\D/g, '') }))}
-                    className="w-full mt-1 text-sm font-semibold rounded-xl border px-3 py-2 outline-none"
-                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Dólares recibidos</span>
-                  <input
-                    type="text" inputMode="decimal" placeholder="1000,00"
-                    value={form.usd}
-                    onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
-                    className="w-full mt-1 text-sm font-semibold rounded-xl border px-3 py-2 outline-none"
-                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Fecha</span>
-                  <input
-                    type="date" value={form.date} max={todayStr()}
-                    onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    className="w-full mt-1 text-sm font-semibold rounded-xl border px-3 py-2 outline-none"
-                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</span>
-                  <input
-                    type="text" placeholder="Racional" maxLength={60}
-                    value={form.notes}
-                    onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    className="w-full mt-1 text-sm font-semibold rounded-xl border px-3 py-2 outline-none"
-                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                  />
-                </label>
-              </div>
-              {/* Tasa implícita en vivo: hace visible la comisión sin pedirla aparte */}
-              {(() => {
-                const clp = parseInt(form.clp || '0')
-                const usd = parseFloat(form.usd.replace(',', '.'))
-                if (!clp || !Number.isFinite(usd) || usd <= 0) return null
-                return (
-                  <p className="text-[10px] mt-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    Tasa implícita: {formatCLP(Math.round(clp / usd))} por dólar — la comisión ya queda dentro.
-                  </p>
-                )
-              })()}
-              {formError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{formError}</p>}
-              <button
-                onClick={save} disabled={busy}
-                className="w-full mt-3 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-              >
-                {busy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                {editId ? 'Guardar cambios' : 'Registrar aporte'}
-              </button>
             </div>
           )}
 
