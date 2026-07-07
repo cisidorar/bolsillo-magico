@@ -464,13 +464,13 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
       kind: 'rsi_oversold', tone: 'mint', trigger: true,
       title: 'Cayó muy rápido en poco tiempo',
       detail: 'El termómetro de impulso está muy abajo: la caída se ve sobre-exagerada y a veces rebota desde aquí. Ojo: también puede seguir cayendo.',
-      tech: `RSI ${Math.round(rsi14)} (sobreventa, bajo 30)`,
+      tech: `RSI en ${Math.round(rsi14)} — ya bajo 30, la zona de "cayó de más"`,
     })
     else if (rsi14 >= 70) signals.push({
       kind: 'rsi_overbought', tone: 'gold', trigger: true,
       title: 'Subió muy rápido en poco tiempo',
       detail: 'El termómetro de impulso está muy arriba: la subida se ve sobre-exagerada y aumenta la probabilidad de una pausa o un retroceso.',
-      tech: `RSI ${Math.round(rsi14)} (sobrecompra, sobre 70)`,
+      tech: `RSI en ${Math.round(rsi14)} — ya sobre 70, la zona de "subió de más"`,
     })
   }
 
@@ -538,7 +538,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (distHighPct >= -2) signals.push({
     kind: 'near_52w_high', tone: 'gold', trigger: false,
     title: 'Está en su punto más alto del año',
-    detail: 'A menos de 2% de su precio máximo de los últimos 12 meses. No es malo en sí — pero conviene saber que compras cerca del techo reciente.',
+    detail: 'A menos de 2% de su máximo de los últimos 12 meses. Comprar en máximos no es un error en sí — las acciones fuertes marcan máximos muchas veces seguidas — pero el retroceso de corto plazo es más probable. Comprar por partes o esperar un respiro reparte ese riesgo.',
     tech: 'Máximo de 52 semanas',
   })
   // Sobre-extensión: el espejo del "cuchillo cayendo". Muy por encima de su
@@ -589,16 +589,16 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   // Impulso enfriándose hacia la zona de rebote (RSI 30-40, aún sin señal)
   if (rsi14 !== null && rsi14 > 30 && rsi14 <= 40) watch.push({
     kind: 'watch_rsi_low', tone: 'mint', trigger: false,
-    title: 'Se está enfriando — cerca de la zona de rebote',
-    detail: 'El termómetro de impulso viene bajando y se acerca al nivel donde las caídas suelen verse exageradas. Todavía no llega: si sigue cayendo unos días más, vale la pena mirarla de cerca.',
-    tech: `RSI ${Math.round(rsi14)} (zona de rebote: bajo 30)`,
+    title: 'Viene cayendo rápido — se acerca a la zona donde suele rebotar',
+    detail: 'La caída de estos días se está acercando al punto donde normalmente se frena y rebota, aunque todavía no llega. En simple: si te interesa esta acción, mírala estos días — puede estar cerca de un precio más conveniente.',
+    tech: `RSI en ${Math.round(rsi14)} — recién bajo 30 se considera "cayó de más" (aún no llega)`,
   })
   // Impulso calentándose hacia sobrecompra (RSI 62-70) — útil para quien tiene la acción
   if (rsi14 !== null && rsi14 >= 62 && rsi14 < 70) watch.push({
     kind: 'watch_rsi_high', tone: 'gold', trigger: false,
-    title: 'Se está calentando — cerca de la zona de pausa',
-    detail: 'El termómetro de impulso viene subiendo y se acerca al nivel donde las subidas suelen tomarse un respiro. No es señal todavía, pero conviene no perseguir el precio aquí.',
-    tech: `RSI ${Math.round(rsi14)} (sobrecompra: sobre 70)`,
+    title: 'Subió con fuerza estos días — puede venir una pausa',
+    detail: 'La subida de estos días se está acercando al punto donde normalmente descansa, aunque todavía no llega. En simple: comprar justo después de un estirón suele salir más caro; muchos prefieren esperar unos días a que se calme o baje un poco.',
+    tech: `RSI en ${Math.round(rsi14)} — recién sobre 70 se considera "subió de más" (aún no llega)`,
   })
 
   // MACD por cruzar: histograma acercándose a cero con racha de 3+ días
