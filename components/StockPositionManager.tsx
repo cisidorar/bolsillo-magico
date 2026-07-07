@@ -452,8 +452,13 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   }, 0)
   const totalGainUsd  = totalValueUsd - totalCostUsd
   const totalGainPct  = totalCostUsd > 0 ? (totalGainUsd / totalCostUsd) * 100 : 0
-  // Billetera: disponible = movimientos (aportes+ventas) − costo de posiciones abiertas
-  const walletAvailable = walletUsdBase > 0 ? walletUsdBase - totalCostUsd : null
+  // Billetera: disponible = movimientos (aportes+ventas) − costo de posiciones
+  // FINANCIADAS por la billetera. Las legacy (compradas antes de usarla) no
+  // descuentan: no salieron de estos aportes.
+  const fundedCostUsd = positions
+    .filter(p => p.wallet_funded)
+    .reduce((s, p) => s + p.shares * p.avg_cost_usd, 0)
+  const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
 
   // posUp/posDown basados en retorno TOTAL (precio actual vs costo), no en cambio del día
   const posUp   = positions.filter(p => {
@@ -549,7 +554,11 @@ export default function StockPositionManager({ userId, initialPositions, walletU
       ))
     } else {
       const { data, error } = await supabase.from('stock_positions')
-        .upsert({ user_id: userId, ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null }, { onConflict: 'user_id,ticker' })
+        .upsert({
+          user_id: userId, ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null,
+          // Con billetera activa, la compra nueva sale de ella y descuenta del saldo
+          wallet_funded: walletUsdBase > 0,
+        }, { onConflict: 'user_id,ticker' })
         .select().single()
       setSaving(false)
       if (error) { setFormError('Error al guardar'); return }

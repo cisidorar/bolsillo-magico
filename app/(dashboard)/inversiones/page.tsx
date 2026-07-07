@@ -9,13 +9,14 @@ import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManage
 export const dynamic = 'force-dynamic'
 
 export interface StockPosition {
-  id:           string
-  ticker:       string
-  shares:       number
-  avg_cost_usd: number
-  notes:        string | null
-  created_at:   string
-  updated_at:   string
+  id:            string
+  ticker:        string
+  shares:        number
+  avg_cost_usd:  number
+  notes:         string | null
+  wallet_funded: boolean   // true = comprada con la billetera USD (descuenta del saldo); false = legacy
+  created_at:    string
+  updated_at:    string
 }
 
 export interface TermDeposit {
@@ -87,9 +88,12 @@ export default async function InversionesPage({ searchParams }: Props) {
     .eq('user_id', user.id)
     .order('purchase_date', { ascending: false })
 
-  // Σ movimientos (aportes + ventas) y costo de posiciones abiertas, en USD
+  // Σ movimientos (aportes + ventas) y costo de posiciones FINANCIADAS por la
+  // billetera — las legacy (compradas antes de usarla) no descuentan del saldo
   const walletUsdBase = (usdPurchases ?? []).reduce((s, r) => s + Number(r.usd_amount), 0)
-  const investedUsd   = (stocks ?? []).reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
+  const investedUsd   = (stocks ?? [])
+    .filter(p => p.wallet_funded === true)
+    .reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
 
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0

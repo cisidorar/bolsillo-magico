@@ -330,6 +330,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
             La billetera conversa sola con Acciones: al registrar una compra se descuenta del disponible
             (no puedes invertir más de lo aportado), y al vender una posición los dólares vuelven aquí como &ldquo;Venta&rdquo;.
+            Las acciones registradas antes de usar la billetera no descuentan — no salieron de estos aportes.
           </p>
         </div>
       )}

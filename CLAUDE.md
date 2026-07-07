@@ -131,7 +131,7 @@ Tables in Supabase (all with RLS, all scoped to `user_id`):
 | `budgets` | Monthly total budget; unique per `(user_id, month, year)` |
 | `category_budgets` | Per-category budget limits; unique per `(user_id, category_id)` |
 | `profiles` | `display_name`, `avatar_url` (Supabase Storage bucket `avatars`) |
-| `usd_purchases` | Billetera USD: `kind` (deposit/sell), `usd_amount` (numeric USD), `total_paid_clp` (CLP con comisión; null en sells), `purchase_date`. Saldo = Σ movimientos − costo de posiciones abiertas; comprar acciones valida contra ese saldo y vender devuelve una fila sell |
+| `usd_purchases` | Billetera USD: `kind` (deposit/sell), `usd_amount` (numeric USD), `total_paid_clp` (CLP con comisión; null en sells), `purchase_date`. Saldo = Σ movimientos − costo de posiciones abiertas con `stock_positions.wallet_funded=true` (las legacy, registradas antes de la billetera, no descuentan); comprar acciones con billetera activa valida contra ese saldo e inserta `wallet_funded=true`, vender devuelve una fila sell |
 
 All `amount` values are **integers in Chilean Pesos (CLP)** — no decimals ever. Format with `formatCLP()` from `lib/utils.ts`.
 
