@@ -578,9 +578,13 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (aboveSma200 === true && !hasNearStrongSupport) signals.push({
     kind: 'no_safety_net', tone: 'gold', trigger: false,
     title: 'No hay piso con historia cerca',
-    detail: supportLevels.length > 0
-      ? `El piso más cercano (${fmtLevel(supportLevels[0].price)}) tiene ${supportLevels[0].touches} toque${supportLevels[0].touches !== 1 ? 's' : ''} y no alcanza como red probada. Subió tan rápido que no dejó zonas de compra afirmadas: si cae, puede caer de corrido.`
-      : 'Subió tan rápido que no dejó pisos probados en el último año: si empieza a caer, no hay zona clara donde suela afirmarse.',
+    // Dos casos distintos (fix caso SNDK): piso DÉBIL (pocos toques) vs piso
+    // PROBADO pero lejano — el texto anterior los mezclaba y confundía.
+    detail: supportLevels.length === 0
+      ? 'Subió tan rápido que no dejó pisos probados en el último año: si empieza a caer, no hay zona clara donde suela afirmarse.'
+      : supportLevels[0].touches >= 2
+        ? `Hay un piso probado (${fmtLevel(supportLevels[0].price)}, ${supportLevels[0].touches} toques) pero queda lejos: entre el precio y esa zona hay un vacío — si cae, puede caer de corrido hasta allá.`
+        : `El piso más cercano (${fmtLevel(supportLevels[0].price)}) tiene 1 solo toque y no alcanza como red probada. Subió tan rápido que no dejó zonas de compra afirmadas: si cae, puede caer de corrido.`,
     tech: 'Sin soporte de ≥2 toques a menos de 12%',
   })
   if (distLowPct <= 5) signals.push({
@@ -588,6 +592,24 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     title: 'Está en su punto más bajo del año',
     detail: 'A menos de 5% de su precio mínimo de los últimos 12 meses. Que esté "barata" no siempre significa oportunidad: a veces sigue cayendo.',
     tech: 'Mínimo de 52 semanas',
+  })
+
+  // Integridad de datos: un cambio diario de ±40% suele ser un split no
+  // ajustado del proveedor (o una noticia extrema). Si es split, promedios,
+  // rango anual y retornos quedan distorsionados — hay que decirlo (caso
+  // SNDK: "+3675% en un año").
+  let dataJump: { date: string; pct: number } | null = null
+  for (let i = Math.max(1, start252); i <= lastIdx; i++) {
+    const chg = ((closes[i] - closes[i - 1]) / closes[i - 1]) * 100
+    if (Math.abs(chg) >= 40 && (dataJump === null || Math.abs(chg) > Math.abs(dataJump.pct))) {
+      dataJump = { date: dates[i], pct: Math.round(chg * 10) / 10 }
+    }
+  }
+  if (dataJump) signals.push({
+    kind: 'data_jump', tone: 'neutral', trigger: false,
+    title: 'Ojo: hay un salto brusco en la historia de precios',
+    detail: `El ${fmtDateShort(dataJump.date)} el precio saltó ${dataJump.pct > 0 ? '+' : ''}${dataJump.pct}% en un día. Puede ser una noticia extrema — o un split/ajuste que el proveedor de datos no aplicó. Si es lo segundo, los promedios, el rango anual y los retornos de esta ficha están distorsionados: tómalos con pinzas.`,
+    tech: `Cambio diario de ${dataJump.pct > 0 ? '+' : ''}${dataJump.pct}% el ${dataJump.date}`,
   })
 
   // ── Radar: cerca de pasar (aviso anticipado, pensado para quien compra) ────
@@ -673,6 +695,10 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   let verdict: string
   if (aboveSma200 === null) {
     verdict = 'Todavía no hay historia suficiente para evaluar hacia dónde va en el largo plazo (se necesitan ~10 meses de datos).'
+  } else if (aboveSma200 && distPct !== null && distPct >= 40) {
+    // La euforia manda sobre la "tendencia sana": +145% sobre el promedio no
+    // se presenta como "subiendo de forma sostenida" (caso SNDK)
+    verdict = `Subida vertical: lleva ${wks} sobre su promedio de largo plazo, pero va ${distPct}% por encima — eso ya no es tendencia sana, es euforia.`
   } else if (aboveSma200 && sma200Rising !== false) {
     verdict = `Viene subiendo de forma sostenida: lleva ${wks} por encima de su promedio de largo plazo${sma200Rising ? ', y ese promedio también apunta hacia arriba' : ''}.`
   } else if (!aboveSma200 && sma200Rising === false) {
@@ -755,9 +781,25 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (aboveSma200 === false) {
     entryPlan = 'Sin base mientras siga bajo su promedio largo. El primer aviso a favor sería un cruce alcista de MACD o una divergencia alcista — hasta entonces, fuera del radar de compra.'
   } else if (label === 'compra' || label === 'compra_fuerte') {
-    entryPlan = supRef
-      ? `Los gatillos están a favor. Si entras, ${fmtLevel(supRef.price)} es tu línea de salida: si la pierde con claridad, la tesis se cayó.`
-      : 'Los gatillos están a favor, pero no hay piso probado cerca: define tu precio de salida ANTES de entrar.'
+    // Coherencia (caso AAPL): si el contexto dice "estirada/en máximos", el
+    // plan no puede decir "adelante" a secas — y un stop a −8% con el próximo
+    // techo a +2% es una relación que hay que decir en voz alta.
+    const inMax     = distHighPct >= -2
+    const stretched = (distPct !== null && distPct >= 15) || (rsi14 !== null && rsi14 >= 62)
+    const riskPct   = supRef ? Math.round(Math.abs(supRef.distPct)) : null
+    const rewardPct = resRef && resRef.distPct > 0 ? resRef.distPct : null
+    let plan = (inMax || stretched)
+      ? `Gatillos a favor, pero estarías comprando ${inMax ? 'en máximos' : 'estirada'}: mejor por partes, no todo de una.`
+      : 'Los gatillos están a favor.'
+    if (supRef) {
+      plan += ` Línea de salida: ${fmtLevel(supRef.price)}${riskPct !== null && riskPct > 6 ? ` — ojo, queda ~${riskPct}% abajo (stop caro); un retroceso antes de entrar lo abarata` : ''}.`
+    } else {
+      plan += ' No hay piso probado cerca: define tu precio de salida ANTES de entrar.'
+    }
+    if (riskPct !== null && rewardPct !== null && rewardPct < riskPct) {
+      plan += ` Además el próximo techo está a +${rewardPct}% y tu salida a −${riskPct}%: la relación no te favorece aquí.`
+    }
+    entryPlan = plan
   } else if (label === 'venta' || label === 'venta_fuerte' || caution || (distPct !== null && distPct >= 40)) {
     const waits: string[] = []
     if (supRef) waits.push(`un retroceso a ${fmtLevel(supRef.price)} que aguante 2-3 cierres`)
