@@ -134,14 +134,17 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
     : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
     : 'var(--gold)'
 
-  const ratingUi = a.rating.label === 'favorable'
-    ? { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)',  text: 'Lectura técnica: a favor de compra' }
-    : a.rating.label === 'unfavorable'
-    ? { color: 'var(--coral)', bg: 'rgba(255,111,97,0.12)',  text: 'Lectura técnica: en contra de compra' }
-    : { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)',  text: 'Lectura técnica: mixta — esperar' }
+  const RATING_UI: Record<TechnicalAnalysis['rating']['label'], { color: string; bg: string }> = {
+    compra_fuerte: { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.20)' },
+    compra:        { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.10)' },
+    neutral:       { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)' },
+    venta:         { color: 'var(--coral)', bg: 'rgba(255,111,97,0.10)' },
+    venta_fuerte:  { color: 'var(--coral)', bg: 'rgba(255,111,97,0.20)' },
+  }
+  const ratingUi = { ...RATING_UI[a.rating.label], text: `Lectura técnica: ${a.rating.action}` }
 
   return (
-    <div className="px-4 pb-4 space-y-3">
+    <div className="px-4 lg:px-6 pb-4 lg:pb-6 space-y-3 lg:space-y-4">
 
       {/* 0. Lectura técnica agregada (regla automática) */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg }}>
@@ -179,101 +182,111 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
         <PriceChart a={a} />
       </div>
 
-      {/* 3. Tendencia de fondo + rendimiento */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia de fondo</p>
-          {a.trend.aboveSma200 !== null ? (
-            <>
-              <p className="text-xs font-extrabold" style={{ color: trendColor }}>
-                {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su media de 200d hace {a.trend.weeksInState} sem.
-              </p>
-              <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs la media`}
-                {a.trend.sma200Rising !== null && ` · media ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
-              </p>
-            </>
-          ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
-        </div>
-        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rendimiento</p>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {([['1m', a.returns.m1], ['6m', a.returns.m6], ['1a', a.returns.y1]] as const).map(([label, v]) => (
-              <span key={label} className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums"
-                style={v === null
-                  ? { background: 'var(--surface)', color: 'var(--ink-3)' }
-                  : { background: v >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: v >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                {label} {v !== null ? `${v > 0 ? '+' : ''}${v}%` : '—'}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* 3-6. Stats a la izquierda, niveles/señales a la derecha en desktop */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start space-y-3 lg:space-y-0">
 
-      {/* 4. Niveles con historia */}
-      {(a.supportLevels.length > 0 || a.resistanceLevels.length > 0) && (
-        <div className="space-y-1.5">
-          {a.resistanceLevels.map(l => (
-            <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
-              <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                <span className="font-bold" style={{ color: 'var(--gold)' }}>Resistencia {fmtUSD(l.price)}</span>
-                {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
-              </p>
+        {/* Columna izquierda: tendencia, rendimiento, RSI, rango */}
+        <div className="space-y-3">
+          {/* 3. Tendencia de fondo + rendimiento */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia de fondo</p>
+              {a.trend.aboveSma200 !== null ? (
+                <>
+                  <p className="text-xs font-extrabold" style={{ color: trendColor }}>
+                    {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su media de 200d hace {a.trend.weeksInState} sem.
+                  </p>
+                  <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                    {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs la media`}
+                    {a.trend.sma200Rising !== null && ` · media ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
+                  </p>
+                </>
+              ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
             </div>
-          ))}
-          {a.supportLevels.map(l => (
-            <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
-              <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                <span className="font-bold" style={{ color: 'var(--mint)' }}>Soporte {fmtUSD(l.price)}</span>
-                {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 5. Señales (incluye divergencias) */}
-      {a.signals.length > 0 ? (
-        <div className="space-y-2">
-          {a.signals.map(s => {
-            const t = TONE_STYLE[s.tone]
-            return (
-              <div key={s.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5" style={{ background: t.bg }}>
-                <span className="w-1.5 h-1.5 rounded-full inline-block mt-1.5 flex-shrink-0" style={{ background: t.color }} />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
-                  <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
-                </div>
+            <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rendimiento</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {([['1m', a.returns.m1], ['6m', a.returns.m6], ['1a', a.returns.y1]] as const).map(([label, v]) => (
+                  <span key={label} className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums"
+                    style={v === null
+                      ? { background: 'var(--surface)', color: 'var(--ink-3)' }
+                      : { background: v >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: v >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    {label} {v !== null ? `${v > 0 ? '+' : ''}${v}%` : '—'}
+                  </span>
+                ))}
               </div>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="text-xs rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-          Sin señales de giro esta semana: el precio se mueve dentro de su rango normal.
-        </p>
-      )}
+            </div>
+          </div>
 
-      {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
-            RSI 14 {a.rsi14 !== null && <span className="tabular-nums" style={{ color: 'var(--ink)' }}>· {Math.round(a.rsi14)}</span>}
-          </p>
-          {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
+          {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                RSI 14 {a.rsi14 !== null && <span className="tabular-nums" style={{ color: 'var(--ink)' }}>· {Math.round(a.rsi14)}</span>}
+              </p>
+              {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
+            </div>
+            <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango 52 semanas</p>
+              <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
+                <div className="absolute -top-0.5 w-3 h-3 rounded-full border-2"
+                  style={{ left: `calc(${posPct}% - 6px)`, background: 'var(--surface)', borderColor: 'var(--ink)' }} />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{fmtUSD(a.low52)}</span>
+                <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{fmtUSD(a.high52)}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango 52 semanas</p>
-          <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
-            <div className="absolute -top-0.5 w-3 h-3 rounded-full border-2"
-              style={{ left: `calc(${posPct}% - 6px)`, background: 'var(--surface)', borderColor: 'var(--ink)' }} />
-          </div>
-          <div className="flex justify-between mt-1">
-            <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{fmtUSD(a.low52)}</span>
-            <span className="text-[9px] font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{fmtUSD(a.high52)}</span>
-          </div>
+
+        {/* Columna derecha: niveles con historia + señales */}
+        <div className="space-y-3">
+          {/* 4. Niveles con historia */}
+          {(a.supportLevels.length > 0 || a.resistanceLevels.length > 0) && (
+            <div className="space-y-1.5">
+              {a.resistanceLevels.map(l => (
+                <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
+                  <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                    <span className="font-bold" style={{ color: 'var(--gold)' }}>Resistencia {fmtUSD(l.price)}</span>
+                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              ))}
+              {a.supportLevels.map(l => (
+                <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
+                  <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                    <span className="font-bold" style={{ color: 'var(--mint)' }}>Soporte {fmtUSD(l.price)}</span>
+                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 5. Señales (incluye divergencias) */}
+          {a.signals.length > 0 ? (
+            <div className="space-y-2">
+              {a.signals.map(s => {
+                const t = TONE_STYLE[s.tone]
+                return (
+                  <div key={s.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5" style={{ background: t.bg }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block mt-1.5 flex-shrink-0" style={{ background: t.color }} />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+              Sin señales de giro esta semana: el precio se mueve dentro de su rango normal.
+            </p>
+          )}
         </div>
       </div>
 
@@ -675,13 +688,13 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
             onClick={e => { if (e.target === e.currentTarget) setExpanded(null) }}
           >
             <div
-              className="w-full lg:max-w-lg rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col"
+              className="w-full lg:max-w-3xl rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col"
               style={{ background: 'var(--surface)', maxHeight: '88dvh' }}
             >
               <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
               {/* Header: ticker + quote */}
-              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3 px-5 lg:px-6 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <ServiceLogo
                   domain={q?.domain ?? null}
                   name={ticker}

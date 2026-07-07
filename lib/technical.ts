@@ -1,12 +1,17 @@
 // ── Análisis técnico de largo plazo: matemática determinista sobre velas diarias ──
 // Pensado para un inversionista que decide ~1 vez por semana, no para trading:
 // tendencia de fondo con persistencia, niveles con historia (toques y vigencia),
-// divergencias precio/RSI y rendimiento en ventanas largas.
-// Ninguna señal es recomendación de inversión.
+// divergencias precio/RSI, momentum vía MACD, confirmación por volumen y
+// rendimiento en ventanas largas.
+// Ninguna señal es recomendación de inversión: es una regla automática y explícita
+// sobre indicadores públicos, no un consejo personalizado.
 
 export interface DailyCandles {
-  closes: number[]   // cierres diarios, oldest → newest
-  dates:  string[]   // 'YYYY-MM-DD' por cada punto
+  closes:  number[]   // cierres diarios, oldest → newest
+  dates:   string[]   // 'YYYY-MM-DD' por cada punto
+  highs:   number[]   // máximos diarios (soporta resistencias más precisas)
+  lows:    number[]   // mínimos diarios (soporta soportes más precisos)
+  volumes: number[]   // volumen diario (confirma rupturas/cruces)
 }
 
 export type SignalTone = 'mint' | 'gold' | 'coral' | 'neutral'
@@ -33,12 +38,15 @@ export interface ChartPoint {
   sma200: number | null
 }
 
-/** Lectura técnica agregada — regla automática, NO asesoría financiera. */
+/** Lectura técnica agregada — regla automática y explícita, NO asesoría financiera. */
+export type RatingLabel = 'compra_fuerte' | 'compra' | 'neutral' | 'venta' | 'venta_fuerte'
+
 export interface TechnicalRating {
-  label: 'favorable' | 'neutral' | 'unfavorable'
-  score: number          // suma ponderada de señales (−8 a +8 aprox)
-  pros:  number          // señales a favor
-  cons:  number          // señales en contra
+  label: RatingLabel
+  action: string          // etiqueta legible: "Compra fuerte", "Venta", etc.
+  score:  number           // suma ponderada de señales (~ -11 a +11)
+  pros:   number           // señales a favor
+  cons:   number           // señales en contra
 }
 
 export interface TechnicalAnalysis {
@@ -57,6 +65,8 @@ export interface TechnicalAnalysis {
   // Momentum
   rsi14:        number | null
   divergence:   'bullish' | 'bearish' | null
+  macdCross:    'bullish' | 'bearish' | null
+  volumeSignal: 'up' | 'down' | null
   // Niveles con historia
   supportLevels:    LevelInfo[]        // hasta 2, más cercanos bajo el precio
   resistanceLevels: LevelInfo[]        // hasta 2, más cercanos sobre el precio
@@ -98,6 +108,21 @@ export function smaSeries(closes: number[], n: number): (number | null)[] {
   return out
 }
 
+/** EMA(n) — serie completa, semillada con la SMA de los primeros n valores. */
+export function emaSeries(closes: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(closes.length).fill(null)
+  if (closes.length < period) return out
+  const k = 2 / (period + 1)
+  let seed = 0
+  for (let i = 0; i < period; i++) seed += closes[i]
+  seed /= period
+  out[period - 1] = seed
+  for (let i = period; i < closes.length; i++) {
+    out[i] = closes[i] * k + (out[i - 1] as number) * (1 - k)
+  }
+  return out
+}
+
 /** RSI de Wilder — serie completa alineada con closes. */
 export function rsiSeries(closes: number[], period = 14): (number | null)[] {
   const out: (number | null)[] = new Array(closes.length).fill(null)
@@ -124,16 +149,82 @@ export function rsiWilder(closes: number[], period = 14): number | null {
   return s[s.length - 1]
 }
 
-// ── Pivotes con índices (para niveles con historia y divergencias) ───────────
+// ── MACD (12,26,9) — momentum de mediano plazo sobre velas diarias ──────────
+// Un cruce reciente (histograma cambia de signo) es una de las señales de
+// compra/venta más estandarizadas; en velas diarias reacciona en ~2-4 semanas,
+// coherente con una decisión semanal (no es señal de day-trading).
 
-function pivotIndices(closes: number[], w = 5): { lows: number[]; highs: number[] } {
+export interface MacdResult {
+  macdLine:   (number | null)[]
+  signalLine: (number | null)[]
+  histogram:  (number | null)[]
+}
+
+export function macd(closes: number[], fast = 12, slow = 26, signal = 9): MacdResult {
+  const emaFast = emaSeries(closes, fast)
+  const emaSlow = emaSeries(closes, slow)
+  const macdLine: (number | null)[] = closes.map((_, i) => {
+    const f = emaFast[i], s = emaSlow[i]
+    return f !== null && s !== null ? f - s : null
+  })
+
+  const firstValid = macdLine.findIndex(v => v !== null)
+  const signalLine: (number | null)[] = new Array(closes.length).fill(null)
+  if (firstValid !== -1 && closes.length - firstValid >= signal) {
+    const macdValid = macdLine.slice(firstValid) as number[]
+    const emaOfMacd = emaSeries(macdValid, signal)
+    emaOfMacd.forEach((v, i) => { signalLine[firstValid + i] = v })
+  }
+
+  const histogram = macdLine.map((m, i) => {
+    const s = signalLine[i]
+    return m !== null && s !== null ? m - s : null
+  })
+
+  return { macdLine, signalLine, histogram }
+}
+
+/** Cruce reciente de MACD (histograma cambia de signo) en los últimos `lookback` días. */
+function recentMacdCross(histogram: (number | null)[], lookback = 10): 'bullish' | 'bearish' | null {
+  const last = histogram.length - 1
+  for (let i = last; i > last - lookback && i > 0; i--) {
+    const cur = histogram[i], prev = histogram[i - 1]
+    if (cur === null || prev === null) continue
+    if (prev <= 0 && cur > 0) return 'bullish'
+    if (prev >= 0 && cur < 0) return 'bearish'
+  }
+  return null
+}
+
+// ── Volumen ────────────────────────────────────────────────────────────────
+// Un movimiento de precio con volumen muy superior a su promedio reciente
+// tiene más probabilidad de sostenerse (más participantes detrás del giro).
+
+function volumeSignal(volumes: number[], closes: number[], lookback = 20): 'up' | 'down' | null {
+  if (volumes.length < lookback + 2 || closes.length < lookback + 2) return null
+  const last = volumes.length - 1
+  const window = volumes.slice(last - lookback, last)
+  const avgVol = window.reduce((a, b) => a + b, 0) / lookback
+  if (!avgVol || avgVol <= 0) return null
+  const todayVol = volumes[last]
+  const chgPct = ((closes[last] - closes[last - 1]) / closes[last - 1]) * 100
+  if (todayVol >= avgVol * 1.8 && chgPct >= 2)  return 'up'
+  if (todayVol >= avgVol * 1.8 && chgPct <= -2) return 'down'
+  return null
+}
+
+// ── Pivotes con índices (para niveles con historia y divergencias) ───────────
+// Se aplica sobre la serie que corresponda: máximos diarios para resistencias,
+// mínimos diarios para soportes, cierres para divergencias de RSI.
+
+function pivotIndices(series: number[], w = 5): { lows: number[]; highs: number[] } {
   const lows: number[] = []
   const highs: number[] = []
-  for (let i = w; i < closes.length - w; i++) {
+  for (let i = w; i < series.length - w; i++) {
     let isLow = true, isHigh = true
     for (let j = i - w; j <= i + w; j++) {
-      if (closes[j] < closes[i]) isLow = false
-      if (closes[j] > closes[i]) isHigh = false
+      if (series[j] < series[i]) isLow = false
+      if (series[j] > series[i]) isHigh = false
     }
     if (isLow) lows.push(i)
     if (isHigh) highs.push(i)
@@ -144,20 +235,20 @@ function pivotIndices(closes: number[], w = 5): { lows: number[]; highs: number[
 /** Agrupa pivotes en niveles (<clusterPct% entre sí) conservando su historia. */
 function clusterLevels(
   idxs: number[],
-  closes: number[],
+  values: number[],
   dates: string[],
   lastIdx: number,
   clusterPct = 1.5,
 ): LevelInfo[] {
-  const sorted = [...idxs].sort((a, b) => closes[a] - closes[b])
+  const sorted = [...idxs].sort((a, b) => values[a] - values[b])
   const groups: number[][] = []
   for (const i of sorted) {
     const g = groups[groups.length - 1]
-    if (g && (closes[i] - closes[g[g.length - 1]]) / closes[g[g.length - 1]] * 100 <= clusterPct) g.push(i)
+    if (g && (values[i] - values[g[g.length - 1]]) / values[g[g.length - 1]] * 100 <= clusterPct) g.push(i)
     else groups.push([i])
   }
   return groups.map(g => {
-    const price   = g.reduce((s, i) => s + closes[i], 0) / g.length
+    const price   = g.reduce((s, i) => s + values[i], 0) / g.length
     const minIdx  = Math.min(...g)
     const maxIdx  = Math.max(...g)
     return {
@@ -222,7 +313,7 @@ function detectDivergence(
 // ── Análisis completo ────────────────────────────────────────────────────────
 
 export function analyze(candles: DailyCandles): TechnicalAnalysis {
-  const { closes, dates } = candles
+  const { closes, dates, highs, lows, volumes } = candles
   const lastIdx = closes.length - 1
   const price = closes[lastIdx]
   const asOf  = dates[lastIdx]
@@ -264,10 +355,14 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     if (before !== null && before !== undefined) sma200Rising = sma200 > before
   }
 
-  // ── Niveles con historia ──────────────────────────────────────────────────
-  const { lows, highs } = pivotIndices(closes.slice(start252), 5)
-  const lowLevels  = clusterLevels(lows.map(i => i + start252), closes, dates, lastIdx)
-  const highLevels = clusterLevels(highs.map(i => i + start252), closes, dates, lastIdx)
+  // ── Niveles con historia (soporte desde mínimos diarios, resistencia desde
+  // máximos diarios — más preciso que usar solo el cierre) ──────────────────
+  const lowSeries252  = lows.slice(start252)
+  const highSeries252 = highs.slice(start252)
+  const { lows: lowPivots }   = pivotIndices(lowSeries252, 5)
+  const { highs: highPivots } = pivotIndices(highSeries252, 5)
+  const lowLevels  = clusterLevels(lowPivots.map(i => i + start252),  lows,  dates, lastIdx)
+  const highLevels = clusterLevels(highPivots.map(i => i + start252), highs, dates, lastIdx)
   const supportLevels    = lowLevels.filter(l => l.price < price).sort((a, b) => b.price - a.price).slice(0, 2)
   const resistanceLevels = highLevels.filter(l => l.price > price).sort((a, b) => a.price - b.price).slice(0, 2)
 
@@ -281,6 +376,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
 
   // ── Divergencia ───────────────────────────────────────────────────────────
   const divergence = detectDivergence(closes, rsiAll)
+
+  // ── Momentum: MACD y volumen ───────────────────────────────────────────────
+  const { histogram } = macd(closes)
+  const macdCross    = recentMacdCross(histogram)
+  const volSignal    = volumeSignal(volumes, closes)
 
   // ── Señales ───────────────────────────────────────────────────────────────
   const signals: TechnicalSignal[] = []
@@ -314,6 +414,24 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (cross === 'death') signals.push({
     kind: 'death_cross', tone: 'coral', title: 'Cruce de la muerte reciente (SMA50 bajo SMA200)',
     detail: 'La media de 50 días cayó bajo la de 200 hace poco — señal clásica de cambio de tendencia a la baja.',
+  })
+
+  if (macdCross === 'bullish') signals.push({
+    kind: 'macd_bullish', tone: 'mint', title: 'Cruce alcista de MACD',
+    detail: 'La línea MACD cruzó sobre su señal en las últimas ~2 semanas: el momentum de mediano plazo gira al alza.',
+  })
+  if (macdCross === 'bearish') signals.push({
+    kind: 'macd_bearish', tone: 'coral', title: 'Cruce bajista de MACD',
+    detail: 'La línea MACD cruzó bajo su señal en las últimas ~2 semanas: el momentum de mediano plazo se debilita.',
+  })
+
+  if (volSignal === 'up') signals.push({
+    kind: 'volume_up', tone: 'mint', title: 'Volumen inusual en una subida',
+    detail: 'El volumen de hoy superó ampliamente su promedio de 20 días junto a una subida notable — más convicción detrás del movimiento.',
+  })
+  if (volSignal === 'down') signals.push({
+    kind: 'volume_down', tone: 'coral', title: 'Volumen inusual en una caída',
+    detail: 'El volumen de hoy superó ampliamente su promedio de 20 días junto a una caída notable — más convicción detrás del movimiento.',
   })
 
   if (supportLevels.length > 0 && pctDiff(price, supportLevels[0].price) <= 3) {
@@ -355,12 +473,14 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
   if (divergence === 'bullish')      verdict += ' El RSI muestra divergencia alcista: la caída pierde fuerza.'
   else if (divergence === 'bearish') verdict += ' El RSI muestra divergencia bajista: la subida pierde fuerza.'
+  else if (macdCross === 'bullish')  verdict += ' El MACD cruzó al alza: mejora el momentum de mediano plazo.'
+  else if (macdCross === 'bearish')  verdict += ' El MACD cruzó a la baja: se debilita el momentum de mediano plazo.'
   else if (signals.some(s => s.kind === 'near_support'))    verdict += ' Está probando un soporte con historia.'
   else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Está frente a una resistencia con historia.'
   else verdict += ' Sin señales de giro relevantes esta semana.'
 
-  // ── Lectura técnica agregada (regla automática, no asesoría) ─────────────
-  // Suma ponderada de las mismas señales que se muestran; umbrales ±3.
+  // ── Lectura técnica agregada (regla automática y explícita, no asesoría) ──
+  // Suma ponderada de las mismas señales que se muestran arriba.
   let score = 0
   if (aboveSma200 === true)  score += sma200Rising === true  ? 2 : 1
   if (aboveSma200 === false) score -= sma200Rising === false ? 2 : 1
@@ -368,19 +488,36 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (divergence === 'bearish') score -= 2
   if (cross === 'golden') score += 2
   if (cross === 'death')  score -= 2
+  if (macdCross === 'bullish') score += 1
+  if (macdCross === 'bearish') score -= 1
+  if (volSignal === 'up')   score += 1
+  if (volSignal === 'down') score -= 1
   if (rsi14 !== null && rsi14 <= 30) score += 1
   if (rsi14 !== null && rsi14 >= 70) score -= 1
   if (signals.some(s => s.kind === 'near_support'))    score += 1
   if (signals.some(s => s.kind === 'near_resistance')) score -= 1
   if (distLowPct <= 5) score -= 1   // "cuchillo cayendo": mínimos anuales restan
+
   const pros = signals.filter(s => s.tone === 'mint').length
   const cons = signals.filter(s => s.tone === 'coral').length
-  const rating: TechnicalRating = {
-    score,
-    pros,
-    cons,
-    label: score >= 3 ? 'favorable' : score <= -3 ? 'unfavorable' : 'neutral',
+
+  // Umbrales: 5 niveles explícitos de compra/venta en vez de 3 genéricos.
+  let label: RatingLabel
+  if (score >= 5)       label = 'compra_fuerte'
+  else if (score >= 2)  label = 'compra'
+  else if (score <= -5) label = 'venta_fuerte'
+  else if (score <= -2) label = 'venta'
+  else                  label = 'neutral'
+
+  const actionText: Record<RatingLabel, string> = {
+    compra_fuerte: 'Compra fuerte',
+    compra:        'Compra',
+    neutral:       'Neutral — esperar',
+    venta:         'Venta',
+    venta_fuerte:  'Venta fuerte',
   }
+
+  const rating: TechnicalRating = { score, pros, cons, label, action: actionText[label] }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
   const chartStart = start252
@@ -397,7 +534,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   return {
     price, asOf, verdict, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
-    rsi14, divergence,
+    rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
     high52, low52, distHighPct, distLowPct, returns,
     chart, signals,

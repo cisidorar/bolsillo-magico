@@ -221,15 +221,16 @@ export async function syncTicker(supabase: SupabaseClient, ticker: string): Prom
   return { ticker, inserted: rows.length, source, reasons }
 }
 
-/** Lee las velas de la BD (viejo → nuevo). */
+/** Lee las velas de la BD (viejo → nuevo), incluyendo high/low/volume para
+ *  niveles de soporte/resistencia más precisos y confirmación por volumen. */
 export async function readCandles(
   supabase: SupabaseClient,
   ticker: string,
   maxDays = LOOKBACK_D,
-): Promise<{ closes: number[]; dates: string[] }> {
+): Promise<{ closes: number[]; dates: string[]; highs: number[]; lows: number[]; volumes: number[] }> {
   const { data } = await supabase
     .from('price_history')
-    .select('date, close')
+    .select('date, close, high, low, volume')
     .eq('ticker', ticker)
     .order('date', { ascending: false })
     .limit(maxDays)
@@ -237,5 +238,9 @@ export async function readCandles(
   return {
     closes: rows.map(r => Number(r.close)),
     dates:  rows.map(r => r.date as string),
+    // Fallback al cierre si high/low viene null (algunas fuentes no siempre lo entregan)
+    highs:   rows.map(r => (r.high   !== null && r.high   !== undefined ? Number(r.high)   : Number(r.close))),
+    lows:    rows.map(r => (r.low    !== null && r.low    !== undefined ? Number(r.low)    : Number(r.close))),
+    volumes: rows.map(r => (r.volume !== null && r.volume !== undefined ? Number(r.volume) : 0)),
   }
 }
