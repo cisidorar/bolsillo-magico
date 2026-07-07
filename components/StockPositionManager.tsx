@@ -358,16 +358,17 @@ function focusOff(e: React.FocusEvent<HTMLInputElement>) {
 interface Props {
   userId:           string
   initialPositions: StockPosition[]
+  /** Σ movimientos USD de la billetera (aportes + ventas). 0 = billetera sin uso → no se valida. */
+  walletUsdBase?:   number
 }
 interface FormState { ticker: string; shares: string; totalPaid: string; notes: string }
 const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' }
 
-export default function StockPositionManager({ userId, initialPositions }: Props) {
+export default function StockPositionManager({ userId, initialPositions, walletUsdBase = 0 }: Props) {
   const supabase     = createClient()
 
   const [positions,      setPositions]      = useState<StockPosition[]>(initialPositions)
   const [quotes,         setQuotes]         = useState<Quotes>({})
-  const [usdClp,         setUsdClp]         = useState<number | null>(null)
   const [loadingQ,       setLoadingQ]       = useState(false)
   const [quotesError,    setQuotesError]    = useState('')
   const [lastUpdated,    setLastUpdated]    = useState<Date | null>(null)
@@ -384,6 +385,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender (vuelven a la billetera)
 
   // Live "hace Xs" timer
   useEffect(() => {
@@ -403,7 +405,6 @@ export default function StockPositionManager({ userId, initialPositions }: Props
       const body = await res.json()
       // API puede devolver {quotes, marketOpen, marketLabel} o el formato antiguo {ticker: quote}
       const data: Quotes = body.quotes ?? body
-      setUsdClp(data['USDCLP=X']?.price ?? null)
       setQuotes(data)
       setLastUpdated(new Date())
       setSecsAgo(0)
@@ -451,14 +452,8 @@ export default function StockPositionManager({ userId, initialPositions }: Props
   }, 0)
   const totalGainUsd  = totalValueUsd - totalCostUsd
   const totalGainPct  = totalCostUsd > 0 ? (totalGainUsd / totalCostUsd) * 100 : 0
-  const totalValueClp = usdClp ? Math.round(totalValueUsd * usdClp) : null
-
-  const todayChangeUsd = positions.reduce((s, p) => {
-    const q = quotes[p.ticker]
-    if (!q?.changePercent) return s
-    return s + p.shares * q.price * (q.changePercent / 100)
-  }, 0)
-  const todayChangePct = totalValueUsd > 0 ? (todayChangeUsd / (totalValueUsd - todayChangeUsd)) * 100 : 0
+  // Billetera: disponible = movimientos (aportes+ventas) − costo de posiciones abiertas
+  const walletAvailable = walletUsdBase > 0 ? walletUsdBase - totalCostUsd : null
 
   // posUp/posDown basados en retorno TOTAL (precio actual vs costo), no en cambio del día
   const posUp   = positions.filter(p => {
@@ -521,6 +516,16 @@ export default function StockPositionManager({ userId, initialPositions }: Props
     if (isNaN(totalPaid) || totalPaid <= 0) { setFormError('Total pagado inválido'); return }
     const avgCost = totalPaid / shares
 
+    // Tope de billetera: no puedes invertir USD que no aportaste.
+    // Solo aplica en compras nuevas y si la billetera está en uso (base > 0).
+    if (!editingId && walletAvailable !== null && totalPaid > walletAvailable + 0.01) {
+      setFormError(
+        `Billetera insuficiente: tienes ${fmtUSD(Math.max(0, walletAvailable))} disponibles y esta compra cuesta ${fmtUSD(totalPaid)}. ` +
+        'Registra un aporte en Inversiones → Ahorro → Billetera en dólares, o ajusta el monto.'
+      )
+      return
+    }
+
     // Bug #3: warn if adding a ticker that already exists (would silently upsert)
     if (!editingId) {
       const duplicate = positions.find(p => p.ticker === ticker)
@@ -560,6 +565,27 @@ export default function StockPositionManager({ userId, initialPositions }: Props
 
   async function deletePosition(id: string) {
     setDeletingId(id)
+    await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
+    setPositions(prev => prev.filter(p => p.id !== id))
+    setDeletingId(null)
+    cancelForm()
+  }
+
+  /** Vender: registra los USD recibidos como movimiento de billetera y cierra la posición. */
+  async function sellPosition(id: string) {
+    const pos = positions.find(p => p.id === id)
+    if (!pos) return
+    const usd = parseFloat(sellUsd.replace(',', '.'))
+    if (!Number.isFinite(usd) || usd <= 0) { setFormError('¿Cuántos USD recibiste por la venta?'); return }
+    setDeletingId(id); setFormError('')
+    const { error } = await supabase.from('usd_purchases').insert({
+      user_id:       userId,
+      kind:          'sell',
+      usd_amount:    Math.round(usd * 100) / 100,
+      purchase_date: new Date().toISOString().slice(0, 10),
+      notes:         `Venta ${pos.ticker}`,
+    })
+    if (error) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
     await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
     setPositions(prev => prev.filter(p => p.id !== id))
     setDeletingId(null)
@@ -737,12 +763,36 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
               )}
 
-              {/* Confirmación de eliminación */}
+              {/* Confirmación: vender (vuelve a la billetera) o solo eliminar */}
               {deleteConfirm && editingId && (
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
                   <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-                    ¿Eliminar esta posición?
+                    ¿Qué pasó con esta posición?
                   </p>
+                  {walletUsdBase > 0 && (
+                    <div className="rounded-xl p-3 space-y-2" style={{ background: 'var(--surface)', border: '1px solid rgba(31,190,141,0.25)' }}>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: 'var(--ink-3)' }}>
+                        La vendí — USD recibidos (vuelven a la billetera)
+                      </label>
+                      <input
+                        type="number"
+                        value={sellUsd}
+                        onChange={e => setSellUsd(e.target.value)}
+                        min="0.01"
+                        step="0.01"
+                        className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                      />
+                      <button
+                        onClick={() => sellPosition(editingId)}
+                        disabled={!!deletingId}
+                        className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
+                        style={{ background: 'var(--mint)', color: 'white' }}
+                      >
+                        {deletingId ? 'Registrando…' : 'Vender y devolver a la billetera'}
+                      </button>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setDeleteConfirm(false)}
@@ -758,7 +808,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                       style={{ background: 'var(--coral)', color: 'white' }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {deletingId ? 'Eliminando…' : 'Sí, eliminar'}
+                      {deletingId ? 'Eliminando…' : 'Solo eliminar'}
                     </button>
                   </div>
                 </div>
@@ -769,7 +819,15 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 <div className="flex gap-3 pt-1">
                   {editingId && (
                     <button
-                      onClick={() => setDeleteConfirm(true)}
+                      onClick={() => {
+                        // Prellenar la venta con el valor de mercado actual (editable)
+                        const pos = positions.find(p => p.id === editingId)
+                        if (pos) {
+                          const q = quotes[pos.ticker]
+                          setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+                        }
+                        setDeleteConfirm(true)
+                      }}
                       className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'var(--surface-2)' }}
                     >
@@ -835,11 +893,7 @@ export default function StockPositionManager({ userId, initialPositions }: Props
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-              {totalValueClp && (
-                <p className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                  ≈ {formatCLP(totalValueClp)} CLP
-                </p>
-              )}
+              {/* Sin conversión a CLP: este mundo vive en USD (convención jul 2026) */}
             </div>
 
             {/* Divider + 3 sub-KPIs */}
@@ -871,24 +925,27 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           {/* ── 3 KPI cards horizontales ── */}
           <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
-            {/* Cambio hoy */}
+            {/* Billetera disponible — reemplaza "Cambio hoy": para quien compra
+                semanalmente, el dato útil es cuánta plata queda, no el vaivén del día */}
             <div className="card p-4 lg:p-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Cambio hoy</p>
-              <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none" style={{
-                fontFamily: 'Fredoka, sans-serif',
-                color: hasQ ? (todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink)',
-              }}>
-                {hasQ ? fmtUSDSigned(todayChangeUsd) : '—'}
-              </p>
-              {hasQ && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  {todayChangeUsd >= 0
-                    ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
-                    : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                  <span className="text-xs font-semibold" style={{ color: todayChangeUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {fmtPct(todayChangePct)} hoy
-                  </span>
-                </div>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Billetera</p>
+              {walletAvailable !== null ? (
+                <>
+                  <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none"
+                    style={{ fontFamily: 'Fredoka, sans-serif', color: walletAvailable >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
+                    {fmtUSD(Math.max(0, walletAvailable))}
+                  </p>
+                  <p className="text-xs font-semibold mt-1.5" style={{ color: walletAvailable >= 0 ? 'var(--ink-3)' : 'var(--coral)' }}>
+                    {walletAvailable >= 0 ? 'disponible para comprar' : 'revisa tus aportes: hay más invertido que aportado'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
+                  <a href="/inversiones?view=ahorro" className="text-xs font-semibold mt-1.5 inline-block" style={{ color: 'var(--primary)' }}>
+                    Registra tus aportes →
+                  </a>
+                </>
               )}
             </div>
 
@@ -1136,7 +1193,6 @@ export default function StockPositionManager({ userId, initialPositions }: Props
           {/* Footer */}
           <div className="px-4 lg:px-6 py-2.5 border-t flex items-center justify-between text-[10px]" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
             <span>Fuente: Finnhub · precios en USD</span>
-            {usdClp && <span>1 USD = {formatCLP(Math.round(usdClp))} CLP</span>}
           </div>
         </div>
       )}

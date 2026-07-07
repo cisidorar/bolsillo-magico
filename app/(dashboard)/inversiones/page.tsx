@@ -79,14 +79,17 @@ export default async function InversionesPage({ searchParams }: Props) {
       .order('created_at', { ascending: true }),
   ])
 
-  // Billetera USD — solo se usa en la vista ahorro, query aparte para no tocar el tuple
-  const { data: usdPurchases } = isAhorro
-    ? await supabase
-        .from('usd_purchases')
-        .select('id, usd_amount, total_paid_clp, purchase_date, notes')
-        .eq('user_id', user.id)
-        .order('purchase_date', { ascending: false })
-    : { data: null }
+  // Billetera USD — se necesita siempre: en Ahorro para el manager y en
+  // Acciones para el saldo disponible (tope de compra)
+  const { data: usdPurchases } = await supabase
+    .from('usd_purchases')
+    .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
+    .eq('user_id', user.id)
+    .order('purchase_date', { ascending: false })
+
+  // Σ movimientos (aportes + ventas) y costo de posiciones abiertas, en USD
+  const walletUsdBase = (usdPurchases ?? []).reduce((s, r) => s + Number(r.usd_amount), 0)
+  const investedUsd   = (stocks ?? []).reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
 
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0
@@ -122,6 +125,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           <UsdWalletManager
             userId={user.id}
             initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
+            investedUsd={investedUsd}
           />
         </>
       ) : isDepositos ? (
@@ -134,6 +138,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           <StockPositionManager
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
+            walletUsdBase={walletUsdBase}
           />
           <WatchlistPanel
             userId={user.id}

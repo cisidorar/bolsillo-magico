@@ -19,14 +19,16 @@ import { DollarSign, Plus, Trash2, Pencil, X, RefreshCw } from 'lucide-react'
 export interface UsdPurchase {
   id:             string
   usd_amount:     number
-  total_paid_clp: number
-  purchase_date:  string   // YYYY-MM-DD
+  total_paid_clp: number | null   // null en ventas (nunca pasaron por CLP)
+  purchase_date:  string          // YYYY-MM-DD
   notes:          string | null
+  kind:           'deposit' | 'sell'
 }
 
 interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
+  investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
 }
 
 interface FormState { date: string; clp: string; usd: string; notes: string }
@@ -48,7 +50,7 @@ function fmtInputCLP(digits: string): string {
   return digits ? Number(digits).toLocaleString('es-CL') : ''
 }
 
-export default function UsdWalletManager({ userId, initialPurchases }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -70,14 +72,20 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
   }, [])
 
   // ── Agregados (USD primero) ────────────────────────────────────────────────
-  const totalUsd = purchases.reduce((s, p) => s + Number(p.usd_amount), 0)
-  const totalClp = purchases.reduce((s, p) => s + p.total_paid_clp, 0)
-  const avgRate  = totalUsd > 0 ? totalClp / totalUsd : null   // CLP por USD, comisión incluida
+  // Saldo disponible = aportes + ventas − costo de posiciones abiertas.
+  // Comprar acciones lo descuenta solo (la posición ES los USD invertidos);
+  // vender agrega una fila kind='sell' y los devuelve.
+  const deposits    = purchases.filter(p => p.kind !== 'sell')
+  const movementsUsd = purchases.reduce((s, p) => s + Number(p.usd_amount), 0)
+  const available   = movementsUsd - investedUsd
+  const depositUsd  = deposits.reduce((s, p) => s + Number(p.usd_amount), 0)
+  const totalClp    = deposits.reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
+  const avgRate     = depositUsd > 0 ? totalClp / depositUsd : null   // CLP por USD, comisión incluida
   const nowD     = new Date()
   const monthKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`
-  const monthClp = purchases
+  const monthClp = deposits
     .filter(p => p.purchase_date.startsWith(monthKey))
-    .reduce((s, p) => s + p.total_paid_clp, 0)
+    .reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function openAdd() {
@@ -87,7 +95,7 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
     setEditId(p.id)
     setForm({
       date:  p.purchase_date,
-      clp:   String(p.total_paid_clp),
+      clp:   String(p.total_paid_clp ?? ''),
       usd:   String(p.usd_amount),
       notes: p.notes ?? '',
     })
@@ -116,8 +124,8 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
       setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
     } else {
       const { data, error } = await supabase.from('usd_purchases')
-        .insert({ user_id: userId, ...row })
-        .select('id, usd_amount, total_paid_clp, purchase_date, notes')
+        .insert({ user_id: userId, kind: 'deposit', ...row })
+        .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
         .single()
       setBusy(false)
       if (error) { setFormError(error.message); return }
@@ -164,12 +172,24 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
           {/* Resumen — USD como protagonista */}
           {purchases.length > 0 && (
             <div className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Saldo aportado</p>
-              <p className="text-2xl font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{fmtUSD(totalUsd)}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Disponible en billetera</p>
+              <p className="text-2xl font-extrabold tabular-nums mt-0.5" style={{ color: available >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
+                {fmtUSD(Math.max(0, available))}
+              </p>
+              {available < 0 && (
+                <p className="text-[10px] font-bold mt-1" style={{ color: 'var(--coral)' }}>
+                  Tienes más invertido en acciones que aportes registrados — te faltan aportes por {fmtUSD(-available)}.
+                </p>
+              )}
               <div className="flex items-center gap-1.5 flex-wrap mt-2">
                 <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
                   {formatCLP(totalClp)} aportados
                 </span>
+                {investedUsd > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'rgba(43,124,246,0.10)', color: 'var(--primary)' }}>
+                    {fmtUSD(investedUsd)} en acciones
+                  </span>
+                )}
                 {avgRate !== null && (
                   <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
                     pagaste {formatCLP(Math.round(avgRate))}/USD prom. (comisión incl.)
@@ -182,9 +202,9 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
                 )}
               </div>
               {/* Conversión de vuelta: dato chico a propósito — esta plata vive en USD */}
-              {fx !== null && totalUsd > 0 && (
+              {fx !== null && available > 0 && (
                 <p className="text-[10px] mt-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                  Si lo trajeras hoy ≈ {formatCLP(Math.round(totalUsd * fx))} (dólar {formatCLP(Math.round(fx))})
+                  Si lo trajeras hoy ≈ {formatCLP(Math.round(available * fx))} (dólar {formatCLP(Math.round(fx))})
                 </p>
               )}
             </div>
@@ -273,18 +293,31 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
                 <div key={p.id} className="flex items-center gap-3 py-2.5">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                      {p.kind === 'sell' && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide mr-1.5 align-middle"
+                          style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
+                          Venta
+                        </span>
+                      )}
                       {fmtUSD(Number(p.usd_amount))}
-                      <span className="font-semibold text-xs" style={{ color: 'var(--ink-3)' }}> · {formatCLP(p.total_paid_clp)}</span>
+                      {p.kind !== 'sell' && p.total_paid_clp !== null && (
+                        <span className="font-semibold text-xs" style={{ color: 'var(--ink-3)' }}> · {formatCLP(p.total_paid_clp)}</span>
+                      )}
                     </p>
                     <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                      {fmtDate(p.purchase_date)} · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD
+                      {fmtDate(p.purchase_date)}
+                      {p.kind !== 'sell' && p.total_paid_clp !== null && (
+                        <> · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD</>
+                      )}
                       {p.notes && <> · {p.notes}</>}
                     </p>
                   </div>
-                  <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
-                    style={{ color: 'var(--ink-3)' }} aria-label="Editar">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                  {p.kind !== 'sell' && (
+                    <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
+                      style={{ color: 'var(--ink-3)' }} aria-label="Editar">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
                     style={{ color: 'var(--coral)' }} aria-label="Eliminar">
                     <Trash2 className="w-3.5 h-3.5" />
@@ -295,8 +328,8 @@ export default function UsdWalletManager({ userId, initialPurchases }: Props) {
           )}
 
           <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            Cuando compres acciones con estos dólares, registra la posición en Acciones (rinde en USD)
-            y descuenta el monto usado editando el aporte — así el patrimonio no cuenta la plata dos veces.
+            La billetera conversa sola con Acciones: al registrar una compra se descuenta del disponible
+            (no puedes invertir más de lo aportado), y al vender una posición los dólares vuelven aquí como &ldquo;Venta&rdquo;.
           </p>
         </div>
       )}

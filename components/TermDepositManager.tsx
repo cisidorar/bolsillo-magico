@@ -549,10 +549,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       {active.length > 0 && (
         <div className="flex flex-col lg:flex-row gap-4">
 
-          {/* Hero card — fondo primario sólido según sistema de diseño */}
+          {/* Hero card — mismo azul que Acciones (.hero-gradient), no var(--primary) */}
           <div
-            className="rounded-3xl overflow-hidden"
-            style={{ flex: '40 1 0', background: 'var(--primary)', boxShadow: '0 8px 18px var(--shadow)' }}
+            className="card overflow-hidden hero-gradient"
+            style={{ flex: '40 1 0' }}
           >
             <div className="px-5 pt-5 pb-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>

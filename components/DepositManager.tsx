@@ -536,8 +536,8 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
           {/* Hero card */}
           <div
-            className="rounded-3xl overflow-hidden"
-            style={{ flex: '40 1 0', background: 'var(--primary)', boxShadow: '0 8px 18px var(--shadow)' }}
+            className="card overflow-hidden hero-gradient"
+            style={{ flex: '40 1 0' }}
           >
             {/* Valor total */}
             <div className="px-5 pt-5 pb-4">

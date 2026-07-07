@@ -46,7 +46,7 @@ export async function computeAndSnapshotNetWorth(
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd').eq('user_id', userId),
     supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
-    supabase.from('usd_purchases').select('usd_amount, total_paid_clp').eq('user_id', userId),
+    supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
     supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, usd_clp, total_clp')
       .eq('user_id', userId).order('year').order('month'),
   ])
@@ -65,7 +65,11 @@ export async function computeAndSnapshotNetWorth(
   let stocksPriced = true
   const positions = stocks ?? []
   const usdPurchases = usdRows ?? []
-  const totalUsdCash = usdPurchases.reduce((s, r) => s + Number(r.usd_amount), 0)
+  // Saldo de billetera = aportes + ventas − costo de posiciones abiertas
+  // (las posiciones abiertas SON los USD invertidos; ver 20260708_usd_wallet_sells.sql)
+  const movementsUsd = usdPurchases.reduce((s, r) => s + Number(r.usd_amount), 0)
+  const openCostUsd  = positions.reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
+  const totalUsdCash = usdPurchases.length > 0 ? Math.max(0, movementsUsd - openCostUsd) : 0
   if (positions.length > 0 || totalUsdCash > 0) {
     const tickers = positions.map(p => p.ticker)
     const { data: cached } = await supabase
