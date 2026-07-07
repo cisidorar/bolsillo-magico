@@ -8,6 +8,10 @@ const STOCKS_TTL_OPEN = 5  * 60        // 5 min  — mercado abierto
 const STOCKS_TTL_SHUT = 8  * 60 * 60  // 8 h    — mercado cerrado / fin de semana
 const FX_TTL          = 30 * 60        // 30 min — tipo de cambio USD/CLP
 
+// Cadena Finnhub+Yahoo corre en paralelo por ticker, pero con varios símbolos
+// vencidos a la vez el total puede acercarse al límite por defecto de Vercel.
+export const maxDuration = 30
+
 // ── Horario NYSE (lun–vie 9:30–16:00 ET) ──────────────────────────────────────
 
 function nyseStatus(): { open: boolean; label: string } {

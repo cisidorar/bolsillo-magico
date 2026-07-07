@@ -7,6 +7,11 @@ const TICKER_RE   = /^[A-Z0-9.\-]{1,12}$/
 const HISTORY_TTL = 6 * 60 * 60   // 6 h — datos históricos no cambian a cada rato
 const FH_TIMEOUT  = 8_000
 
+// Los tickers vencidos se piden secuencialmente (rate-limit de AlphaVantage) y
+// cada uno puede reintentar mensual→semanal: con varios símbolos fríos el
+// total fácilmente supera el límite por defecto de Vercel.
+export const maxDuration = 60
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface TickerHistory {
