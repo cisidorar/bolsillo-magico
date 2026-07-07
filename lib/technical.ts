@@ -16,11 +16,16 @@ export interface DailyCandles {
 
 export type SignalTone = 'mint' | 'gold' | 'coral' | 'neutral'
 
+// Copy en lenguaje cotidiano (title/detail) generado por código — decisión jul 2026:
+// el conjunto de señales es finito, así que NO se usa IA para redactar; plantillas
+// deterministas cubren el 100% de los casos sin costo, latencia ni alucinaciones.
+// El término técnico va en `tech` como etiqueta secundaria (se aprende de paso).
 export interface TechnicalSignal {
   kind:    string
   tone:    SignalTone
-  title:   string
-  detail:  string
+  title:   string   // lenguaje simple, sin jerga
+  detail:  string   // qué significa + su limitación, en cotidiano
+  tech:    string   // nombre técnico del indicador (etiqueta chica en la UI)
   trigger: boolean  // true = evento reciente (cruce, divergencia, volumen…); false = estado
 }
 
@@ -417,97 +422,124 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const pctDiff = (a: number, b: number) => Math.abs((a - b) / b) * 100
 
   if (divergence === 'bullish') signals.push({
-    kind: 'divergence_bullish', tone: 'mint', trigger: true, title: 'Divergencia alcista precio/RSI',
-    detail: 'El precio marcó un mínimo más bajo pero el RSI uno más alto: el impulso vendedor se está debilitando. Es una de las señales de giro más seguidas — pero no garantiza rebote.',
+    kind: 'divergence_bullish', tone: 'mint', trigger: true,
+    title: 'La caída está perdiendo fuerza',
+    detail: 'El precio marcó un nuevo mínimo, pero con menos impulso vendedor que la vez anterior — como una pelota que rebota cada vez con menos ganas de caer. Muchas veces anticipa un rebote, aunque no lo garantiza.',
+    tech: 'Divergencia alcista precio/RSI',
   })
   if (divergence === 'bearish') signals.push({
-    kind: 'divergence_bearish', tone: 'coral', trigger: true, title: 'Divergencia bajista precio/RSI',
-    detail: 'El precio marcó un máximo más alto pero el RSI uno más bajo: la subida pierde fuerza por dentro. Suele anticipar pausas o retrocesos.',
+    kind: 'divergence_bearish', tone: 'coral', trigger: true,
+    title: 'La subida está perdiendo fuerza',
+    detail: 'El precio marcó un nuevo máximo, pero con menos impulso comprador que la vez anterior: la subida se está quedando sin combustible. Suele anticipar una pausa o un retroceso.',
+    tech: 'Divergencia bajista precio/RSI',
   })
 
   if (rsi14 !== null) {
     if (rsi14 <= 30) signals.push({
-      kind: 'rsi_oversold', tone: 'mint', trigger: true, title: `RSI ${Math.round(rsi14)} — zona de sobreventa`,
-      detail: 'Bajo 30 suele leerse como caída sobre-extendida. Ojo: puede seguir bajando.',
+      kind: 'rsi_oversold', tone: 'mint', trigger: true,
+      title: 'Cayó muy rápido en poco tiempo',
+      detail: 'El termómetro de impulso está muy abajo: la caída se ve sobre-exagerada y a veces rebota desde aquí. Ojo: también puede seguir cayendo.',
+      tech: `RSI ${Math.round(rsi14)} (sobreventa, bajo 30)`,
     })
     else if (rsi14 >= 70) signals.push({
-      kind: 'rsi_overbought', tone: 'gold', trigger: true, title: `RSI ${Math.round(rsi14)} — zona de sobrecompra`,
-      detail: 'Sobre 70 suele leerse como subida sobre-extendida; aumenta la probabilidad de pausa o retroceso.',
+      kind: 'rsi_overbought', tone: 'gold', trigger: true,
+      title: 'Subió muy rápido en poco tiempo',
+      detail: 'El termómetro de impulso está muy arriba: la subida se ve sobre-exagerada y aumenta la probabilidad de una pausa o un retroceso.',
+      tech: `RSI ${Math.round(rsi14)} (sobrecompra, sobre 70)`,
     })
   }
 
   const cross = recentCross(closes, 50, 200)
   if (cross === 'golden') signals.push({
-    kind: 'golden_cross', tone: 'mint', trigger: true, title: 'Cruce dorado reciente (SMA50 sobre SMA200)',
-    detail: 'La media de 50 días superó a la de 200 hace poco — señal clásica de cambio de tendencia al alza.',
+    kind: 'golden_cross', tone: 'mint', trigger: true,
+    title: 'La tendencia está girando al alza',
+    detail: 'El promedio de precio de los últimos meses acaba de superar al promedio de largo plazo — una de las señales clásicas de que el viento cambió a favor.',
+    tech: 'Cruce dorado (SMA50 sobre SMA200)',
   })
   if (cross === 'death') signals.push({
-    kind: 'death_cross', tone: 'coral', trigger: true, title: 'Cruce de la muerte reciente (SMA50 bajo SMA200)',
-    detail: 'La media de 50 días cayó bajo la de 200 hace poco — señal clásica de cambio de tendencia a la baja.',
+    kind: 'death_cross', tone: 'coral', trigger: true,
+    title: 'La tendencia está girando a la baja',
+    detail: 'El promedio de precio de los últimos meses acaba de caer bajo el promedio de largo plazo — una de las señales clásicas de que el viento cambió en contra.',
+    tech: 'Cruce de la muerte (SMA50 bajo SMA200)',
   })
 
   if (macdCross === 'bullish') signals.push({
-    kind: 'macd_bullish', tone: 'mint', trigger: true, title: 'Cruce alcista de MACD',
-    detail: 'La línea MACD cruzó sobre su señal en las últimas ~2 semanas: el momentum de mediano plazo gira al alza.',
+    kind: 'macd_bullish', tone: 'mint', trigger: true,
+    title: 'El impulso de mediano plazo mejora',
+    detail: 'En las últimas ~2 semanas el movimiento del precio giró al alza según un indicador que compara sus promedios recientes. No es tendencia confirmada todavía, pero es el primer paso.',
+    tech: 'Cruce alcista de MACD',
   })
   if (macdCross === 'bearish') signals.push({
-    kind: 'macd_bearish', tone: 'coral', trigger: true, title: 'Cruce bajista de MACD',
-    detail: 'La línea MACD cruzó bajo su señal en las últimas ~2 semanas: el momentum de mediano plazo se debilita.',
+    kind: 'macd_bearish', tone: 'coral', trigger: true,
+    title: 'El impulso de mediano plazo se debilita',
+    detail: 'En las últimas ~2 semanas el movimiento del precio giró a la baja según un indicador que compara sus promedios recientes. Puede ser solo una pausa — o el inicio de un retroceso.',
+    tech: 'Cruce bajista de MACD',
   })
 
   if (volSignal === 'up') signals.push({
-    kind: 'volume_up', tone: 'mint', trigger: true, title: 'Volumen inusual en una subida',
-    detail: 'En los últimos días hábiles el volumen superó ampliamente su promedio de 20 días junto a una subida notable — más convicción detrás del movimiento.',
+    kind: 'volume_up', tone: 'mint', trigger: true,
+    title: 'Subida con muchos más compradores de lo normal',
+    detail: 'En los últimos días se movió bastante más dinero que de costumbre junto a una subida fuerte. Cuando hay tanta gente detrás, el movimiento tiende a sostenerse más.',
+    tech: 'Volumen ≥1.8× su promedio de 20 días',
   })
   if (volSignal === 'down') signals.push({
-    kind: 'volume_down', tone: 'coral', trigger: true, title: 'Volumen inusual en una caída',
-    detail: 'En los últimos días hábiles el volumen superó ampliamente su promedio de 20 días junto a una caída notable — más convicción detrás del movimiento.',
+    kind: 'volume_down', tone: 'coral', trigger: true,
+    title: 'Caída con muchos más vendedores de lo normal',
+    detail: 'En los últimos días se movió bastante más dinero que de costumbre junto a una caída fuerte. Cuando hay tanta gente detrás, el movimiento tiende a sostenerse más.',
+    tech: 'Volumen ≥1.8× su promedio de 20 días',
   })
 
   if (supportLevels.length > 0 && pctDiff(price, supportLevels[0].price) <= 3) {
     const l = supportLevels[0]
     signals.push({
       kind: 'near_support', tone: 'mint', trigger: true,
-      title: `Probando soporte de ${l.weeksActive} semana${l.weeksActive !== 1 ? 's' : ''} en ${fmtLevel(l.price)}`,
-      detail: `Nivel con ${l.touches} toque${l.touches !== 1 ? 's' : ''} desde ${fmtDateShort(l.firstDate)}. Si lo pierde con claridad, deja de ser soporte.`,
+      title: `Está tocando un piso que ya la frenó ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'}`,
+      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de caer ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: muchos suelen comprar ahí. Pero si esta vez lo atraviesa hacia abajo, ese piso deja de servir.`,
+      tech: `Soporte en ${fmtLevel(l.price)}`,
     })
   }
   if (resistanceLevels.length > 0 && pctDiff(price, resistanceLevels[0].price) <= 3) {
     const l = resistanceLevels[0]
     signals.push({
       kind: 'near_resistance', tone: 'gold', trigger: true,
-      title: `Frente a resistencia de ${l.weeksActive} semana${l.weeksActive !== 1 ? 's' : ''} en ${fmtLevel(l.price)}`,
-      detail: `Nivel con ${l.touches} toque${l.touches !== 1 ? 's' : ''} desde ${fmtDateShort(l.firstDate)}. Superarla con decisión suele leerse como fortaleza.`,
+      title: `Está frente a un techo que ya la frenó ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'}`,
+      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de subir ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: muchos suelen vender ahí. Si lo supera con decisión, suele leerse como señal de fuerza.`,
+      tech: `Resistencia en ${fmtLevel(l.price)}`,
     })
   }
 
   if (distHighPct >= -2) signals.push({
-    kind: 'near_52w_high', tone: 'gold', trigger: false, title: 'En zona de máximos de 52 semanas',
-    detail: 'Está a menos de 2% de su máximo anual.',
+    kind: 'near_52w_high', tone: 'gold', trigger: false,
+    title: 'Está en su punto más alto del año',
+    detail: 'A menos de 2% de su precio máximo de los últimos 12 meses. No es malo en sí — pero conviene saber que compras cerca del techo reciente.',
+    tech: 'Máximo de 52 semanas',
   })
   if (distLowPct <= 5) signals.push({
-    kind: 'near_52w_low', tone: 'coral', trigger: false, title: 'En zona de mínimos de 52 semanas',
-    detail: 'Está a menos de 5% de su mínimo anual. Barato no siempre significa oportunidad.',
+    kind: 'near_52w_low', tone: 'coral', trigger: false,
+    title: 'Está en su punto más bajo del año',
+    detail: 'A menos de 5% de su precio mínimo de los últimos 12 meses. Que esté "barata" no siempre significa oportunidad: a veces sigue cayendo.',
+    tech: 'Mínimo de 52 semanas',
   })
 
-  // ── Veredicto en 1-2 frases ───────────────────────────────────────────────
+  // ── Veredicto en 1-2 frases, en lenguaje cotidiano ────────────────────────
+  const wks = `${weeksInState} semana${weeksInState !== 1 ? 's' : ''}`
   let verdict: string
   if (aboveSma200 === null) {
-    verdict = 'Historia insuficiente para evaluar la tendencia de fondo (se necesitan ~10 meses de datos).'
+    verdict = 'Todavía no hay historia suficiente para evaluar hacia dónde va en el largo plazo (se necesitan ~10 meses de datos).'
   } else if (aboveSma200 && sma200Rising !== false) {
-    verdict = `Tendencia de fondo alcista: lleva ${weeksInState} semana${weeksInState !== 1 ? 's' : ''} sobre su media de 200 días${sma200Rising ? ', y la media viene subiendo' : ''}.`
+    verdict = `Viene subiendo de forma sostenida: lleva ${wks} por encima de su promedio de largo plazo${sma200Rising ? ', y ese promedio también apunta hacia arriba' : ''}.`
   } else if (!aboveSma200 && sma200Rising === false) {
-    verdict = `Tendencia de fondo bajista: lleva ${weeksInState} semana${weeksInState !== 1 ? 's' : ''} bajo su media de 200 días, y la media viene cayendo.`
+    verdict = `Viene cayendo de forma sostenida: lleva ${wks} por debajo de su promedio de largo plazo, que también apunta hacia abajo.`
   } else {
-    verdict = `Tendencia en transición: ${aboveSma200 ? 'sobre' : 'bajo'} su media de 200 días hace ${weeksInState} semana${weeksInState !== 1 ? 's' : ''}, con la media ${sma200Rising ? 'subiendo' : 'aplanándose'}.`
+    verdict = `Está en zona de cambio: hace ${wks} que va ${aboveSma200 ? 'por encima' : 'por debajo'} de su promedio de largo plazo, y ese promedio ${sma200Rising ? 'empieza a subir' : 'se está aplanando'}.`
   }
-  if (divergence === 'bullish')      verdict += ' El RSI muestra divergencia alcista: la caída pierde fuerza.'
-  else if (divergence === 'bearish') verdict += ' El RSI muestra divergencia bajista: la subida pierde fuerza.'
-  else if (macdCross === 'bullish')  verdict += ' El MACD cruzó al alza: mejora el momentum de mediano plazo.'
-  else if (macdCross === 'bearish')  verdict += ' El MACD cruzó a la baja: se debilita el momentum de mediano plazo.'
-  else if (signals.some(s => s.kind === 'near_support'))    verdict += ' Está probando un soporte con historia.'
-  else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Está frente a una resistencia con historia.'
-  else verdict += ' Sin señales de giro relevantes esta semana.'
+  if (divergence === 'bullish')      verdict += ' Además, la caída muestra señales de agotamiento — a veces anticipa un rebote.'
+  else if (divergence === 'bearish') verdict += ' Además, la subida muestra señales de agotamiento — puede venir una pausa.'
+  else if (macdCross === 'bullish')  verdict += ' El impulso de las últimas semanas giró al alza.'
+  else if (macdCross === 'bearish')  verdict += ' El impulso de las últimas semanas se está debilitando.'
+  else if (signals.some(s => s.kind === 'near_support'))    verdict += ' Ahora mismo está tocando un piso que antes la frenó.'
+  else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Ahora mismo está frente a un techo que antes la frenó.'
+  else verdict += ' Esta semana no pasó nada fuera de lo normal.'
 
   // ── Lectura técnica agregada (regla automática y explícita, no asesoría) ──
   // Dos sumas separadas:

@@ -101,8 +101,8 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 ### Fase 3 — Emails (cuando Cas lo pida — HOY NO)
 Edge function diaria post-cierre (patrón `notify-*` + pg_cron ya montado) que evalúe watchlist y mande email con señales nuevas vs día anterior (dedupe vía `notification_log`, patrón existente). Toggle en Ajustes → Notificaciones.
 
-### Fase 4 — DeepSeek narrador (opcional)
-La IA **no calcula**: recibe el `TechnicalAnalysis` ya computado y redacta explicación pedagógica ("qué suelen mirar los analistas con este RSI"). Mismo patrón de sanitización/rate-limit que `analyze-month`.
+### Fase 4 — DeepSeek narrador → DESCARTADA (jul 2026)
+**Decisión: sin IA.** El usuario no es profesional, pero el conjunto de señales es finito (~14 casos conocidos), así que las explicaciones en lenguaje cotidiano se generan por código: `TechnicalSignal.title`/`detail` van en simple ("Está tocando un piso que ya la frenó 3 veces") y el término técnico queda en `TechnicalSignal.tech` como etiqueta secundaria chica en la UI ("Soporte en $180") — se entiende sin saber nada y se aprende el término de paso. Plantillas deterministas cubren el 100% de los casos sin costo, latencia, rate-limit ni riesgo de que la IA alucine una recomendación; coherente con el principio rector. La IA solo aportaría en preguntas libres ("¿por qué cayó hoy?"), que requieren noticias, no análisis técnico — si algún día se quiere, va como botón "explícame más" aparte, nunca reemplazando el copy determinista.
 
 ## Convenciones a respetar al extender
 

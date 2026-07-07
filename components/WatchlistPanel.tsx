@@ -93,8 +93,8 @@ function RsiBar({ value }: { value: number }) {
         <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${value}%`, background: color }} />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>30 sobreventa</span>
-        <span className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>70 sobrecompra</span>
+        <span className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>bajo 30: cayó de más</span>
+        <span className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>sobre 70: subió de más</span>
       </div>
     </div>
   )
@@ -201,7 +201,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
         </div>
         {position && a.rating.caution && (
           <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold)' }}>
-            Presión bajista con tendencia aún alcista — considerar toma de ganancias.
+            Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
           </p>
         )}
         <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
@@ -229,7 +229,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
             </div>
             {stop && (
               <p className="text-[10px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                Soporte más cercano {fmtUSD(stop.price)} ({stop.distPct > 0 ? '+' : ''}{stop.distPct}%) — referencia habitual de stop; si lo pierde con claridad, la tesis técnica se debilita.
+                Piso más cercano: {fmtUSD(stop.price)} ({stop.distPct > 0 ? '+' : ''}{stop.distPct}%). Muchos lo usan de referencia: si el precio lo atraviesa hacia abajo, es señal de alerta para la posición.
               </p>
             )}
           </div>
@@ -251,7 +251,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
               <span className="inline-block w-3 border-t-2" style={{ borderColor: 'var(--primary)' }} /> precio
             </span>
             <span className="flex items-center gap-1 text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-              <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: 'var(--ink-3)' }} /> media 200d
+              <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: 'var(--ink-3)' }} /> promedio largo (200d)
             </span>
           </div>
         </div>
@@ -266,15 +266,18 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           {/* 3. Tendencia de fondo + rendimiento */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia de fondo</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia larga</p>
               {a.trend.aboveSma200 !== null ? (
                 <>
                   <p className="text-xs font-extrabold" style={{ color: trendColor }}>
-                    {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su media de 200d hace {a.trend.weeksInState} sem.
+                    {a.trend.aboveSma200 ? 'Subiendo' : 'Cayendo'} hace {a.trend.weeksInState} sem.
                   </p>
                   <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs la media`}
-                    {a.trend.sma200Rising !== null && ` · media ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
+                    {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs su promedio largo`}
+                    {a.trend.sma200Rising !== null && ` · promedio ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
+                  </p>
+                  <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
+                    {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su SMA200
                   </p>
                 </>
               ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
@@ -298,12 +301,12 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
               <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                RSI 14 {a.rsi14 !== null && <span className="tabular-nums" style={{ color: 'var(--ink)' }}>· {Math.round(a.rsi14)}</span>}
+                Impulso reciente {a.rsi14 !== null && <span className="normal-case tracking-normal font-semibold" style={{ color: 'var(--ink-3)' }}>· RSI <span className="tabular-nums" style={{ color: 'var(--ink)' }}>{Math.round(a.rsi14)}</span></span>}
               </p>
               {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango 52 semanas</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango del último año</p>
               <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
                 <div className="absolute -top-0.5 w-3 h-3 rounded-full border-2"
                   style={{ left: `calc(${posPct}% - 6px)`, background: 'var(--surface)', borderColor: 'var(--ink)' }} />
@@ -325,7 +328,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
                 <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
                   <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                    <span className="font-bold" style={{ color: 'var(--gold)' }}>Resistencia {fmtUSD(l.price)}</span>
+                    <span className="font-bold" style={{ color: 'var(--gold)' }}>Techo {fmtUSD(l.price)}</span>
                     <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
                     {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                   </p>
@@ -335,12 +338,15 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
                 <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
                   <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                    <span className="font-bold" style={{ color: 'var(--mint)' }}>Soporte {fmtUSD(l.price)}</span>
+                    <span className="font-bold" style={{ color: 'var(--mint)' }}>Piso {fmtUSD(l.price)}</span>
                     <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
                     {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                   </p>
                 </div>
               ))}
+              <p className="text-[9px] font-semibold px-1" style={{ color: 'var(--ink-3)' }}>
+                Piso (soporte): precio donde antes dejó de caer · Techo (resistencia): donde antes dejó de subir.
+              </p>
             </div>
           )}
 
@@ -364,6 +370,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
                         )}
                       </p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
+                      <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>{s.tech}</p>
                     </div>
                   </div>
                 )
@@ -371,7 +378,7 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
             </div>
           ) : (
             <p className="text-xs rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-              Sin señales de giro esta semana: el precio se mueve dentro de su rango normal.
+              Nada fuera de lo normal esta semana: el precio se mueve dentro de su rango habitual.
             </p>
           )}
         </div>
@@ -379,9 +386,9 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
 
       <p className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
         <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-        Lectura informativa al cierre del {a.asOf}. No es recomendación de compra o venta: los indicadores
-        tienen falsos positivos, una divergencia puede tardar semanas en confirmarse y un soporte roto se
-        convierte en caída. La decisión es siempre tuya.
+        Lectura informativa al cierre del {a.asOf}. No es recomendación de compra o venta: estas señales
+        fallan seguido, pueden tardar semanas en confirmarse y un piso roto se convierte en caída.
+        La decisión es siempre tuya.
       </p>
     </div>
   )
@@ -749,8 +756,8 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
         <div className="card px-6 py-8 text-center">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sigue acciones o ETFs sin tener posición</p>
           <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            Busca por nombre (Apple, Netflix, Vanguard…) y toca la fila para ver sus señales técnicas:
-            RSI, medias móviles, soportes, resistencias y distancia a máximos del año.
+            Busca por nombre (Apple, Netflix, Vanguard…) y toca la fila para ver su lectura en simple:
+            hacia dónde va la tendencia, los pisos y techos donde suele frenarse, y si subió o cayó demasiado rápido.
           </p>
           <button
             onClick={openSearch}
