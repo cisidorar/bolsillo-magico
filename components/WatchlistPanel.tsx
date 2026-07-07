@@ -111,7 +111,8 @@ function RsiBar({ value }: { value: number }) {
 // ── Gráfico de 12 meses con niveles dibujados ────────────────────────────────
 
 function PriceChart({ a }: { a: TechnicalAnalysis }) {
-  const W = 560, H = 200, padL = 6, padR = 52, padT = 10, padB = 20
+  // padR 68: con precios de 4 cifras ("$2.354,39") la etiqueta se cortaba
+  const W = 560, H = 200, padL = 6, padR = 68, padT = 10, padB = 20
   const pts = a.chart
   if (pts.length < 10) return null
 
@@ -243,8 +244,9 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         </div>
       )}
 
-      {/* 0. Lectura técnica agregada (regla automática) */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg }}>
+      {/* 0. Lectura técnica + veredicto — una sola tarjeta (son la misma idea:
+          la conclusión y su porqué; separadas duplicaban el ritmo visual) */}
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg, borderLeft: `3px solid ${ratingUi.color}` }}>
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-bold" style={{ color: ratingUi.color }}>{ratingUi.text}</p>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
@@ -252,12 +254,13 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
+        <p className="text-xs leading-relaxed font-semibold mt-1.5" style={{ color: 'var(--ink)' }}>{a.verdict}</p>
         {position && a.rating.caution && (
           <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold)' }}>
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
           </p>
         )}
-        <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+        <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
           Regla automática sobre los indicadores de abajo — no es asesoría financiera ni predice el futuro.
         </p>
       </div>
@@ -289,22 +292,18 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         )
       })()}
 
-      {/* 1. Veredicto */}
-      <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
-        style={{ background: 'var(--surface-2)', borderLeft: `3px solid ${trendColor}` }}>
-        <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.verdict}</p>
-      </div>
-
       {/* 1.5 Plan de entrada — directo, generado por código */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Para entrar con base</p>
         <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.entryPlan}</p>
       </div>
 
-      {/* 1.7 Noticias on-demand — lo único que las velas no pueden explicar */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
+      {/* 1.7 Noticias on-demand — botón ghost mientras no se pide (una tarjeta
+          entera para un link pesaba demasiado en la pila superior) */}
+      <div className={news === null ? 'px-1' : 'rounded-2xl px-3.5 py-3'}
+        style={news === null ? undefined : { background: 'var(--surface-2)' }}>
         {news === null ? (
-          <button onClick={loadNews} className="flex items-center gap-2 text-xs font-bold w-full text-left transition-opacity hover:opacity-80"
+          <button onClick={loadNews} className="flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-80"
             style={{ color: bigMove ? 'var(--coral)' : 'var(--primary)' }}>
             <Newspaper className="w-3.5 h-3.5 flex-shrink-0" />
             {bigMove ? '¿Qué está pasando hoy? — ver noticias' : '¿Qué está pasando? — ver noticias'}
@@ -414,16 +413,24 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
           {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
                 <Activity className="w-3 h-3" />
-                Impulso reciente {a.rsi14 !== null && <span className="normal-case tracking-normal font-semibold" style={{ color: 'var(--ink-3)' }}>· RSI <span className="tabular-nums" style={{ color: 'var(--ink)' }}>{Math.round(a.rsi14)}</span></span>}
+                Impulso · RSI
               </p>
-              {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
+              {a.rsi14 !== null ? (
+                <>
+                  <p className="text-xl font-extrabold tabular-nums leading-none mb-1.5"
+                    style={{ color: a.rsi14 <= 30 ? 'var(--mint)' : a.rsi14 >= 70 ? 'var(--gold)' : 'var(--ink)' }}>
+                    {Math.round(a.rsi14)}
+                  </p>
+                  <RsiBar value={a.rsi14} />
+                </>
+              ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
               <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
                 <Gauge className="w-3 h-3" />
-                Rango del último año
+                Rango del año
               </p>
               <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
                 <div className="absolute -top-0.5 w-3 h-3 rounded-full border-2"
@@ -973,25 +980,24 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
-                      {/* Candidata a comprar/vender/tomar ganancias: prioridad sobre el conteo genérico */}
-                      {flag ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: FLAG_UI[flag].bg, color: FLAG_UI[flag].color }}>
-                          {flag === 'buy' ? <TrendingUp className="w-3 h-3" />
-                            : flag === 'sell' ? <TrendingDown className="w-3 h-3" />
-                            : <AlertTriangle className="w-3 h-3" />}
-                          {flag === 'caution' ? 'Toma de ganancias' : typeof a === 'object' ? a.rating.action : (flag === 'buy' ? 'Comprar' : 'Vender')}
-                        </span>
-                      ) : typeof a === 'object' && a.signals.length > 0 && (() => {
-                        const strongest: SignalTone = a.signals.some(s => s.tone === 'coral') ? 'coral'
-                          : a.signals.some(s => s.tone === 'gold') ? 'gold'
-                          : a.signals.some(s => s.tone === 'mint') ? 'mint' : 'neutral'
-                        const t = TONE_STYLE[strongest]
+                      {/* Previsualización unificada: SIEMPRE la lectura técnica como
+                          chip — antes convivían "Compra", "N señales" o nada, y cada
+                          fila contaba una historia distinta */}
+                      {typeof a === 'object' && (() => {
+                        const l = a.rating.label
+                        const ui = flag === 'caution'
+                          ? { color: FLAG_UI.caution.color, bg: FLAG_UI.caution.bg, text: 'Toma de ganancias', Icon: AlertTriangle }
+                          : l === 'compra_fuerte' ? { color: FLAG_UI.buy.color,  bg: FLAG_UI.buy.bg,  text: 'Compra fuerte', Icon: TrendingUp }
+                          : l === 'compra'        ? { color: FLAG_UI.buy.color,  bg: FLAG_UI.buy.bg,  text: 'Compra',        Icon: TrendingUp }
+                          : l === 'venta_fuerte'  ? { color: FLAG_UI.sell.color, bg: FLAG_UI.sell.bg, text: 'Venta fuerte',  Icon: TrendingDown }
+                          : l === 'venta'         ? { color: FLAG_UI.sell.color, bg: FLAG_UI.sell.bg, text: 'Venta',         Icon: TrendingDown }
+                          : { color: 'var(--ink-3)', bg: 'var(--surface-2)', text: 'Neutral', Icon: null }
+                        const Icon = ui.Icon
                         return (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                            style={{ background: t.bg, color: t.color }}>
-                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: t.color }} />
-                            {a.signals.length} señal{a.signals.length !== 1 ? 'es' : ''}
+                            style={{ background: ui.bg, color: ui.color }}>
+                            {Icon && <Icon className="w-3 h-3" />}
+                            {ui.text}
                           </span>
                         )
                       })()}
