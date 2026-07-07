@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -10,33 +10,56 @@ import type { SearchResult } from '@/app/api/stock-search/route'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface WatchlistItem {
-  id:     string
-  ticker: string
+  id:           string
+  ticker:       string
+  target_price: number | null
+}
+
+/**
+ * Dirección del precio objetivo según cartera:
+ * - Sin posición → objetivo de ENTRADA: alcanzado si el precio cae hasta ahí (price ≤ target).
+ * - Con posición → objetivo de SALIDA: alcanzado si el precio sube hasta ahí (price ≥ target).
+ */
+function targetReached(item: WatchlistItem, price: number | undefined, owned: boolean): boolean {
+  if (item.target_price === null || price === undefined) return false
+  return owned ? price >= item.target_price : price <= item.target_price
 }
 
 interface Quote { price: number; changePercent: number; name: string; domain?: string }
 
+export interface OwnedPosition { shares: number; avgCost: number }
+
 interface Props {
   userId:       string
   initialItems: WatchlistItem[]
-  ownedTickers: string[]   // tickers con posición registrada — condiciona la señal de venta
+  positions:    Record<string, OwnedPosition>   // por ticker — condiciona venta/toma de ganancias y da contexto en el detalle
 }
 
 const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
 
 /**
- * Marca una acción como "interesante de revisar" según su lectura técnica:
- * - Compra: siempre relevante (con o sin posición — puede ser entrada o suma).
- * - Venta: solo si además tienes posición registrada — no tiene sentido
- *   destacar "vender" algo que no posees.
+ * Marca una acción como "interesante de revisar" según su lectura técnica.
+ * El rating ya exige al menos un gatillo reciente (no basta el estado de
+ * tendencia), así que estos flags aparecen y desaparecen — no viven para siempre.
+ * - buy: entrada o suma (con o sin posición).
+ * - sell: solo con posición — no tiene sentido destacar "vender" algo que no posees.
+ * - caution: solo con posición — tendencia aún alcista pero presión bajista
+ *   acumulada: considerar toma de ganancias antes de que se pierda la tendencia.
  */
-function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean): 'buy' | 'sell' | null {
+function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean): 'buy' | 'sell' | 'caution' | null {
   if (typeof a !== 'object') return null
   const isBuy  = a.rating.label === 'compra' || a.rating.label === 'compra_fuerte'
   const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
   if (isBuy) return 'buy'
   if (isSell && owned) return 'sell'
+  if (a.rating.caution && owned) return 'caution'
   return null
+}
+
+const FLAG_UI: Record<'buy' | 'sell' | 'caution', { color: string; bg: string; softBg: string }> = {
+  buy:     { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.16)', softBg: 'rgba(31,190,141,0.06)' },
+  sell:    { color: 'var(--coral)', bg: 'rgba(255,111,97,0.16)', softBg: 'rgba(255,111,97,0.06)' },
+  caution: { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.18)', softBg: 'rgba(255,194,60,0.07)' },
 }
 
 const TONE_STYLE: Record<SignalTone, { color: string; bg: string }> = {
@@ -142,7 +165,12 @@ function fmtDateLabel(dateStr: string): string {
 
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
-function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
+function TechnicalDetail({ a, position, livePrice, newKinds }: {
+  a:         TechnicalAnalysis
+  position?: OwnedPosition        // solo si el ticker está en cartera
+  livePrice?: number              // quote en vivo; fallback al cierre del análisis
+  newKinds?: Set<string>          // señales que no estaban la última vez que se revisó
+}) {
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
   const trendColor = a.trend.aboveSma200 === null ? 'var(--ink-3)'
@@ -171,10 +199,42 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
+        {position && a.rating.caution && (
+          <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold)' }}>
+            Presión bajista con tendencia aún alcista — considerar toma de ganancias.
+          </p>
+        )}
         <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
           Regla automática sobre los indicadores de abajo — no es asesoría financiera ni predice el futuro.
         </p>
       </div>
+
+      {/* 0.5 Tu posición — retorno vs costo y referencia de stop (solo en cartera) */}
+      {position && (() => {
+        const px = livePrice ?? a.price
+        const retPct = ((px - position.avgCost) / position.avgCost) * 100
+        const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
+        const stop = a.supportLevels[0] ?? null
+        return (
+          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · costo prom. {fmtUSD(position.avgCost)}
+              </p>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
+                style={{ background: retPct >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: retColor }}>
+                {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% vs tu costo
+              </span>
+            </div>
+            {stop && (
+              <p className="text-[10px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                Soporte más cercano {fmtUSD(stop.price)} ({stop.distPct > 0 ? '+' : ''}{stop.distPct}%) — referencia habitual de stop; si lo pierde con claridad, la tesis técnica se debilita.
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* 1. Veredicto */}
       <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
@@ -266,7 +326,8 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
                   <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
                     <span className="font-bold" style={{ color: 'var(--gold)' }}>Resistencia {fmtUSD(l.price)}</span>
-                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+                    <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
+                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                   </p>
                 </div>
               ))}
@@ -275,7 +336,8 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
                   <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
                     <span className="font-bold" style={{ color: 'var(--mint)' }}>Soporte {fmtUSD(l.price)}</span>
-                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · vigente hace {l.weeksActive} semana{l.weeksActive !== 1 ? 's' : ''}
+                    <span className="tabular-nums"> · a {l.distPct > 0 ? '+' : ''}{l.distPct}%</span>
+                    {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                   </p>
                 </div>
               ))}
@@ -287,11 +349,20 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
             <div className="space-y-2">
               {a.signals.map(s => {
                 const t = TONE_STYLE[s.tone]
+                const isNew = newKinds?.has(s.kind) ?? false
                 return (
                   <div key={s.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5" style={{ background: t.bg }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block mt-1.5 flex-shrink-0" style={{ background: t.color }} />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
+                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>
+                        {s.title}
+                        {isNew && (
+                          <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle"
+                            style={{ background: 'var(--surface)', color: t.color }}>
+                            Nueva
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
                     </div>
                   </div>
@@ -318,15 +389,52 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function WatchlistPanel({ userId, initialItems, ownedTickers }: Props) {
+export default function WatchlistPanel({ userId, initialItems, positions }: Props) {
   const supabase = createClient()
-  const owned = new Set(ownedTickers)
+  const owned = new Set(Object.keys(positions))
 
   const [items,      setItems]      = useState<WatchlistItem[]>(initialItems)
   const [quotes,     setQuotes]     = useState<Record<string, Quote>>({})
   const [expanded,   setExpanded]   = useState<string | null>(null)
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const [errDetails, setErrDetails] = useState<Record<string, string>>({})
+
+  // ── Diff semanal: qué señales ya viste por ticker (localStorage) ──────────
+  // "Visto" se marca al abrir el detalle de un ticker; una señal es "nueva" si
+  // su kind no estaba la última vez que lo abriste. Sin baseline previo (primer
+  // uso) no se marca nada como nuevo para no gritar en la primera visita.
+  const [seenSignals, setSeenSignals] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('watchlistSeenSignals')
+      if (raw) setSeenSignals(JSON.parse(raw) as Record<string, string[]>)
+    } catch { /* modo privado o JSON corrupto */ }
+  }, [])
+
+  const newKindsFor = useCallback((ticker: string, a: TechnicalAnalysis | 'loading' | 'error' | undefined): Set<string> => {
+    if (typeof a !== 'object') return new Set()
+    const prev = seenSignals[ticker]
+    if (!prev) return new Set()   // sin baseline: nada es "nuevo" todavía
+    const prevSet = new Set(prev)
+    return new Set(a.signals.map(s => s.kind).filter(k => !prevSet.has(k)))
+  }, [seenSignals])
+
+  // Snapshot al abrir el detalle: congela qué era "nuevo" en esta apertura y
+  // recién entonces persiste como visto (si marcáramos antes, el tag "Nueva"
+  // desaparecería en el mismo render).
+  const [detailSnap, setDetailSnap] = useState<{ ticker: string; newKinds: Set<string> } | null>(null)
+  useEffect(() => {
+    if (expanded === null) { setDetailSnap(null); return }
+    if (detailSnap?.ticker === expanded) return
+    const a = analyses[expanded]
+    if (typeof a !== 'object') return
+    setDetailSnap({ ticker: expanded, newKinds: newKindsFor(expanded, a) })
+    setSeenSignals(prev => {
+      const next = { ...prev, [expanded]: a.signals.map(s => s.kind) }
+      try { localStorage.setItem('watchlistSeenSignals', JSON.stringify(next)) } catch { /* modo privado */ }
+      return next
+    })
+  }, [expanded, analyses, detailSnap, newKindsFor])
 
   // Sección plegable: cerrada por defecto, recuerda la preferencia
   const [open, setOpen] = useState(false)
@@ -432,6 +540,24 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
     setShowSearch(false); setQuery(''); setResults([]); setAddError('')
   }
 
+  // ── Precio objetivo ───────────────────────────────────────────────────────
+  const [targetInput, setTargetInput] = useState<string | null>(null)  // null = no editando
+  const [targetBusy,  setTargetBusy]  = useState(false)
+  useEffect(() => { setTargetInput(null) }, [expanded])  // cerrar editor al cambiar de ticker
+
+  async function saveTarget(item: WatchlistItem, value: number | null) {
+    setTargetBusy(true)
+    const { error } = await supabase
+      .from('watchlist')
+      .update({ target_price: value })
+      .eq('id', item.id)
+      .eq('user_id', userId)
+    setTargetBusy(false)
+    if (error) return
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, target_price: value } : i))
+    setTargetInput(null)
+  }
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
   async function addSymbol(symbol: string) {
     const t = symbol.trim().toUpperCase()
@@ -441,7 +567,7 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
     const { data, error } = await supabase
       .from('watchlist')
       .insert({ user_id: userId, ticker: t })
-      .select('id, ticker')
+      .select('id, ticker, target_price')
       .single()
     setAddingSym(null)
     if (error) { setAddError(error.message); return }
@@ -475,16 +601,24 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
           )}
           {/* Aviso in-app visible aún con la lista plegada: candidatas a comprar/vender */}
           {!open && (() => {
-            const toReview = items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) !== null)
-            if (toReview.length === 0) return null
-            const anySell = toReview.some(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) === 'sell')
-            const c  = anySell ? 'var(--coral)' : 'var(--mint)'
-            const bg = anySell ? 'rgba(255,111,97,0.12)' : 'rgba(31,190,141,0.12)'
+            const flags = items
+              .map(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)))
+              .filter((f): f is 'buy' | 'sell' | 'caution' => f !== null)
+            const targets = items.filter(i => targetReached(i, quotes[i.ticker]?.price, owned.has(i.ticker)))
+            const count = new Set([
+              ...items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) !== null).map(i => i.id),
+              ...targets.map(i => i.id),
+            ]).size
+            if (count === 0) return null
+            // Severidad: venta > toma de ganancias > compra/precio objetivo
+            const worst: 'buy' | 'sell' | 'caution' =
+              flags.includes('sell') ? 'sell' : flags.includes('caution') ? 'caution' : 'buy'
+            const ui = FLAG_UI[worst]
             return (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: bg, color: c }}>
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: c }} />
-                {toReview.length} para revisar
+                style={{ background: ui.bg, color: ui.color }}>
+                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: ui.color }} />
+                {count} para revisar
               </span>
             )
           })()}
@@ -628,12 +762,25 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
           </button>
         </div>
       ) : (
+        <>
+        {/* Resumen semanal: cuántos favoritos traen señales que no habías visto */}
+        {(() => {
+          const withNew = items.filter(i => newKindsFor(i.ticker, analyses[i.ticker]).size > 0)
+          if (withNew.length === 0) return null
+          return (
+            <p className="text-[11px] font-bold mb-2 px-1" style={{ color: 'var(--primary)' }}>
+              {withNew.length} de {items.length} favorito{items.length !== 1 ? 's' : ''} con señales nuevas desde tu última revisión
+            </p>
+          )
+        })()}
         <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
           {items.map(item => {
             const q = quotes[item.ticker]
             const a = analyses[item.ticker]
             const isOwned = owned.has(item.ticker)
             const flag = actionFlag(a, isOwned)
+            const hasNew = newKindsFor(item.ticker, a).size > 0
+            const atTarget = targetReached(item, q?.price, isOwned)
             return (
               <div key={item.id}>
                 <div
@@ -643,8 +790,8 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
                   onKeyDown={e => e.key === 'Enter' && openDetail(item.ticker)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group"
                   style={flag ? {
-                    borderLeft: `3px solid ${flag === 'buy' ? 'var(--mint)' : 'var(--coral)'}`,
-                    background: flag === 'buy' ? 'rgba(31,190,141,0.06)' : 'rgba(255,111,97,0.06)',
+                    borderLeft: `3px solid ${FLAG_UI[flag].color}`,
+                    background: FLAG_UI[flag].softBg,
                   } : undefined}
                 >
                   <ServiceLogo
@@ -656,15 +803,14 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
-                      {/* Candidata a compra/venta: prioridad sobre el conteo genérico de señales */}
+                      {/* Candidata a comprar/vender/tomar ganancias: prioridad sobre el conteo genérico */}
                       {flag ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{
-                            background: flag === 'buy' ? 'rgba(31,190,141,0.16)' : 'rgba(255,111,97,0.16)',
-                            color:      flag === 'buy' ? 'var(--mint)' : 'var(--coral)',
-                          }}>
-                          {flag === 'buy' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                          {typeof a === 'object' ? a.rating.action : (flag === 'buy' ? 'Comprar' : 'Vender')}
+                          style={{ background: FLAG_UI[flag].bg, color: FLAG_UI[flag].color }}>
+                          {flag === 'buy' ? <TrendingUp className="w-3 h-3" />
+                            : flag === 'sell' ? <TrendingDown className="w-3 h-3" />
+                            : <AlertTriangle className="w-3 h-3" />}
+                          {flag === 'caution' ? 'Toma de ganancias' : typeof a === 'object' ? a.rating.action : (flag === 'buy' ? 'Comprar' : 'Vender')}
                         </span>
                       ) : typeof a === 'object' && a.signals.length > 0 && (() => {
                         const strongest: SignalTone = a.signals.some(s => s.tone === 'coral') ? 'coral'
@@ -679,6 +825,19 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
                           </span>
                         )
                       })()}
+                      {atTarget && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                          <Target className="w-3 h-3" />
+                          En tu precio
+                        </span>
+                      )}
+                      {hasNew && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
+                          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                          Nueva
+                        </span>
+                      )}
                     </div>
                     {q?.name && (
                       <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
@@ -707,6 +866,7 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
             )
           })}
         </div>
+        </>
       )}
 
       {/* ── Popup de detalle técnico ─────────────────────────────────────── */}
@@ -761,6 +921,87 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
                 </button>
               </div>
 
+              {/* Precio objetivo — entrada (sin posición) o salida (en cartera) */}
+              {item && (() => {
+                const isOwned  = owned.has(ticker)
+                const reached  = targetReached(item, q?.price, isOwned)
+                return (
+                  <div className="flex items-center gap-2.5 px-5 lg:px-6 py-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
+                    <Target className="w-4 h-4 flex-shrink-0" style={{ color: reached ? 'var(--primary)' : 'var(--ink-3)' }} />
+                    {targetInput !== null ? (
+                      <>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={targetInput}
+                          onChange={e => setTargetInput(e.target.value)}
+                          placeholder={isOwned ? 'Precio de salida en USD' : 'Precio de entrada en USD'}
+                          autoFocus
+                          className="flex-1 min-w-0 text-xs font-semibold outline-none border rounded-xl px-3 py-1.5"
+                          style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                        />
+                        <button
+                          onClick={() => {
+                            const v = parseFloat(targetInput)
+                            if (Number.isFinite(v) && v > 0) saveTarget(item, Math.round(v * 100) / 100)
+                          }}
+                          disabled={targetBusy}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                          style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => setTargetInput(null)}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors"
+                          style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : item.target_price !== null ? (
+                      <>
+                        <p className="flex-1 min-w-0 text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                          Objetivo de {isOwned ? 'salida' : 'entrada'}:{' '}
+                          <span className="font-bold" style={{ color: 'var(--ink)' }}>{fmtUSD(item.target_price)}</span>
+                          {reached && (
+                            <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
+                              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                              Llegó a tu precio
+                            </span>
+                          )}
+                        </p>
+                        <button
+                          onClick={() => setTargetInput(String(item.target_price))}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5"
+                          style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => saveTarget(item, null)}
+                          disabled={targetBusy}
+                          className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5 disabled:opacity-50"
+                          style={{ background: 'transparent', color: 'var(--coral)' }}
+                        >
+                          Quitar
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setTargetInput('')}
+                        className="flex-1 text-left text-xs font-semibold transition-opacity hover:opacity-75"
+                        style={{ color: 'var(--ink-3)' }}
+                      >
+                        Definir precio objetivo de {isOwned ? 'salida' : 'entrada'} — te avisamos con un chip cuando llegue
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Body */}
               <div className="overflow-y-auto pt-4">
                 {a === 'loading' || a === undefined ? (
@@ -792,7 +1033,12 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
                     </button>
                   </div>
                 ) : (
-                  <TechnicalDetail a={a} />
+                  <TechnicalDetail
+                    a={a}
+                    position={positions[ticker]}
+                    livePrice={q?.price}
+                    newKinds={detailSnap?.ticker === ticker ? detailSnap.newKinds : undefined}
+                  />
                 )}
 
                 {/* Dejar de seguir — vive en el popup, no en la fila */}

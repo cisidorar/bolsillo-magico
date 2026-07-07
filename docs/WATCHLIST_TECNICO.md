@@ -41,21 +41,38 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 
 ### Señales y umbrales (en `analyze()`)
 
-### Lectura técnica agregada (rating)
+### Lectura técnica agregada (rating) — estado vs gatillos (jul 2026)
 
-`TechnicalRating` suma las mismas señales visibles con pesos: tendencia SMA200 ±1/±2 (según pendiente), divergencia ±2, cruce dorado/muerte ±2, RSI extremo ±1, soporte/resistencia cercano ±1, mínimos anuales −1. Umbrales: ≥+3 "a favor de compra" (mint) · ≤−3 "en contra" (coral) · resto "mixta — esperar" (gold). Se muestra como banner al tope del popup con contador de señales a favor/en contra y la leyenda fija "regla automática — no es asesoría financiera". Es el mismo concepto del "technical rating" de TradingView: transparente, determinista y derivado solo de lo que el usuario ve abajo.
+`TechnicalRating` separa dos sumas:
 
-| Señal | Umbral | Tono |
-|---|---|---|
-| **Divergencia alcista/bajista precio-RSI** | 2 pivotes en ~90 días: precio LL + RSI HL (alcista) o precio HH + RSI LH (bajista), 2º pivote en últimos 20 días, delta RSI >2 | mint / coral |
-| RSI sobreventa / sobrecompra | ≤30 / ≥70 (Wilder 14) | mint / gold |
-| Cruce dorado / de la muerte | SMA50 vs SMA200, cruce en últimos 10 días | mint / coral |
-| Cerca de soporte / resistencia | ≤3% del nivel; el título incluye toques y semanas vigente | mint / gold |
-| Zona máximo / mínimo 52 semanas | ≤2% del máx / ≤5% del mín | gold / coral |
+- **`trendScore` (estado):** SMA200 ±1/±2 según pendiente, mínimos anuales −1. Contexto persistente.
+- **`triggerScore` (gatillos/eventos):** divergencia ±2, cruce dorado/muerte ±2, MACD ±1, volumen ±1, RSI extremo ±1, soporte/resistencia cercano ±1.
+
+`score = trendScore + triggerScore`. **Compra/venta exigen al menos un gatillo alineado** — estar en tendencia alcista ya no produce "Compra" permanente (fatiga de alertas para revisión semanal). Umbrales: compra_fuerte `score ≥5 && trigger ≥2` · compra `score ≥2 && trigger ≥1` · venta/venta_fuerte simétricos · resto neutral. `pros`/`cons` cuentan los mismos componentes puntuados (incluida la tendencia), así el banner nunca dice "Compra · 0 a favor".
+
+**`caution` (toma de ganancias):** `aboveSma200 && triggerScore ≤ −3` — presión bajista acumulada con tendencia aún alcista. Solo se muestra a quien tiene posición; llega antes que "Venta" (que requiere perder la SMA200).
+
+Cada `TechnicalSignal` lleva `trigger: boolean` (evento vs estado). Banner al tope del popup con contador a favor/en contra y la leyenda fija "regla automática — no es asesoría financiera".
+
+| Señal | Umbral | Tono | Gatillo |
+|---|---|---|---|
+| **Divergencia alcista/bajista precio-RSI** | 2 pivotes en ~90 días: precio LL + RSI HL (alcista) o precio HH + RSI LH (bajista), 2º pivote en últimos 20 días, delta RSI >2 | mint / coral | sí |
+| RSI sobreventa / sobrecompra | ≤30 / ≥70 (Wilder 14) | mint / gold | sí |
+| Cruce dorado / de la muerte | SMA50 vs SMA200, día a día en últimos 10 días | mint / coral | sí |
+| Cruce MACD (12,26,9) | histograma cambia de signo en últimos 10 días | mint / coral | sí |
+| Volumen inusual | vol ≥1.8× promedio 20d con \|cambio\| ≥2%, **escaneado en los últimos 5 días hábiles** (cadencia semanal) | mint / coral | sí |
+| Cerca de soporte / resistencia | ≤3% del nivel; título incluye toques y semanas vigente | mint / gold | sí |
+| Zona máximo / mínimo 52 semanas | ≤2% del máx / ≤5% del mín (desde highs/lows diarios reales, no cierres) | gold / coral | no |
 
 **Enfoque de largo plazo (decisión jul 2026, Cas invierte ~1 vez/semana):** el popup lidera con un **veredicto en 1-2 frases** (tendencia + divergencia/nivel, generado por código en `analyze()`), gráfico de 12 meses con SMA200 y niveles dibujados, tendencia de fondo con **persistencia** ("N semanas sobre su media de 200"), **niveles con historia** (`LevelInfo`: toques, primer toque, semanas vigente) y rendimiento 1m/6m/1a. El RSI y el rango 52s quedan al final como momentum secundario. Nada de variación intradía como protagonista.
 
-Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 cierres, clusterizados si están a <1.5% entre sí conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio.
+Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 días (lows para soportes, highs para resistencias), clusterizados si están a <1.5% **del promedio del grupo** (evita encadenado) conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio. `LevelInfo` incluye `weeksSinceLast` (frescura del último toque) y `distPct` (distancia con signo al precio actual) — ambos visibles siempre en la UI, no solo cuando el nivel está a ≤3%.
+
+### Contexto de posición y diff semanal (UI, jul 2026)
+
+- `WatchlistPanel` recibe `positions: Record<ticker, {shares, avgCost}>` (agregado ponderado en `inversiones/page.tsx`). Si el ticker está en cartera, el popup muestra bloque "Tu posición": retorno vs costo promedio y soporte más cercano como referencia de stop.
+- **Diff semanal:** `localStorage.watchlistSeenSignals` guarda los `kind` vistos por ticker (se marca al abrir el detalle). Señales no vistas llevan tag "Nueva" en el popup y en la fila; sobre la lista aparece "N de M favoritos con señales nuevas". Primer uso sin baseline = nada se marca nuevo.
+- Flags de fila: `buy` (mint) / `sell` (coral, solo en cartera) / `caution` "Toma de ganancias" (gold, solo en cartera). Severidad del chip plegado: sell > caution > buy.
 
 ### Avisos in-app (cómo funcionan hoy)
 
@@ -75,10 +92,9 @@ Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **s
 
 ## Roadmap
 
-### Fase 2 — Centro de avisos in-app (siguiente)
-Sin emails. Ideas en orden:
-1. **Precio objetivo**: UI para `target_price` (ya existe la columna) — chip "llegó a tu precio" cuando `price <= target_price`.
-2. **Resumen de señales arriba de la watchlist**: "3 de tus 8 favoritos tienen señales activas" con filtro rápido.
+### Fase 2 — Centro de avisos in-app
+1. ~~**Precio objetivo**~~ — hecho (jul 2026). Editor en el popup (barra bajo el header). Dirección según cartera: sin posición = objetivo de ENTRADA (`price ≤ target`), con posición = objetivo de SALIDA (`price ≥ target`). Chip "En tu precio" en la fila y "Llegó a tu precio" en el popup; cuenta en el badge plegado "N para revisar".
+2. ~~**Resumen de señales arriba de la watchlist**~~ — hecho (jul 2026) como diff semanal: "N de M favoritos con señales nuevas".
 3. **Badge en el toggle de Inversiones** (puntito en la tab Acciones) cuando hay señales coral, para verlo desde cualquier vista.
 4. **Señales también en posiciones propias**: reusar `TechnicalDetail` dentro de StockPositionManager (el componente ya es independiente).
 

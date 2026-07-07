@@ -17,19 +17,22 @@ export interface DailyCandles {
 export type SignalTone = 'mint' | 'gold' | 'coral' | 'neutral'
 
 export interface TechnicalSignal {
-  kind:   string
-  tone:   SignalTone
-  title:  string
-  detail: string
+  kind:    string
+  tone:    SignalTone
+  title:   string
+  detail:  string
+  trigger: boolean  // true = evento reciente (cruce, divergencia, volumen…); false = estado
 }
 
 /** Nivel de soporte/resistencia con su historia. */
 export interface LevelInfo {
-  price:       number
-  touches:     number   // cuántos pivotes formaron el nivel
-  firstDate:   string   // primer toque
-  lastDate:    string   // último toque
-  weeksActive: number   // semanas desde el primer toque hasta hoy
+  price:          number
+  touches:        number   // cuántos pivotes formaron el nivel
+  firstDate:      string   // primer toque
+  lastDate:       string   // último toque
+  weeksActive:    number   // semanas desde el primer toque hasta hoy
+  weeksSinceLast: number   // semanas desde el ÚLTIMO toque (frescura del nivel)
+  distPct:        number   // % desde el precio actual hasta el nivel (con signo)
 }
 
 export interface ChartPoint {
@@ -44,9 +47,12 @@ export type RatingLabel = 'compra_fuerte' | 'compra' | 'neutral' | 'venta' | 've
 export interface TechnicalRating {
   label: RatingLabel
   action: string          // etiqueta legible: "Compra fuerte", "Venta", etc.
-  score:  number           // suma ponderada de señales (~ -11 a +11)
-  pros:   number           // señales a favor
-  cons:   number           // señales en contra
+  score:  number          // trendScore + triggerScore (~ -11 a +10)
+  trendScore:   number    // estado de fondo: SMA200 (±1/±2) y castigo por mínimos anuales (−1)
+  triggerScore: number    // eventos recientes: cruces, divergencia, RSI extremo, volumen, niveles
+  pros:   number          // componentes puntuados a favor (incluye tendencia)
+  cons:   number          // componentes puntuados en contra
+  caution: boolean        // tendencia aún alcista pero presión bajista acumulada (toma de ganancias)
 }
 
 export interface TechnicalAnalysis {
@@ -199,17 +205,26 @@ function recentMacdCross(histogram: (number | null)[], lookback = 10): 'bullish'
 // ── Volumen ────────────────────────────────────────────────────────────────
 // Un movimiento de precio con volumen muy superior a su promedio reciente
 // tiene más probabilidad de sostenerse (más participantes detrás del giro).
+// Se revisan los últimos `scanDays` días hábiles (no solo el último): quien
+// entra 1 vez a la semana no debería perderse el spike del martes.
 
-function volumeSignal(volumes: number[], closes: number[], lookback = 20): 'up' | 'down' | null {
-  if (volumes.length < lookback + 2 || closes.length < lookback + 2) return null
+function volumeSignal(
+  volumes: number[],
+  closes: number[],
+  avgWindow = 20,
+  scanDays = 5,
+): 'up' | 'down' | null {
   const last = volumes.length - 1
-  const window = volumes.slice(last - lookback, last)
-  const avgVol = window.reduce((a, b) => a + b, 0) / lookback
-  if (!avgVol || avgVol <= 0) return null
-  const todayVol = volumes[last]
-  const chgPct = ((closes[last] - closes[last - 1]) / closes[last - 1]) * 100
-  if (todayVol >= avgVol * 1.8 && chgPct >= 2)  return 'up'
-  if (todayVol >= avgVol * 1.8 && chgPct <= -2) return 'down'
+  if (volumes.length < avgWindow + scanDays + 1 || closes.length !== volumes.length) return null
+  // Del más reciente hacia atrás: reportar el spike más nuevo
+  for (let i = last; i > last - scanDays; i--) {
+    const window = volumes.slice(i - avgWindow, i)
+    const avgVol = window.reduce((a, b) => a + b, 0) / avgWindow
+    if (!avgVol || avgVol <= 0) continue
+    const chgPct = ((closes[i] - closes[i - 1]) / closes[i - 1]) * 100
+    if (volumes[i] >= avgVol * 1.8 && chgPct >= 2)  return 'up'
+    if (volumes[i] >= avgVol * 1.8 && chgPct <= -2) return 'down'
+  }
   return null
 }
 
@@ -232,49 +247,64 @@ function pivotIndices(series: number[], w = 5): { lows: number[]; highs: number[
   return { lows, highs }
 }
 
-/** Agrupa pivotes en niveles (<clusterPct% entre sí) conservando su historia. */
+/** Agrupa pivotes en niveles (<clusterPct% del promedio del grupo) conservando su historia.
+ *  Comparar contra el promedio evita el "encadenado": pivotes separados 1.4% c/u
+ *  que terminaban formando un nivel de 5%+ de ancho. */
 function clusterLevels(
   idxs: number[],
   values: number[],
   dates: string[],
   lastIdx: number,
+  currentPrice: number,
   clusterPct = 1.5,
 ): LevelInfo[] {
   const sorted = [...idxs].sort((a, b) => values[a] - values[b])
-  const groups: number[][] = []
+  const groups: { idxs: number[]; sum: number }[] = []
   for (const i of sorted) {
     const g = groups[groups.length - 1]
-    if (g && (values[i] - values[g[g.length - 1]]) / values[g[g.length - 1]] * 100 <= clusterPct) g.push(i)
-    else groups.push([i])
+    const mean = g ? g.sum / g.idxs.length : null
+    if (g && mean !== null && ((values[i] - mean) / mean) * 100 <= clusterPct) {
+      g.idxs.push(i); g.sum += values[i]
+    } else {
+      groups.push({ idxs: [i], sum: values[i] })
+    }
   }
   return groups.map(g => {
-    const price   = g.reduce((s, i) => s + values[i], 0) / g.length
-    const minIdx  = Math.min(...g)
-    const maxIdx  = Math.max(...g)
+    const price   = g.sum / g.idxs.length
+    const minIdx  = Math.min(...g.idxs)
+    const maxIdx  = Math.max(...g.idxs)
     return {
       price,
-      touches:     g.length,
-      firstDate:   dates[minIdx],
-      lastDate:    dates[maxIdx],
-      weeksActive: Math.max(1, Math.round((lastIdx - minIdx) / 5)),
+      touches:        g.idxs.length,
+      firstDate:      dates[minIdx],
+      lastDate:       dates[maxIdx],
+      weeksActive:    Math.max(1, Math.round((lastIdx - minIdx) / 5)),
+      weeksSinceLast: Math.max(0, Math.round((lastIdx - maxIdx) / 5)),
+      distPct:        Math.round(((price - currentPrice) / currentPrice) * 1000) / 10,
     }
   })
 }
 
-/** Cruce reciente entre SMAs (dorado/muerte) en los últimos `lookback` días. */
+/** Cruce reciente entre SMAs (dorado/muerte) en los últimos `lookback` días.
+ *  Recorre día a día (como recentMacdCross): comparar solo los extremos de la
+ *  ventana perdía cruces de ida y vuelta o los reportaba al revés. */
 function recentCross(closes: number[], fast: number, slow: number, lookback = 10): 'golden' | 'death' | null {
-  if (closes.length < slow + lookback) return null
+  if (closes.length < slow + lookback + 1) return null
   const smaAt = (endIdx: number, n: number): number => {
     let s = 0
     for (let i = endIdx - n + 1; i <= endIdx; i++) s += closes[i]
     return s / n
   }
   const last = closes.length - 1
-  const nowDiff  = smaAt(last, fast) - smaAt(last, slow)
-  const prevDiff = smaAt(last - lookback, fast) - smaAt(last - lookback, slow)
-  if (prevDiff <= 0 && nowDiff > 0) return 'golden'
-  if (prevDiff >= 0 && nowDiff < 0) return 'death'
-  return null
+  let result: 'golden' | 'death' | null = null
+  let prevDiff = smaAt(last - lookback, fast) - smaAt(last - lookback, slow)
+  for (let i = last - lookback + 1; i <= last; i++) {
+    const diff = smaAt(i, fast) - smaAt(i, slow)
+    if (prevDiff <= 0 && diff > 0) result = 'golden'   // se queda con el más reciente
+    if (prevDiff >= 0 && diff < 0) result = 'death'
+    prevDiff = diff
+  }
+  return result
 }
 
 // ── Divergencia precio/RSI ────────────────────────────────────────────────────
@@ -318,11 +348,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const price = closes[lastIdx]
   const asOf  = dates[lastIdx]
 
-  // 52 semanas ≈ 252 días hábiles
+  // 52 semanas ≈ 252 días hábiles — rango desde máximos/mínimos diarios reales,
+  // no solo cierres (el low intradía de pánico también cuenta como piso anual)
   const start252 = Math.max(0, closes.length - 252)
-  const win252 = closes.slice(start252)
-  const high52 = Math.max(...win252)
-  const low52  = Math.min(...win252)
+  const high52 = Math.max(...highs.slice(start252))
+  const low52  = Math.min(...lows.slice(start252))
   const distHighPct = Math.round(((price - high52) / high52) * 1000) / 10
   const distLowPct  = Math.round(((price - low52) / low52) * 1000) / 10
 
@@ -361,8 +391,8 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const highSeries252 = highs.slice(start252)
   const { lows: lowPivots }   = pivotIndices(lowSeries252, 5)
   const { highs: highPivots } = pivotIndices(highSeries252, 5)
-  const lowLevels  = clusterLevels(lowPivots.map(i => i + start252),  lows,  dates, lastIdx)
-  const highLevels = clusterLevels(highPivots.map(i => i + start252), highs, dates, lastIdx)
+  const lowLevels  = clusterLevels(lowPivots.map(i => i + start252),  lows,  dates, lastIdx, price)
+  const highLevels = clusterLevels(highPivots.map(i => i + start252), highs, dates, lastIdx, price)
   const supportLevels    = lowLevels.filter(l => l.price < price).sort((a, b) => b.price - a.price).slice(0, 2)
   const resistanceLevels = highLevels.filter(l => l.price > price).sort((a, b) => a.price - b.price).slice(0, 2)
 
@@ -387,57 +417,57 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const pctDiff = (a: number, b: number) => Math.abs((a - b) / b) * 100
 
   if (divergence === 'bullish') signals.push({
-    kind: 'divergence_bullish', tone: 'mint', title: 'Divergencia alcista precio/RSI',
+    kind: 'divergence_bullish', tone: 'mint', trigger: true, title: 'Divergencia alcista precio/RSI',
     detail: 'El precio marcó un mínimo más bajo pero el RSI uno más alto: el impulso vendedor se está debilitando. Es una de las señales de giro más seguidas — pero no garantiza rebote.',
   })
   if (divergence === 'bearish') signals.push({
-    kind: 'divergence_bearish', tone: 'coral', title: 'Divergencia bajista precio/RSI',
+    kind: 'divergence_bearish', tone: 'coral', trigger: true, title: 'Divergencia bajista precio/RSI',
     detail: 'El precio marcó un máximo más alto pero el RSI uno más bajo: la subida pierde fuerza por dentro. Suele anticipar pausas o retrocesos.',
   })
 
   if (rsi14 !== null) {
     if (rsi14 <= 30) signals.push({
-      kind: 'rsi_oversold', tone: 'mint', title: `RSI ${Math.round(rsi14)} — zona de sobreventa`,
+      kind: 'rsi_oversold', tone: 'mint', trigger: true, title: `RSI ${Math.round(rsi14)} — zona de sobreventa`,
       detail: 'Bajo 30 suele leerse como caída sobre-extendida. Ojo: puede seguir bajando.',
     })
     else if (rsi14 >= 70) signals.push({
-      kind: 'rsi_overbought', tone: 'gold', title: `RSI ${Math.round(rsi14)} — zona de sobrecompra`,
+      kind: 'rsi_overbought', tone: 'gold', trigger: true, title: `RSI ${Math.round(rsi14)} — zona de sobrecompra`,
       detail: 'Sobre 70 suele leerse como subida sobre-extendida; aumenta la probabilidad de pausa o retroceso.',
     })
   }
 
   const cross = recentCross(closes, 50, 200)
   if (cross === 'golden') signals.push({
-    kind: 'golden_cross', tone: 'mint', title: 'Cruce dorado reciente (SMA50 sobre SMA200)',
+    kind: 'golden_cross', tone: 'mint', trigger: true, title: 'Cruce dorado reciente (SMA50 sobre SMA200)',
     detail: 'La media de 50 días superó a la de 200 hace poco — señal clásica de cambio de tendencia al alza.',
   })
   if (cross === 'death') signals.push({
-    kind: 'death_cross', tone: 'coral', title: 'Cruce de la muerte reciente (SMA50 bajo SMA200)',
+    kind: 'death_cross', tone: 'coral', trigger: true, title: 'Cruce de la muerte reciente (SMA50 bajo SMA200)',
     detail: 'La media de 50 días cayó bajo la de 200 hace poco — señal clásica de cambio de tendencia a la baja.',
   })
 
   if (macdCross === 'bullish') signals.push({
-    kind: 'macd_bullish', tone: 'mint', title: 'Cruce alcista de MACD',
+    kind: 'macd_bullish', tone: 'mint', trigger: true, title: 'Cruce alcista de MACD',
     detail: 'La línea MACD cruzó sobre su señal en las últimas ~2 semanas: el momentum de mediano plazo gira al alza.',
   })
   if (macdCross === 'bearish') signals.push({
-    kind: 'macd_bearish', tone: 'coral', title: 'Cruce bajista de MACD',
+    kind: 'macd_bearish', tone: 'coral', trigger: true, title: 'Cruce bajista de MACD',
     detail: 'La línea MACD cruzó bajo su señal en las últimas ~2 semanas: el momentum de mediano plazo se debilita.',
   })
 
   if (volSignal === 'up') signals.push({
-    kind: 'volume_up', tone: 'mint', title: 'Volumen inusual en una subida',
-    detail: 'El volumen de hoy superó ampliamente su promedio de 20 días junto a una subida notable — más convicción detrás del movimiento.',
+    kind: 'volume_up', tone: 'mint', trigger: true, title: 'Volumen inusual en una subida',
+    detail: 'En los últimos días hábiles el volumen superó ampliamente su promedio de 20 días junto a una subida notable — más convicción detrás del movimiento.',
   })
   if (volSignal === 'down') signals.push({
-    kind: 'volume_down', tone: 'coral', title: 'Volumen inusual en una caída',
-    detail: 'El volumen de hoy superó ampliamente su promedio de 20 días junto a una caída notable — más convicción detrás del movimiento.',
+    kind: 'volume_down', tone: 'coral', trigger: true, title: 'Volumen inusual en una caída',
+    detail: 'En los últimos días hábiles el volumen superó ampliamente su promedio de 20 días junto a una caída notable — más convicción detrás del movimiento.',
   })
 
   if (supportLevels.length > 0 && pctDiff(price, supportLevels[0].price) <= 3) {
     const l = supportLevels[0]
     signals.push({
-      kind: 'near_support', tone: 'mint',
+      kind: 'near_support', tone: 'mint', trigger: true,
       title: `Probando soporte de ${l.weeksActive} semana${l.weeksActive !== 1 ? 's' : ''} en ${fmtLevel(l.price)}`,
       detail: `Nivel con ${l.touches} toque${l.touches !== 1 ? 's' : ''} desde ${fmtDateShort(l.firstDate)}. Si lo pierde con claridad, deja de ser soporte.`,
     })
@@ -445,18 +475,18 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (resistanceLevels.length > 0 && pctDiff(price, resistanceLevels[0].price) <= 3) {
     const l = resistanceLevels[0]
     signals.push({
-      kind: 'near_resistance', tone: 'gold',
+      kind: 'near_resistance', tone: 'gold', trigger: true,
       title: `Frente a resistencia de ${l.weeksActive} semana${l.weeksActive !== 1 ? 's' : ''} en ${fmtLevel(l.price)}`,
       detail: `Nivel con ${l.touches} toque${l.touches !== 1 ? 's' : ''} desde ${fmtDateShort(l.firstDate)}. Superarla con decisión suele leerse como fortaleza.`,
     })
   }
 
   if (distHighPct >= -2) signals.push({
-    kind: 'near_52w_high', tone: 'gold', title: 'En zona de máximos de 52 semanas',
+    kind: 'near_52w_high', tone: 'gold', trigger: false, title: 'En zona de máximos de 52 semanas',
     detail: 'Está a menos de 2% de su máximo anual.',
   })
   if (distLowPct <= 5) signals.push({
-    kind: 'near_52w_low', tone: 'coral', title: 'En zona de mínimos de 52 semanas',
+    kind: 'near_52w_low', tone: 'coral', trigger: false, title: 'En zona de mínimos de 52 semanas',
     detail: 'Está a menos de 5% de su mínimo anual. Barato no siempre significa oportunidad.',
   })
 
@@ -480,34 +510,50 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   else verdict += ' Sin señales de giro relevantes esta semana.'
 
   // ── Lectura técnica agregada (regla automática y explícita, no asesoría) ──
-  // Suma ponderada de las mismas señales que se muestran arriba.
-  let score = 0
-  if (aboveSma200 === true)  score += sma200Rising === true  ? 2 : 1
-  if (aboveSma200 === false) score -= sma200Rising === false ? 2 : 1
-  if (divergence === 'bullish') score += 2
-  if (divergence === 'bearish') score -= 2
-  if (cross === 'golden') score += 2
-  if (cross === 'death')  score -= 2
-  if (macdCross === 'bullish') score += 1
-  if (macdCross === 'bearish') score -= 1
-  if (volSignal === 'up')   score += 1
-  if (volSignal === 'down') score -= 1
-  if (rsi14 !== null && rsi14 <= 30) score += 1
-  if (rsi14 !== null && rsi14 >= 70) score -= 1
-  if (signals.some(s => s.kind === 'near_support'))    score += 1
-  if (signals.some(s => s.kind === 'near_resistance')) score -= 1
-  if (distLowPct <= 5) score -= 1   // "cuchillo cayendo": mínimos anuales restan
+  // Dos sumas separadas:
+  //   trendScore   = ESTADO de fondo (SMA200, mínimos anuales) — contexto persistente
+  //   triggerScore = EVENTOS recientes (cruces, divergencia, RSI, volumen, niveles)
+  // Compra/venta exigen al menos un gatillo alineado: estar en tendencia alcista
+  // por sí solo ya NO produce "Compra" permanente semana tras semana.
+  const components: number[] = []
+  const addComp = (pts: number) => { components.push(pts); return pts }
 
-  const pros = signals.filter(s => s.tone === 'mint').length
-  const cons = signals.filter(s => s.tone === 'coral').length
+  let trendScore = 0
+  if (aboveSma200 === true)  trendScore += addComp(sma200Rising === true  ? 2 : 1)
+  if (aboveSma200 === false) trendScore += addComp(sma200Rising === false ? -2 : -1)
+  if (distLowPct <= 5)       trendScore += addComp(-1)   // "cuchillo cayendo": mínimos anuales restan
 
-  // Umbrales: 5 niveles explícitos de compra/venta en vez de 3 genéricos.
+  let triggerScore = 0
+  if (divergence === 'bullish') triggerScore += addComp(2)
+  if (divergence === 'bearish') triggerScore += addComp(-2)
+  if (cross === 'golden') triggerScore += addComp(2)
+  if (cross === 'death')  triggerScore += addComp(-2)
+  if (macdCross === 'bullish') triggerScore += addComp(1)
+  if (macdCross === 'bearish') triggerScore += addComp(-1)
+  if (volSignal === 'up')   triggerScore += addComp(1)
+  if (volSignal === 'down') triggerScore += addComp(-1)
+  if (rsi14 !== null && rsi14 <= 30) triggerScore += addComp(1)
+  if (rsi14 !== null && rsi14 >= 70) triggerScore += addComp(-1)
+  if (signals.some(s => s.kind === 'near_support'))    triggerScore += addComp(1)
+  if (signals.some(s => s.kind === 'near_resistance')) triggerScore += addComp(-1)
+
+  const score = trendScore + triggerScore
+  // pros/cons cuentan los MISMOS componentes que forman el score (incluida la
+  // tendencia): antes el banner podía decir "Compra · 0 a favor · 0 en contra".
+  const pros = components.filter(p => p > 0).length
+  const cons = components.filter(p => p < 0).length
+
   let label: RatingLabel
-  if (score >= 5)       label = 'compra_fuerte'
-  else if (score >= 2)  label = 'compra'
-  else if (score <= -5) label = 'venta_fuerte'
-  else if (score <= -2) label = 'venta'
-  else                  label = 'neutral'
+  if (score >= 5 && triggerScore >= 2)        label = 'compra_fuerte'
+  else if (score >= 2 && triggerScore >= 1)   label = 'compra'
+  else if (score <= -5 && triggerScore <= -2) label = 'venta_fuerte'
+  else if (score <= -2 && triggerScore <= -1) label = 'venta'
+  else                                        label = 'neutral'
+
+  // Presión bajista con tendencia aún alcista: no alcanza para "Venta" (el
+  // estado la compensa), pero para quien TIENE la acción es el aviso útil de
+  // considerar toma de ganancias — llega antes de perder la SMA200.
+  const caution = aboveSma200 === true && triggerScore <= -3
 
   const actionText: Record<RatingLabel, string> = {
     compra_fuerte: 'Compra fuerte',
@@ -517,7 +563,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     venta_fuerte:  'Venta fuerte',
   }
 
-  const rating: TechnicalRating = { score, pros, cons, label, action: actionText[label] }
+  const rating: TechnicalRating = { score, trendScore, triggerScore, pros, cons, caution, label, action: actionText[label] }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
   const chartStart = start252

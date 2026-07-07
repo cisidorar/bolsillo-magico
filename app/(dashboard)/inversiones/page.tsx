@@ -73,7 +73,7 @@ export default async function InversionesPage({ searchParams }: Props) {
       .order('maturity_date', { ascending: true }),
     supabase
       .from('watchlist')
-      .select('id, ticker')
+      .select('id, ticker, target_price')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
   ])
@@ -122,7 +122,23 @@ export default async function InversionesPage({ searchParams }: Props) {
           <WatchlistPanel
             userId={user.id}
             initialItems={(watchlist ?? []) as WatchlistItem[]}
-            ownedTickers={[...new Set((stocks ?? []).map(s => s.ticker as string))]}
+            positions={(() => {
+              // Agregado por ticker (puede haber varias filas): acciones totales + costo promedio ponderado
+              const map: Record<string, { shares: number; avgCost: number }> = {}
+              for (const s of (stocks ?? []) as StockPosition[]) {
+                const prev = map[s.ticker]
+                if (prev) {
+                  const totalShares = prev.shares + s.shares
+                  map[s.ticker] = {
+                    shares: totalShares,
+                    avgCost: (prev.shares * prev.avgCost + s.shares * s.avg_cost_usd) / totalShares,
+                  }
+                } else {
+                  map[s.ticker] = { shares: s.shares, avgCost: s.avg_cost_usd }
+                }
+              }
+              return map
+            })()}
           />
         </>
       )}
