@@ -194,6 +194,11 @@ function TechnicalDetail({ a, position, livePrice }: {
   // ayer; sin esto se llegó a mostrar "piso a −0.5%" con el piso ya perforado)
   const pxNow = livePrice ?? a.price
   const distNow = (levelPrice: number) => Math.round(((levelPrice - pxNow) / pxNow) * 1000) / 10
+  // Movimiento fuerte intradía: el análisis es al cierre anterior — con ±3% o
+  // más de desvío, señales y radar quedaron viejos (caso INTC −10% mostrando
+  // "a +3.6% de romper el techo")
+  const devPct  = Math.round(((pxNow - a.price) / a.price) * 1000) / 10
+  const bigMove = Math.abs(devPct) >= 3
   const trendColor = a.trend.aboveSma200 === null ? 'var(--ink-3)'
     : a.trend.aboveSma200 && a.trend.sma200Rising !== false ? 'var(--mint)'
     : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
@@ -210,6 +215,19 @@ function TechnicalDetail({ a, position, livePrice }: {
 
   return (
     <div className="px-4 lg:px-6 pb-4 lg:pb-6 space-y-3 lg:space-y-4">
+
+      {/* -1. Guard intradía: hoy se movió fuerte, el análisis quedó viejo */}
+      {bigMove && (
+        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,111,97,0.10)', border: '1px solid rgba(255,111,97,0.25)' }}>
+          <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+            Hoy se mueve fuerte: {devPct > 0 ? '+' : ''}{devPct}% respecto del cierre analizado
+          </p>
+          <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            Las señales y el rating de abajo son del cierre anterior y pueden estar obsoletos. Las distancias
+            de los niveles ya usan el precio en vivo. Todo se recalcula al próximo cierre.
+          </p>
+        </div>
+      )}
 
       {/* 0. Lectura técnica agregada (regla automática) */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg }}>
@@ -261,6 +279,12 @@ function TechnicalDetail({ a, position, livePrice }: {
       <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5"
         style={{ background: 'var(--surface-2)', borderLeft: `3px solid ${trendColor}` }}>
         <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.verdict}</p>
+      </div>
+
+      {/* 1.5 Plan de entrada — directo, generado por código */}
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Para entrar con base</p>
+        <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.entryPlan}</p>
       </div>
 
       {/* 2. Gráfico 12 meses con niveles y SMA200 */}
@@ -426,8 +450,9 @@ function TechnicalDetail({ a, position, livePrice }: {
             </p>
           )}
 
-          {/* 5.5 Radar: cerca de pasar — aviso anticipado, no señal todavía */}
-          {a.watch.length > 0 && (
+          {/* 5.5 Radar: cerca de pasar — oculto en días de movimiento fuerte
+              (sus distancias vienen del cierre anterior y quedan obsoletas) */}
+          {!bigMove && a.watch.length > 0 && (
             <div className="space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-widest pt-1" style={{ color: 'var(--ink-3)' }}>
                 Para revisar pronto — cerca de pasar

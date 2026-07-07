@@ -64,6 +64,7 @@ export interface TechnicalAnalysis {
   price:        number
   asOf:         string
   verdict:      string                 // conclusión en 1-2 frases, generada por código
+  entryPlan:    string                 // qué tendría que pasar para entrar con base — directo, sin rodeos
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -553,14 +554,34 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     detail: 'A menos de 2% de su máximo de los últimos 12 meses. Comprar en máximos no es un error en sí — las acciones fuertes marcan máximos muchas veces seguidas — pero el retroceso de corto plazo es más probable. Comprar por partes o esperar un respiro reparte ese riesgo.',
     tech: 'Máximo de 52 semanas',
   })
-  // Sobre-extensión: el espejo del "cuchillo cayendo". Muy por encima de su
-  // promedio largo, comprar es pagar el estirón; lo común es que descanse o
-  // vuelva hacia el promedio antes de seguir.
-  if (distPct !== null && distPct >= 15) signals.push({
+  // Sobre-extensión: el espejo del "cuchillo cayendo", en dos tramos.
+  // ≥40% sobre el promedio es zona de euforia/parábola (caso INTC +100%):
+  // las caídas violentas de un día son típicas ahí y el castigo plano de −1
+  // se quedaba corto.
+  if (distPct !== null && distPct >= 40) signals.push({
+    kind: 'overextended_extreme', tone: 'coral', trigger: false,
+    title: 'En zona de euforia — subida vertical',
+    detail: `Va ${distPct}% por encima de su promedio de largo plazo: una subida así de vertical vive de la euforia, y las caídas violentas de un día son típicas aquí. Entrar a este precio es comprarle el riesgo a otro.`,
+    tech: `Precio +${distPct}% sobre la SMA200 (extremo: ≥40%)`,
+  })
+  else if (distPct !== null && distPct >= 15) signals.push({
     kind: 'overextended', tone: 'gold', trigger: false,
     title: 'Está muy estirada por encima de su promedio',
     detail: `Va ${distPct}% por encima de su promedio de largo plazo. Después de estirones así es común que el precio descanse o retroceda hacia el promedio — para comprar, muchos prefieren esperar ese retroceso.`,
     tech: `Precio +${distPct}% sobre la SMA200`,
+  })
+
+  // Sin red cercana: en tendencia alcista pero sin ningún piso probado (≥2
+  // toques) a menos de 12% — típico tras subidas verticales. Si empieza a
+  // caer, no tiene dónde afirmarse: dato clave para quien busca entrar seguro.
+  const hasNearStrongSupport = supportLevels.some(l => l.touches >= 2 && Math.abs(l.distPct) <= 12)
+  if (aboveSma200 === true && !hasNearStrongSupport) signals.push({
+    kind: 'no_safety_net', tone: 'gold', trigger: false,
+    title: 'No hay piso con historia cerca',
+    detail: supportLevels.length > 0
+      ? `El piso más cercano (${fmtLevel(supportLevels[0].price)}) tiene ${supportLevels[0].touches} toque${supportLevels[0].touches !== 1 ? 's' : ''} y no alcanza como red probada. Subió tan rápido que no dejó zonas de compra afirmadas: si cae, puede caer de corrido.`
+      : 'Subió tan rápido que no dejó pisos probados en el último año: si empieza a caer, no hay zona clara donde suela afirmarse.',
+    tech: 'Sin soporte de ≥2 toques a menos de 12%',
   })
   if (distLowPct <= 5) signals.push({
     kind: 'near_52w_low', tone: 'coral', trigger: false,
@@ -586,9 +607,12 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     })
   }
 
-  // Cerca de intentar romper un techo, con tendencia a favor (3-6% por debajo)
+  // Cerca de intentar romper un techo, con tendencia a favor (3-6% por debajo).
+  // Gateado: con divergencia bajista o MACD bajista activos no se anuncia
+  // "confirmación para comprar" — contradecía a la lectura "Venta" (caso INTC).
   const resStrong = resistanceLevels.find(l => l.touches >= 2)
-  if (resStrong && aboveSma200 === true && !signals.some(s => s.kind === 'near_resistance')) {
+  if (resStrong && aboveSma200 === true && divergence !== 'bearish' && macdCross !== 'bearish'
+      && !signals.some(s => s.kind === 'near_resistance')) {
     const d = resStrong.distPct
     if (d > 3 && d <= 6) watch.push({
       kind: 'watch_breakout', tone: 'mint', trigger: false,
@@ -678,7 +702,8 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (aboveSma200 === true)  trendScore += addComp(sma200Rising === true  ? 2 : 1)
   if (aboveSma200 === false) trendScore += addComp(sma200Rising === false ? -2 : -1)
   if (distLowPct <= 5)       trendScore += addComp(-1)   // "cuchillo cayendo": mínimos anuales restan
-  if (distPct !== null && distPct >= 15) trendScore += addComp(-1)   // sobre-extendida: comprar el estirón resta
+  if (distPct !== null && distPct >= 40)      trendScore += addComp(-2)   // euforia/parábola: castigo doble
+  else if (distPct !== null && distPct >= 15) trendScore += addComp(-1)   // sobre-extendida: comprar el estirón resta
 
   let triggerScore = 0
   if (divergence === 'bullish') triggerScore += addComp(2)
@@ -722,6 +747,32 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
 
   const rating: TechnicalRating = { score, trendScore, triggerScore, pros, cons, caution, label, action: actionText[label] }
 
+  // ── Plan de entrada: directo y accionable, generado por código ────────────
+  // Solo precios de niveles (no distancias) para que no envejezca intradía.
+  const supRef = supportLevels.find(l => l.touches >= 2) ?? supportLevels[0] ?? null
+  const resRef = resistanceLevels.find(l => l.touches >= 2) ?? resistanceLevels[0] ?? null
+  let entryPlan: string
+  if (aboveSma200 === false) {
+    entryPlan = 'Sin base mientras siga bajo su promedio largo. El primer aviso a favor sería un cruce alcista de MACD o una divergencia alcista — hasta entonces, fuera del radar de compra.'
+  } else if (label === 'compra' || label === 'compra_fuerte') {
+    entryPlan = supRef
+      ? `Los gatillos están a favor. Si entras, ${fmtLevel(supRef.price)} es tu línea de salida: si la pierde con claridad, la tesis se cayó.`
+      : 'Los gatillos están a favor, pero no hay piso probado cerca: define tu precio de salida ANTES de entrar.'
+  } else if (label === 'venta' || label === 'venta_fuerte' || caution || (distPct !== null && distPct >= 40)) {
+    const waits: string[] = []
+    if (supRef) waits.push(`un retroceso a ${fmtLevel(supRef.price)} que aguante 2-3 cierres`)
+    if (resRef) waits.push(`una ruptura de ${fmtLevel(resRef.price)} con volumen`)
+    entryPlan = waits.length > 0
+      ? `Hoy no hay base para entrar. Lo que la crearía: ${waits.join(', o ')}.`
+      : 'Hoy no hay base para entrar: deja que se enfríe y que construya un piso primero.'
+  } else if (signals.some(s => s.kind === 'range_squeeze') && resRef && supRef) {
+    entryPlan = `Atrapada en rango: la base aparece si rompe ${fmtLevel(resRef.price)} hacia arriba con volumen, o si rebota con fuerza desde ${fmtLevel(supRef.price)}. Antes de eso, entrar es adivinar el lado.`
+  } else if (signals.some(s => s.kind === 'near_support') && supRef) {
+    entryPlan = `Está sobre un piso probado (${fmtLevel(supRef.price)}): si lo respeta un par de cierres, es de las entradas con más base. Si lo pierde, se cae la razón para entrar.`
+  } else {
+    entryPlan = 'Tendencia sana pero sin gatillo: la entrada con base aparece en un retroceso a un piso o en una señal del radar. Comprar sin gatillo es pagar por impaciencia.'
+  }
+
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
   const chartStart = start252
   const chartLen   = closes.length - chartStart
@@ -735,7 +786,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, rating,
+    price, asOf, verdict, entryPlan, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
