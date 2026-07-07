@@ -90,6 +90,9 @@ export interface TechnicalAnalysis {
   // Gráfico (~12 meses, downsampled)
   chart:        ChartPoint[]
   signals:      TechnicalSignal[]
+  // Radar: cosas CERCA de pasar — aviso anticipado para tener al ojo, aún no señal.
+  // No puntúan en el rating; son la antesala de las señales de arriba.
+  watch:        TechnicalSignal[]
   // Compatibilidad con consumidores simples
   sma20:        number | null
   sma50:        number | null
@@ -489,7 +492,9 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     tech: 'Volumen ≥1.8× su promedio de 20 días',
   })
 
-  if (supportLevels.length > 0 && pctDiff(price, supportLevels[0].price) <= 3) {
+  // Señales de nivel solo con ≥2 toques: un nivel de 1 toque es demasiado débil
+  // para anunciar "está tocando un piso que la frenó antes" (frenó UNA vez).
+  if (supportLevels.length > 0 && supportLevels[0].touches >= 2 && pctDiff(price, supportLevels[0].price) <= 3) {
     const l = supportLevels[0]
     signals.push({
       kind: 'near_support', tone: 'mint', trigger: true,
@@ -498,7 +503,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
       tech: `Soporte en ${fmtLevel(l.price)}`,
     })
   }
-  if (resistanceLevels.length > 0 && pctDiff(price, resistanceLevels[0].price) <= 3) {
+  if (resistanceLevels.length > 0 && resistanceLevels[0].touches >= 2 && pctDiff(price, resistanceLevels[0].price) <= 3) {
     const l = resistanceLevels[0]
     signals.push({
       kind: 'near_resistance', tone: 'gold', trigger: true,
@@ -520,6 +525,81 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     detail: 'A menos de 5% de su precio mínimo de los últimos 12 meses. Que esté "barata" no siempre significa oportunidad: a veces sigue cayendo.',
     tech: 'Mínimo de 52 semanas',
   })
+
+  // ── Radar: cerca de pasar (aviso anticipado, pensado para quien compra) ────
+  // La antesala de las señales: nada de esto puntúa en el rating, pero le dice
+  // al usuario semanal qué acciones conviene tener al ojo los próximos días.
+  const watch: TechnicalSignal[] = []
+
+  // Acercándose a un piso confiable (3-8% por encima; ≤3% ya es señal)
+  const supStrong = supportLevels.find(l => l.touches >= 2)
+  if (supStrong && !signals.some(s => s.kind === 'near_support')) {
+    const d = Math.abs(supStrong.distPct)
+    if (d > 3 && d <= 8) watch.push({
+      kind: 'watch_support', tone: 'mint', trigger: false,
+      title: `Se acerca a un piso que la frenó ${supStrong.touches} veces (${fmtLevel(supStrong.price)})`,
+      detail: `Está a ${d}% de ese piso. Si sigue bajando hasta ahí, es la zona donde otros suelen comprar — y quienes compran por partes la usan como referencia para escalonar la entrada.`,
+      tech: `Soporte en ${fmtLevel(supStrong.price)}, a ${supStrong.distPct}%`,
+    })
+  }
+
+  // Cerca de intentar romper un techo, con tendencia a favor (3-6% por debajo)
+  const resStrong = resistanceLevels.find(l => l.touches >= 2)
+  if (resStrong && aboveSma200 === true && !signals.some(s => s.kind === 'near_resistance')) {
+    const d = resStrong.distPct
+    if (d > 3 && d <= 6) watch.push({
+      kind: 'watch_breakout', tone: 'mint', trigger: false,
+      title: `Cerca de intentar romper un techo (${fmtLevel(resStrong.price)})`,
+      detail: `Está a +${d}% de un techo que la frenó ${resStrong.touches} veces, con la tendencia larga a favor. Si lo supera con decisión, muchos lo leen como confirmación para comprar.`,
+      tech: `Resistencia en ${fmtLevel(resStrong.price)}, a +${d}%`,
+    })
+  }
+
+  // Impulso enfriándose hacia la zona de rebote (RSI 30-40, aún sin señal)
+  if (rsi14 !== null && rsi14 > 30 && rsi14 <= 40) watch.push({
+    kind: 'watch_rsi_low', tone: 'mint', trigger: false,
+    title: 'Se está enfriando — cerca de la zona de rebote',
+    detail: 'El termómetro de impulso viene bajando y se acerca al nivel donde las caídas suelen verse exageradas. Todavía no llega: si sigue cayendo unos días más, vale la pena mirarla de cerca.',
+    tech: `RSI ${Math.round(rsi14)} (zona de rebote: bajo 30)`,
+  })
+  // Impulso calentándose hacia sobrecompra (RSI 62-70) — útil para quien tiene la acción
+  if (rsi14 !== null && rsi14 >= 62 && rsi14 < 70) watch.push({
+    kind: 'watch_rsi_high', tone: 'gold', trigger: false,
+    title: 'Se está calentando — cerca de la zona de pausa',
+    detail: 'El termómetro de impulso viene subiendo y se acerca al nivel donde las subidas suelen tomarse un respiro. No es señal todavía, pero conviene no perseguir el precio aquí.',
+    tech: `RSI ${Math.round(rsi14)} (sobrecompra: sobre 70)`,
+  })
+
+  // MACD por cruzar: histograma acercándose a cero con racha de 3+ días
+  if (macdCross === null && histogram.length >= 4) {
+    const [h4, h3, h2, h1] = histogram.slice(-4)
+    if (h1 !== null && h2 !== null && h3 !== null && h4 !== null) {
+      if (h1 < 0 && h1 > h2 && h2 > h3 && h3 > h4) watch.push({
+        kind: 'watch_macd_up', tone: 'mint', trigger: false,
+        title: 'El impulso se está dando vuelta al alza',
+        detail: 'Lleva varios días seguidos recuperando fuerza, aunque todavía no confirma el giro. Si la mejora continúa, en los próximos días podría aparecer la señal de cruce.',
+        tech: 'Histograma MACD subiendo hacia cero',
+      })
+      if (h1 > 0 && h1 < h2 && h2 < h3 && h3 < h4) watch.push({
+        kind: 'watch_macd_down', tone: 'gold', trigger: false,
+        title: 'El impulso se está desinflando',
+        detail: 'Lleva varios días seguidos perdiendo fuerza, aunque todavía no confirma el giro a la baja. Atenta si tienes la acción: puede ser la antesala de un retroceso.',
+        tech: 'Histograma MACD cayendo hacia cero',
+      })
+    }
+  }
+
+  // Cruce dorado por formarse: SMA50 bajo la SMA200 pero subiendo y a <1.5%
+  if (cross === null && sma50 !== null && sma200 !== null && sma50 < sma200) {
+    const gapPct = ((sma200 - sma50) / sma200) * 100
+    const sma50Prev = smaLast(closes.slice(0, closes.length - 10), 50)
+    if (gapPct <= 1.5 && sma50Prev !== null && sma50 > sma50Prev) watch.push({
+      kind: 'watch_golden', tone: 'mint', trigger: false,
+      title: 'A punto de confirmar un giro de tendencia al alza',
+      detail: 'Su promedio de los últimos meses viene subiendo y está a punto de superar al de largo plazo — la señal clásica de cambio de tendencia podría confirmarse en las próximas semanas.',
+      tech: `SMA50 a ${Math.round(gapPct * 10) / 10}% de cruzar la SMA200`,
+    })
+  }
 
   // ── Veredicto en 1-2 frases, en lenguaje cotidiano ────────────────────────
   const wks = `${weeksInState} semana${weeksInState !== 1 ? 's' : ''}`
@@ -615,7 +695,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
     high52, low52, distHighPct, distLowPct, returns,
-    chart, signals,
+    chart, signals, watch,
     sma20, sma50, sma200,
     supports:    supportLevels.map(l => l.price),
     resistances: resistanceLevels.map(l => l.price),

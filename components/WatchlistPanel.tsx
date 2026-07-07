@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target, Eye } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -23,6 +23,13 @@ export interface WatchlistItem {
 function targetReached(item: WatchlistItem, price: number | undefined, owned: boolean): boolean {
   if (item.target_price === null || price === undefined) return false
   return owned ? price >= item.target_price : price <= item.target_price
+}
+
+/** A ≤3% del precio objetivo sin haberlo alcanzado — entra al radar "al ojo". */
+function nearTarget(item: WatchlistItem, price: number | undefined, owned: boolean): boolean {
+  if (item.target_price === null || price === undefined) return false
+  if (targetReached(item, price, owned)) return false
+  return Math.abs(price - item.target_price) / item.target_price <= 0.03
 }
 
 interface Quote { price: number; changePercent: number; name: string; domain?: string }
@@ -126,16 +133,27 @@ function PriceChart({ a }: { a: TechnicalAnalysis }) {
   const priceLine = pts.map((p, i) => `${x(i)},${y(p.close)}`).join(' ')
   const smaPts = pts.map((p, i) => (p.sma200 !== null ? `${x(i)},${y(p.sma200)}` : null)).filter(Boolean) as string[]
 
+  // Anti-colisión: si dos niveles quedan a <12px, la etiqueta del de abajo se
+  // desplaza (la línea se queda en su precio real)
+  const sortedLevels = levels
+    .map(l => ({ ...l, lineY: y(l.price) }))
+    .sort((a, b) => a.lineY - b.lineY)
+  let prevLabelY = -Infinity
+  const labeledLevels = sortedLevels.map(l => {
+    const labelY = Math.max(l.lineY, prevLabelY + 12)
+    prevLabelY = labelY
+    return { ...l, labelY }
+  })
+
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
       {/* Niveles horizontales con precio a la derecha */}
-      {levels.map(l => {
-        const ly = y(l.price)
+      {labeledLevels.map(l => {
         const color = l.kind === 'support' ? 'var(--mint)' : 'var(--gold)'
         return (
           <g key={`${l.kind}-${l.price}`}>
-            <line x1={padL} y1={ly} x2={W - padR} y2={ly} stroke={color} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.7" />
-            <text x={W - padR + 4} y={ly + 3} fontSize="10" fontWeight="700" fill={color}>
+            <line x1={padL} y1={l.lineY} x2={W - padR} y2={l.lineY} stroke={color} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.7" />
+            <text x={W - padR + 4} y={l.labelY + 3} fontSize="10" fontWeight="700" fill={color}>
               {fmtUSD(l.price)}
             </text>
           </g>
@@ -381,6 +399,28 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
               Nada fuera de lo normal esta semana: el precio se mueve dentro de su rango habitual.
             </p>
           )}
+
+          {/* 5.5 Radar: cerca de pasar — aviso anticipado, no señal todavía */}
+          {a.watch.length > 0 && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest pt-1" style={{ color: 'var(--ink-3)' }}>
+                <Eye className="w-3 h-3" /> Para tener al ojo
+              </p>
+              {a.watch.map(w => {
+                const t = TONE_STYLE[w.tone]
+                return (
+                  <div key={w.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5"
+                    style={{ background: 'var(--surface-2)', borderLeft: `2.5px solid ${t.color}` }}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{w.title}</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{w.detail}</p>
+                      <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>{w.tech}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -616,17 +656,33 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
               ...items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) !== null).map(i => i.id),
               ...targets.map(i => i.id),
             ]).size
-            if (count === 0) return null
+            const watchTotal = items.filter(i => {
+              const a = analyses[i.ticker]
+              return (typeof a === 'object' && a.watch.length > 0)
+                || nearTarget(i, quotes[i.ticker]?.price, owned.has(i.ticker))
+            }).length
+            if (count === 0 && watchTotal === 0) return null
             // Severidad: venta > toma de ganancias > compra/precio objetivo
             const worst: 'buy' | 'sell' | 'caution' =
               flags.includes('sell') ? 'sell' : flags.includes('caution') ? 'caution' : 'buy'
             const ui = FLAG_UI[worst]
             return (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                style={{ background: ui.bg, color: ui.color }}>
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: ui.color }} />
-                {count} para revisar
-              </span>
+              <>
+                {count > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: ui.bg, color: ui.color }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: ui.color }} />
+                    {count} para revisar
+                  </span>
+                )}
+                {watchTotal > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                    <Eye className="w-3 h-3" />
+                    {watchTotal} al ojo
+                  </span>
+                )}
+              </>
             )
           })()}
           {open
@@ -770,13 +826,21 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
         </div>
       ) : (
         <>
-        {/* Resumen semanal: cuántos favoritos traen señales que no habías visto */}
+        {/* Resumen semanal: señales nuevas + radar de cosas por pasar */}
         {(() => {
           const withNew = items.filter(i => newKindsFor(i.ticker, analyses[i.ticker]).size > 0)
-          if (withNew.length === 0) return null
+          const withWatch = items.filter(i => {
+            const a = analyses[i.ticker]
+            return (typeof a === 'object' && a.watch.length > 0)
+              || nearTarget(i, quotes[i.ticker]?.price, owned.has(i.ticker))
+          })
+          if (withNew.length === 0 && withWatch.length === 0) return null
+          const parts: string[] = []
+          if (withNew.length > 0)   parts.push(`${withNew.length} con señales nuevas desde tu última revisión`)
+          if (withWatch.length > 0) parts.push(`${withWatch.length} para tener al ojo (cerca de que pase algo)`)
           return (
             <p className="text-[11px] font-bold mb-2 px-1" style={{ color: 'var(--primary)' }}>
-              {withNew.length} de {items.length} favorito{items.length !== 1 ? 's' : ''} con señales nuevas desde tu última revisión
+              {parts.join(' · ')}
             </p>
           )
         })()}
@@ -788,6 +852,8 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
             const flag = actionFlag(a, isOwned)
             const hasNew = newKindsFor(item.ticker, a).size > 0
             const atTarget = targetReached(item, q?.price, isOwned)
+            const watchCount = (typeof a === 'object' ? a.watch.length : 0)
+              + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
             return (
               <div key={item.id}>
                 <div
@@ -837,6 +903,14 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                           style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                           <Target className="w-3 h-3" />
                           En tu precio
+                        </span>
+                      )}
+                      {/* Radar: cerca de que pase algo — solo si no hay chip más fuerte */}
+                      {!flag && !atTarget && watchCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                          <Eye className="w-3 h-3" />
+                          al ojo
                         </span>
                       )}
                       {hasNew && (
@@ -973,10 +1047,14 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                         <p className="flex-1 min-w-0 text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
                           Objetivo de {isOwned ? 'salida' : 'entrada'}:{' '}
                           <span className="font-bold" style={{ color: 'var(--ink)' }}>{fmtUSD(item.target_price)}</span>
-                          {reached && (
+                          {reached ? (
                             <span className="ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full"
                               style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                               Llegó a tu precio
+                            </span>
+                          ) : q && (
+                            <span className="ml-2 text-[10px] font-bold" style={{ color: 'var(--ink-3)' }}>
+                              a {(Math.abs(q.price - item.target_price) / item.target_price * 100).toFixed(1)}% de distancia
                             </span>
                           )}
                         </p>

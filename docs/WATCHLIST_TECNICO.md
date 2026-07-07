@@ -66,7 +66,22 @@ Cada `TechnicalSignal` lleva `trigger: boolean` (evento vs estado). Banner al to
 
 **Enfoque de largo plazo (decisión jul 2026, Cas invierte ~1 vez/semana):** el popup lidera con un **veredicto en 1-2 frases** (tendencia + divergencia/nivel, generado por código en `analyze()`), gráfico de 12 meses con SMA200 y niveles dibujados, tendencia de fondo con **persistencia** ("N semanas sobre su media de 200"), **niveles con historia** (`LevelInfo`: toques, primer toque, semanas vigente) y rendimiento 1m/6m/1a. El RSI y el rango 52s quedan al final como momentum secundario. Nada de variación intradía como protagonista.
 
-Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 días (lows para soportes, highs para resistencias), clusterizados si están a <1.5% **del promedio del grupo** (evita encadenado) conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio. `LevelInfo` incluye `weeksSinceLast` (frescura del último toque) y `distPct` (distancia con signo al precio actual) — ambos visibles siempre en la UI, no solo cuando el nivel está a ≤3%.
+Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 días (lows para soportes, highs para resistencias), clusterizados si están a <1.5% **del promedio del grupo** (evita encadenado) conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio. `LevelInfo` incluye `weeksSinceLast` (frescura del último toque) y `distPct` (distancia con signo al precio actual) — ambos visibles siempre en la UI, no solo cuando el nivel está a ≤3%. **Las señales de nivel exigen ≥2 toques** (un nivel de 1 toque se muestra en la lista pero no anuncia "probando piso").
+
+### Radar "al ojo" — avisos anticipados (jul 2026, Cas compra más que vende)
+
+`analyze()` devuelve `watch: TechnicalSignal[]`: cosas **cerca de pasar** que no puntúan en el rating — la antesala de las señales. Umbrales:
+
+| Aviso | Condición | Tono |
+|---|---|---|
+| `watch_support` | piso con ≥2 toques a 3-8% por debajo (≤3% ya es señal); el detail menciona escalonar compras por partes | mint |
+| `watch_breakout` | techo con ≥2 toques a 3-6% por encima, con tendencia larga alcista | mint |
+| `watch_rsi_low` / `watch_rsi_high` | RSI 30-40 (enfriándose) / 62-70 (calentándose) | mint / gold |
+| `watch_macd_up` / `watch_macd_down` | histograma MACD acercándose a cero con racha de 3+ días, sin cruce aún | mint / gold |
+| `watch_golden` | SMA50 bajo SMA200 pero subiendo y a <1.5% de cruzar | mint |
+| cerca del objetivo (UI) | precio a ≤3% del `target_price` sin alcanzarlo (`nearTarget`, client-side) | primary |
+
+UI: sección "Para tener al ojo" en el popup, chip "al ojo" en la fila (solo si no hay chip más fuerte), chip "N al ojo" en el header plegado y en el resumen sobre la lista. El popup del objetivo muestra "a X% de distancia" mientras no se alcance. Gráfico: etiquetas de niveles con anti-colisión (mínimo 12px entre etiquetas).
 
 ### Contexto de posición y diff semanal (UI, jul 2026)
 
