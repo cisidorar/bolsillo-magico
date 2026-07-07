@@ -351,7 +351,7 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
   const fetchQuotes = useCallback(async (tickers: string[]) => {
     if (tickers.length === 0) return
     try {
-      const r = await fetch(`/api/stock-price?symbols=${tickers.join(',')}`)
+      const r = await fetch(`/api/stock-price?symbols=${tickers.join(',')}`, { cache: 'no-store' })
       if (!r.ok) return
       // La route devuelve { quotes, marketOpen, marketLabel }
       const data = await r.json() as { quotes?: Record<string, Quote> }
@@ -363,7 +363,11 @@ export default function WatchlistPanel({ userId, initialItems, ownedTickers }: P
   const fetchAnalysis = useCallback(async (ticker: string, force = false) => {
     setAnalyses(prev => ({ ...prev, [ticker]: prev[ticker] && prev[ticker] !== 'error' ? prev[ticker] : 'loading' }))
     try {
-      const r = await fetch(`/api/technical?symbol=${ticker}${force ? '&force=1' : ''}`)
+      // no-store: la ruta ya tiene su propio criterio de frescura (price_history +
+      // STALE_D); el Cache-Control HTTP es para el navegador, no para el cliente —
+      // si confiamos en él acá, un cambio de forma del JSON (como este) puede
+      // quedar pegado en cache hasta que expire, sin forma de refrescar desde la UI.
+      const r = await fetch(`/api/technical?symbol=${ticker}${force ? '&force=1' : ''}`, { cache: 'no-store' })
       if (!r.ok) {
         const body = await r.json().catch(() => null) as { detail?: string } | null
         if (body?.detail) setErrDetails(prev => ({ ...prev, [ticker]: body.detail! }))
