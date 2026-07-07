@@ -522,13 +522,18 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
   // ── Quotes de los favoritos ────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
     if (tickers.length === 0) return
-    try {
-      const r = await fetch(`/api/stock-price?symbols=${tickers.join(',')}`, { cache: 'no-store' })
-      if (!r.ok) return
-      // La route devuelve { quotes, marketOpen, marketLabel }
-      const data = await r.json() as { quotes?: Record<string, Quote> }
-      if (data.quotes) setQuotes(prev => ({ ...prev, ...data.quotes }))
-    } catch { /* silencioso: el panel funciona sin quote */ }
+    // La API acepta máx 25 símbolos por request: con 30+ favoritos hay que
+    // trocear (antes los que pasaban de 25 se perdían en silencio)
+    for (let i = 0; i < tickers.length; i += 25) {
+      const chunk = tickers.slice(i, i + 25)
+      try {
+        const r = await fetch(`/api/stock-price?symbols=${chunk.join(',')}`, { cache: 'no-store' })
+        if (!r.ok) continue
+        // La route devuelve { quotes, marketOpen, marketLabel }
+        const data = await r.json() as { quotes?: Record<string, Quote> }
+        if (data.quotes) setQuotes(prev => ({ ...prev, ...data.quotes }))
+      } catch { /* silencioso: el panel funciona sin quote */ }
+    }
   }, [])
 
   // ── Análisis técnico ──────────────────────────────────────────────────────

@@ -96,12 +96,15 @@ UI: sección "Para revisar pronto" en el popup, chip "revisar pronto" en la fila
 
 Al montar `WatchlistPanel` se precargan los análisis de todos los favoritos **secuencialmente con pausa de 400 ms** (AV free también limita por minuto). Cada fila muestra un chip "N señales" coloreado por la señal más severa (coral > gold > mint). Tocar la fila abre el detalle en popup.
 
-### Presupuesto de cuota (dimensionado para ~15 favoritos, 2 visitas/día)
+### Presupuesto de cuota (recalibrado jul 2026 para ~30 favoritos)
 
-- Velas: cache **24 h** (los cierres diarios cambian una vez al día) → máx 15 req/día a Alpha Vantage, límite free 25. La segunda visita del día consume 0.
-- Fallos: cache negativo 1 h → los reintentos automáticos no queman cuota; "Reintentar" fuerza con `?force=1`.
-- Quotes (precio en vivo): Finnhub `/quote`, gratis, se refresca en cada visita — independiente de las velas.
-- Headroom si algún día se queda corto: Twelve Data (free 800 req/día) como quinta fuente, o segunda key de AV.
+**Equilibrio elegido: datos al último cierre hábil, nunca "en vivo", nunca más viejos que eso.**
+
+- **Velas**: se sincroniza un ticker solo cuando le falta el **último cierre hábil completo** (`lastExpectedClose()`: ayer, saltando fin de semana). Efecto: la primera visita después de un cierre dispara ≤30 syncs (secuenciales, 400 ms entre sí); el resto del día y todo el fin de semana → **0 requests externos**. Antes (`STALE_D=4`) se ahorraba igual pero se trabajaba con velas de hasta 4 días.
+- **Throttle de reintentos**: si el sync no consiguió el cierre esperado (feriado US, proveedor caído), marker `{SYM}_SYNCTRY` en `price_cache` → reintento máx. cada 6 h por ticker, no en cada visita. `?force=1` lo salta.
+- **Quotes** (precio en vivo del header/filas): 1-2 requests batched por visita (chunks de 25 símbolos — con 30+ favoritos los sobrantes se perdían en silencio). Cache server-side con TTL propio.
+- **Guard intradía**: con ±3% de desvío vs el cierre analizado, el detalle avisa que las señales quedaron viejas y oculta el radar — sin pedir recálculo (se recalcula solo con el próximo cierre).
+- Headroom si algún día falta: Twelve Data (free 800 req/día) como fuente extra, o segunda key de AV.
 
 ## Validaciones pendientes
 
