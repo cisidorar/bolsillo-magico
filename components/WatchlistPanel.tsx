@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -19,9 +19,25 @@ interface Quote { price: number; changePercent: number; name: string; domain?: s
 interface Props {
   userId:       string
   initialItems: WatchlistItem[]
+  ownedTickers: string[]   // tickers con posición registrada — condiciona la señal de venta
 }
 
 const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
+
+/**
+ * Marca una acción como "interesante de revisar" según su lectura técnica:
+ * - Compra: siempre relevante (con o sin posición — puede ser entrada o suma).
+ * - Venta: solo si además tienes posición registrada — no tiene sentido
+ *   destacar "vender" algo que no posees.
+ */
+function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean): 'buy' | 'sell' | null {
+  if (typeof a !== 'object') return null
+  const isBuy  = a.rating.label === 'compra' || a.rating.label === 'compra_fuerte'
+  const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
+  if (isBuy) return 'buy'
+  if (isSell && owned) return 'sell'
+  return null
+}
 
 const TONE_STYLE: Record<SignalTone, { color: string; bg: string }> = {
   mint:    { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)' },
@@ -302,8 +318,9 @@ function TechnicalDetail({ a }: { a: TechnicalAnalysis }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function WatchlistPanel({ userId, initialItems }: Props) {
+export default function WatchlistPanel({ userId, initialItems, ownedTickers }: Props) {
   const supabase = createClient()
+  const owned = new Set(ownedTickers)
 
   const [items,      setItems]      = useState<WatchlistItem[]>(initialItems)
   const [quotes,     setQuotes]     = useState<Record<string, Quote>>({})
@@ -452,24 +469,18 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
               {items.length}
             </span>
           )}
-          {/* Aviso in-app visible aún con la lista plegada */}
+          {/* Aviso in-app visible aún con la lista plegada: candidatas a comprar/vender */}
           {!open && (() => {
-            const withSignals = items.filter(i => {
-              const a = analyses[i.ticker]
-              return typeof a === 'object' && a.signals.length > 0
-            })
-            if (withSignals.length === 0) return null
-            const anyCoral = withSignals.some(i => {
-              const a = analyses[i.ticker]
-              return typeof a === 'object' && a.signals.some(s => s.tone === 'coral')
-            })
-            const c = anyCoral ? 'var(--coral)' : 'var(--mint)'
-            const bg = anyCoral ? 'rgba(255,111,97,0.12)' : 'rgba(31,190,141,0.12)'
+            const toReview = items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) !== null)
+            if (toReview.length === 0) return null
+            const anySell = toReview.some(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) === 'sell')
+            const c  = anySell ? 'var(--coral)' : 'var(--mint)'
+            const bg = anySell ? 'rgba(255,111,97,0.12)' : 'rgba(31,190,141,0.12)'
             return (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                 style={{ background: bg, color: c }}>
                 <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: c }} />
-                {withSignals.length} con señales
+                {toReview.length} para revisar
               </span>
             )
           })()}
@@ -617,6 +628,8 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
           {items.map(item => {
             const q = quotes[item.ticker]
             const a = analyses[item.ticker]
+            const isOwned = owned.has(item.ticker)
+            const flag = actionFlag(a, isOwned)
             return (
               <div key={item.id}>
                 <div
@@ -625,6 +638,10 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                   onClick={() => openDetail(item.ticker)}
                   onKeyDown={e => e.key === 'Enter' && openDetail(item.ticker)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group"
+                  style={flag ? {
+                    borderLeft: `3px solid ${flag === 'buy' ? 'var(--mint)' : 'var(--coral)'}`,
+                    background: flag === 'buy' ? 'rgba(31,190,141,0.06)' : 'rgba(255,111,97,0.06)',
+                  } : undefined}
                 >
                   <ServiceLogo
                     domain={q?.domain ?? null}
@@ -635,8 +652,17 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
-                      {/* Aviso in-app: nº de señales activas sin abrir la fila */}
-                      {typeof a === 'object' && a.signals.length > 0 && (() => {
+                      {/* Candidata a compra/venta: prioridad sobre el conteo genérico de señales */}
+                      {flag ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{
+                            background: flag === 'buy' ? 'rgba(31,190,141,0.16)' : 'rgba(255,111,97,0.16)',
+                            color:      flag === 'buy' ? 'var(--mint)' : 'var(--coral)',
+                          }}>
+                          {flag === 'buy' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {typeof a === 'object' ? a.rating.action : (flag === 'buy' ? 'Comprar' : 'Vender')}
+                        </span>
+                      ) : typeof a === 'object' && a.signals.length > 0 && (() => {
                         const strongest: SignalTone = a.signals.some(s => s.tone === 'coral') ? 'coral'
                           : a.signals.some(s => s.tone === 'gold') ? 'gold'
                           : a.signals.some(s => s.tone === 'mint') ? 'mint' : 'neutral'
@@ -650,7 +676,11 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                         )
                       })()}
                     </div>
-                    {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
+                    {q?.name && (
+                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
+                        {q.name}{isOwned && ' · en cartera'}
+                      </p>
+                    )}
                   </div>
                   {q ? (
                     <div className="text-right flex-shrink-0">
@@ -703,7 +733,11 @@ export default function WatchlistPanel({ userId, initialItems }: Props) {
                 />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--ink)' }}>{ticker}</h2>
-                  {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
+                  {q?.name && (
+                    <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
+                      {q.name}{owned.has(ticker) && ' · en cartera'}
+                    </p>
+                  )}
                 </div>
                 {q && (
                   <div className="text-right flex-shrink-0 mr-1">

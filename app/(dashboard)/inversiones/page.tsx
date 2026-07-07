@@ -122,6 +122,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           <WatchlistPanel
             userId={user.id}
             initialItems={(watchlist ?? []) as WatchlistItem[]}
+            ownedTickers={[...new Set((stocks ?? []).map(s => s.ticker as string))]}
           />
         </>
       )}
