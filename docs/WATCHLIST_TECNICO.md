@@ -82,7 +82,9 @@ Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 
 | `watch_golden` | SMA50 bajo SMA200 pero subiendo y a <1.5% de cruzar | mint |
 | cerca del objetivo (UI) | precio a ≤3% del `target_price` sin alcanzarlo (`nearTarget`, client-side) | primary |
 
-UI: sección "Para tener al ojo" en el popup, chip "al ojo" en la fila (solo si no hay chip más fuerte), chip "N al ojo" en el header plegado y en el resumen sobre la lista. El popup del objetivo muestra "a X% de distancia" mientras no se alcance. Gráfico: etiquetas de niveles con anti-colisión (mínimo 12px entre etiquetas).
+UI: sección "Para revisar pronto" en el popup, chip "revisar pronto" en la fila (solo si no hay chip más fuerte), chip "N revisar pronto" en el header plegado y en el resumen sobre la lista. El popup del objetivo muestra "a X% de distancia" mientras no se alcance. Gráfico: etiquetas de niveles con anti-colisión (mínimo 12px entre etiquetas).
+
+**Orden de la watchlist (jul 2026):** por probabilidad de compra pronto — objetivo de entrada alcanzado (+100) > compra fuerte (+90) > compra (+80) > cerca del objetivo (+40) > avisos mint del radar (+10 c/u) + triggerScore positivo; empates conservan orden de agregado. El tag "Nueva" por señal (diff vs última visita) se probó y se quitó a pedido de Cas — el radar cumple mejor ese rol. Popup: columna izquierda = contexto (4 tarjetas de stats con ícono + niveles), derecha = señales + radar.
 
 ### Contexto de posición y diff semanal (UI, jul 2026)
 

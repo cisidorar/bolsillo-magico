@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target, Eye } from 'lucide-react'
+import { Plus, Trash2, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check, TrendingUp, TrendingDown, AlertTriangle, Target, Activity, BarChart3, Gauge } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -183,11 +183,10 @@ function fmtDateLabel(dateStr: string): string {
 
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
-function TechnicalDetail({ a, position, livePrice, newKinds }: {
+function TechnicalDetail({ a, position, livePrice }: {
   a:         TechnicalAnalysis
   position?: OwnedPosition        // solo si el ticker está en cartera
   livePrice?: number              // quote en vivo; fallback al cierre del análisis
-  newKinds?: Set<string>          // señales que no estaban la última vez que se revisó
 }) {
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
@@ -288,7 +287,12 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           {/* 3. Tendencia de fondo + rendimiento */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tendencia larga</p>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                {a.trend.aboveSma200 === false
+                  ? <TrendingDown className="w-3 h-3" style={{ color: trendColor }} />
+                  : <TrendingUp className="w-3 h-3" style={{ color: trendColor }} />}
+                Tendencia larga
+              </p>
               {a.trend.aboveSma200 !== null ? (
                 <>
                   <p className="text-xs font-extrabold" style={{ color: trendColor }}>
@@ -305,7 +309,10 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
               ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rendimiento</p>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <BarChart3 className="w-3 h-3" />
+                Rendimiento
+              </p>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {([['1m', a.returns.m1], ['6m', a.returns.m6], ['1a', a.returns.y1]] as const).map(([label, v]) => (
                   <span key={label} className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums"
@@ -322,13 +329,17 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <Activity className="w-3 h-3" />
                 Impulso reciente {a.rsi14 !== null && <span className="normal-case tracking-normal font-semibold" style={{ color: 'var(--ink-3)' }}>· RSI <span className="tabular-nums" style={{ color: 'var(--ink)' }}>{Math.round(a.rsi14)}</span></span>}
               </p>
               {a.rsi14 !== null ? <RsiBar value={a.rsi14} /> : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Rango del último año</p>
+              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <Gauge className="w-3 h-3" />
+                Rango del último año
+              </p>
               <div className="relative h-2 rounded-full" style={{ background: 'linear-gradient(90deg, rgba(255,111,97,0.35), rgba(255,194,60,0.35), rgba(31,190,141,0.35))' }}>
                 <div className="absolute -top-0.5 w-3 h-3 rounded-full border-2"
                   style={{ left: `calc(${posPct}% - 6px)`, background: 'var(--surface)', borderColor: 'var(--ink)' }} />
@@ -339,11 +350,8 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Columna derecha: niveles con historia + señales */}
-        <div className="space-y-3">
-          {/* 4. Niveles con historia */}
+          {/* 4. Niveles con historia — en la columna de contexto para equilibrar alturas */}
           {(a.supportLevels.length > 0 || a.resistanceLevels.length > 0) && (
             <div className="space-y-1.5">
               {a.resistanceLevels.map(l => {
@@ -391,26 +399,20 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
               </p>
             </div>
           )}
+        </div>
 
+        {/* Columna derecha: señales + radar */}
+        <div className="space-y-3">
           {/* 5. Señales (incluye divergencias) */}
           {a.signals.length > 0 ? (
             <div className="space-y-2">
               {a.signals.map(s => {
                 const t = TONE_STYLE[s.tone]
-                const isNew = newKinds?.has(s.kind) ?? false
                 return (
                   <div key={s.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5" style={{ background: t.bg }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block mt-1.5 flex-shrink-0" style={{ background: t.color }} />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>
-                        {s.title}
-                        {isNew && (
-                          <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle"
-                            style={{ background: 'var(--surface)', color: t.color }}>
-                            Nueva
-                          </span>
-                        )}
-                      </p>
+                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
                       <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>{s.tech}</p>
                     </div>
@@ -427,8 +429,8 @@ function TechnicalDetail({ a, position, livePrice, newKinds }: {
           {/* 5.5 Radar: cerca de pasar — aviso anticipado, no señal todavía */}
           {a.watch.length > 0 && (
             <div className="space-y-2">
-              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest pt-1" style={{ color: 'var(--ink-3)' }}>
-                <Eye className="w-3 h-3" /> Para tener al ojo
+              <p className="text-[10px] font-bold uppercase tracking-widest pt-1" style={{ color: 'var(--ink-3)' }}>
+                Para revisar pronto — cerca de pasar
               </p>
               {a.watch.map(w => {
                 const t = TONE_STYLE[w.tone]
@@ -470,42 +472,8 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const [errDetails, setErrDetails] = useState<Record<string, string>>({})
 
-  // ── Diff semanal: qué señales ya viste por ticker (localStorage) ──────────
-  // "Visto" se marca al abrir el detalle de un ticker; una señal es "nueva" si
-  // su kind no estaba la última vez que lo abriste. Sin baseline previo (primer
-  // uso) no se marca nada como nuevo para no gritar en la primera visita.
-  const [seenSignals, setSeenSignals] = useState<Record<string, string[]>>({})
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('watchlistSeenSignals')
-      if (raw) setSeenSignals(JSON.parse(raw) as Record<string, string[]>)
-    } catch { /* modo privado o JSON corrupto */ }
-  }, [])
-
-  const newKindsFor = useCallback((ticker: string, a: TechnicalAnalysis | 'loading' | 'error' | undefined): Set<string> => {
-    if (typeof a !== 'object') return new Set()
-    const prev = seenSignals[ticker]
-    if (!prev) return new Set()   // sin baseline: nada es "nuevo" todavía
-    const prevSet = new Set(prev)
-    return new Set(a.signals.map(s => s.kind).filter(k => !prevSet.has(k)))
-  }, [seenSignals])
-
-  // Snapshot al abrir el detalle: congela qué era "nuevo" en esta apertura y
-  // recién entonces persiste como visto (si marcáramos antes, el tag "Nueva"
-  // desaparecería en el mismo render).
-  const [detailSnap, setDetailSnap] = useState<{ ticker: string; newKinds: Set<string> } | null>(null)
-  useEffect(() => {
-    if (expanded === null) { setDetailSnap(null); return }
-    if (detailSnap?.ticker === expanded) return
-    const a = analyses[expanded]
-    if (typeof a !== 'object') return
-    setDetailSnap({ ticker: expanded, newKinds: newKindsFor(expanded, a) })
-    setSeenSignals(prev => {
-      const next = { ...prev, [expanded]: a.signals.map(s => s.kind) }
-      try { localStorage.setItem('watchlistSeenSignals', JSON.stringify(next)) } catch { /* modo privado */ }
-      return next
-    })
-  }, [expanded, analyses, detailSnap, newKindsFor])
+  // Nota: el tag "Nueva" por señal (diff vs última visita) se probó y se quitó
+  // a pedido de Cas (jul 2026) — el radar "revisar pronto" cumple mejor ese rol.
 
   // Sección plegable: cerrada por defecto, recuerda la preferencia
   const [open, setOpen] = useState(false)
@@ -702,8 +670,7 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                 {watchTotal > 0 && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                     style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                    <Eye className="w-3 h-3" />
-                    {watchTotal} al ojo
+                    {watchTotal} revisar pronto
                   </span>
                 )}
               </>
@@ -850,31 +817,46 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
         </div>
       ) : (
         <>
-        {/* Resumen semanal: señales nuevas + radar de cosas por pasar */}
+        {/* Resumen: radar de cosas por pasar */}
         {(() => {
-          const withNew = items.filter(i => newKindsFor(i.ticker, analyses[i.ticker]).size > 0)
           const withWatch = items.filter(i => {
             const a = analyses[i.ticker]
             return (typeof a === 'object' && a.watch.length > 0)
               || nearTarget(i, quotes[i.ticker]?.price, owned.has(i.ticker))
           })
-          if (withNew.length === 0 && withWatch.length === 0) return null
-          const parts: string[] = []
-          if (withNew.length > 0)   parts.push(`${withNew.length} con señales nuevas desde tu última revisión`)
-          if (withWatch.length > 0) parts.push(`${withWatch.length} para tener al ojo (cerca de que pase algo)`)
+          if (withWatch.length === 0) return null
           return (
             <p className="text-[11px] font-bold mb-2 px-1" style={{ color: 'var(--primary)' }}>
-              {parts.join(' · ')}
+              {withWatch.length} para revisar pronto (cerca de que pase algo) — ordenados por probabilidad de compra
             </p>
           )
         })()}
         <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
-          {items.map(item => {
+          {[...items].sort((x, y) => {
+            // Orden por probabilidad de compra pronto: objetivo alcanzado >
+            // compra fuerte > compra > radar comprador (avisos mint + cerca
+            // del objetivo). Empates conservan el orden de agregado.
+            const buyRank = (item: WatchlistItem): number => {
+              const a = analyses[item.ticker]
+              const price = quotes[item.ticker]?.price
+              const isOwned = owned.has(item.ticker)
+              let r = 0
+              if (!isOwned && targetReached(item, price, isOwned)) r += 100
+              if (typeof a === 'object') {
+                if (a.rating.label === 'compra_fuerte') r += 90
+                else if (a.rating.label === 'compra')   r += 80
+                r += a.watch.filter(w => w.tone === 'mint').length * 10
+                r += Math.max(0, a.rating.triggerScore)
+              }
+              if (nearTarget(item, price, isOwned)) r += 40
+              return r
+            }
+            return buyRank(y) - buyRank(x)
+          }).map(item => {
             const q = quotes[item.ticker]
             const a = analyses[item.ticker]
             const isOwned = owned.has(item.ticker)
             const flag = actionFlag(a, isOwned)
-            const hasNew = newKindsFor(item.ticker, a).size > 0
             const atTarget = targetReached(item, q?.price, isOwned)
             const watchCount = (typeof a === 'object' ? a.watch.length : 0)
               + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
@@ -933,14 +915,7 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                       {!flag && !atTarget && watchCount > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                           style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                          <Eye className="w-3 h-3" />
-                          al ojo
-                        </span>
-                      )}
-                      {hasNew && (
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
-                          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                          Nueva
+                          revisar pronto
                         </span>
                       )}
                     </div>
@@ -1146,7 +1121,6 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
                     a={a}
                     position={positions[ticker]}
                     livePrice={q?.price}
-                    newKinds={detailSnap?.ticker === ticker ? detailSnap.newKinds : undefined}
                   />
                 )}
 
