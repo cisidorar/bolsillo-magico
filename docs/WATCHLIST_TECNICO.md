@@ -45,7 +45,7 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 
 `TechnicalRating` separa dos sumas:
 
-- **`trendScore` (estado):** SMA200 ±1/±2 según pendiente, mínimos anuales −1. Contexto persistente.
+- **`trendScore` (estado):** SMA200 ±1/±2 según pendiente, mínimos anuales −1, sobre-extensión (≥15% sobre SMA200) −1. Contexto persistente.
 - **`triggerScore` (gatillos/eventos):** divergencia ±2, cruce dorado/muerte ±2, MACD ±1, volumen ±1, RSI extremo ±1, soporte/resistencia cercano ±1.
 
 `score = trendScore + triggerScore`. **Compra/venta exigen al menos un gatillo alineado** — estar en tendencia alcista ya no produce "Compra" permanente (fatiga de alertas para revisión semanal). Umbrales: compra_fuerte `score ≥5 && trigger ≥2` · compra `score ≥2 && trigger ≥1` · venta/venta_fuerte simétricos · resto neutral. `pros`/`cons` cuentan los mismos componentes puntuados (incluida la tendencia), así el banner nunca dice "Compra · 0 a favor".
@@ -63,10 +63,11 @@ Cada `TechnicalSignal` lleva `trigger: boolean` (evento vs estado). Banner al to
 | Volumen inusual | vol ≥1.8× promedio 20d con \|cambio\| ≥2%, **escaneado en los últimos 5 días hábiles** (cadencia semanal) | mint / coral | sí |
 | Cerca de soporte / resistencia | ≤3% del nivel; título incluye toques y semanas vigente | mint / gold | sí |
 | Zona máximo / mínimo 52 semanas | ≤2% del máx / ≤5% del mín (desde highs/lows diarios reales, no cierres) | gold / coral | no |
+| Sobre-extendida | precio ≥15% sobre la SMA200 (espejo del "cuchillo cayendo"; resta −1 en trendScore) | gold | no |
 
 **Enfoque de largo plazo (decisión jul 2026, Cas invierte ~1 vez/semana):** el popup lidera con un **veredicto en 1-2 frases** (tendencia + divergencia/nivel, generado por código en `analyze()`), gráfico de 12 meses con SMA200 y niveles dibujados, tendencia de fondo con **persistencia** ("N semanas sobre su media de 200"), **niveles con historia** (`LevelInfo`: toques, primer toque, semanas vigente) y rendimiento 1m/6m/1a. El RSI y el rango 52s quedan al final como momentum secundario. Nada de variación intradía como protagonista.
 
-Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 días (lows para soportes, highs para resistencias), clusterizados si están a <1.5% **del promedio del grupo** (evita encadenado) conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio. `LevelInfo` incluye `weeksSinceLast` (frescura del último toque) y `distPct` (distancia con signo al precio actual) — ambos visibles siempre en la UI, no solo cuando el nivel está a ≤3%. **Las señales de nivel exigen ≥2 toques** (un nivel de 1 toque se muestra en la lista pero no anuncia "probando piso").
+Pivotes: mínimos/máximos locales con ventana ±5 días sobre los últimos 252 días (lows para soportes, highs para resistencias), clusterizados si están a <1.5% **del promedio del grupo** (evita encadenado) conservando índices/fechas; se muestran los 2 más cercanos a cada lado del precio. `LevelInfo` incluye `weeksSinceLast` (frescura del último toque) y `distPct` (distancia con signo al precio actual) — ambos visibles siempre en la UI, no solo cuando el nivel está a ≤3%. **Las señales de nivel exigen ≥2 toques** (un nivel de 1 toque se muestra en la lista pero no anuncia "probando piso"). **`touches` cuenta acercamientos reales**: días con el precio a ±1% del nivel, agrupando visitas contiguas (gap ≤5 días) como un solo toque — contar solo pivotes del cluster subestimaba (todo salía "1 toque").
 
 ### Radar "al ojo" — avisos anticipados (jul 2026, Cas compra más que vende)
 

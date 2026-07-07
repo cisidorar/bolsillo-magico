@@ -257,14 +257,21 @@ function pivotIndices(series: number[], w = 5): { lows: number[]; highs: number[
 
 /** Agrupa pivotes en niveles (<clusterPct% del promedio del grupo) conservando su historia.
  *  Comparar contra el promedio evita el "encadenado": pivotes separados 1.4% c/u
- *  que terminaban formando un nivel de 5%+ de ancho. */
+ *  que terminaban formando un nivel de 5%+ de ancho.
+ *
+ *  `touches` son ACERCAMIENTOS REALES: días en que el precio quedó a ±1% del
+ *  nivel, agrupando visitas contiguas (gap ≤5 días) como un solo toque. Contar
+ *  solo los pivotes del cluster subestimaba (todo salía "1 toque"): el precio
+ *  puede rozar un nivel varias veces sin dejar pivote nuevo. */
 function clusterLevels(
   idxs: number[],
   values: number[],
   dates: string[],
   lastIdx: number,
   currentPrice: number,
+  scanFrom: number,
   clusterPct = 1.5,
+  touchPct = 1.0,
 ): LevelInfo[] {
   const sorted = [...idxs].sort((a, b) => values[a] - values[b])
   const groups: { idxs: number[]; sum: number }[] = []
@@ -278,16 +285,31 @@ function clusterLevels(
     }
   }
   return groups.map(g => {
-    const price   = g.sum / g.idxs.length
-    const minIdx  = Math.min(...g.idxs)
-    const maxIdx  = Math.max(...g.idxs)
+    const price = g.sum / g.idxs.length
+    // Toques reales en toda la ventana
+    let touches = 0
+    let firstHit = -1, lastHit = -1
+    let prevHit = -Infinity
+    for (let i = Math.max(0, scanFrom); i <= lastIdx; i++) {
+      if (Math.abs(values[i] - price) / price * 100 <= touchPct) {
+        if (i - prevHit > 5) touches++
+        prevHit = i
+        if (firstHit === -1) firstHit = i
+        lastHit = i
+      }
+    }
+    if (touches === 0) {  // fallback teórico: al menos los pivotes del cluster
+      touches  = g.idxs.length
+      firstHit = Math.min(...g.idxs)
+      lastHit  = Math.max(...g.idxs)
+    }
     return {
       price,
-      touches:        g.idxs.length,
-      firstDate:      dates[minIdx],
-      lastDate:       dates[maxIdx],
-      weeksActive:    Math.max(1, Math.round((lastIdx - minIdx) / 5)),
-      weeksSinceLast: Math.max(0, Math.round((lastIdx - maxIdx) / 5)),
+      touches,
+      firstDate:      dates[firstHit],
+      lastDate:       dates[lastHit],
+      weeksActive:    Math.max(1, Math.round((lastIdx - firstHit) / 5)),
+      weeksSinceLast: Math.max(0, Math.round((lastIdx - lastHit) / 5)),
       distPct:        Math.round(((price - currentPrice) / currentPrice) * 1000) / 10,
     }
   })
@@ -399,8 +421,8 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const highSeries252 = highs.slice(start252)
   const { lows: lowPivots }   = pivotIndices(lowSeries252, 5)
   const { highs: highPivots } = pivotIndices(highSeries252, 5)
-  const lowLevels  = clusterLevels(lowPivots.map(i => i + start252),  lows,  dates, lastIdx, price)
-  const highLevels = clusterLevels(highPivots.map(i => i + start252), highs, dates, lastIdx, price)
+  const lowLevels  = clusterLevels(lowPivots.map(i => i + start252),  lows,  dates, lastIdx, price, start252)
+  const highLevels = clusterLevels(highPivots.map(i => i + start252), highs, dates, lastIdx, price, start252)
   const supportLevels    = lowLevels.filter(l => l.price < price).sort((a, b) => b.price - a.price).slice(0, 2)
   const resistanceLevels = highLevels.filter(l => l.price > price).sort((a, b) => a.price - b.price).slice(0, 2)
 
@@ -519,6 +541,15 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     detail: 'A menos de 2% de su precio máximo de los últimos 12 meses. No es malo en sí — pero conviene saber que compras cerca del techo reciente.',
     tech: 'Máximo de 52 semanas',
   })
+  // Sobre-extensión: el espejo del "cuchillo cayendo". Muy por encima de su
+  // promedio largo, comprar es pagar el estirón; lo común es que descanse o
+  // vuelva hacia el promedio antes de seguir.
+  if (distPct !== null && distPct >= 15) signals.push({
+    kind: 'overextended', tone: 'gold', trigger: false,
+    title: 'Está muy estirada por encima de su promedio',
+    detail: `Va ${distPct}% por encima de su promedio de largo plazo. Después de estirones así es común que el precio descanse o retroceda hacia el promedio — para comprar, muchos prefieren esperar ese retroceso.`,
+    tech: `Precio +${distPct}% sobre la SMA200`,
+  })
   if (distLowPct <= 5) signals.push({
     kind: 'near_52w_low', tone: 'coral', trigger: false,
     title: 'Está en su punto más bajo del año',
@@ -634,6 +665,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (aboveSma200 === true)  trendScore += addComp(sma200Rising === true  ? 2 : 1)
   if (aboveSma200 === false) trendScore += addComp(sma200Rising === false ? -2 : -1)
   if (distLowPct <= 5)       trendScore += addComp(-1)   // "cuchillo cayendo": mínimos anuales restan
+  if (distPct !== null && distPct >= 15) trendScore += addComp(-1)   // sobre-extendida: comprar el estirón resta
 
   let triggerScore = 0
   if (divergence === 'bullish') triggerScore += addComp(2)
