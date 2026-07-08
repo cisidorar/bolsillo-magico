@@ -60,12 +60,12 @@ export interface TechnicalRating {
   caution: boolean        // tendencia aún alcista pero presión bajista acumulada (toma de ganancias)
 }
 
-/** Zona de compra sugerida — regla determinista, pensada para quien compra
- *  ~1 vez por semana y quiere un precio concreto, no un ensayo. */
-export interface BuyZone {
-  kind:   'now' | 'now_partial' | 'pullback' | 'break_or_bounce' | 'none'
-  price:  number | null   // referencia principal (ahora / retroceso / ruptura)
-  price2: number | null   // secundaria (resto del escalonado / rebote en rango)
+/** Tramo del plan de compra escalonado — regla determinista, pensada para
+ *  quien compra ~1 vez por semana: "30% ahora · 40% si baja a ~$80 · …". */
+export interface BuyTranche {
+  pct:  number    // % del monto destinado a esta acción
+  cond: string    // condición en cotidiano, con el precio incluido
+  now:  boolean   // true = ejecutable hoy mismo
 }
 
 export interface TechnicalAnalysis {
@@ -73,7 +73,7 @@ export interface TechnicalAnalysis {
   asOf:         string
   verdict:      string                 // conclusión en 1-2 frases, generada por código
   entryPlan:    string                 // qué tendría que pasar para entrar con base — directo, sin rodeos
-  buy:          BuyZone                // precio de compra sugerido (o ninguno), calculado
+  buy:          BuyTranche[]           // plan de compra por tramos; [] = sin zona de compra hoy
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -842,30 +842,56 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     entryPlan = 'Tendencia sana pero sin gatillo: la entrada con base aparece en un retroceso a un piso o en una señal del radar. Comprar sin gatillo es pagar por impaciencia.'
   }
 
-  // ── Zona de compra sugerida: UN precio concreto, regla determinista ───────
-  // Para el comprador semanal que pregunta "¿dónde meto la plata?":
-  //   bajista → ninguna · euforia → solo el retroceso al piso · rango → los
-  //   dos bordes · compra limpia → ahora · compra estirada/en máximos → por
-  //   partes (mitad ahora, mitad en el respiro) · sin gatillo → el respiro.
-  let buy: BuyZone
+  // ── Plan de compra por tramos (%), regla determinista ─────────────────────
+  // Para el comprador semanal que pregunta "¿cuánto y dónde?":
+  //   bajista → nada · euforia → solo condicionado (retroceso/ruptura) ·
+  //   rango → 50/50 en los bordes · compra limpia → 60 ahora / 40 respiro ·
+  //   compra estirada/en máximos → 30/40/30 escalonado · en el piso → 70/30 ·
+  //   sin gatillo → 100 en el respiro. Los % suman 100 de lo destinado.
+  const tr = (pct: number, cond: string, now = false): BuyTranche => ({ pct, cond, now })
+  let buy: BuyTranche[]
   if (aboveSma200 !== true) {
-    buy = { kind: 'none', price: null, price2: null }
+    buy = []
   } else if (distPct !== null && distPct >= 40) {
-    buy = supRef
-      ? { kind: 'pullback', price: supRef.price, price2: null }
-      : { kind: 'none', price: null, price2: null }
+    // Euforia: nada "ahora"; entrar solo con el precio corregido o confirmado
+    buy = supRef === null ? [] : resRef !== null
+      ? [
+          tr(60, `si retrocede a ${fmtLevel(supRef.price)} y aguanta 2-3 cierres`),
+          tr(40, `solo si rompe ${fmtLevel(resRef.price)} con volumen`),
+        ]
+      : [tr(100, `si retrocede a ${fmtLevel(supRef.price)} y aguanta 2-3 cierres`)]
   } else if (inSqueeze && resRef && supRef) {
-    buy = { kind: 'break_or_bounce', price: resRef.price, price2: supRef.price }
+    buy = [
+      tr(50, `si rompe ${fmtLevel(resRef.price)} con volumen`),
+      tr(50, `si rebota con fuerza en ${fmtLevel(supRef.price)}`),
+    ]
   } else if ((label === 'compra' || label === 'compra_fuerte') && !inMax && !stretched) {
-    buy = { kind: 'now', price, price2: null }
-  } else if (label === 'compra' || label === 'compra_fuerte') {
-    buy = { kind: 'now_partial', price, price2: pullbackRef }
-  } else if (onSupport) {
-    buy = { kind: 'now', price, price2: null }
-  } else {
     buy = pullbackRef !== null
-      ? { kind: 'pullback', price: pullbackRef, price2: null }
-      : { kind: 'none', price: null, price2: null }
+      ? [tr(60, `ahora (${fmtLevel(price)})`, true), tr(40, `si baja a ~${fmtLevel(pullbackRef)}`)]
+      : [tr(100, `ahora (${fmtLevel(price)})`, true)]
+  } else if (label === 'compra' || label === 'compra_fuerte') {
+    // Estirada o en máximos: escalonado 30/40/30
+    if (pullbackRef !== null && supRef !== null && supRef.price < pullbackRef * 0.99) {
+      buy = [
+        tr(30, `ahora (${fmtLevel(price)})`, true),
+        tr(40, `si baja a ~${fmtLevel(pullbackRef)}`),
+        tr(30, `si toca el piso ${fmtLevel(supRef.price)} y aguanta`),
+      ]
+    } else if (pullbackRef !== null) {
+      buy = [tr(30, `ahora (${fmtLevel(price)})`, true), tr(70, `si baja a ~${fmtLevel(pullbackRef)}`)]
+    } else {
+      buy = [tr(30, `ahora (${fmtLevel(price)})`, true), tr(70, 'espera un respiro de unos días para el resto')]
+    }
+  } else if (onSupport && supRef) {
+    const nextFloor = supportLevels.find(l => l.price < supRef.price * 0.99) ?? null
+    buy = nextFloor
+      ? [
+          tr(70, `ahora (${fmtLevel(price)}) — está en la zona del piso`, true),
+          tr(30, `si baja al siguiente piso ${fmtLevel(nextFloor.price)}`),
+        ]
+      : [tr(100, `ahora (${fmtLevel(price)}) — está en la zona del piso`, true)]
+  } else {
+    buy = pullbackRef !== null ? [tr(100, `si baja a ~${fmtLevel(pullbackRef)}`)] : []
   }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────

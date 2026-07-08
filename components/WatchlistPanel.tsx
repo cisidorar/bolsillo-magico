@@ -298,19 +298,20 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
 
       {/* 1.5 Zona de compra + plan — el número primero, la explicación después */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Zona de compra</p>
-        <p className="text-sm font-extrabold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-          {a.buy.kind === 'now' && a.buy.price !== null
-            ? `Ahora (${fmtUSD(a.buy.price)})`
-            : a.buy.kind === 'now_partial' && a.buy.price !== null
-            ? `Por partes: una ahora (${fmtUSD(a.buy.price)})${a.buy.price2 !== null ? ` y el resto si baja a ~${fmtUSD(a.buy.price2)}` : ''}`
-            : a.buy.kind === 'pullback' && a.buy.price !== null
-            ? `~${fmtUSD(a.buy.price)} — espera el retroceso`
-            : a.buy.kind === 'break_or_bounce' && a.buy.price !== null && a.buy.price2 !== null
-            ? `Si rompe ${fmtUSD(a.buy.price)} o si rebota en ${fmtUSD(a.buy.price2)}`
-            : 'Ninguna hoy'}
-        </p>
-        <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Plan de compra</p>
+        {a.buy.length > 0 ? (
+          <div className="space-y-0.5">
+            {a.buy.map((t, i) => (
+              <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                <span className="font-extrabold" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>{t.pct}%</span>
+                {' '}{t.cond}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--ink-3)' }}>Nada por ahora</p>
+        )}
+        <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
       </div>
 
       {/* 1.7 Noticias on-demand — botón ghost mientras no se pide (una tarjeta
@@ -951,9 +952,10 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
         })()}
         <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
           {[...items].sort((x, y) => {
-            // Orden por probabilidad de compra pronto: objetivo alcanzado >
-            // compra fuerte > compra > radar comprador (avisos mint + cerca
-            // del objetivo). Empates conservan el orden de agregado.
+            // Orden por atractivo REAL de compra: objetivo alcanzado > compra
+            // ejecutable ahora > compra > cerca del objetivo > radar comprador.
+            // Venta/toma de ganancias/euforia se hunden — no son candidatas a
+            // meter plata aunque tengan avisos verdes. Empates: orden de agregado.
             const buyRank = (item: WatchlistItem): number => {
               const a = analyses[item.ticker]
               const price = quotes[item.ticker]?.price
@@ -961,8 +963,14 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
               let r = 0
               if (!isOwned && targetReached(item, price, isOwned)) r += 100
               if (typeof a === 'object') {
-                if (a.rating.label === 'compra_fuerte') r += 90
-                else if (a.rating.label === 'compra')   r += 80
+                const l = a.rating.label
+                if (l === 'compra_fuerte')     r += 90
+                else if (l === 'compra')       r += 80
+                else if (l === 'venta')        r -= 40
+                else if (l === 'venta_fuerte') r -= 60
+                if (a.rating.caution) r -= 20
+                if (a.buy.some(t => t.now)) r += 25          // se puede ejecutar hoy
+                else if (a.buy.length === 0) r -= 15         // sin plan de compra
                 r += a.watch.filter(w => w.tone === 'mint').length * 10
                 r += Math.max(0, a.rating.triggerScore)
               }
