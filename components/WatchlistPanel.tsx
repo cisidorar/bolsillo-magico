@@ -266,9 +266,7 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
           </p>
         )}
-        <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-          Regla automática sobre los indicadores de abajo — no es asesoría financiera ni predice el futuro.
-        </p>
+        {/* Sin microcopy repetido: el disclaimer vive una sola vez, al pie */}
       </div>
 
       {/* 0.5 Tu posición — retorno vs costo y referencia de stop (solo en cartera) */}
@@ -298,10 +296,21 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         )
       })()}
 
-      {/* 1.5 Plan de entrada — directo, generado por código */}
+      {/* 1.5 Zona de compra + plan — el número primero, la explicación después */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Para entrar con base</p>
-        <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>{a.entryPlan}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Zona de compra</p>
+        <p className="text-sm font-extrabold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+          {a.buy.kind === 'now' && a.buy.price !== null
+            ? `Ahora (${fmtUSD(a.buy.price)})`
+            : a.buy.kind === 'now_partial' && a.buy.price !== null
+            ? `Por partes: una ahora (${fmtUSD(a.buy.price)})${a.buy.price2 !== null ? ` y el resto si baja a ~${fmtUSD(a.buy.price2)}` : ''}`
+            : a.buy.kind === 'pullback' && a.buy.price !== null
+            ? `~${fmtUSD(a.buy.price)} — espera el retroceso`
+            : a.buy.kind === 'break_or_bounce' && a.buy.price !== null && a.buy.price2 !== null
+            ? `Si rompe ${fmtUSD(a.buy.price)} o si rebota en ${fmtUSD(a.buy.price2)}`
+            : 'Ninguna hoy'}
+        </p>
+        <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
       </div>
 
       {/* 1.7 Noticias on-demand — botón ghost mientras no se pide (una tarjeta

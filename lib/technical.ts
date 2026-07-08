@@ -60,11 +60,20 @@ export interface TechnicalRating {
   caution: boolean        // tendencia aún alcista pero presión bajista acumulada (toma de ganancias)
 }
 
+/** Zona de compra sugerida — regla determinista, pensada para quien compra
+ *  ~1 vez por semana y quiere un precio concreto, no un ensayo. */
+export interface BuyZone {
+  kind:   'now' | 'now_partial' | 'pullback' | 'break_or_bounce' | 'none'
+  price:  number | null   // referencia principal (ahora / retroceso / ruptura)
+  price2: number | null   // secundaria (resto del escalonado / rebote en rango)
+}
+
 export interface TechnicalAnalysis {
   price:        number
   asOf:         string
   verdict:      string                 // conclusión en 1-2 frases, generada por código
   entryPlan:    string                 // qué tendría que pasar para entrar con base — directo, sin rodeos
+  buy:          BuyZone                // precio de compra sugerido (o ninguno), calculado
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -617,9 +626,12 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   // al usuario semanal qué acciones conviene tener al ojo los próximos días.
   const watch: TechnicalSignal[] = []
 
-  // Acercándose a un piso confiable (3-8% por encima; ≤3% ya es señal)
+  // Acercándose a un piso confiable (3-8% por encima; ≤3% ya es señal).
+  // Solo si el precio VIENE CAYENDO: "se acerca a un piso" subiendo en
+  // máximos anuales no tiene sentido (caso KO +1.6% en máximos).
+  const fallingWeek = lastIdx >= 5 && closes[lastIdx] < closes[lastIdx - 5]
   const supStrong = supportLevels.find(l => l.touches >= 2)
-  if (supStrong && !signals.some(s => s.kind === 'near_support')) {
+  if (supStrong && fallingWeek && !signals.some(s => s.kind === 'near_support')) {
     const d = Math.abs(supStrong.distPct)
     if (d > 3 && d <= 8) watch.push({
       kind: 'watch_support', tone: 'mint', trigger: false,
@@ -632,8 +644,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   // Cerca de intentar romper un techo, con tendencia a favor (3-6% por debajo).
   // Gateado: con divergencia bajista o MACD bajista activos no se anuncia
   // "confirmación para comprar" — contradecía a la lectura "Venta" (caso INTC).
+  // ...ni en euforia (≥40% sobre el promedio): "confirmación para comprar"
+  // no puede convivir con "entrar es comprarle el riesgo a otro".
   const resStrong = resistanceLevels.find(l => l.touches >= 2)
   if (resStrong && aboveSma200 === true && divergence !== 'bearish' && macdCross !== 'bearish'
+      && (distPct === null || distPct < 40)
       && !signals.some(s => s.kind === 'near_resistance')) {
     const d = resStrong.distPct
     if (d > 3 && d <= 6) watch.push({
@@ -777,6 +792,20 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   // Solo precios de niveles (no distancias) para que no envejezca intradía.
   const supRef = supportLevels.find(l => l.touches >= 2) ?? supportLevels[0] ?? null
   const resRef = resistanceLevels.find(l => l.touches >= 2) ?? resistanceLevels[0] ?? null
+  const inMax     = distHighPct >= -2
+  const stretched = (distPct !== null && distPct >= 15) || (rsi14 !== null && rsi14 >= 62)
+  const inSqueeze = signals.some(s => s.kind === 'range_squeeze')
+  const onSupport = signals.some(s => s.kind === 'near_support')
+  // Zona de retroceso razonable en tendencia alcista: lo más alto entre el
+  // piso fuerte más cercano y la SMA50 (el "respiro" clásico del comprador
+  // semanal suele llegar antes al promedio de 50 que al piso)
+  const pullbackRef = (() => {
+    const cands: number[] = []
+    if (supRef && supRef.price < price) cands.push(supRef.price)
+    if (sma50 !== null && sma50 < price) cands.push(sma50)
+    return cands.length > 0 ? Math.max(...cands) : null
+  })()
+
   let entryPlan: string
   if (aboveSma200 === false) {
     entryPlan = 'Sin base mientras siga bajo su promedio largo. El primer aviso a favor sería un cruce alcista de MACD o una divergencia alcista — hasta entonces, fuera del radar de compra.'
@@ -784,8 +813,6 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     // Coherencia (caso AAPL): si el contexto dice "estirada/en máximos", el
     // plan no puede decir "adelante" a secas — y un stop a −8% con el próximo
     // techo a +2% es una relación que hay que decir en voz alta.
-    const inMax     = distHighPct >= -2
-    const stretched = (distPct !== null && distPct >= 15) || (rsi14 !== null && rsi14 >= 62)
     const riskPct   = supRef ? Math.round(Math.abs(supRef.distPct)) : null
     const rewardPct = resRef && resRef.distPct > 0 ? resRef.distPct : null
     let plan = (inMax || stretched)
@@ -807,12 +834,38 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     entryPlan = waits.length > 0
       ? `Hoy no hay base para entrar. Lo que la crearía: ${waits.join(', o ')}.`
       : 'Hoy no hay base para entrar: deja que se enfríe y que construya un piso primero.'
-  } else if (signals.some(s => s.kind === 'range_squeeze') && resRef && supRef) {
+  } else if (inSqueeze && resRef && supRef) {
     entryPlan = `Atrapada en rango: la base aparece si rompe ${fmtLevel(resRef.price)} hacia arriba con volumen, o si rebota con fuerza desde ${fmtLevel(supRef.price)}. Antes de eso, entrar es adivinar el lado.`
-  } else if (signals.some(s => s.kind === 'near_support') && supRef) {
+  } else if (onSupport && supRef) {
     entryPlan = `Está sobre un piso probado (${fmtLevel(supRef.price)}): si lo respeta un par de cierres, es de las entradas con más base. Si lo pierde, se cae la razón para entrar.`
   } else {
     entryPlan = 'Tendencia sana pero sin gatillo: la entrada con base aparece en un retroceso a un piso o en una señal del radar. Comprar sin gatillo es pagar por impaciencia.'
+  }
+
+  // ── Zona de compra sugerida: UN precio concreto, regla determinista ───────
+  // Para el comprador semanal que pregunta "¿dónde meto la plata?":
+  //   bajista → ninguna · euforia → solo el retroceso al piso · rango → los
+  //   dos bordes · compra limpia → ahora · compra estirada/en máximos → por
+  //   partes (mitad ahora, mitad en el respiro) · sin gatillo → el respiro.
+  let buy: BuyZone
+  if (aboveSma200 !== true) {
+    buy = { kind: 'none', price: null, price2: null }
+  } else if (distPct !== null && distPct >= 40) {
+    buy = supRef
+      ? { kind: 'pullback', price: supRef.price, price2: null }
+      : { kind: 'none', price: null, price2: null }
+  } else if (inSqueeze && resRef && supRef) {
+    buy = { kind: 'break_or_bounce', price: resRef.price, price2: supRef.price }
+  } else if ((label === 'compra' || label === 'compra_fuerte') && !inMax && !stretched) {
+    buy = { kind: 'now', price, price2: null }
+  } else if (label === 'compra' || label === 'compra_fuerte') {
+    buy = { kind: 'now_partial', price, price2: pullbackRef }
+  } else if (onSupport) {
+    buy = { kind: 'now', price, price2: null }
+  } else {
+    buy = pullbackRef !== null
+      ? { kind: 'pullback', price: pullbackRef, price2: null }
+      : { kind: 'none', price: null, price2: null }
   }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
@@ -828,7 +881,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, entryPlan, rating,
+    price, asOf, verdict, entryPlan, buy, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
