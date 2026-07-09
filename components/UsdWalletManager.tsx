@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
-import { Wallet, Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, Info } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, Info } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
@@ -153,18 +153,8 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.14)' }}>
-            <Wallet className="w-4 h-4" style={{ color: 'var(--mint)' }} />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Billetera en dólares</p>
-            <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>El fondo desde el que compras acciones</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="billetera" showVentas={showVentas} />
+      <div className="flex items-center justify-end gap-2 shrink-0 mb-3">
+        <InversionesToggle active="billetera" showVentas={showVentas} />
         <button
           onClick={openAdd}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
@@ -173,7 +163,6 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           <Plus className="w-4 h-4" strokeWidth={2.5} />
           Aporte
         </button>
-        </div>
       </div>
 
       {/* ── Modal agregar/editar aporte ──────────────────────────────────── */}
@@ -314,13 +303,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       ) : (
         <div className="space-y-4">
 
-          {/* ── Hero verde + stats 2x2 (lado a lado en desktop) ─────────────── */}
+          {/* ── Hero azul + stats 2x2 (lado a lado en desktop) ─────────────── */}
           <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
 
             {/* Hero: disponible en billetera */}
-            <div className="card overflow-hidden w-full lg:min-w-0" style={{ background: 'var(--mint)', flex: '55 1 0' }}>
+            <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '55 1 0' }}>
               <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
                   Disponible en billetera
                 </p>
                 <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
@@ -332,13 +321,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   </p>
                 )}
               </div>
-              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
+              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <div className="px-4 py-3 lg:px-5 lg:py-4">
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Aportado</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Aportado</p>
                   <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(depositUsd)}</p>
                 </div>
-                <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>En acciones</p>
+                <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>En acciones</p>
                   <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(investedUsd)}</p>
                 </div>
               </div>
