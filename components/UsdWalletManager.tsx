@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP } from '@/lib/utils'
-import { DollarSign, Plus, Trash2, Pencil, X, RefreshCw } from 'lucide-react'
+import { DollarSign, Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
+import type { StockSale } from '@/app/(dashboard)/inversiones/page'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
 // Modelo CLP-first en la entrada, USD-first en la vida posterior:
@@ -29,6 +30,7 @@ interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
   investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
+  sales?:           StockSale[]   // detalle de qué ticker/cuánto se vendió, para enriquecer las filas 'Venta'
 }
 
 interface FormState { date: string; clp: string; usd: string; notes: string }
@@ -49,8 +51,11 @@ function fmtDate(d: string): string {
 function fmtInputCLP(digits: string): string {
   return digits ? Number(digits).toLocaleString('es-CL') : ''
 }
+function fmtUSDSigned(n: number): string {
+  return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd, sales = [] }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -140,6 +145,11 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   }
 
   const sorted = [...purchases].sort((a, b) => b.purchase_date.localeCompare(a.purchase_date))
+
+  // Detalle de venta (ticker, acciones, ganancia/pérdida) por fila de billetera
+  const saleByPurchaseId = new Map(
+    sales.filter(s => s.usd_purchase_id).map(s => [s.usd_purchase_id as string, s])
+  )
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -337,51 +347,65 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             </div>
           )}
 
-          {/* Lista de aportes */}
+          {/* Lista de movimientos: aportes y ventas */}
           {sorted.length > 0 && (
             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {sorted.map(p => (
-                <div key={p.id} className="flex items-center gap-3 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                      {p.kind === 'sell' && (
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide mr-1.5 align-middle"
-                          style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
-                          Venta
-                        </span>
+              {sorted.map(p => {
+                const sale = p.kind === 'sell' ? saleByPurchaseId.get(p.id) : undefined
+                const pnl  = sale ? Number(sale.realized_pnl_usd) : null
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {p.kind === 'sell' && (
+                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide mr-1.5 align-middle"
+                            style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
+                            Venta{sale ? ` ${sale.ticker}` : ''}
+                          </span>
+                        )}
+                        {fmtUSD(Number(p.usd_amount))}
+                        {p.kind !== 'sell' && p.total_paid_clp !== null && (
+                          <span className="font-semibold text-xs" style={{ color: 'var(--ink-3)' }}> · {formatCLP(p.total_paid_clp)}</span>
+                        )}
+                      </p>
+                      <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {fmtDate(p.purchase_date)}
+                        {p.kind !== 'sell' && p.total_paid_clp !== null && (
+                          <> · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD</>
+                        )}
+                        {sale && (
+                          <> · {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. vendidas</>
+                        )}
+                        {!sale && p.notes && <> · {p.notes}</>}
+                      </p>
+                      {pnl !== null && (
+                        <p className="flex items-center gap-1 text-[11px] font-bold mt-0.5" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {pnl >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                          {fmtUSDSigned(pnl)} de ganancia/pérdida
+                        </p>
                       )}
-                      {fmtUSD(Number(p.usd_amount))}
-                      {p.kind !== 'sell' && p.total_paid_clp !== null && (
-                        <span className="font-semibold text-xs" style={{ color: 'var(--ink-3)' }}> · {formatCLP(p.total_paid_clp)}</span>
-                      )}
-                    </p>
-                    <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                      {fmtDate(p.purchase_date)}
-                      {p.kind !== 'sell' && p.total_paid_clp !== null && (
-                        <> · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD</>
-                      )}
-                      {p.notes && <> · {p.notes}</>}
-                    </p>
-                  </div>
-                  {p.kind !== 'sell' && (
-                    <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
-                      style={{ color: 'var(--ink-3)' }} aria-label="Editar">
-                      <Pencil className="w-3.5 h-3.5" />
+                    </div>
+                    {p.kind !== 'sell' && (
+                      <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
+                        style={{ color: 'var(--ink-3)' }} aria-label="Editar">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
+                      style={{ color: 'var(--coral)' }} aria-label="Eliminar">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  )}
-                  <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
-                    style={{ color: 'var(--coral)' }} aria-label="Eliminar">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           )}
 
           <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            La billetera conversa sola con Acciones: al registrar una compra se descuenta del disponible
-            (no puedes invertir más de lo aportado), y al vender una posición los dólares vuelven aquí como &ldquo;Venta&rdquo;.
-            Las acciones registradas antes de usar la billetera no descuentan — no salieron de estos aportes.
+            La billetera conversa sola con Acciones: comprar con la billetera activa descuenta del disponible
+            (no puedes invertir más de lo aportado), y vender siempre devuelve los dólares aquí como &ldquo;Venta&rdquo;,
+            aunque esa posición se haya comprado antes de usar la billetera. El detalle completo de cada
+            venta (ticker, costo base, ganancia/pérdida) queda en Inversiones → Ventas.
           </p>
         </div>
       )}

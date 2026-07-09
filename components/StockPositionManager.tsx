@@ -584,12 +584,12 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   }
 
   /**
-   * Vender: registra la ganancia/pérdida realizada en stock_sales (siempre) y,
-   * solo si la posición fue financiada por la billetera USD (wallet_funded),
-   * también devuelve los USD recibidos a la billetera vía usd_purchases —
-   * si no fue financiada por ahí, tampoco debe volver ahí (inflaría el saldo).
-   * Soporta venta parcial: si vendes menos que el total, la posición se reduce
-   * en vez de cerrarse.
+   * Vender: los USD recibidos SIEMPRE van a la billetera (usd_purchases,
+   * kind='sell') — se haya comprado o no esa posición desde ahí, porque la
+   * plata que obtienes al vender es plata real y disponible desde ahora.
+   * En paralelo, registra la ganancia/pérdida realizada en stock_sales,
+   * enlazada a esa fila de billetera. Soporta venta parcial: si vendes menos
+   * que el total, la posición se reduce en vez de cerrarse.
    */
   async function sellPosition(id: string) {
     const pos = positions.find(p => p.id === id)
@@ -609,18 +609,15 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     const realizedPnl = Math.round((proceeds - costBasis) * 100) / 100
     const isFullSale  = sharesSold >= pos.shares - 1e-6
 
-    let usdPurchaseId: string | null = null
-    if (pos.wallet_funded) {
-      const { data: wp, error: wErr } = await supabase.from('usd_purchases').insert({
-        user_id:       userId,
-        kind:          'sell',
-        usd_amount:    Math.round(proceeds * 100) / 100,
-        purchase_date: sellDate,
-        notes:         `Venta ${pos.ticker}`,
-      }).select().single()
-      if (wErr) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
-      usdPurchaseId = wp?.id ?? null
-    }
+    const { data: wp, error: wErr } = await supabase.from('usd_purchases').insert({
+      user_id:       userId,
+      kind:          'sell',
+      usd_amount:    Math.round(proceeds * 100) / 100,
+      purchase_date: sellDate,
+      notes:         `Venta ${pos.ticker}`,
+    }).select().single()
+    if (wErr) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
+    const usdPurchaseId: string | null = wp?.id ?? null
 
     const { error: saleErr } = await supabase.from('stock_sales').insert({
       user_id:          userId,
@@ -899,7 +896,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
 
                       <div>
                         <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
-                          USD recibidos{pos?.wallet_funded ? ' (vuelven a la billetera)' : ''}
+                          USD recibidos (vuelven a la billetera)
                         </label>
                         <input
                           type="number"

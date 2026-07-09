@@ -29,6 +29,7 @@ export interface StockSale {
   realized_pnl_usd: number
   sale_date:        string
   notes:            string | null
+  usd_purchase_id:  string | null   // enlaza con la fila 'sell' en usd_purchases que devolvió estos USD a la billetera
   created_at:       string
 }
 
@@ -152,6 +153,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             userId={user.id}
             initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
             investedUsd={investedUsd}
+            sales={(sales ?? []) as StockSale[]}
           />
         </>
       ) : isDepositos ? (
