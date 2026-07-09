@@ -33,6 +33,16 @@ export interface StockSale {
   created_at:       string
 }
 
+export interface StockPurchase {
+  id:             string
+  ticker:         string
+  shares:         number
+  total_paid_usd: number
+  purchase_date:  string
+  notes:          string | null
+  created_at:     string
+}
+
 export interface TermDeposit {
   id:            string
   bank:          string
@@ -72,7 +82,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isDepositos = sp.view === 'depositos'
   const isVentas    = sp.view === 'ventas'
 
-  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }] = await Promise.all([
+  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
@@ -98,6 +108,11 @@ export default async function InversionesPage({ searchParams }: Props) {
       .select('*')
       .eq('user_id', user.id)
       .order('sale_date', { ascending: false }),
+    supabase
+      .from('stock_purchases')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('purchase_date', { ascending: false }),
   ])
 
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
@@ -171,6 +186,8 @@ export default async function InversionesPage({ searchParams }: Props) {
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
             walletUsdBase={walletUsdBase}
+            initialSales={(sales ?? []) as StockSale[]}
+            initialPurchases={(purchases ?? []) as StockPurchase[]}
           />
           <WatchlistPanel
             userId={user.id}

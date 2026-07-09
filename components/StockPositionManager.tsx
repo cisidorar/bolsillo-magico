@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, X, TrendingUp, Pencil,
+  Plus, X, TrendingUp, TrendingDown, Pencil, Minus,
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
   DollarSign, ArrowLeft,
 } from 'lucide-react'
-import { formatCLP } from '@/lib/utils'
+import { formatCLP, relativeDate } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
-import type { StockPosition } from '@/app/(dashboard)/inversiones/page'
+import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { TickerHistory } from '@/app/api/stock-history/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -361,14 +361,22 @@ interface Props {
   initialPositions: StockPosition[]
   /** Σ movimientos USD de la billetera (aportes + ventas). 0 = billetera sin uso → no se valida. */
   walletUsdBase?:   number
+  /** Ventas ya registradas — para armar el timeline de "Movimientos" de cada posición. */
+  initialSales?:    StockSale[]
+  /** Compras ya registradas individualmente (desde que existe esta tabla) — mismo propósito. */
+  initialPurchases?: StockPurchase[]
 }
 interface FormState { ticker: string; shares: string; totalPaid: string; notes: string }
 const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' }
 
-export default function StockPositionManager({ userId, initialPositions, walletUsdBase = 0 }: Props) {
+export default function StockPositionManager({
+  userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
+}: Props) {
   const supabase     = createClient()
 
   const [positions,      setPositions]      = useState<StockPosition[]>(initialPositions)
+  const [sales,          setSales]          = useState<StockSale[]>(initialSales)
+  const [purchases,      setPurchases]      = useState<StockPurchase[]>(initialPurchases)
   const [quotes,         setQuotes]         = useState<Quotes>({})
   const [loadingQ,       setLoadingQ]       = useState(false)
   const [quotesError,    setQuotesError]    = useState('')
@@ -394,6 +402,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   const [sellDate,      setSellDate]      = useState('')   // fecha de la venta, editable
   const [buyShares,     setBuyShares]     = useState('')   // acciones a comprar (agregar a la posición)
   const [buyTotalPaid,  setBuyTotalPaid]  = useState('')   // total pagado USD por esas acciones
+  const [buyDate,       setBuyDate]       = useState('')   // fecha de la compra, editable
 
   // Live "hace Xs" timer
   useEffect(() => {
@@ -526,7 +535,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     setShowForm(false); setEditingId(null); setForm(emptyForm)
     setFormError(''); setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
     setSellUsd(''); setSellShares(''); setSellDate('')
-    setBuyShares(''); setBuyTotalPaid('')
+    setBuyShares(''); setBuyTotalPaid(''); setBuyDate('')
   }
   function openSellPanel() {
     const pos = positions.find(p => p.id === editingId)
@@ -539,7 +548,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     setFormError(''); setSellMode(true)
   }
   function openBuyPanel() {
-    setBuyShares(''); setBuyTotalPaid('')
+    setBuyShares(''); setBuyTotalPaid(''); setBuyDate(new Date().toISOString().slice(0, 10))
     setFormError(''); setBuyMode(true)
   }
   function openEditFields() {
@@ -602,6 +611,16 @@ export default function StockPositionManager({ userId, initialPositions, walletU
         return idx >= 0 ? prev.map(p => p.ticker === ticker ? newPos : p) : [newPos, ...prev]
       })
       fetchQuotes([...positions.map(p => p.ticker), ticker])
+
+      // Registro histórico de la compra — para el timeline de "Movimientos"
+      const { data: purchaseRow } = await supabase.from('stock_purchases')
+        .insert({
+          user_id: userId, ticker, shares, total_paid_usd: totalPaid,
+          purchase_date: new Date().toISOString().slice(0, 10),
+          notes: form.notes.trim() || null,
+        })
+        .select().single()
+      if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
     }
     cancelForm()
   }
@@ -650,7 +669,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     if (wErr) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
     const usdPurchaseId: string | null = wp?.id ?? null
 
-    const { error: saleErr } = await supabase.from('stock_sales').insert({
+    const { data: saleRow, error: saleErr } = await supabase.from('stock_sales').insert({
       user_id:          userId,
       ticker:           pos.ticker,
       shares_sold:      sharesSold,
@@ -660,8 +679,9 @@ export default function StockPositionManager({ userId, initialPositions, walletU
       sale_date:        sellDate,
       notes:            form.notes.trim() || null,
       usd_purchase_id:  usdPurchaseId,
-    })
+    }).select().single()
     if (saleErr) { setDeletingId(null); setFormError('No se pudo registrar la ganancia/pérdida de la venta'); return }
+    if (saleRow) setSales(prev => [saleRow as StockSale, ...prev])
 
     if (isFullSale) {
       await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
@@ -687,6 +707,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     if (!Number.isFinite(addShares) || addShares <= 0) { setFormError('Número de acciones inválido'); return }
     const addTotal = parseFloat(buyTotalPaid.replace(',', '.'))
     if (!Number.isFinite(addTotal) || addTotal <= 0) { setFormError('Total pagado inválido'); return }
+    if (!buyDate) { setFormError('Elegí la fecha de la compra'); return }
 
     // Mismo tope de billetera que al agregar una posición nueva.
     if (walletAvailable !== null && addTotal > walletAvailable + 0.01) {
@@ -703,10 +724,17 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     const { error } = await supabase.from('stock_positions')
       .update({ shares: newShares, avg_cost_usd: newAvgCost, updated_at: new Date().toISOString() })
       .eq('id', id).eq('user_id', userId)
-    setSaving(false)
-    if (error) { setFormError('Error al guardar'); return }
+    if (error) { setSaving(false); setFormError('Error al guardar'); return }
     setPositions(prev => prev.map(p => p.id === id ? { ...p, shares: newShares, avg_cost_usd: newAvgCost } : p))
     fetchQuotes(positions.map(p => p.ticker))
+
+    // Registro histórico de la compra — para el timeline de "Movimientos"
+    const { data: purchaseRow } = await supabase.from('stock_purchases')
+      .insert({ user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate })
+      .select().single()
+    if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
+
+    setSaving(false)
     cancelForm()
   }
 
@@ -809,73 +837,187 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                 if (!pos) return null
                 const q            = quotes[pos.ticker]
                 const currentPrice = q?.price ?? null
+                const changePct    = q?.changePercent ?? null
                 const currentValue = currentPrice !== null ? pos.shares * currentPrice : null
                 const costBasis    = pos.shares * pos.avg_cost_usd
                 const gainUsd      = currentValue !== null ? currentValue - costBasis : null
                 const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
 
+                // Timeline de movimientos: compras registradas + ventas, más antiguo primero.
+                // Si nunca se registró una compra individual (posición legacy), se sintetiza
+                // una sola "Compra inicial" desde el agregado para no dejar la lista vacía.
+                type Movement = { type: 'buy' | 'sell'; date: string; shares: number; pricePerShare: number; amount: number; synthetic?: boolean }
+                const purchasesForTicker = purchases.filter(p => p.ticker === pos.ticker)
+                const salesForTicker     = sales.filter(s => s.ticker === pos.ticker)
+                const movements: Movement[] = [
+                  ...(purchasesForTicker.length > 0
+                    ? purchasesForTicker.map(p => ({
+                        type: 'buy' as const, date: p.purchase_date, shares: Number(p.shares),
+                        pricePerShare: Number(p.total_paid_usd) / Number(p.shares), amount: -Number(p.total_paid_usd),
+                      }))
+                    : [{
+                        type: 'buy' as const, date: pos.created_at.slice(0, 10), shares: pos.shares,
+                        pricePerShare: pos.avg_cost_usd, amount: -costBasis, synthetic: true,
+                      }]),
+                  ...salesForTicker.map(s => ({
+                    type: 'sell' as const, date: s.sale_date, shares: Number(s.shares_sold),
+                    pricePerShare: Number(s.proceeds_usd) / Number(s.shares_sold), amount: Number(s.proceeds_usd),
+                  })),
+                ].sort((a, b) => a.date.localeCompare(b.date))
+
                 return (
                   <div className="space-y-4">
-                    {/* Resumen de la posición */}
+                    {/* Header: logo + ticker + en vivo + nombre */}
                     <div className="flex items-center gap-3">
                       <ServiceLogo
                         domain={q?.domain ?? TICKER_DOMAIN[pos.ticker] ?? domainFromName(q?.name) ?? null}
                         name={q?.name ?? pos.ticker}
-                        size={40}
+                        size={44}
                         fallbackColor={tickerColor(pos.ticker)}
                       />
-                      <div>
-                        <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
-                          {pos.ticker}
-                        </p>
-                        <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                          {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · @{fmtUSD(pos.avg_cost_usd)}
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-base font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                            {pos.ticker}
+                          </p>
+                          {marketOpen && (
+                            <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                              style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--mint)' }} />
+                              En vivo
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q?.name ?? '…'}</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Valor actual</p>
-                        <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                          {currentValue !== null ? fmtUSD(currentValue) : '—'}
+                    {/* Valor de tu posición | Precio hoy */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                          Valor de tu posición
+                        </p>
+                        <p className="text-2xl font-bold tabular-nums" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+                          {currentValue !== null ? fmtUSD(currentValue) : fmtUSD(costBasis)}
                         </p>
                       </div>
-                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Ganancia</p>
-                        <p className="text-base font-bold tabular-nums" style={{ color: gainUsd === null ? 'var(--ink)' : gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {gainUsd !== null ? fmtUSDSigned(gainUsd) : '—'}{gainPct !== null && ` (${fmtPct(gainPct)})`}
+                      <div className="text-right shrink-0">
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Precio hoy</p>
+                        <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
                         </p>
+                        {changePct !== null && (
+                          <p className="flex items-center justify-end gap-0.5 text-[11px] font-semibold" style={{ color: changePct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                            {changePct >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                            {fmtPct(changePct)} hoy
+                          </p>
+                        )}
                       </div>
                     </div>
+
+                    {/* Banner ganancia total */}
+                    {gainUsd !== null && (
+                      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: gainUsd >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)' }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: gainUsd >= 0 ? 'rgba(31,190,141,0.18)' : 'rgba(255,111,97,0.18)' }}>
+                          {gainUsd >= 0
+                            ? <TrendingUp className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+                            : <TrendingDown className="w-4 h-4" style={{ color: 'var(--coral)' }} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Ganancia total</p>
+                          {gainPct !== null && (
+                            <p className="text-[11px] font-semibold" style={{ color: gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                              {fmtPct(gainPct)} de retorno
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-base font-bold tabular-nums shrink-0" style={{ color: gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {fmtUSDSigned(gainUsd)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Acciones | Precio compra | Invertido */}
+                    <div className="grid grid-cols-3 rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                      <div className="p-3 text-center border-r" style={{ borderColor: 'var(--border)' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Acciones</p>
+                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                        </p>
+                      </div>
+                      <div className="p-3 text-center border-r" style={{ borderColor: 'var(--border)' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Precio compra</p>
+                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(pos.avg_cost_usd)}</p>
+                      </div>
+                      <div className="p-3 text-center">
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Invertido</p>
+                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(costBasis)}</p>
+                      </div>
+                    </div>
+
+                    {/* Movimientos */}
+                    {movements.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Movimientos</p>
+                          <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                            {movements.length} operación{movements.length !== 1 ? 'es' : ''}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl divide-y overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                          {movements.map((m, i) => (
+                            <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                                style={{ background: m.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
+                                {m.type === 'buy'
+                                  ? <Plus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+                                  : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                                  {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc.
+                                </p>
+                                <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                                  {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}
+                                </p>
+                              </div>
+                              <p className="text-xs font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                                {m.amount >= 0 ? '+' : '-'}{fmtUSD(Math.abs(m.amount))}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Comprar / Vender */}
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={openBuyPanel}
-                        className="flex flex-col items-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[.98]"
-                        style={{ background: 'rgba(43,124,246,0.10)', color: 'var(--primary)' }}
+                        className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[.98]"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
                       >
-                        <Plus className="w-5 h-5" strokeWidth={2.5} />
-                        Comprar
+                        <Plus className="w-4 h-4" strokeWidth={2.5} />
+                        Comprar más
                       </button>
                       <button
                         onClick={openSellPanel}
-                        className="flex flex-col items-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[.98]"
-                        style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
+                        className="flex items-center justify-center gap-1.5 py-3.5 rounded-2xl font-bold text-sm border transition-all active:scale-[.98]"
+                        style={{ background: 'transparent', color: 'var(--mint)', borderColor: 'rgba(31,190,141,0.4)' }}
                       >
-                        <DollarSign className="w-5 h-5" />
+                        <DollarSign className="w-4 h-4" />
                         Vender
                       </button>
                     </div>
 
                     <div className="flex items-center justify-between pt-1">
                       <button onClick={cancelForm} className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
-                        Cancelar
+                        Cerrar
                       </button>
                       <button onClick={openEditFields} className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                         <Pencil className="w-3 h-3" />
-                        Editar (corregir un error)
+                        Editar posición
                       </button>
                     </div>
                   </div>
@@ -1062,19 +1204,33 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                         </div>
                         <div>
                           <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                            Total pagado (USD)
+                            Fecha
                           </label>
                           <input
-                            type="number"
-                            value={buyTotalPaid}
-                            onChange={e => setBuyTotalPaid(e.target.value)}
-                            placeholder="450.00"
-                            min="0.01"
-                            step="0.01"
+                            type="date"
+                            value={buyDate}
+                            onChange={e => setBuyDate(e.target.value)}
+                            max={new Date().toISOString().slice(0, 10)}
                             className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                             style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
                           />
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                          Total pagado (USD)
+                        </label>
+                        <input
+                          type="number"
+                          value={buyTotalPaid}
+                          onChange={e => setBuyTotalPaid(e.target.value)}
+                          placeholder="450.00"
+                          min="0.01"
+                          step="0.01"
+                          className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
+                          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                        />
                       </div>
                     </div>
 
