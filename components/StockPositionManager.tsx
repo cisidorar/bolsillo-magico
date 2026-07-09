@@ -386,10 +386,14 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [sellMode,      setSellMode]      = useState(false)   // panel de venta, separado de "eliminar sin registrar"
+  const [sellMode,      setSellMode]      = useState(false)   // panel de venta
+  const [buyMode,       setBuyMode]       = useState(false)   // panel de comprar más de una posición existente
+  const [editMode,      setEditMode]      = useState(false)   // panel de editar campos crudos (corregir un error)
   const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender
   const [sellShares,    setSellShares]    = useState('')   // acciones vendidas (soporta venta parcial)
   const [sellDate,      setSellDate]      = useState('')   // fecha de la venta, editable
+  const [buyShares,     setBuyShares]     = useState('')   // acciones a comprar (agregar a la posición)
+  const [buyTotalPaid,  setBuyTotalPaid]  = useState('')   // total pagado USD por esas acciones
 
   // Live "hace Xs" timer
   useEffect(() => {
@@ -505,16 +509,24 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   }, [showForm])
 
   // ── CRUD ─────────────────────────────────────────────────────────────────
-  function openAdd() { setForm(emptyForm); setEditingId(null); setFormError(''); setShowForm(true) }
+  function openAdd() {
+    setForm(emptyForm); setEditingId(null); setFormError('')
+    setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
+    setShowForm(true)
+  }
+  /** Abre una posición existente: primero muestra el elegidor Comprar/Vender/Editar. */
   function openEdit(pos: StockPosition) {
     const totalPaid = (pos.shares * pos.avg_cost_usd).toFixed(2)
     setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid, notes: pos.notes ?? '' })
-    setEditingId(pos.id); setFormError(''); setShowForm(true)
+    setEditingId(pos.id); setFormError('')
+    setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
+    setShowForm(true)
   }
   function cancelForm() {
     setShowForm(false); setEditingId(null); setForm(emptyForm)
-    setFormError(''); setDeleteConfirm(false); setSellMode(false)
+    setFormError(''); setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
     setSellUsd(''); setSellShares(''); setSellDate('')
+    setBuyShares(''); setBuyTotalPaid('')
   }
   function openSellPanel() {
     const pos = positions.find(p => p.id === editingId)
@@ -525,6 +537,13 @@ export default function StockPositionManager({ userId, initialPositions, walletU
       setSellDate(new Date().toISOString().slice(0, 10))
     }
     setFormError(''); setSellMode(true)
+  }
+  function openBuyPanel() {
+    setBuyShares(''); setBuyTotalPaid('')
+    setFormError(''); setBuyMode(true)
+  }
+  function openEditFields() {
+    setFormError(''); setEditMode(true)
   }
 
   async function savePosition() {
@@ -659,6 +678,38 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     cancelForm()
   }
 
+  /** Comprar más de un ticker que ya tenés: suma acciones y recalcula el costo promedio ponderado. */
+  async function buyMorePosition(id: string) {
+    const pos = positions.find(p => p.id === id)
+    if (!pos) return
+
+    const addShares = parseFloat(buyShares.replace(',', '.'))
+    if (!Number.isFinite(addShares) || addShares <= 0) { setFormError('Número de acciones inválido'); return }
+    const addTotal = parseFloat(buyTotalPaid.replace(',', '.'))
+    if (!Number.isFinite(addTotal) || addTotal <= 0) { setFormError('Total pagado inválido'); return }
+
+    // Mismo tope de billetera que al agregar una posición nueva.
+    if (walletAvailable !== null && addTotal > walletAvailable + 0.01) {
+      setFormError(
+        `Billetera insuficiente: tienes ${fmtUSD(Math.max(0, walletAvailable))} disponibles y esta compra cuesta ${fmtUSD(addTotal)}. ` +
+        'Registra un aporte en Inversiones → Ahorro → Billetera en dólares, o ajusta el monto.'
+      )
+      return
+    }
+
+    setSaving(true); setFormError('')
+    const newShares  = pos.shares + addShares
+    const newAvgCost = (pos.shares * pos.avg_cost_usd + addTotal) / newShares
+    const { error } = await supabase.from('stock_positions')
+      .update({ shares: newShares, avg_cost_usd: newAvgCost, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', userId)
+    setSaving(false)
+    if (error) { setFormError('Error al guardar'); return }
+    setPositions(prev => prev.map(p => p.id === id ? { ...p, shares: newShares, avg_cost_usd: newAvgCost } : p))
+    fetchQuotes(positions.map(p => p.ticker))
+    cancelForm()
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -732,7 +783,13 @@ export default function StockPositionManager({ userId, initialPositions, walletU
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
-                {editingId ? 'Editar posición' : 'Nueva posición'}
+                {!editingId
+                  ? 'Nueva posición'
+                  : buyMode ? 'Comprar más'
+                  : sellMode ? 'Vender'
+                  : deleteConfirm ? 'Eliminar posición'
+                  : editMode ? 'Editar posición'
+                  : (positions.find(p => p.id === editingId)?.ticker ?? 'Posición')}
               </h2>
               <button
                 onClick={cancelForm}
@@ -746,9 +803,98 @@ export default function StockPositionManager({ userId, initialPositions, walletU
             {/* Body */}
             <div className="px-5 py-5 space-y-4">
 
-              {/* ── Panel 1: editar/crear posición (oculto durante venta o eliminación) ── */}
-              {!sellMode && !deleteConfirm && (
+              {/* ── Panel 0: elegidor — solo al abrir una posición existente ── */}
+              {editingId && !buyMode && !sellMode && !deleteConfirm && !editMode && (() => {
+                const pos = positions.find(p => p.id === editingId)
+                if (!pos) return null
+                const q            = quotes[pos.ticker]
+                const currentPrice = q?.price ?? null
+                const currentValue = currentPrice !== null ? pos.shares * currentPrice : null
+                const costBasis    = pos.shares * pos.avg_cost_usd
+                const gainUsd      = currentValue !== null ? currentValue - costBasis : null
+                const gainPct      = gainUsd !== null && costBasis > 0 ? (gainUsd / costBasis) * 100 : null
+
+                return (
+                  <div className="space-y-4">
+                    {/* Resumen de la posición */}
+                    <div className="flex items-center gap-3">
+                      <ServiceLogo
+                        domain={q?.domain ?? TICKER_DOMAIN[pos.ticker] ?? domainFromName(q?.name) ?? null}
+                        name={q?.name ?? pos.ticker}
+                        size={40}
+                        fallbackColor={tickerColor(pos.ticker)}
+                      />
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                          {pos.ticker}
+                        </p>
+                        <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                          {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · @{fmtUSD(pos.avg_cost_usd)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Valor actual</p>
+                        <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {currentValue !== null ? fmtUSD(currentValue) : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Ganancia</p>
+                        <p className="text-base font-bold tabular-nums" style={{ color: gainUsd === null ? 'var(--ink)' : gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {gainUsd !== null ? fmtUSDSigned(gainUsd) : '—'}{gainPct !== null && ` (${fmtPct(gainPct)})`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Comprar / Vender */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={openBuyPanel}
+                        className="flex flex-col items-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[.98]"
+                        style={{ background: 'rgba(43,124,246,0.10)', color: 'var(--primary)' }}
+                      >
+                        <Plus className="w-5 h-5" strokeWidth={2.5} />
+                        Comprar
+                      </button>
+                      <button
+                        onClick={openSellPanel}
+                        className="flex flex-col items-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all active:scale-[.98]"
+                        style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
+                      >
+                        <DollarSign className="w-5 h-5" />
+                        Vender
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button onClick={cancelForm} className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                        Cancelar
+                      </button>
+                      <button onClick={openEditFields} className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                        <Pencil className="w-3 h-3" />
+                        Editar (corregir un error)
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* ── Panel 1: crear posición nueva, o editar campos crudos (corregir un error) ── */}
+              {(!editingId || editMode) && !buyMode && !sellMode && !deleteConfirm && (
                 <>
+                  {editingId && (
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="flex items-center gap-1 text-xs font-semibold -mt-1"
+                      style={{ color: 'var(--ink-3)' }}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                    </button>
+                  )}
+
                   {/* Ticker */}
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
@@ -835,7 +981,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
 
                   <div className="flex gap-3 pt-1">
                     <button
-                      onClick={cancelForm}
+                      onClick={() => editingId ? setEditMode(false) : cancelForm()}
                       className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
@@ -852,33 +998,127 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                     </button>
                   </div>
 
-                  {/* Vender / Eliminar — solo al editar una posición existente */}
+                  {/* Eliminar — el camino raro, para corregir un registro por error */}
                   {editingId && (
-                    <div className="pt-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>o</span>
-                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-                      </div>
-                      <button
-                        onClick={openSellPanel}
-                        className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all active:scale-[.98]"
-                        style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        Vender esta posición
-                      </button>
-                      <button
-                        onClick={() => { setFormError(''); setDeleteConfirm(true) }}
-                        className="w-full text-center text-[11px] font-semibold mt-2.5 py-1"
-                        style={{ color: 'var(--ink-3)' }}
-                      >
-                        Eliminar sin registrar venta
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => { setFormError(''); setDeleteConfirm(true) }}
+                      className="w-full text-center text-[11px] font-semibold pt-1"
+                      style={{ color: 'var(--ink-3)' }}
+                    >
+                      Eliminar sin registrar venta
+                    </button>
                   )}
                 </>
               )}
+
+              {/* ── Panel Comprar: agregar acciones a una posición existente ── */}
+              {buyMode && editingId && (() => {
+                const pos          = positions.find(p => p.id === editingId)
+                const addShares    = parseFloat(buyShares.replace(',', '.'))
+                const validShares  = Number.isFinite(addShares) && addShares > 0
+                const addTotal     = parseFloat(buyTotalPaid.replace(',', '.'))
+                const validTotal   = Number.isFinite(addTotal) && addTotal > 0
+                const newShares    = pos && validShares ? pos.shares + addShares : null
+                const newAvgCost   = pos && newShares && validTotal
+                  ? (pos.shares * pos.avg_cost_usd + addTotal) / newShares
+                  : null
+
+                return (
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => setBuyMode(false)}
+                      className="flex items-center gap-1 text-xs font-semibold"
+                      style={{ color: 'var(--ink-3)' }}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(43,124,246,0.10)' }}>
+                        <Plus className="w-4 h-4" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Comprar más {pos?.ticker}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Suma a tu posición actual</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(43,124,246,0.06)', border: '1px solid rgba(43,124,246,0.2)' }}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                            N° acciones
+                          </label>
+                          <input
+                            type="number"
+                            value={buyShares}
+                            onChange={e => setBuyShares(e.target.value)}
+                            placeholder="5"
+                            min="0.0001"
+                            step="any"
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                            Total pagado (USD)
+                          </label>
+                          <input
+                            type="number"
+                            value={buyTotalPaid}
+                            onChange={e => setBuyTotalPaid(e.target.value)}
+                            placeholder="450.00"
+                            min="0.01"
+                            step="0.01"
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {newShares !== null && newAvgCost !== null && (
+                      <div className="rounded-2xl p-3 space-y-1.5" style={{ background: 'var(--surface-2)' }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Acciones totales</span>
+                          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                            {newShares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Nuevo costo promedio</span>
+                          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                            {fmtUSD(newAvgCost)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {formError && (
+                      <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                    )}
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setBuyMode(false)}
+                        className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => buyMorePosition(editingId)}
+                        disabled={saving || !validShares || !validTotal}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-50 transition-all active:scale-[.98]"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                      >
+                        {saving ? 'Guardando…' : 'Confirmar compra'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* ── Panel 2: vender (registra ganancia/pérdida, soporta venta parcial) ── */}
               {sellMode && editingId && (() => {
