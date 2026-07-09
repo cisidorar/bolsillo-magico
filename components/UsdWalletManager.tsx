@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { formatCLP } from '@/lib/utils'
-import { DollarSign, Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
-import type { StockSale } from '@/app/(dashboard)/inversiones/page'
+import { formatCLP, monthName } from '@/lib/utils'
+import { Wallet, Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, Info } from 'lucide-react'
+import InversionesToggle from '@/components/InversionesToggle'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
 // Modelo CLP-first en la entrada, USD-first en la vida posterior:
@@ -30,7 +31,6 @@ interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
   investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
-  sales?:           StockSale[]   // detalle de qué ticker/cuánto se vendió, para enriquecer las filas 'Venta'
 }
 
 interface FormState { date: string; clp: string; usd: string; notes: string }
@@ -55,7 +55,7 @@ function fmtUSDSigned(n: number): string {
   return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd, sales = [] }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -86,6 +86,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   const depositUsd  = deposits.reduce((s, p) => s + Number(p.usd_amount), 0)
   const totalClp    = deposits.reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
   const avgRate     = depositUsd > 0 ? totalClp / depositUsd : null   // CLP por USD, comisión incluida
+  const investedPct = depositUsd > 0 ? (investedUsd / depositUsd) * 100 : 0
   const nowD     = new Date()
   const monthKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`
   const monthClp = deposits
@@ -144,21 +145,25 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     await supabase.from('usd_purchases').delete().eq('id', p.id).eq('user_id', userId)
   }
 
-  const sorted = [...purchases].sort((a, b) => b.purchase_date.localeCompare(a.purchase_date))
-
-  // Detalle de venta (ticker, acciones, ganancia/pérdida) por fila de billetera
-  const saleByPurchaseId = new Map(
-    sales.filter(s => s.usd_purchase_id).map(s => [s.usd_purchase_id as string, s])
-  )
+  // Solo aportes acá — el detalle de cada venta (ticker, costo base, ganancia)
+  // vive en Inversiones → Ventas, esta lista no lo duplica.
+  const sortedDeposits = [...deposits].sort((a, b) => b.purchase_date.localeCompare(a.purchase_date))
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="mt-6">
+    <div>
       <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <DollarSign className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Billetera en dólares</p>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.14)' }}>
+            <Wallet className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Billetera en dólares</p>
+            <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>El fondo desde el que compras acciones</p>
+          </div>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <InversionesToggle active="billetera" />
         <button
           onClick={openAdd}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
@@ -167,6 +172,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           <Plus className="w-4 h-4" strokeWidth={2.5} />
           Aporte
         </button>
+        </div>
       </div>
 
       {/* ── Modal agregar/editar aporte ──────────────────────────────────── */}
@@ -305,108 +311,142 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           </p>
         </div>
       ) : (
-        <div className="card p-4 lg:p-5">
-          {/* Resumen — USD como protagonista */}
-          {purchases.length > 0 && (
-            <div className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Disponible en billetera</p>
-              <p className="text-2xl font-extrabold tabular-nums mt-0.5" style={{ color: available >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
-                {fmtUSD(Math.max(0, available))}
-              </p>
-              {available < 0 && (
-                <p className="text-[10px] font-bold mt-1" style={{ color: 'var(--coral)' }}>
-                  Tienes más invertido en acciones que aportes registrados — te faltan aportes por {fmtUSD(-available)}.
+        <div className="space-y-4">
+
+          {/* ── Hero verde + stats 2x2 (lado a lado en desktop) ─────────────── */}
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
+
+            {/* Hero: disponible en billetera */}
+            <div className="card overflow-hidden w-full lg:min-w-0" style={{ background: 'var(--mint)', flex: '55 1 0' }}>
+              <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                  Disponible en billetera
                 </p>
-              )}
-              <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-                  {formatCLP(totalClp)} aportados
-                </span>
-                {investedUsd > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'rgba(43,124,246,0.10)', color: 'var(--primary)' }}>
-                    {fmtUSD(investedUsd)} en acciones
-                  </span>
-                )}
-                {avgRate !== null && (
-                  <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-                    pagaste {formatCLP(Math.round(avgRate))}/USD prom. (comisión incl.)
-                  </span>
-                )}
-                {monthClp > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums" style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
-                    {formatCLP(monthClp)} este mes
-                  </span>
+                <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                  {fmtUSD(Math.max(0, available))}
+                </p>
+                {available < 0 && (
+                  <p className="text-[11px] font-bold mt-2" style={{ color: 'white' }}>
+                    Tienes más invertido en acciones que aportes registrados — te faltan aportes por {fmtUSD(-available)}.
+                  </p>
                 )}
               </div>
-              {/* Conversión de vuelta: dato chico a propósito — esta plata vive en USD */}
-              {fx !== null && available > 0 && (
-                <p className="text-[10px] mt-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                  Si lo trajeras hoy ≈ {formatCLP(Math.round(available * fx))} (dólar {formatCLP(Math.round(fx))})
-                </p>
-              )}
+              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
+                <div className="px-4 py-3 lg:px-5 lg:py-4">
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Aportado</p>
+                  <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(depositUsd)}</p>
+                </div>
+                <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.65)' }}>En acciones</p>
+                  <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(investedUsd)}</p>
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Lista de movimientos: aportes y ventas */}
-          {sorted.length > 0 && (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {sorted.map(p => {
-                const sale = p.kind === 'sell' ? saleByPurchaseId.get(p.id) : undefined
-                const pnl  = sale ? Number(sale.realized_pnl_usd) : null
-                return (
-                  <div key={p.id} className="flex items-center gap-3 py-2.5">
+            {/* 2x2 stats */}
+            <div className="grid grid-cols-2 gap-3 w-full lg:min-w-0" style={{ flex: '45 1 0' }}>
+              <div className="card p-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Invertido</p>
+                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{Math.round(investedPct)}%</p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>de lo aportado</p>
+              </div>
+              <div className="card p-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Tipo de cambio</p>
+                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
+                  {avgRate !== null ? formatCLP(Math.round(avgRate)) : '—'}
+                </p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>prom. por USD · comisión incl.</p>
+              </div>
+              <div className="card p-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Este mes</p>
+                <p className="text-xl font-extrabold tabular-nums" style={{ color: monthClp > 0 ? 'var(--mint)' : 'var(--ink)' }}>
+                  {monthClp > 0 ? `+${formatCLP(monthClp)}` : '—'}
+                </p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>aportado en {monthName(nowD.getMonth() + 1)}</p>
+              </div>
+              <div className="card p-4">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Aportes</p>
+                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{deposits.length}</p>
+                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                  operación{deposits.length !== 1 ? 'es' : ''} registrada{deposits.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Lista de aportes ─────────────────────────────────────────────── */}
+          {sortedDeposits.length > 0 && (
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between px-4 lg:px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Aportes</p>
+                <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  {sortedDeposits.length} operación{sortedDeposits.length !== 1 ? 'es' : ''}
+                </p>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {sortedDeposits.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 px-4 lg:px-5 py-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.14)' }}>
+                      <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {p.kind === 'sell' && (
-                          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide mr-1.5 align-middle"
-                            style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
-                            Venta{sale ? ` ${sale.ticker}` : ''}
-                          </span>
-                        )}
-                        {fmtUSD(Number(p.usd_amount))}
-                        {p.kind !== 'sell' && p.total_paid_clp !== null && (
-                          <span className="font-semibold text-xs" style={{ color: 'var(--ink-3)' }}> · {formatCLP(p.total_paid_clp)}</span>
-                        )}
-                      </p>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Aporte a la billetera</p>
                       <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
                         {fmtDate(p.purchase_date)}
-                        {p.kind !== 'sell' && p.total_paid_clp !== null && (
+                        {p.total_paid_clp !== null && (
                           <> · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD</>
                         )}
-                        {sale && (
-                          <> · {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. vendidas</>
-                        )}
-                        {!sale && p.notes && <> · {p.notes}</>}
+                        {p.notes && <> · {p.notes}</>}
                       </p>
-                      {pnl !== null && (
-                        <p className="flex items-center gap-1 text-[11px] font-bold mt-0.5" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {pnl >= 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                          {fmtUSDSigned(pnl)} de ganancia/pérdida
-                        </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
+                        {fmtUSDSigned(Number(p.usd_amount))}
+                      </p>
+                      {p.total_paid_clp !== null && (
+                        <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(p.total_paid_clp)}</p>
                       )}
                     </div>
-                    {p.kind !== 'sell' && (
-                      <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
                         style={{ color: 'var(--ink-3)' }} aria-label="Editar">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                    <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors hover:bg-black/5"
-                      style={{ color: 'var(--coral)' }} aria-label="Eliminar">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
+                        style={{ color: 'var(--coral)' }} aria-label="Eliminar">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                )
-              })}
+                ))}
+              </div>
             </div>
           )}
 
-          <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-            La billetera conversa sola con Acciones: comprar con la billetera activa descuenta del disponible
-            (no puedes invertir más de lo aportado), y vender siempre devuelve los dólares aquí como &ldquo;Venta&rdquo;,
-            aunque esa posición se haya comprado antes de usar la billetera. El detalle completo de cada
-            venta (ticker, costo base, ganancia/pérdida) queda en Inversiones → Ventas.
-          </p>
+          {/* Conversión de vuelta: dato chico a propósito — esta plata vive en USD */}
+          {fx !== null && available > 0 && (
+            <p className="text-[11px] tabular-nums text-center" style={{ color: 'var(--ink-3)' }}>
+              Si lo trajeras hoy ≈ {formatCLP(Math.round(available * fx))} (dólar {formatCLP(Math.round(fx))})
+            </p>
+          )}
+
+          {/* ── Cómo funciona ────────────────────────────────────────────────── */}
+          <div className="card p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--primary-soft)' }}>
+              <Info className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>Cómo funciona la billetera</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                Comprar acciones <strong style={{ color: 'var(--ink-2)' }}>descuenta</strong> del disponible — no puedes invertir
+                más de lo aportado. Al vender, los dólares <strong style={{ color: 'var(--ink-2)' }}>vuelven aquí</strong>. El
+                detalle de cada venta (ticker, costo base, ganancia) queda en{' '}
+                <Link href="/inversiones?view=ventas" className="font-semibold" style={{ color: 'var(--primary)' }}>
+                  Inversiones → Ventas
+                </Link>.
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

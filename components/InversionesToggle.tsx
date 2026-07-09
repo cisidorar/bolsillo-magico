@@ -1,18 +1,19 @@
 import Link from 'next/link'
-import { TrendingUp, Timer, Landmark, Receipt } from 'lucide-react'
+import { TrendingUp, Timer, Landmark, Receipt, Wallet } from 'lucide-react'
 
-export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas'
+export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas' | 'billetera'
 
 /**
- * Toggle compartido de las 4 vistas de /inversiones.
+ * Toggle compartido de las 5 vistas de /inversiones.
  * Único lugar donde se definen las tabs — no duplicar en los managers.
  */
 export default function InversionesToggle({ active }: { active: InversionesView }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
-    { view: 'acciones',  href: '/inversiones',                 label: 'Acciones',  Icon: TrendingUp },
-    { view: 'ventas',    href: '/inversiones?view=ventas',     label: 'Ventas',    Icon: Receipt },
-    { view: 'depositos', href: '/inversiones?view=depositos',  label: 'Depósitos', Icon: Timer },
-    { view: 'ahorro',    href: '/inversiones?view=ahorro',     label: 'Ahorro',    Icon: Landmark },
+    { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',  Icon: TrendingUp },
+    { view: 'ventas',     href: '/inversiones?view=ventas',      label: 'Ventas',    Icon: Receipt },
+    { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera', Icon: Wallet },
+    { view: 'depositos',  href: '/inversiones?view=depositos',   label: 'Depósitos', Icon: Timer },
+    { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro',    Icon: Landmark },
   ]
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">

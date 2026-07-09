@@ -81,6 +81,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isAhorro    = sp.view === 'ahorro'
   const isDepositos = sp.view === 'depositos'
   const isVentas    = sp.view === 'ventas'
+  const isBilletera = sp.view === 'billetera'
 
   const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }] = await Promise.all([
     supabase
@@ -153,24 +154,24 @@ export default async function InversionesPage({ searchParams }: Props) {
             ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · a plazo`
             : isVentas
             ? `${salesCount} venta${salesCount !== 1 ? 's' : ''} realizada${salesCount !== 1 ? 's' : ''}`
+            : isBilletera
+            ? 'el fondo desde el que compras acciones'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
 
       {/* ── Content */}
       {isAhorro ? (
-        <>
-          <DepositManager
-            userId={user.id}
-            initialSavings={(savings ?? []) as SavingsAccount[]}
-          />
-          <UsdWalletManager
-            userId={user.id}
-            initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
-            investedUsd={investedUsd}
-            sales={(sales ?? []) as StockSale[]}
-          />
-        </>
+        <DepositManager
+          userId={user.id}
+          initialSavings={(savings ?? []) as SavingsAccount[]}
+        />
+      ) : isBilletera ? (
+        <UsdWalletManager
+          userId={user.id}
+          initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
+          investedUsd={investedUsd}
+        />
       ) : isDepositos ? (
         <TermDepositManager
           userId={user.id}
