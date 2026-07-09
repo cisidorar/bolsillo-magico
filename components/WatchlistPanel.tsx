@@ -188,6 +188,11 @@ function fmtDateLabel(dateStr: string): string {
   const [y, m] = dateStr.split('-').map(Number)
   return `${MONTHS_ES[m - 1]} ${String(y).slice(2)}`
 }
+/** '2026-07-08' → '8 jul' — para mostrar cuándo se calculó el análisis técnico. */
+function fmtAsOfDay(dateStr: string): string {
+  const [, m, d] = dateStr.split('-').map(Number)
+  return `${d} ${MONTHS_ES[m - 1]}`
+}
 
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
@@ -808,6 +813,23 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
           Seguir
         </button>
       </div>
+
+      {/* Cuándo se calculó el análisis técnico — velas de cierre diario, no en vivo.
+          Se toma el asOf más reciente entre los favoritos ya cargados; si alguno
+          quedó desactualizado (fallo de sync), igual se ve el resto al día. */}
+      {open && (() => {
+        const asOfDates = items
+          .map(i => analyses[i.ticker])
+          .filter((a): a is TechnicalAnalysis => typeof a === 'object')
+          .map(a => a.asOf)
+        if (asOfDates.length === 0) return null
+        const latest = asOfDates.reduce((max, d) => d > max ? d : max)
+        return (
+          <p className="text-[11px] mb-3 -mt-1" style={{ color: 'var(--ink-3)' }}>
+            Análisis técnico al cierre del {fmtAsOfDay(latest)} · el precio de arriba sí es en vivo
+          </p>
+        )
+      })()}
 
       {/* ── Popup de búsqueda por nombre ─────────────────────────────────── */}
       {showSearch && (
