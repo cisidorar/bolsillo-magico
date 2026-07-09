@@ -135,6 +135,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
   const salesCount   = sales?.length    ?? 0
+  const hasSales     = salesCount > 0   // "Ventas" se oculta del toggle hasta que haya al menos una
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
@@ -165,17 +166,20 @@ export default async function InversionesPage({ searchParams }: Props) {
         <DepositManager
           userId={user.id}
           initialSavings={(savings ?? []) as SavingsAccount[]}
+          showVentas={hasSales}
         />
       ) : isBilletera ? (
         <UsdWalletManager
           userId={user.id}
           initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
           investedUsd={investedUsd}
+          showVentas={hasSales}
         />
       ) : isDepositos ? (
         <TermDepositManager
           userId={user.id}
           initialDeposits={(deposits ?? []) as TermDeposit[]}
+          showVentas={hasSales}
         />
       ) : isVentas ? (
         <StockSalesHistory

@@ -157,6 +157,7 @@ function ProjectionBar({ balance, annualRate }: { balance: number; annualRate: n
 interface Props {
   userId:         string
   initialSavings: SavingsAccount[]
+  showVentas?:    boolean
 }
 interface FormState {
   name:       string
@@ -173,7 +174,7 @@ const emptyForm: FormState = {
   notes:      '',
 }
 
-export default function DepositManager({ userId, initialSavings }: Props) {
+export default function DepositManager({ userId, initialSavings, showVentas = false }: Props) {
   const supabase = createClient()
 
   const [savings,       setSavings]       = useState<SavingsAccount[]>(initialSavings)
@@ -296,7 +297,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
         {/* Tabs + Agregar — derecha */}
         <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="ahorro" />
+          <InversionesToggle active="ahorro" showVentas={showVentas} />
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"

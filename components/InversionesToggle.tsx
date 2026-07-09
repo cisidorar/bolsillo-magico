@@ -4,17 +4,24 @@ import { TrendingUp, Timer, Landmark, Receipt, Wallet } from 'lucide-react'
 export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas' | 'billetera'
 
 /**
- * Toggle compartido de las 5 vistas de /inversiones.
+ * Toggle compartido de las vistas de /inversiones.
  * Único lugar donde se definen las tabs — no duplicar en los managers.
  */
-export default function InversionesToggle({ active }: { active: InversionesView }) {
-  const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
+export default function InversionesToggle({
+  active,
+  showVentas = false,   // "Ventas" se oculta hasta que exista al menos una venta registrada
+}: {
+  active: InversionesView
+  showVentas?: boolean
+}) {
+  const allTabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
     { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',  Icon: TrendingUp },
     { view: 'ventas',     href: '/inversiones?view=ventas',      label: 'Ventas',    Icon: Receipt },
     { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera', Icon: Wallet },
     { view: 'depositos',  href: '/inversiones?view=depositos',   label: 'Depósitos', Icon: Timer },
     { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro',    Icon: Landmark },
   ]
+  const tabs = allTabs.filter(t => t.view !== 'ventas' || showVentas || active === 'ventas')
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
       {tabs.map(({ view, href, label, Icon }) => (

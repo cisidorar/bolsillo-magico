@@ -31,6 +31,7 @@ interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
   investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
+  showVentas?:      boolean
 }
 
 interface FormState { date: string; clp: string; usd: string; notes: string }
@@ -55,7 +56,7 @@ function fmtUSDSigned(n: number): string {
   return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd, showVentas = false }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -163,7 +164,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="billetera" />
+          <InversionesToggle active="billetera" showVentas={showVentas} />
         <button
           onClick={openAdd}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
