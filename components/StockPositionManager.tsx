@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Plus, X, TrendingUp, Pencil,
   Trash2, Check, AlertCircle, Bell, ArrowUp, ArrowDown, ChevronRight,
+  DollarSign, ArrowLeft,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
@@ -385,6 +386,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [sellMode,      setSellMode]      = useState(false)   // panel de venta, separado de "eliminar sin registrar"
   const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender
   const [sellShares,    setSellShares]    = useState('')   // acciones vendidas (soporta venta parcial)
   const [sellDate,      setSellDate]      = useState('')   // fecha de la venta, editable
@@ -511,8 +513,18 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   }
   function cancelForm() {
     setShowForm(false); setEditingId(null); setForm(emptyForm)
-    setFormError(''); setDeleteConfirm(false)
+    setFormError(''); setDeleteConfirm(false); setSellMode(false)
     setSellUsd(''); setSellShares(''); setSellDate('')
+  }
+  function openSellPanel() {
+    const pos = positions.find(p => p.id === editingId)
+    if (pos) {
+      const q = quotes[pos.ticker]
+      setSellShares(String(pos.shares))
+      setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+      setSellDate(new Date().toISOString().slice(0, 10))
+    }
+    setFormError(''); setSellMode(true)
   }
 
   async function savePosition() {
@@ -734,92 +746,142 @@ export default function StockPositionManager({ userId, initialPositions, walletU
             {/* Body */}
             <div className="px-5 py-5 space-y-4">
 
-              {/* Ticker */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  Ticker
-                </label>
-                <input
-                  type="text"
-                  value={form.ticker}
-                  onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
-                  placeholder="AAPL"
-                  maxLength={10}
-                  className="w-full text-sm font-bold border px-4 py-3"
-                  style={{ ...inputBase, fontFamily: 'ui-monospace, monospace', fontSize: 15 }}
-                  onFocus={focusOn} onBlur={focusOff}
-                />
-              </div>
+              {/* ── Panel 1: editar/crear posición (oculto durante venta o eliminación) ── */}
+              {!sellMode && !deleteConfirm && (
+                <>
+                  {/* Ticker */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Ticker
+                    </label>
+                    <input
+                      type="text"
+                      value={form.ticker}
+                      onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
+                      placeholder="AAPL"
+                      maxLength={10}
+                      className="w-full text-sm font-bold border px-4 py-3"
+                      style={{ ...inputBase, fontFamily: 'ui-monospace, monospace', fontSize: 15 }}
+                      onFocus={focusOn} onBlur={focusOff}
+                    />
+                  </div>
 
-              {/* N° acciones + Total pagado */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                    N° acciones
-                  </label>
-                  <input
-                    type="number"
-                    value={form.shares}
-                    onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
-                    placeholder="10"
-                    min="0.0001"
-                    step="any"
-                    className="w-full text-sm border px-4 py-3"
-                    style={inputBase}
-                    onFocus={focusOn} onBlur={focusOff}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                    Total pagado (USD)
-                  </label>
-                  <input
-                    type="number"
-                    value={form.totalPaid}
-                    onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
-                    placeholder="896.99"
-                    min="0.01"
-                    step="0.01"
-                    className="w-full text-sm border px-4 py-3"
-                    style={inputBase}
-                    onFocus={focusOn} onBlur={focusOff}
-                  />
-                </div>
-              </div>
+                  {/* N° acciones + Total pagado */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        N° acciones
+                      </label>
+                      <input
+                        type="number"
+                        value={form.shares}
+                        onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
+                        placeholder="10"
+                        min="0.0001"
+                        step="any"
+                        className="w-full text-sm border px-4 py-3"
+                        style={inputBase}
+                        onFocus={focusOn} onBlur={focusOff}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Total pagado (USD)
+                      </label>
+                      <input
+                        type="number"
+                        value={form.totalPaid}
+                        onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
+                        placeholder="896.99"
+                        min="0.01"
+                        step="0.01"
+                        className="w-full text-sm border px-4 py-3"
+                        style={inputBase}
+                        onFocus={focusOn} onBlur={focusOff}
+                      />
+                    </div>
+                  </div>
 
-              {/* Precio por acción — cálculo automático */}
-              {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
-                <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
-                  <span className="text-sm font-bold tabular-nums ml-auto" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
-                    {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
-                  </span>
-                </div>
+                  {/* Precio por acción — cálculo automático */}
+                  {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
+                    <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
+                      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
+                      <span className="text-sm font-bold tabular-nums ml-auto" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                        {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Nota */}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Nota (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={form.notes}
+                      onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="ej: compra inicial"
+                      maxLength={80}
+                      className="w-full text-sm border px-4 py-3"
+                      style={inputBase}
+                      onFocus={focusOn} onBlur={focusOff}
+                    />
+                  </div>
+
+                  {formError && (
+                    <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                  )}
+
+                  <div className="flex gap-3 pt-1">
+                    <button
+                      onClick={cancelForm}
+                      className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                      style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={savePosition}
+                      disabled={saving}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all disabled:opacity-50 active:scale-[.98]"
+                      style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+                    >
+                      <Check className="w-4 h-4" />
+                      {saving ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </div>
+
+                  {/* Vender / Eliminar — solo al editar una posición existente */}
+                  {editingId && (
+                    <div className="pt-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>o</span>
+                        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                      </div>
+                      <button
+                        onClick={openSellPanel}
+                        className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all active:scale-[.98]"
+                        style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        Vender esta posición
+                      </button>
+                      <button
+                        onClick={() => { setFormError(''); setDeleteConfirm(true) }}
+                        className="w-full text-center text-[11px] font-semibold mt-2.5 py-1"
+                        style={{ color: 'var(--ink-3)' }}
+                      >
+                        Eliminar sin registrar venta
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Nota */}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  Nota (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={form.notes}
-                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="ej: compra inicial"
-                  maxLength={80}
-                  className="w-full text-sm border px-4 py-3"
-                  style={inputBase}
-                  onFocus={focusOn} onBlur={focusOff}
-                />
-              </div>
-
-              {formError && (
-                <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
-              )}
-
-              {/* Confirmación: vender (registra ganancia/pérdida, soporta venta parcial) o solo eliminar */}
-              {deleteConfirm && editingId && (() => {
+              {/* ── Panel 2: vender (registra ganancia/pérdida, soporta venta parcial) ── */}
+              {sellMode && editingId && (() => {
                 const pos          = positions.find(p => p.id === editingId)
                 const maxShares    = pos?.shares ?? 0
                 const sharesNum    = parseFloat(sellShares.replace(',', '.'))
@@ -832,21 +894,46 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                 const isPartial    = validShares && sharesNum < maxShares - 1e-6
 
                 return (
-                  <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
-                    <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-                      ¿Qué pasó con esta posición?
-                    </p>
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => setSellMode(false)}
+                      className="flex items-center gap-1 text-xs font-semibold"
+                      style={{ color: 'var(--ink-3)' }}
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                    </button>
 
-                    <div className="rounded-xl p-3 space-y-3" style={{ background: 'var(--surface)', border: '1px solid rgba(31,190,141,0.25)' }}>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: 'var(--ink-3)' }}>
-                        La vendí
-                      </label>
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.12)' }}>
+                        <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vender {pos?.ticker}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Registra cuánto ganaste o perdiste</p>
+                      </div>
+                    </div>
 
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(31,190,141,0.06)', border: '1px solid rgba(31,190,141,0.2)' }}>
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
-                            Acciones vendidas
-                          </label>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                              Acciones
+                            </label>
+                            {pos && (
+                              <button
+                                onClick={() => {
+                                  const q = quotes[pos.ticker]
+                                  setSellShares(String(pos.shares))
+                                  setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+                                }}
+                                className="text-[10px] font-bold"
+                                style={{ color: 'var(--primary)' }}
+                              >
+                                Todas
+                              </button>
+                            )}
+                          </div>
                           <input
                             type="number"
                             value={sellShares}
@@ -862,25 +949,12 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                             max={maxShares}
                             min="0.0001"
                             step="any"
-                            className="w-full text-sm border px-3 py-2 rounded-xl outline-none"
-                            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
                           />
-                          {pos && (
-                            <button
-                              onClick={() => {
-                                const q = quotes[pos.ticker]
-                                setSellShares(String(pos.shares))
-                                setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
-                              }}
-                              className="text-[10px] font-semibold mt-1"
-                              style={{ color: 'var(--primary)' }}
-                            >
-                              Vender todas ({maxShares.toLocaleString('es-CL', { maximumFractionDigits: 4 })})
-                            </button>
-                          )}
                         </div>
                         <div>
-                          <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
+                          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                             Fecha
                           </label>
                           <input
@@ -888,15 +962,15 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                             value={sellDate}
                             onChange={e => setSellDate(e.target.value)}
                             max={new Date().toISOString().slice(0, 10)}
-                            className="w-full text-sm border px-3 py-2 rounded-xl outline-none"
-                            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
-                          USD recibidos (vuelven a la billetera)
+                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                          USD recibidos
                         </label>
                         <input
                           type="number"
@@ -905,94 +979,86 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                           min="0.01"
                           step="0.01"
                           className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
-                          style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
                         />
+                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-3)' }}>Vuelven a tu billetera en dólares</p>
                       </div>
-
-                      {pnl !== null && (
-                        <div
-                          className="flex items-center justify-between px-3 py-2 rounded-xl"
-                          style={{ background: pnl >= 0 ? 'rgba(31,190,141,0.1)' : 'rgba(255,111,97,0.1)' }}
-                        >
-                          <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
-                            Ganancia/pérdida
-                          </span>
-                          <span className="text-sm font-bold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                            {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
-                          </span>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => sellPosition(editingId)}
-                        disabled={!!deletingId || !validShares || !validProceeds}
-                        className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
-                        style={{ background: 'var(--mint)', color: 'white' }}
-                      >
-                        {deletingId ? 'Registrando…' : isPartial ? 'Vender esa cantidad' : 'Vender todo'}
-                      </button>
                     </div>
 
-                    <div className="flex gap-2">
+                    {pnl !== null && (
+                      <div
+                        className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                        style={{ background: pnl >= 0 ? 'rgba(31,190,141,0.1)' : 'rgba(255,111,97,0.1)' }}
+                      >
+                        <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                          Ganancia/pérdida
+                        </span>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
+                        </span>
+                      </div>
+                    )}
+
+                    {formError && (
+                      <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                    )}
+
+                    <div className="flex gap-3">
                       <button
-                        onClick={() => setDeleteConfirm(false)}
-                        className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                        onClick={() => setSellMode(false)}
+                        className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                         style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                       >
                         Cancelar
                       </button>
                       <button
-                        onClick={() => deletePosition(editingId)}
-                        disabled={!!deletingId}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
-                        style={{ background: 'var(--coral)', color: 'white' }}
+                        onClick={() => sellPosition(editingId)}
+                        disabled={!!deletingId || !validShares || !validProceeds}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-50 transition-all active:scale-[.98]"
+                        style={{ background: 'var(--mint)', color: 'white' }}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        {deletingId ? 'Eliminando…' : 'Solo eliminar (sin registrar venta)'}
+                        {deletingId ? 'Registrando…' : isPartial ? 'Confirmar venta parcial' : 'Confirmar venta'}
                       </button>
                     </div>
                   </div>
                 )
               })()}
 
-              {/* Actions */}
-              {!deleteConfirm && (
-                <div className="flex gap-3 pt-1">
-                  {editingId && (
+              {/* ── Panel 3: eliminar sin registrar venta ── */}
+              {deleteConfirm && editingId && (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => setDeleteConfirm(false)}
+                    className="flex items-center gap-1 text-xs font-semibold"
+                    style={{ color: 'var(--ink-3)' }}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Volver
+                  </button>
+
+                  <div className="rounded-2xl p-4 text-center" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                    <p className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>
+                      ¿Eliminar esta posición sin registrar una venta? No va a quedar ningún rastro de cuánto ganaste o perdiste.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        // Prellenar la venta con todas las acciones al valor de mercado actual (editable)
-                        const pos = positions.find(p => p.id === editingId)
-                        if (pos) {
-                          const q = quotes[pos.ticker]
-                          setSellShares(String(pos.shares))
-                          setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
-                          setSellDate(new Date().toISOString().slice(0, 10))
-                        }
-                        setDeleteConfirm(true)
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-2xl border transition-colors"
-                      style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'var(--surface-2)' }}
+                      onClick={() => setDeleteConfirm(false)}
+                      className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                      style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      Cancelar
                     </button>
-                  )}
-                  <button
-                    onClick={cancelForm}
-                    className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
-                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={savePosition}
-                    disabled={saving}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-all disabled:opacity-50 active:scale-[.98]"
-                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-                  >
-                    <Check className="w-4 h-4" />
-                    {saving ? 'Guardando…' : 'Guardar'}
-                  </button>
+                    <button
+                      onClick={() => deletePosition(editingId)}
+                      disabled={!!deletingId}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-50 transition-all active:scale-[.98]"
+                      style={{ background: 'var(--coral)', color: 'white' }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingId ? 'Eliminando…' : 'Eliminar'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
