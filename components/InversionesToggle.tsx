@@ -1,15 +1,16 @@
 import Link from 'next/link'
-import { TrendingUp, Timer, Landmark } from 'lucide-react'
+import { TrendingUp, Timer, Landmark, Receipt } from 'lucide-react'
 
-export type InversionesView = 'acciones' | 'depositos' | 'ahorro'
+export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas'
 
 /**
- * Toggle compartido de las 3 vistas de /inversiones.
+ * Toggle compartido de las 4 vistas de /inversiones.
  * Único lugar donde se definen las tabs — no duplicar en los managers.
  */
 export default function InversionesToggle({ active }: { active: InversionesView }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
     { view: 'acciones',  href: '/inversiones',                 label: 'Acciones',  Icon: TrendingUp },
+    { view: 'ventas',    href: '/inversiones?view=ventas',     label: 'Ventas',    Icon: Receipt },
     { view: 'depositos', href: '/inversiones?view=depositos',  label: 'Depósitos', Icon: Timer },
     { view: 'ahorro',    href: '/inversiones?view=ahorro',     label: 'Ahorro',    Icon: Landmark },
   ]

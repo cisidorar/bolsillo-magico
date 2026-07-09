@@ -385,7 +385,9 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender (vuelven a la billetera)
+  const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender
+  const [sellShares,    setSellShares]    = useState('')   // acciones vendidas (soporta venta parcial)
+  const [sellDate,      setSellDate]      = useState('')   // fecha de la venta, editable
 
   // Live "hace Xs" timer
   useEffect(() => {
@@ -510,6 +512,7 @@ export default function StockPositionManager({ userId, initialPositions, walletU
   function cancelForm() {
     setShowForm(false); setEditingId(null); setForm(emptyForm)
     setFormError(''); setDeleteConfirm(false)
+    setSellUsd(''); setSellShares(''); setSellDate('')
   }
 
   async function savePosition() {
@@ -580,23 +583,69 @@ export default function StockPositionManager({ userId, initialPositions, walletU
     cancelForm()
   }
 
-  /** Vender: registra los USD recibidos como movimiento de billetera y cierra la posición. */
+  /**
+   * Vender: registra la ganancia/pérdida realizada en stock_sales (siempre) y,
+   * solo si la posición fue financiada por la billetera USD (wallet_funded),
+   * también devuelve los USD recibidos a la billetera vía usd_purchases —
+   * si no fue financiada por ahí, tampoco debe volver ahí (inflaría el saldo).
+   * Soporta venta parcial: si vendes menos que el total, la posición se reduce
+   * en vez de cerrarse.
+   */
   async function sellPosition(id: string) {
     const pos = positions.find(p => p.id === id)
     if (!pos) return
-    const usd = parseFloat(sellUsd.replace(',', '.'))
-    if (!Number.isFinite(usd) || usd <= 0) { setFormError('¿Cuántos USD recibiste por la venta?'); return }
+
+    const sharesSold = parseFloat(sellShares.replace(',', '.'))
+    if (!Number.isFinite(sharesSold) || sharesSold <= 0 || sharesSold > pos.shares + 1e-6) {
+      setFormError('Cantidad de acciones a vender inválida'); return
+    }
+    const proceeds = parseFloat(sellUsd.replace(',', '.'))
+    if (!Number.isFinite(proceeds) || proceeds <= 0) { setFormError('¿Cuántos USD recibiste por la venta?'); return }
+    if (!sellDate) { setFormError('Elegí la fecha de la venta'); return }
+
     setDeletingId(id); setFormError('')
-    const { error } = await supabase.from('usd_purchases').insert({
-      user_id:       userId,
-      kind:          'sell',
-      usd_amount:    Math.round(usd * 100) / 100,
-      purchase_date: new Date().toISOString().slice(0, 10),
-      notes:         `Venta ${pos.ticker}`,
+
+    const costBasis   = sharesSold * pos.avg_cost_usd
+    const realizedPnl = Math.round((proceeds - costBasis) * 100) / 100
+    const isFullSale  = sharesSold >= pos.shares - 1e-6
+
+    let usdPurchaseId: string | null = null
+    if (pos.wallet_funded) {
+      const { data: wp, error: wErr } = await supabase.from('usd_purchases').insert({
+        user_id:       userId,
+        kind:          'sell',
+        usd_amount:    Math.round(proceeds * 100) / 100,
+        purchase_date: sellDate,
+        notes:         `Venta ${pos.ticker}`,
+      }).select().single()
+      if (wErr) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
+      usdPurchaseId = wp?.id ?? null
+    }
+
+    const { error: saleErr } = await supabase.from('stock_sales').insert({
+      user_id:          userId,
+      ticker:           pos.ticker,
+      shares_sold:      sharesSold,
+      cost_basis_usd:   Math.round(costBasis * 100) / 100,
+      proceeds_usd:     Math.round(proceeds * 100) / 100,
+      realized_pnl_usd: realizedPnl,
+      sale_date:        sellDate,
+      notes:            form.notes.trim() || null,
+      usd_purchase_id:  usdPurchaseId,
     })
-    if (error) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
-    await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
-    setPositions(prev => prev.filter(p => p.id !== id))
+    if (saleErr) { setDeletingId(null); setFormError('No se pudo registrar la ganancia/pérdida de la venta'); return }
+
+    if (isFullSale) {
+      await supabase.from('stock_positions').delete().eq('id', id).eq('user_id', userId)
+      setPositions(prev => prev.filter(p => p.id !== id))
+    } else {
+      const remainingShares = Math.round((pos.shares - sharesSold) * 10000) / 10000
+      await supabase.from('stock_positions')
+        .update({ shares: remainingShares, updated_at: new Date().toISOString() })
+        .eq('id', id).eq('user_id', userId)
+      setPositions(prev => prev.map(p => p.id === id ? { ...p, shares: remainingShares } : p))
+    }
+
     setDeletingId(null)
     cancelForm()
   }
@@ -772,56 +821,142 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                 <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
               )}
 
-              {/* Confirmación: vender (vuelve a la billetera) o solo eliminar */}
-              {deleteConfirm && editingId && (
-                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
-                  <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-                    ¿Qué pasó con esta posición?
-                  </p>
-                  {walletUsdBase > 0 && (
-                    <div className="rounded-xl p-3 space-y-2" style={{ background: 'var(--surface)', border: '1px solid rgba(31,190,141,0.25)' }}>
+              {/* Confirmación: vender (registra ganancia/pérdida, soporta venta parcial) o solo eliminar */}
+              {deleteConfirm && editingId && (() => {
+                const pos          = positions.find(p => p.id === editingId)
+                const maxShares    = pos?.shares ?? 0
+                const sharesNum    = parseFloat(sellShares.replace(',', '.'))
+                const validShares  = Number.isFinite(sharesNum) && sharesNum > 0 && sharesNum <= maxShares + 1e-6
+                const proceedsNum  = parseFloat(sellUsd.replace(',', '.'))
+                const validProceeds= Number.isFinite(proceedsNum) && proceedsNum > 0
+                const costBasis    = pos && validShares ? sharesNum * pos.avg_cost_usd : null
+                const pnl          = costBasis !== null && validProceeds ? proceedsNum - costBasis : null
+                const pnlPct       = pnl !== null && costBasis && costBasis > 0 ? (pnl / costBasis) * 100 : null
+                const isPartial    = validShares && sharesNum < maxShares - 1e-6
+
+                return (
+                  <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                    <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                      ¿Qué pasó con esta posición?
+                    </p>
+
+                    <div className="rounded-xl p-3 space-y-3" style={{ background: 'var(--surface)', border: '1px solid rgba(31,190,141,0.25)' }}>
                       <label className="text-[10px] font-bold uppercase tracking-widest block" style={{ color: 'var(--ink-3)' }}>
-                        La vendí — USD recibidos (vuelven a la billetera)
+                        La vendí
                       </label>
-                      <input
-                        type="number"
-                        value={sellUsd}
-                        onChange={e => setSellUsd(e.target.value)}
-                        min="0.01"
-                        step="0.01"
-                        className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
-                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                      />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
+                            Acciones vendidas
+                          </label>
+                          <input
+                            type="number"
+                            value={sellShares}
+                            onChange={e => {
+                              const val = e.target.value
+                              setSellShares(val)
+                              const n = parseFloat(val)
+                              if (pos && Number.isFinite(n) && n > 0) {
+                                const q = quotes[pos.ticker]
+                                setSellUsd(((q?.price ?? pos.avg_cost_usd) * n).toFixed(2))
+                              }
+                            }}
+                            max={maxShares}
+                            min="0.0001"
+                            step="any"
+                            className="w-full text-sm border px-3 py-2 rounded-xl outline-none"
+                            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                          {pos && (
+                            <button
+                              onClick={() => {
+                                const q = quotes[pos.ticker]
+                                setSellShares(String(pos.shares))
+                                setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+                              }}
+                              className="text-[10px] font-semibold mt-1"
+                              style={{ color: 'var(--primary)' }}
+                            >
+                              Vender todas ({maxShares.toLocaleString('es-CL', { maximumFractionDigits: 4 })})
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
+                            Fecha
+                          </label>
+                          <input
+                            type="date"
+                            value={sellDate}
+                            onChange={e => setSellDate(e.target.value)}
+                            max={new Date().toISOString().slice(0, 10)}
+                            className="w-full text-sm border px-3 py-2 rounded-xl outline-none"
+                            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-semibold block mb-1" style={{ color: 'var(--ink-3)' }}>
+                          USD recibidos{pos?.wallet_funded ? ' (vuelven a la billetera)' : ''}
+                        </label>
+                        <input
+                          type="number"
+                          value={sellUsd}
+                          onChange={e => setSellUsd(e.target.value)}
+                          min="0.01"
+                          step="0.01"
+                          className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
+                          style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                        />
+                      </div>
+
+                      {pnl !== null && (
+                        <div
+                          className="flex items-center justify-between px-3 py-2 rounded-xl"
+                          style={{ background: pnl >= 0 ? 'rgba(31,190,141,0.1)' : 'rgba(255,111,97,0.1)' }}
+                        >
+                          <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                            Ganancia/pérdida
+                          </span>
+                          <span className="text-sm font-bold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                            {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
+                          </span>
+                        </div>
+                      )}
+
                       <button
                         onClick={() => sellPosition(editingId)}
-                        disabled={!!deletingId}
+                        disabled={!!deletingId || !validShares || !validProceeds}
                         className="w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
                         style={{ background: 'var(--mint)', color: 'white' }}
                       >
-                        {deletingId ? 'Registrando…' : 'Vender y devolver a la billetera'}
+                        {deletingId ? 'Registrando…' : isPartial ? 'Vender esa cantidad' : 'Vender todo'}
                       </button>
                     </div>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setDeleteConfirm(false)}
-                      className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
-                      style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={() => deletePosition(editingId)}
-                      disabled={!!deletingId}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
-                      style={{ background: 'var(--coral)', color: 'white' }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      {deletingId ? 'Eliminando…' : 'Solo eliminar'}
-                    </button>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDeleteConfirm(false)}
+                        className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => deletePosition(editingId)}
+                        disabled={!!deletingId}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
+                        style={{ background: 'var(--coral)', color: 'white' }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingId ? 'Eliminando…' : 'Solo eliminar (sin registrar venta)'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Actions */}
               {!deleteConfirm && (
@@ -829,11 +964,13 @@ export default function StockPositionManager({ userId, initialPositions, walletU
                   {editingId && (
                     <button
                       onClick={() => {
-                        // Prellenar la venta con el valor de mercado actual (editable)
+                        // Prellenar la venta con todas las acciones al valor de mercado actual (editable)
                         const pos = positions.find(p => p.id === editingId)
                         if (pos) {
                           const q = quotes[pos.ticker]
+                          setSellShares(String(pos.shares))
                           setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+                          setSellDate(new Date().toISOString().slice(0, 10))
                         }
                         setDeleteConfirm(true)
                       }}

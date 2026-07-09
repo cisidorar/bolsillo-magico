@@ -5,6 +5,7 @@ import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
 import WatchlistPanel, { type WatchlistItem } from '@/components/WatchlistPanel'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
+import StockSalesHistory from '@/components/StockSalesHistory'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,18 @@ export interface StockPosition {
   wallet_funded: boolean   // true = comprada con la billetera USD (descuenta del saldo); false = legacy
   created_at:    string
   updated_at:    string
+}
+
+export interface StockSale {
+  id:               string
+  ticker:           string
+  shares_sold:      number
+  cost_basis_usd:   number
+  proceeds_usd:     number
+  realized_pnl_usd: number
+  sale_date:        string
+  notes:            string | null
+  created_at:       string
 }
 
 export interface TermDeposit {
@@ -56,8 +69,9 @@ export default async function InversionesPage({ searchParams }: Props) {
 
   const isAhorro    = sp.view === 'ahorro'
   const isDepositos = sp.view === 'depositos'
+  const isVentas    = sp.view === 'ventas'
 
-  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }] = await Promise.all([
+  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
@@ -78,6 +92,11 @@ export default async function InversionesPage({ searchParams }: Props) {
       .select('id, ticker, target_price, target_direction')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
+    supabase
+      .from('stock_sales')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('sale_date', { ascending: false }),
   ])
 
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
@@ -98,6 +117,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
+  const salesCount   = sales?.length    ?? 0
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
@@ -115,6 +135,8 @@ export default async function InversionesPage({ searchParams }: Props) {
             ? `${savingCount} cuenta${savingCount !== 1 ? 's' : ''} · ahorro`
             : isDepositos
             ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · a plazo`
+            : isVentas
+            ? `${salesCount} venta${salesCount !== 1 ? 's' : ''} realizada${salesCount !== 1 ? 's' : ''}`
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
@@ -136,6 +158,10 @@ export default async function InversionesPage({ searchParams }: Props) {
         <TermDepositManager
           userId={user.id}
           initialDeposits={(deposits ?? []) as TermDeposit[]}
+        />
+      ) : isVentas ? (
+        <StockSalesHistory
+          initialSales={(sales ?? []) as StockSale[]}
         />
       ) : (
         <>
