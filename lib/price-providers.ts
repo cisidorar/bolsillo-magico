@@ -216,7 +216,9 @@ export async function syncTicker(supabase: SupabaseClient, ticker: string): Prom
   const { error } = await supabase.from('price_history').upsert(rows, { onConflict: 'ticker,date' })
   if (error) {
     reasons.push(`upsert: ${error.message}`)
-    return { ticker, inserted: 0, source, reasons }
+    // source=null aunque el proveedor haya respondido bien: si el upsert falla,
+    // los datos no quedaron persistidos y no debe contarse como "sincronizado".
+    return { ticker, inserted: 0, source: null, reasons }
   }
   return { ticker, inserted: rows.length, source, reasons }
 }

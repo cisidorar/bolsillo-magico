@@ -13,3 +13,12 @@ GRANT ALL ON public.stock_positions  TO service_role;
 GRANT ALL ON public.stock_sales      TO service_role;
 GRANT ALL ON public.stock_purchases  TO service_role;
 GRANT ALL ON public.usd_purchases    TO service_role;
+
+-- price_history (20260707_price_history.sql) asumía que "el cron (service role)
+-- bypassa RLS" y por eso solo otorgó GRANT a `authenticated` — supuesto
+-- incorrecto, bypassear RLS no exime del GRANT base de la tabla. Este es
+-- probablemente el motivo de que digest.signals diera 0: syncTicker() reporta
+-- "sincronizado" igual aunque el upsert a price_history falle por permisos
+-- (el código no aborta ni marca error en ese caso), y luego readCandles() lee
+-- 0 filas → sin historia suficiente → analyze() nunca corre.
+GRANT ALL ON public.price_history    TO service_role;
