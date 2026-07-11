@@ -2,12 +2,15 @@
  * notify-watchlist-digest — Edge Function
  *
  * Corre diariamente (pg_cron), después de /api/cron/sync-prices (Vercel) —
- * ese cron ya calculó analyze() para cada ticker y dejó las señales del día
- * en daily_signals (una fila por usuario+ticker+tipo: buy/sell/caution/target).
+ * ese cron ya calculó analyze() para CADA ticker de la watchlist (accionable
+ * o no) y dejó el estado del día en daily_signals: una fila "primaria" por
+ * usuario+ticker (buy/sell/caution/hold, mutuamente excluyentes) + una fila
+ * 'target' aparte si además llegó a su precio objetivo ese día.
  * Esta función SOLO lee esa tabla, agrupa por usuario y manda UN correo por
- * usuario con todo lo accionable del día — no recalcula nada técnico.
+ * usuario con el resumen completo del día — no recalcula nada técnico.
  *
- * Si un usuario no tiene ninguna señal hoy, no recibe correo (nada que avisar).
+ * Si un usuario no tiene ninguna fila hoy (nada en su watchlist con historia
+ * suficiente), no recibe correo.
  *
  * Requiere: RESEND_API_KEY, SITE_URL, DB_SERVICE_KEY
  */
@@ -23,6 +26,14 @@ function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function fmtPct(n: number): string {
+  return (n >= 0 ? '+' : '') + n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'
+}
+
+function fmtShares(n: number): string {
+  return n.toLocaleString('es-CL', { minimumFractionDigits: n % 1 === 0 ? 0 : 1, maximumFractionDigits: 2 })
+}
+
 function todayInCL(): string {
   // Fecha de hoy en Santiago — mismo criterio que el DEFAULT de daily_signals.signal_date
   const utc = new Date()
@@ -31,20 +42,43 @@ function todayInCL(): string {
   return `${y}-${m}-${d}`
 }
 
-interface Signal {
-  user_id: string
-  ticker:  string
-  kind:    'buy' | 'sell' | 'caution' | 'target'
-  message: string
-  price:   number
+const DIAS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+function closeLabelET(): string {
+  const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const dia = DIAS_ES[et.getDay()], mes = MESES_ES[et.getMonth()]
+  return `${dia} ${et.getDate()} ${mes} · 16:00 ET`
 }
 
-const KIND_ORDER: Record<Signal['kind'], number> = { target: 0, sell: 1, caution: 2, buy: 3 }
-const KIND_LABEL: Record<Signal['kind'], string> = {
-  target:  '🎯 Precio objetivo',
-  sell:    '🔴 Venta',
-  caution: '🟡 Toma de ganancias',
-  buy:     '🟢 Compra',
+interface Signal {
+  user_id:    string
+  ticker:     string
+  kind:       'buy' | 'sell' | 'caution' | 'target' | 'hold'
+  message:    string
+  price:      number
+  change_pct: number
+  strong:     boolean
+  watch:      boolean
+}
+
+interface TickerInfo {
+  name:   string | null
+  domain: string | null
+}
+
+const KIND_TITLE: Record<Signal['kind'], string> = {
+  buy:     'SEÑAL DE COMPRA',
+  sell:    'SEÑAL DE VENTA',
+  caution: 'TOMA DE GANANCIAS',
+  target:  'PRECIO OBJETIVO',
+  hold:    'MANTENER',
+}
+const KIND_COLOR: Record<Signal['kind'], { fg: string; bg: string }> = {
+  buy:     { fg: '#1FBE8D', bg: '#EAFBF5' },
+  sell:    { fg: '#FF6F61', bg: '#FFF1EF' },
+  caution: { fg: '#D98A1F', bg: '#FFF6E8' },
+  target:  { fg: '#2B7CF6', bg: '#EAF2FF' },
+  hold:    { fg: '#8B9AB0', bg: '#F5F7FA' },
 }
 
 Deno.serve(async (req: Request) => {
@@ -58,18 +92,32 @@ Deno.serve(async (req: Request) => {
     const testEmail = (body?.email as string) ?? null
     if (!testEmail) return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
     const testSignals: Signal[] = [
-      { user_id: 'x', ticker: 'MU',   kind: 'target', message: 'Llegó a tu precio de salida: subió a US$1.089,00', price: 1089.32 },
-      { user_id: 'x', ticker: 'AAPL', kind: 'buy',     message: 'Compra fuerte', price: 313.25 },
-      { user_id: 'x', ticker: 'TSM',  kind: 'sell',    message: 'Venta', price: 453.95 },
+      { user_id: 'x', ticker: 'MELI', kind: 'sell', message: 'Cruzó por debajo de su media de 50 días. Perdió el soporte y el RSI marca sobrecompra — considera tomar ganancias.', price: 1852.22, change_pct: -3.4, strong: true, watch: false },
+      { user_id: 'x', ticker: 'NVDA', kind: 'buy',  message: 'Rebotó en su media de 20 días con volumen alto y MACD girando al alza. Rompe resistencia — buen punto para promediar.', price: 210.96, change_pct: 2.6, strong: true, watch: false },
+      { user_id: 'x', ticker: 'META', kind: 'hold', message: 'tendencia estable', price: 669.21, change_pct: 0.4, strong: false, watch: false },
+      { user_id: 'x', ticker: 'SPY',  kind: 'hold', message: 'dentro de rango', price: 754.95, change_pct: 0.3, strong: false, watch: false },
+      { user_id: 'x', ticker: 'MU',   kind: 'caution', message: 'Débil · cerca de soporte', price: 979.30, change_pct: -1.2, strong: false, watch: true },
+      { user_id: 'x', ticker: 'GOOGL', kind: 'hold', message: 'consolidando', price: 357.18, change_pct: 0.9, strong: false, watch: false },
+      { user_id: 'x', ticker: 'IBIT', kind: 'hold', message: 'lateral', price: 36.23, change_pct: 0.6, strong: false, watch: false },
     ]
+    const infoMap = new Map<string, TickerInfo>([
+      ['MELI', { name: 'MercadoLibre', domain: 'mercadolibre.com' }],
+      ['NVDA', { name: 'NVIDIA', domain: 'nvidia.com' }],
+      ['META', { name: 'Meta Platforms', domain: 'meta.com' }],
+      ['SPY',  { name: 'S&P 500 ETF', domain: null }],
+      ['MU',   { name: 'Micron Technology', domain: 'micron.com' }],
+      ['GOOGL', { name: 'Alphabet', domain: 'abc.xyz' }],
+      ['IBIT', { name: 'iShares Bitcoin Trust', domain: null }],
+    ])
+    const sharesMap = new Map<string, number>([['MELI', 0.3], ['NVDA', 2.1]])
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: testEmail,
-        subject: `3 favoritos para revisar hoy · Bolsillo Mágico`,
-        html: digestEmailHtml({ displayName: 'Cas', signals: testSignals, siteUrl: SITE_URL }),
+        subject: `2 señales fuertes para revisar hoy · Bolsillo Mágico`,
+        html: digestEmailHtml({ displayName: 'Cata', signals: testSignals, infoMap, sharesMap, siteUrl: SITE_URL }),
       }),
     })
     return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
@@ -80,7 +128,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: rows, error } = await supabase
     .from('daily_signals')
-    .select('user_id, ticker, kind, message, price')
+    .select('user_id, ticker, kind, message, price, change_pct, strong, watch')
     .eq('signal_date', today)
 
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 })
@@ -88,6 +136,16 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ sent: 0, users: 0 }), { headers: { 'Content-Type': 'application/json' } })
   }
   const signals = rows as Signal[]
+
+  // Nombre/dominio (logo) por ticker — cacheado por la app en price_cache.
+  const tickers = [...new Set(signals.map(s => s.ticker))]
+  const { data: priceCacheRows } = await supabase
+    .from('price_cache')
+    .select('ticker, name, domain')
+    .in('ticker', tickers)
+  const infoMap = new Map<string, TickerInfo>(
+    (priceCacheRows ?? []).map(r => [r.ticker as string, { name: r.name as string | null, domain: r.domain as string | null }]),
+  )
 
   const byUser = new Map<string, Signal[]>()
   for (const s of signals) {
@@ -97,6 +155,20 @@ Deno.serve(async (req: Request) => {
   }
 
   const userIds = [...byUser.keys()]
+
+  // Acciones que ya tiene cada usuario — para "tienes X acc." en las tarjetas destacadas.
+  const { data: posRows } = await supabase
+    .from('stock_positions')
+    .select('user_id, ticker, shares')
+    .in('user_id', userIds)
+  const sharesByUser = new Map<string, Map<string, number>>()
+  for (const p of posRows ?? []) {
+    const uid = p.user_id as string, tk = p.ticker as string, sh = Number(p.shares)
+    const m = sharesByUser.get(uid) ?? new Map<string, number>()
+    m.set(tk, (m.get(tk) ?? 0) + sh)
+    sharesByUser.set(uid, m)
+  }
+
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, display_name, notify_watchlist_target')
@@ -123,9 +195,8 @@ Deno.serve(async (req: Request) => {
       .select().single()
     if (logErr) { skipped++; continue }   // ya se envió hoy
 
-    const sorted = [...userSignals].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
     const displayName = profile.display_name ?? 'Usuario'
-    const tickerWord = sorted.length === 1 ? sorted[0].ticker : `${sorted.length} favoritos`
+    const strongCount = userSignals.filter(s => s.strong).length
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -133,8 +204,13 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
-        subject: `${tickerWord} para revisar hoy · Bolsillo Mágico`,
-        html: digestEmailHtml({ displayName, signals: sorted, siteUrl: SITE_URL }),
+        subject: strongCount > 0
+          ? `${strongCount} señal${strongCount !== 1 ? 'es' : ''} fuerte${strongCount !== 1 ? 's' : ''} para revisar hoy · Bolsillo Mágico`
+          : `Tu análisis técnico de hoy · Bolsillo Mágico`,
+        html: digestEmailHtml({
+          displayName, signals: userSignals, infoMap,
+          sharesMap: sharesByUser.get(userId) ?? new Map(), siteUrl: SITE_URL,
+        }),
       }),
     })
 
@@ -164,39 +240,103 @@ function brandWordmark(siteUrl: string) {
   </table>`
 }
 
+// ── Ícono del ticker: logo real si hay dominio cacheado (vía Clearbit),
+// si no, una insignia con el ticker — mismo patrón que ServiceLogo en la app. ──
+
+function tickerIcon(ticker: string, domain: string | null, size: number): string {
+  if (domain) {
+    return `<img src="https://logo.clearbit.com/${domain}?size=${size * 2}" width="${size}" height="${size}" alt="${ticker}"
+      style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;display:block;object-fit:cover;background:#0E2A52">`
+  }
+  const fontSize = ticker.length > 4 ? 9 : ticker.length > 3 ? 10 : 11
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="width:${size}px;height:${size}px">
+    <tr><td align="center" valign="middle" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:${fontSize}px;font-weight:800;color:#ffffff;letter-spacing:0.2px">
+      ${ticker.slice(0, 5)}
+    </td></tr>
+  </table>`
+}
+
 // ── Email HTML ────────────────────────────────────────────────────────────────
 
 function digestEmailHtml({
   displayName,
   signals,
+  infoMap,
+  sharesMap,
   siteUrl,
 }: {
   displayName: string
   signals:     Signal[]
+  infoMap:     Map<string, TickerInfo>
+  sharesMap:   Map<string, number>
   siteUrl:     string
 }) {
-  const rowsHtml = signals.map(s => {
-    const color = s.kind === 'sell' ? '#FF6F61' : s.kind === 'caution' ? '#FFC23C' : s.kind === 'target' ? '#2B7CF6' : '#1FBE8D'
-    const bg    = s.kind === 'sell' ? '#FFF1EF' : s.kind === 'caution' ? '#FFFAEB' : s.kind === 'target' ? '#EAF2FF' : '#EAFBF5'
+  const strongRows = signals.filter(s => s.strong)
+  const restRows   = signals.filter(s => !s.strong)
+
+  const buyCount  = signals.filter(s => s.kind === 'buy').length
+  const sellCount = signals.filter(s => s.kind === 'sell').length
+  const holdCount = signals.filter(s => s.kind === 'hold' || s.kind === 'caution').length
+
+  const strongCardsHtml = strongRows.map(s => {
+    const info   = infoMap.get(s.ticker) ?? { name: null, domain: null }
+    const shares = sharesMap.get(s.ticker) ?? 0
+    const color  = KIND_COLOR[s.kind]
+    const chgColor = s.change_pct >= 0 ? '#1FBE8D' : '#FF6F61'
+    const chgArrow = s.change_pct >= 0 ? '▲' : '▼'
     return `
-      <tr><td style="padding-bottom:10px">
+      <tr><td style="padding-bottom:14px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-          style="background:${bg};border-radius:14px">
-          <tr><td style="padding:14px 18px">
+          style="border:1.5px solid #E4EAF3;border-radius:16px">
+          <tr><td style="padding:16px 18px">
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
-                <td style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:15px;font-weight:800;color:#0E2A52">
-                  ${s.ticker}
+                <td style="width:44px;vertical-align:top">${tickerIcon(s.ticker, info.domain, 44)}</td>
+                <td style="padding-left:12px;vertical-align:top">
+                  <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:15px;font-weight:800;color:#0E2A52">${s.ticker}</p>
+                  <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0">
+                    ${info.name ?? ''}${shares > 0 ? `${info.name ? ' · ' : ''}tienes ${fmtShares(shares)} acc.` : ''}
+                  </p>
                 </td>
-                <td style="text-align:right;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#5B6B82;font-variant-numeric:tabular-nums">
-                  ${fmtUSD(s.price)}
+                <td style="text-align:right;vertical-align:top;white-space:nowrap">
+                  <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:15px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtUSD(s.price)}</p>
+                  <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:${chgColor}">${chgArrow} ${fmtPct(s.change_pct)}</p>
                 </td>
               </tr>
-              <tr><td colspan="2" style="padding-top:4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:600;color:${color}">
-                ${KIND_LABEL[s.kind]} — ${s.message}
+            </table>
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${color.bg};border-radius:12px;margin-top:12px">
+              <tr><td style="padding:12px 14px">
+                <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.4px;color:${color.fg}">
+                  <span style="color:${color.fg}">●</span> ${KIND_TITLE[s.kind]}
+                </p>
+                <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#3D4C63;line-height:1.5">${s.message}</p>
               </td></tr>
             </table>
           </td></tr>
+        </table>
+      </td></tr>`
+  }).join('')
+
+  const restRowsHtml = restRows.map(s => {
+    const info   = infoMap.get(s.ticker) ?? { name: null, domain: null }
+    const chgColor = s.change_pct >= 0 ? '#1FBE8D' : '#FF6F61'
+    const statusLabel = s.kind === 'buy' ? 'Comprar' : s.kind === 'sell' ? 'Vender' : s.kind === 'caution' ? 'Débil' : 'Mantener'
+    return `
+      <tr><td style="padding:12px 0;border-bottom:1px solid #EEF2F8">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td style="width:40px;vertical-align:middle">${tickerIcon(s.ticker, info.domain, 40)}</td>
+            <td style="padding-left:12px;vertical-align:middle">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">
+                ${s.ticker}${s.watch ? ' <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:#FFF1DE;color:#D98A1F;font-size:10px;font-weight:800;vertical-align:middle">Vigilar</span>' : ''}
+              </p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0">${statusLabel} · ${s.message}</p>
+            </td>
+            <td style="text-align:right;vertical-align:middle;white-space:nowrap">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtUSD(s.price)}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:${chgColor}">${fmtPct(s.change_pct)}</p>
+            </td>
+          </tr>
         </table>
       </td></tr>`
   }).join('')
@@ -206,7 +346,7 @@ function digestEmailHtml({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Favoritos para revisar hoy · Bolsillo Mágico</title>
+  <title>Tu análisis técnico de hoy · Bolsillo Mágico</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
@@ -218,45 +358,80 @@ function digestEmailHtml({
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
       <!-- ENCABEZADO -->
-      <tr><td style="background:#2B7CF6;padding:36px 40px 32px;text-align:center">
-        <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
-        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
-          <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
-            📋
-          </td></tr>
+      <tr><td style="background:#2B7CF6;padding:32px 32px 28px">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td style="vertical-align:middle">${brandWordmark(siteUrl)}</td>
+            <td style="text-align:right;vertical-align:middle">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">CIERRE WALL ST.</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#ffffff">${closeLabelET()}</p>
+            </td>
+          </tr>
         </table>
-        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
-          ${signals.length} favorito${signals.length !== 1 ? 's' : ''} para revisar hoy
+        <p style="margin:24px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+          Tu análisis técnico de hoy
+        </p>
+        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
+          Hola ${displayName} — revisé tus ${signals.length} acción${signals.length !== 1 ? 'es' : ''} al cierre.
+          ${strongRows.length > 0 ? `<strong style="color:#ffffff">${strongRows.length} señal${strongRows.length !== 1 ? 'es' : ''} fuerte${strongRows.length !== 1 ? 's' : ''}</strong> merece${strongRows.length !== 1 ? 'n' : ''} tu atención.` : 'Nada urgente hoy — todo dentro de lo esperado.'}
         </p>
       </td></tr>
 
-      <!-- CUERPO -->
-      <tr><td style="padding:32px 40px 28px">
-
-        <p style="margin:0 0 24px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
-          Hola, ${displayName}. Con el cierre de ayer, esto es lo que cambió en tu lista de favoritos:
-        </p>
-
+      <!-- STATS -->
+      <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          ${rowsHtml}
+          <tr>
+            <td width="33%" align="center" style="padding:22px 8px;border-right:1px solid #EEF2F8">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D">${buyCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">COMPRAR</p>
+            </td>
+            <td width="33%" align="center" style="padding:22px 8px;border-right:1px solid #EEF2F8">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#FF6F61">${sellCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">VENDER</p>
+            </td>
+            <td width="33%" align="center" style="padding:22px 8px">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#5B6B82">${holdCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">MANTENER</p>
+            </td>
+          </tr>
         </table>
+      </td></tr>
+
+      <!-- CUERPO -->
+      <tr><td style="padding:8px 32px 28px">
+
+        ${strongRows.length > 0 ? `
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+          <tr><td style="padding-bottom:12px">
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚡ Señales fuertes</span>
+          </td></tr>
+          ${strongCardsHtml}
+        </table>` : ''}
+
+        ${restRows.length > 0 ? `
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:${strongRows.length > 0 ? 8 : 20}px">
+          <tr><td style="padding-bottom:6px">
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">El resto de tu lista</span>
+          </td></tr>
+          ${restRowsHtml}
+        </table>` : ''}
 
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-          style="background:#F5F7FA;border-radius:14px;margin-top:8px">
+          style="background:#F5F7FA;border-radius:14px;margin-top:20px">
           <tr><td style="padding:14px 18px">
             <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0;line-height:1.6">
-              Esto es informativo — no es recomendación de compra o venta. Revisa la lectura técnica completa
-              en la app antes de decidir.
+              Este análisis es informativo y automático, basado en indicadores técnicos al cierre. No es asesoría
+              financiera — las decisiones de inversión son tuyas.
             </p>
           </td></tr>
         </table>
 
         <!-- CTA -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:24px">
-          <tr><td style="text-align:center">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+          <tr><td>
             <a href="${siteUrl}/inversiones"
-              style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
-              Ver Favoritos en la app
+              style="display:block;text-align:center;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:15px 32px;border-radius:12px;letter-spacing:0.1px">
+              Ver análisis completo en la app →
             </a>
           </td></tr>
         </table>
@@ -264,21 +439,20 @@ function digestEmailHtml({
       </td></tr>
 
       <!-- PIE -->
-      <tr><td style="background:#0E2A52;padding:28px 40px">
+      <tr><td style="background:#0E2A52;padding:28px 32px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-bottom:16px">
             ${brandWordmark(siteUrl)}
           </td></tr>
           <tr><td style="text-align:center;padding-bottom:16px">
-            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
-            <span style="color:#3D5476;font-size:12px">·</span>
-            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#9FB5D4">
+              Recibes este correo cada día al cierre de Wall Street.
+            </p>
           </td></tr>
           <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
-            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
-              Recibes este correo porque tienes favoritos en seguimiento en Inversiones.<br>
-              <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
-            </p>
+            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:600">Ajustar frecuencia</a>
+            <span style="color:#3D5476;font-size:11px">&nbsp;·&nbsp;</span>
+            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:600">Cancelar envíos</a>
           </td></tr>
         </table>
       </td></tr>

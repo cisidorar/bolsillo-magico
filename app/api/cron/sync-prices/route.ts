@@ -29,35 +29,68 @@ interface WatchlistRow {
 }
 
 interface SignalRow {
-  user_id: string
-  ticker:  string
-  kind:    'buy' | 'sell' | 'caution' | 'target'
-  message: string
-  price:   number
+  user_id:    string
+  ticker:     string
+  kind:       'buy' | 'sell' | 'caution' | 'target' | 'hold'
+  message:    string
+  price:      number
+  change_pct: number
+  strong:     boolean
+  watch:      boolean
 }
 
-/** Señales de rating (compra/venta/toma de ganancias) + precio objetivo, para
- *  un ticker ya analizado, cruzado contra cada fila de watchlist que lo sigue. */
+/** Frase corta de estado para tickers en neutral — para "el resto de tu lista"
+ *  del digest, que ahora muestra TODA la watchlist, no solo lo accionable. */
+function holdLabel(analysis: TechnicalAnalysis): string {
+  if (analysis.signals.some(s => s.kind === 'range_squeeze'))   return 'dentro de rango'
+  if (analysis.signals.some(s => s.kind === 'near_support'))    return 'cerca de soporte'
+  if (analysis.signals.some(s => s.kind === 'near_resistance')) return 'cerca de resistencia'
+  if (analysis.trend.aboveSma200 === true)  return 'tendencia estable'
+  if (analysis.trend.aboveSma200 === false) return 'consolidando'
+  return 'lateral'
+}
+
+/** Descripción larga (título + detalle, ya en lenguaje cotidiano) del gatillo
+ *  técnico más relevante para una señal fuerte — para la tarjeta destacada
+ *  del digest. Cae a la etiqueta corta del rating si no hay un gatillo con el
+ *  tono esperado. */
+function strongDetail(analysis: TechnicalAnalysis, tone: 'mint' | 'coral'): string {
+  const sig = analysis.signals.find(s => s.trigger && s.tone === tone) ?? analysis.signals.find(s => s.tone === tone)
+  return sig ? `${sig.title}. ${sig.detail}` : analysis.rating.action
+}
+
+/** Señales de rating (compra/venta/toma de ganancias/mantener) + precio
+ *  objetivo, para un ticker ya analizado, cruzado contra cada fila de
+ *  watchlist que lo sigue. Genera SIEMPRE una fila "primaria" por ticker
+ *  (buy/sell/caution/hold, mutuamente excluyentes) — el digest ahora muestra
+ *  la watchlist completa, no solo lo accionable — más una fila 'target'
+ *  aparte si corresponde (evento independiente, puede coexistir con la primaria). */
 function buildSignals(
   analysis:  TechnicalAnalysis,
   wlRows:    WatchlistRow[],
   ownedByUser: Set<string>,   // `${user_id}:${ticker}`
+  changePct: number,
 ): { signals: SignalRow[]; notifiedIds: string[] } {
   const signals: SignalRow[] = []
   const notifiedIds: string[] = []
 
   for (const row of wlRows) {
     const owned = ownedByUser.has(`${row.user_id}:${row.ticker}`)
+    const base = { user_id: row.user_id, ticker: row.ticker, price: analysis.price, change_pct: changePct }
 
     // Rating: se reporta TODOS los días que siga vigente (recordatorio diario,
     // no evento único) — compra siempre relevante, venta/toma solo con posición.
     const l = analysis.rating.label
     if (l === 'compra' || l === 'compra_fuerte') {
-      signals.push({ user_id: row.user_id, ticker: row.ticker, kind: 'buy', message: analysis.rating.action, price: analysis.price })
+      const strong = l === 'compra_fuerte'
+      signals.push({ ...base, kind: 'buy', strong, watch: false, message: strong ? strongDetail(analysis, 'mint') : analysis.rating.action })
     } else if (owned && (l === 'venta' || l === 'venta_fuerte')) {
-      signals.push({ user_id: row.user_id, ticker: row.ticker, kind: 'sell', message: analysis.rating.action, price: analysis.price })
+      const strong = l === 'venta_fuerte'
+      signals.push({ ...base, kind: 'sell', strong, watch: false, message: strong ? strongDetail(analysis, 'coral') : analysis.rating.action })
     } else if (owned && analysis.rating.caution) {
-      signals.push({ user_id: row.user_id, ticker: row.ticker, kind: 'caution', message: 'Toma de ganancias', price: analysis.price })
+      signals.push({ ...base, kind: 'caution', strong: false, watch: true, message: `Débil · ${holdLabel(analysis)}` })
+    } else {
+      signals.push({ ...base, kind: 'hold', strong: false, watch: analysis.watch.length > 0, message: holdLabel(analysis) })
     }
 
     // Precio objetivo: evento único — se avisa una vez y se marca target_notified.
@@ -67,9 +100,8 @@ function buildSignals(
       if (reached) {
         const verbo = dir === 'above' ? 'subió' : 'bajó'
         signals.push({
-          user_id: row.user_id, ticker: row.ticker, kind: 'target',
+          ...base, kind: 'target', strong: true, watch: false,
           message: `Llegó a tu precio de ${owned ? 'salida' : 'entrada'}: ${verbo} a ${fmtUSD(row.target_price)}`,
-          price: analysis.price,
         })
         notifiedIds.push(row.id)
       }
@@ -98,8 +130,12 @@ async function computeDailySignals(supabase: SupabaseClient) {
       const candles = await readCandles(supabase, ticker)
       if (candles.closes.length < 30) continue   // sin historia suficiente, no se puede opinar
       const analysis = analyze(candles)
+      const closes = candles.closes
+      const changePct = closes.length >= 2
+        ? Math.round(((closes[closes.length - 1] - closes[closes.length - 2]) / closes[closes.length - 2]) * 1000) / 10
+        : 0
       const rowsForTicker = wlRows.filter(r => r.ticker === ticker)
-      const { signals, notifiedIds } = buildSignals(analysis, rowsForTicker, ownedByUser)
+      const { signals, notifiedIds } = buildSignals(analysis, rowsForTicker, ownedByUser, changePct)
       allSignals.push(...signals)
       allNotifiedIds.push(...notifiedIds)
     } catch (err) {
