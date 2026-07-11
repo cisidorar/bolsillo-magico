@@ -19,6 +19,34 @@ function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// ── Días hábiles NYSE ─────────────────────────────────────────────────────────
+// Sin esto, un cron que corre todos los días (fines de semana incluidos)
+// termina reescribiendo daily_signals con el precio de cierre del viernes bajo
+// la fecha del sábado/domingo — y el digest manda un correo con "novedades"
+// que en realidad son de dos días atrás. Se corta acá, antes de sincronizar
+// nada: ni se gastan cupos de las APIs de precios ni se generan señales.
+// Feriados NYSE 2026 (actualizar cada año — https://www.nyse.com/markets/hours-calendars):
+const NYSE_HOLIDAYS_2026 = new Set([
+  '2026-01-01', // Año Nuevo
+  '2026-01-19', // Martin Luther King Jr. Day
+  '2026-02-16', // Washington's Birthday
+  '2026-04-03', // Good Friday
+  '2026-05-25', // Memorial Day
+  '2026-06-19', // Juneteenth
+  '2026-07-03', // Independence Day (4 de julio cae sábado, se observa el viernes)
+  '2026-09-07', // Labor Day
+  '2026-11-26', // Thanksgiving
+  '2026-12-25', // Navidad
+])
+
+function isTradingDay(): boolean {
+  const et  = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day = et.getDay()   // 0=Dom … 6=Sáb
+  if (day === 0 || day === 6) return false
+  const y = et.getFullYear(), m = String(et.getMonth() + 1).padStart(2, '0'), d = String(et.getDate()).padStart(2, '0')
+  return !NYSE_HOLIDAYS_2026.has(`${y}-${m}-${d}`)
+}
+
 interface WatchlistRow {
   id:               string
   user_id:          string
@@ -163,6 +191,10 @@ export async function GET(request: Request) {
   const auth   = request.headers.get('authorization')
   if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (!isTradingDay()) {
+    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)' })
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

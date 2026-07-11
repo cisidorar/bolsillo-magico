@@ -44,6 +44,24 @@ function todayInCL(): string {
 
 const DIAS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 const MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+// ── Días hábiles NYSE — segunda barrera además de la de sync-prices: si por
+// lo que sea daily_signals tuviera filas de un fin de semana/feriado (cron
+// manual, reintento, etc.), este correo NO debe salir igual.
+// Feriados NYSE 2026 (actualizar cada año): https://www.nyse.com/markets/hours-calendars
+const NYSE_HOLIDAYS_2026 = new Set([
+  '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25',
+  '2026-06-19', '2026-07-03', '2026-09-07', '2026-11-26', '2026-12-25',
+])
+
+function isTradingDay(): boolean {
+  const et  = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
+  const day = et.getDay()
+  if (day === 0 || day === 6) return false
+  const y = et.getFullYear(), m = String(et.getMonth() + 1).padStart(2, '0'), d = String(et.getDate()).padStart(2, '0')
+  return !NYSE_HOLIDAYS_2026.has(`${y}-${m}-${d}`)
+}
+
 function closeLabelET(): string {
   const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
   const dia = DIAS_ES[et.getDay()], mes = MESES_ES[et.getMonth()]
@@ -121,6 +139,10 @@ Deno.serve(async (req: Request) => {
       }),
     })
     return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
+  }
+
+  if (!isTradingDay()) {
+    return new Response(JSON.stringify({ skipped: 'non-trading day' }), { headers: { 'Content-Type': 'application/json' } })
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
