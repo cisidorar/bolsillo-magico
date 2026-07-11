@@ -92,6 +92,26 @@ async function fhQuote(
   return { price: d.c, changePercent: d.dp ?? 0 }
 }
 
+// ── ETFs: Finnhub stock/profile2 solo cubre acciones de empresas, no fondos —
+// para un ETF siempre devuelve vacío, así que domain/name quedan null para
+// siempre y el logo cae al fallback (insignia con la letra). Estos son los
+// tickers de ETF que aparecen en la app hoy; se resuelven contra el sitio de
+// su gestora en vez de Finnhub. Agregar acá cualquier ETF nuevo que se siga
+// mostrando sin logo.
+const ETF_OVERRIDES: Record<string, { name: string; domain: string }> = {
+  SPY:  { name: 'SPDR S&P 500 ETF Trust',                        domain: 'ssga.com'     },
+  QQQ:  { name: 'Invesco QQQ Trust',                              domain: 'invesco.com'  },
+  IBIT: { name: 'iShares Bitcoin Trust',                          domain: 'ishares.com'  },
+  SOXL: { name: 'Direxion Daily Semiconductor Bull 3X Shares',    domain: 'direxion.com' },
+  KORU: { name: 'Direxion Daily South Korea Bull 3X Shares',      domain: 'direxion.com' },
+}
+
+async function resolveProfile(ticker: string, key: string): Promise<{ name: string | null; domain: string | null }> {
+  const override = ETF_OVERRIDES[ticker]
+  if (override) return override
+  return fhProfile(ticker, key)
+}
+
 async function fhProfile(ticker: string, key: string): Promise<{ name: string | null; domain: string | null }> {
   const d = await fhFetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${key}`) as Record<string, unknown> | null
   const name = (d?.name as string) || null
@@ -263,7 +283,7 @@ export async function GET(request: Request) {
   const needsDomain = symbols.filter(t => result[t] && !result[t].domain)
   if (needsDomain.length > 0) {
     Promise.all(needsDomain.map(async (ticker) => {
-      const profile = await fhProfile(ticker, apiKey)
+      const profile = await resolveProfile(ticker, apiKey)
       if (!profile.domain) return
       result[ticker].domain = profile.domain
       if (!result[ticker].name || result[ticker].name === ticker) {
@@ -295,7 +315,7 @@ export async function GET(request: Request) {
           ? fhCandles(ticker, apiKey)
           : Promise.resolve(null),
         needsProfile
-          ? fhProfile(ticker, apiKey)
+          ? resolveProfile(ticker, apiKey)
           : Promise.resolve({ name: cacheMap[ticker]?.name ?? null, domain: cacheMap[ticker]?.domain ?? null }),
       ])
 
