@@ -671,13 +671,14 @@ export default function StockPositionManager({
       fetchQuotes([...positions.map(p => p.ticker), ticker])
 
       // Registro histórico de la compra — para el timeline de "Movimientos"
-      const { data: purchaseRow } = await supabase.from('stock_purchases')
+      const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
         .insert({
           user_id: userId, ticker, shares, total_paid_usd: totalPaid,
           purchase_date: new Date().toISOString().slice(0, 10),
           notes: form.notes.trim() || null,
         })
         .select().single()
+      if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
       if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
     }
     cancelForm()
@@ -724,7 +725,7 @@ export default function StockPositionManager({
       purchase_date: sellDate,
       notes:         `Venta ${pos.ticker}`,
     }).select().single()
-    if (wErr) { setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
+    if (wErr) { console.error('[usd_purchases] insert error:', wErr.message); setDeletingId(null); setFormError('No se pudo registrar la venta en la billetera'); return }
     const usdPurchaseId: string | null = wp?.id ?? null
 
     const { data: saleRow, error: saleErr } = await supabase.from('stock_sales').insert({
@@ -738,7 +739,7 @@ export default function StockPositionManager({
       notes:            form.notes.trim() || null,
       usd_purchase_id:  usdPurchaseId,
     }).select().single()
-    if (saleErr) { setDeletingId(null); setFormError('No se pudo registrar la ganancia/pérdida de la venta'); return }
+    if (saleErr) { console.error('[stock_sales] insert error:', saleErr.message); setDeletingId(null); setFormError('No se pudo registrar la ganancia/pérdida de la venta'); return }
     if (saleRow) setSales(prev => [saleRow as StockSale, ...prev])
 
     if (isFullSale) {
@@ -805,9 +806,10 @@ export default function StockPositionManager({
     fetchQuotes(positions.map(p => p.ticker))
 
     // Registro histórico de la compra — para el timeline de "Movimientos"
-    const { data: purchaseRow } = await supabase.from('stock_purchases')
+    const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
       .insert({ user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate })
       .select().single()
+    if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
     if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
 
     setSaving(false)
