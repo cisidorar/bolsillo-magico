@@ -10,14 +10,15 @@ import StockSalesHistory from '@/components/StockSalesHistory'
 export const dynamic = 'force-dynamic'
 
 export interface StockPosition {
-  id:            string
-  ticker:        string
-  shares:        number
-  avg_cost_usd:  number
-  notes:         string | null
-  wallet_funded: boolean   // true = comprada con la billetera USD (descuenta del saldo); false = legacy
-  created_at:    string
-  updated_at:    string
+  id:              string
+  ticker:          string
+  shares:          number
+  avg_cost_usd:    number
+  notes:           string | null
+  wallet_funded:   boolean   // marcador: wallet_cost_usd > 0
+  wallet_cost_usd: number    // porción del costo que salió de la billetera USD (descuenta del saldo)
+  created_at:      string
+  updated_at:      string
 }
 
 export interface StockSale {
@@ -128,8 +129,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   // billetera — las legacy (compradas antes de usarla) no descuentan del saldo
   const walletUsdBase = (usdPurchases ?? []).reduce((s, r) => s + Number(r.usd_amount), 0)
   const investedUsd   = (stocks ?? [])
-    .filter(p => p.wallet_funded === true)
-    .reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
+    .reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
 
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0

@@ -29,6 +29,30 @@ export default function StockSalesHistory({ initialSales }: Props) {
   const wins          = sales.filter(s => Number(s.realized_pnl_usd) >= 0).length
   const losses        = sales.filter(s => Number(s.realized_pnl_usd) < 0).length
 
+  // ── Desglose por año: responde "¿cómo me fue ESTE año?" cuando el
+  // historial acumula varios (el hero solo muestra el total histórico) ──────
+  const byYear = (() => {
+    const map = new Map<string, { pnl: number; cost: number; n: number }>()
+    for (const s of sales) {
+      const y = s.sale_date.slice(0, 4)
+      const e = map.get(y) ?? { pnl: 0, cost: 0, n: 0 }
+      e.pnl += Number(s.realized_pnl_usd); e.cost += Number(s.cost_basis_usd); e.n++
+      map.set(y, e)
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  })()
+
+  // ── Desglose por ticker: con cuáles has ganado y perdido más ──────────────
+  const byTicker = (() => {
+    const map = new Map<string, { pnl: number; n: number }>()
+    for (const s of sales) {
+      const e = map.get(s.ticker) ?? { pnl: 0, n: 0 }
+      e.pnl += Number(s.realized_pnl_usd); e.n++
+      map.set(s.ticker, e)
+    }
+    return [...map.entries()].sort((a, b) => Math.abs(b[1].pnl) - Math.abs(a[1].pnl)).slice(0, 5)
+  })()
+
   return (
     <div>
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
@@ -79,6 +103,43 @@ export default function StockSalesHistory({ initialSales }: Props) {
               <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Ventas perdedoras</p>
                 <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: '#FF6F61' }}>{losses}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Por año + por ticker: la mirada de largo plazo ───────────── */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
+            <div className="card p-4 lg:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: 'var(--ink-3)' }}>Por año</p>
+              <div className="space-y-2">
+                {byYear.map(([year, e]) => {
+                  const pct = e.cost > 0 ? (e.pnl / e.cost) * 100 : 0
+                  return (
+                    <div key={year} className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {year} <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>· {e.n} venta{e.n !== 1 ? 's' : ''}</span>
+                      </p>
+                      <p className="text-sm font-bold tabular-nums" style={{ color: e.pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {fmtUSDSigned(e.pnl)} <span className="text-[10px] font-semibold">({fmtPct(pct)})</span>
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="card p-4 lg:p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: 'var(--ink-3)' }}>Por acción (top 5)</p>
+              <div className="space-y-2">
+                {byTicker.map(([ticker, e]) => (
+                  <div key={ticker} className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                      {ticker} <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)', fontFamily: 'inherit' }}>· {e.n} venta{e.n !== 1 ? 's' : ''}</span>
+                    </p>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: e.pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {fmtUSDSigned(e.pnl)}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

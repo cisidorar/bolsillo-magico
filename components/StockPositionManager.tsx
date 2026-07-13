@@ -473,9 +473,9 @@ export default function StockPositionManager({
   // Billetera: disponible = movimientos (aportes+ventas) − costo de posiciones
   // FINANCIADAS por la billetera. Las legacy (compradas antes de usarla) no
   // descuentan: no salieron de estos aportes.
-  const fundedCostUsd = positions
-    .filter(p => p.wallet_funded)
-    .reduce((s, p) => s + p.shares * p.avg_cost_usd, 0)
+  // wallet_cost_usd por posición: soporta mezcla legacy + compras nuevas con
+  // billetera en el mismo ticker (el booleano todo-o-nada inflaba el saldo)
+  const fundedCostUsd = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
   const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
 
   // posUp/posDown basados en retorno TOTAL (precio actual vs costo), no en cambio del día
@@ -603,7 +603,8 @@ export default function StockPositionManager({
         .upsert({
           user_id: userId, ticker, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null,
           // Con billetera activa, la compra nueva sale de ella y descuenta del saldo
-          wallet_funded: walletUsdBase > 0,
+          wallet_funded:   walletUsdBase > 0,
+          wallet_cost_usd: walletUsdBase > 0 ? Math.round(totalPaid * 100) / 100 : 0,
         }, { onConflict: 'user_id,ticker' })
         .select().single()
       setSaving(false)
@@ -691,10 +692,18 @@ export default function StockPositionManager({
       setPositions(prev => prev.filter(p => p.id !== id))
     } else {
       const remainingShares = Math.round((pos.shares - sharesSold) * 10000) / 10000
+      // El costo financiado por billetera se reduce en proporción a lo vendido
+      const newWalletCost = Math.round(Number(pos.wallet_cost_usd ?? 0) * (remainingShares / pos.shares) * 100) / 100
       await supabase.from('stock_positions')
-        .update({ shares: remainingShares, updated_at: new Date().toISOString() })
+        .update({
+          shares: remainingShares,
+          wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id).eq('user_id', userId)
-      setPositions(prev => prev.map(p => p.id === id ? { ...p, shares: remainingShares } : p))
+      setPositions(prev => prev.map(p => p.id === id
+        ? { ...p, shares: remainingShares, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0 }
+        : p))
     }
 
     setDeletingId(null)
@@ -724,11 +733,21 @@ export default function StockPositionManager({
     setSaving(true); setFormError('')
     const newShares  = pos.shares + addShares
     const newAvgCost = (pos.shares * pos.avg_cost_usd + addTotal) / newShares
+    // Fix contable: comprar más con billetera activa SUMA al costo financiado
+    // aunque la posición original sea legacy — antes esa plata salía de la
+    // billetera sin descontar nunca (saldo inflado)
+    const newWalletCost = Math.round((Number(pos.wallet_cost_usd ?? 0) + (walletUsdBase > 0 ? addTotal : 0)) * 100) / 100
     const { error } = await supabase.from('stock_positions')
-      .update({ shares: newShares, avg_cost_usd: newAvgCost, updated_at: new Date().toISOString() })
+      .update({
+        shares: newShares, avg_cost_usd: newAvgCost,
+        wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id).eq('user_id', userId)
     if (error) { setSaving(false); setFormError('Error al guardar'); return }
-    setPositions(prev => prev.map(p => p.id === id ? { ...p, shares: newShares, avg_cost_usd: newAvgCost } : p))
+    setPositions(prev => prev.map(p => p.id === id
+      ? { ...p, shares: newShares, avg_cost_usd: newAvgCost, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0 }
+      : p))
     fetchQuotes(positions.map(p => p.ticker))
 
     // Registro histórico de la compra — para el timeline de "Movimientos"

@@ -131,7 +131,8 @@ Tables in Supabase (all with RLS, all scoped to `user_id`):
 | `budgets` | Monthly total budget; unique per `(user_id, month, year)` |
 | `category_budgets` | Per-category budget limits; unique per `(user_id, category_id)` |
 | `profiles` | `display_name`, `avatar_url` (Supabase Storage bucket `avatars`) |
-| `usd_purchases` | Billetera USD: `kind` (deposit/sell), `usd_amount` (numeric USD), `total_paid_clp` (CLP con comisión; null en sells), `purchase_date`. Saldo = Σ movimientos − costo de posiciones abiertas con `stock_positions.wallet_funded=true` (las legacy, registradas antes de la billetera, no descuentan); comprar acciones con billetera activa valida contra ese saldo e inserta `wallet_funded=true`, vender devuelve una fila sell |
+| `usd_purchases` | Billetera USD: `kind` (deposit/sell), `usd_amount` (numeric USD), `total_paid_clp` (CLP con comisión; null en sells), `purchase_date`. Saldo = Σ movimientos − Σ `stock_positions.wallet_cost_usd` (porción del costo de cada posición financiada por la billetera; lo legacy no descuenta). Comprar/comprar-más con billetera activa valida contra el saldo y suma a `wallet_cost_usd`; venta parcial lo reduce proporcional; vender devuelve una fila sell |
+| `stock_sales` / `stock_purchases` | Historial de operaciones: cada venta guarda `cost_basis_usd`, `proceeds_usd`, `realized_pnl_usd`, `sale_date` y enlaza a la fila sell de la billetera; cada compra queda en `stock_purchases`. Vista Ventas: acumulado + desglose por año y por ticker |
 
 All `amount` values are **integers in Chilean Pesos (CLP)** — no decimals ever. Format with `formatCLP()` from `lib/utils.ts`.
 

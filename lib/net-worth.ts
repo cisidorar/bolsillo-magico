@@ -43,7 +43,7 @@ export async function computeAndSnapshotNetWorth(
   now: Date,
 ): Promise<NetWorthResult> {
   const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: history }] = await Promise.all([
-    supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_funded').eq('user_id', userId),
+    supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
     supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
     supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
@@ -65,12 +65,10 @@ export async function computeAndSnapshotNetWorth(
   let stocksPriced = true
   const positions = stocks ?? []
   const usdPurchases = usdRows ?? []
-  // Saldo de billetera = aportes + ventas − costo de posiciones FINANCIADAS
-  // por la billetera (wallet_funded); las legacy no salieron de estos aportes
+  // Saldo de billetera = aportes + ventas − Σ wallet_cost_usd (la porción del
+  // costo de cada posición que salió de la billetera; lo legacy no descuenta)
   const movementsUsd = usdPurchases.reduce((s, r) => s + Number(r.usd_amount), 0)
-  const openCostUsd  = positions
-    .filter(p => p.wallet_funded === true)
-    .reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
+  const openCostUsd  = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
   const totalUsdCash = usdPurchases.length > 0 ? Math.max(0, movementsUsd - openCostUsd) : 0
   if (positions.length > 0 || totalUsdCash > 0) {
     const tickers = positions.map(p => p.ticker)
