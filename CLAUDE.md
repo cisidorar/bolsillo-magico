@@ -13,7 +13,7 @@ npm run lint      # ESLint
 npx tsc --noEmit  # type-check without building
 ```
 
-No test suite exists. Validate changes with `npx tsc --noEmit` before committing.
+Test suite: `npm test` (vitest) — covers `lib/utils` (billing/dates), `lib/expense-icons` and `lib/technical.ts` (decision-rule scenarios: uptrend/euforia/bajista/data-jump). Validate changes with `npx tsc --noEmit` AND `npm test` before committing. Any change to `lib/technical.ts` rules must keep or consciously update `lib/technical.test.ts`.
 
 Environment: copy `.env.local.example` → `.env.local` and fill `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
@@ -138,7 +138,7 @@ All `amount` values are **integers in Chilean Pesos (CLP)** — no decimals ever
 
 **Currency convention (jul 2026):** todo el flujo de la app es CLP, excepto el mundo inversión en USD (acciones y billetera USD). La entrada a ese mundo se registra en CLP ("pagué X CLP por N USD" — la comisión queda absorbida en la tasa implícita, sin campo aparte); desde ahí saldo y rendimiento se muestran en USD, porque es raro que ese dinero vuelva a Chile. La conversión a CLP aparece solo como dato secundario y en el patrimonio global (`usd_clp` en `net_worth_snapshots`).
 
-Schema changes go in `supabase/schema.sql` (full) or in a new migration file under `supabase/`.
+Schema changes go in a new migration file under `supabase/migrations/` (chronological order is the source of truth). `supabase/schema.sql` is FROZEN at jun 2026 (8 base tables) — do not rely on it for a full setup. To check which migrations a database is missing, run `supabase/verify_setup.sql` in the SQL Editor.
 
 ---
 

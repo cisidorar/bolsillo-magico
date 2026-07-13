@@ -94,8 +94,12 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
       })
 
     if (toInsert.length > 0) {
-      await supabase.from('expenses').insert(toInsert)
-      insertedNames.push(...toInsert.map(e => e.description))
+      // upsert ignoreDuplicates: si otra pestaña ganó la carrera, no aborta el
+      // lote completo ni duplica (índice único user+recurring+date en BD)
+      const { error } = await supabase
+        .from('expenses')
+        .upsert(toInsert, { onConflict: 'user_id,recurring_expense_id,date', ignoreDuplicates: true })
+      if (!error) insertedNames.push(...toInsert.map(e => e.description))
     }
   }
 

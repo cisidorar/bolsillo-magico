@@ -7,6 +7,7 @@ import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import type { NewsResponse } from '@/app/api/stock-news/route'
+import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -629,24 +630,18 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
     }
   }, [])
 
-  // ── Análisis técnico ──────────────────────────────────────────────────────
+  // ── Análisis técnico — vía cache compartida (lib/analysis-cache): si el
+  // ticker también es una posición, se reutiliza el fetch en vez de duplicarlo
   const fetchAnalysis = useCallback(async (ticker: string, force = false) => {
     setAnalyses(prev => ({ ...prev, [ticker]: prev[ticker] && prev[ticker] !== 'error' ? prev[ticker] : 'loading' }))
     try {
-      // no-store: la ruta ya tiene su propio criterio de frescura (price_history +
-      // STALE_D); el Cache-Control HTTP es para el navegador, no para el cliente —
-      // si confiamos en él acá, un cambio de forma del JSON (como este) puede
-      // quedar pegado en cache hasta que expire, sin forma de refrescar desde la UI.
-      const r = await fetch(`/api/technical?symbol=${ticker}${force ? '&force=1' : ''}`, { cache: 'no-store' })
-      if (!r.ok) {
-        const body = await r.json().catch(() => null) as { detail?: string } | null
-        if (body?.detail) setErrDetails(prev => ({ ...prev, [ticker]: body.detail! }))
-        throw new Error()
-      }
-      const data = await r.json() as { analysis: TechnicalAnalysis }
-      setAnalyses(prev => ({ ...prev, [ticker]: data.analysis }))
+      const analysis = await getAnalysis(ticker, force)
+      setAnalyses(prev => ({ ...prev, [ticker]: analysis }))
       setErrDetails(prev => { const { [ticker]: _omit, ...rest } = prev; return rest })
-    } catch {
+    } catch (err) {
+      if (err instanceof AnalysisError && err.detail) {
+        setErrDetails(prev => ({ ...prev, [ticker]: err.detail! }))
+      }
       setAnalyses(prev => ({ ...prev, [ticker]: 'error' }))
     }
   }, [])

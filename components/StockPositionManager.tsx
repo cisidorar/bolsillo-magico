@@ -13,6 +13,7 @@ import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { TickerHistory } from '@/app/api/stock-history/route'
 import type { TechnicalAnalysis } from '@/lib/technical'
+import { getAnalysis } from '@/lib/analysis-cache'
 
 /** Salida accionable HOY según el plan: coral si la tendencia se dio vuelta
  *  (vender), gold si es zona caliente (asegurar una parte). null = nada hoy. */
@@ -404,15 +405,15 @@ export default function StockPositionManager({
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  // Análisis técnico por ticker para el plan de salida del popup (cache local)
+  // Análisis técnico por ticker para el plan de salida del popup.
+  // Vía cache compartida (lib/analysis-cache): si el ticker también está en
+  // favoritos, se reutiliza el mismo fetch en vez de duplicarlo.
   const [posAnalyses, setPosAnalyses] = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const fetchPosAnalysis = useCallback(async (ticker: string) => {
     setPosAnalyses(prev => ({ ...prev, [ticker]: 'loading' }))
     try {
-      const r = await fetch(`/api/technical?symbol=${ticker}`, { cache: 'no-store' })
-      if (!r.ok) throw new Error()
-      const d = await r.json() as { analysis: TechnicalAnalysis }
-      setPosAnalyses(prev => ({ ...prev, [ticker]: d.analysis }))
+      const analysis = await getAnalysis(ticker)
+      setPosAnalyses(prev => ({ ...prev, [ticker]: analysis }))
     } catch {
       setPosAnalyses(prev => ({ ...prev, [ticker]: 'error' }))
     }
