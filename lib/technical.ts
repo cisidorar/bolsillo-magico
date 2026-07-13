@@ -926,11 +926,14 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   } else if (hotZone) {
     sell = pullbackRef !== null
       ? [
-          str(40, `ahora (${fmtLevel(price)}) — asegura ganancia en zona caliente`, true),
+          str(40, `ahora (${fmtLevel(price)}) — reduce riesgo en zona caliente`, true),
           str(60, `si pierde ${fmtLevel(pullbackRef)} en 2 cierres`),
         ]
-      : [str(40, `ahora (${fmtLevel(price)}) — asegura ganancia en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
-    sellPlan = 'Zona caliente: vender una parte aquí asegura ganancia real y el resto sigue corriendo con alarma. Vender todo arriba resulta perfecto una vez; escalonar gana más veces.'
+      : [str(40, `ahora (${fmtLevel(price)}) — reduce riesgo en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
+    // Neutral respecto de TU costo: el análisis no lo conoce. Vender una parte
+    // en zona caliente es gestión de riesgo hacia adelante — asegura ganancia
+    // si vas arriba, achica el golpe si vas abajo.
+    sellPlan = 'Zona caliente: el precio está sobre-extendido y las caídas violentas son típicas aquí. Vender una parte reduce el riesgo — si vas ganando, asegura ganancia real; si vas perdiendo, achica la posición antes de que el golpe crezca. El resto sigue corriendo con alarma.'
     alarm = pullbackRef
   } else if (inSqueeze && supRef) {
     sell = [str(100, `solo si rompe ${fmtLevel(supRef.price)} hacia abajo con claridad`)]

@@ -1097,6 +1097,18 @@ export default function StockPositionManager({
                             ))}
                           </div>
                           <p className="text-[11px] leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{pa.sellPlan}</p>
+                          {/* Guard intradía: los precios del plan son del cierre anterior */}
+                          {(() => {
+                            const live = quotes[pos.ticker]?.price
+                            if (!live) return null
+                            const dev = ((live - pa.price) / pa.price) * 100
+                            if (Math.abs(dev) < 3) return null
+                            return (
+                              <p className="text-[10px] font-bold mt-1.5" style={{ color: 'var(--coral)' }}>
+                                Ojo: hoy se mueve fuerte ({dev > 0 ? '+' : ''}{dev.toFixed(1)}% vs el cierre analizado) — los precios del plan pueden estar viejos; se recalcula al próximo cierre.
+                              </p>
+                            )
+                          })()}
                         </div>
                       )
                     })()}
