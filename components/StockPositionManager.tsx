@@ -12,6 +12,7 @@ import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { TickerHistory } from '@/app/api/stock-history/route'
+import type { TechnicalAnalysis } from '@/lib/technical'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Quote {
@@ -394,6 +395,20 @@ export default function StockPositionManager({
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  // Análisis técnico por ticker para el plan de salida del popup (cache local)
+  const [posAnalyses, setPosAnalyses] = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
+  const fetchPosAnalysis = useCallback(async (ticker: string) => {
+    setPosAnalyses(prev => ({ ...prev, [ticker]: 'loading' }))
+    try {
+      const r = await fetch(`/api/technical?symbol=${ticker}`, { cache: 'no-store' })
+      if (!r.ok) throw new Error()
+      const d = await r.json() as { analysis: TechnicalAnalysis }
+      setPosAnalyses(prev => ({ ...prev, [ticker]: d.analysis }))
+    } catch {
+      setPosAnalyses(prev => ({ ...prev, [ticker]: 'error' }))
+    }
+  }, [])
+
   const [sellMode,      setSellMode]      = useState(false)   // panel de venta
   const [buyMode,       setBuyMode]       = useState(false)   // panel de comprar más de una posición existente
   const [editMode,      setEditMode]      = useState(false)   // panel de editar campos crudos (corregir un error)
@@ -531,6 +546,9 @@ export default function StockPositionManager({
     setEditingId(pos.id); setFormError('')
     setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
     setShowForm(true)
+    // Plan de salida en el popup: cargar el análisis técnico del ticker
+    // (antes solo existía si además lo seguías en favoritos)
+    if (typeof posAnalyses[pos.ticker] !== 'object') fetchPosAnalysis(pos.ticker)
   }
   function cancelForm() {
     setShowForm(false); setEditingId(null); setForm(emptyForm)
@@ -1012,6 +1030,40 @@ export default function StockPositionManager({
                         </div>
                       </div>
                     )}
+
+                    {/* Plan de salida — mismo cálculo que el detalle de favoritos */}
+                    {(() => {
+                      const pa = posAnalyses[pos.ticker]
+                      if (!pa || pa === 'error') return null
+                      if (pa === 'loading') return (
+                        <p className="text-[11px] font-semibold animate-pulse" style={{ color: 'var(--ink-3)' }}>
+                          Calculando plan de salida…
+                        </p>
+                      )
+                      const l = pa.rating.label
+                      const chipColor = l === 'compra' || l === 'compra_fuerte' ? 'var(--mint)'
+                        : l === 'venta' || l === 'venta_fuerte' ? 'var(--coral)'
+                        : pa.rating.caution ? 'var(--gold)' : 'var(--ink-3)'
+                      return (
+                        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)', borderLeft: '3px solid var(--gold)' }}>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Plan de salida</p>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--surface)', color: chipColor }}>
+                              {pa.rating.caution && (l !== 'venta' && l !== 'venta_fuerte') ? 'Toma de ganancias' : pa.rating.action}
+                            </span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {pa.sell.map((t, i) => (
+                              <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                                <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>{t.pct}%</span>
+                                {' '}{t.cond}
+                              </p>
+                            ))}
+                          </div>
+                          <p className="text-[11px] leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{pa.sellPlan}</p>
+                        </div>
+                      )
+                    })()}
 
                     {/* Comprar / Vender */}
                     <div className="grid grid-cols-2 gap-3">
