@@ -346,6 +346,12 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   {avgRate !== null ? formatCLP(Math.round(avgRate)) : '—'}
                 </p>
                 <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>prom. por USD · comisión incl.</p>
+                {/* Comparación con el dólar de hoy: ¿compraste caro o barato? */}
+                {avgRate !== null && fx !== null && (
+                  <p className="text-[10px] font-bold mt-1 tabular-nums" style={{ color: fx >= avgRate ? 'var(--mint)' : 'var(--coral)' }}>
+                    hoy {formatCLP(Math.round(fx))} · {fx >= avgRate ? '+' : ''}{(((fx - avgRate) / avgRate) * 100).toFixed(1)}% vs tu compra
+                  </p>
+                )}
               </div>
               <div className="card p-4">
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Este mes</p>

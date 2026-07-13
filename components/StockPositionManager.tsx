@@ -541,6 +541,9 @@ export default function StockPositionManager({
   }, null)
   const alarmClose = nearestAlarm !== null && nearestAlarm.distPct <= 3
 
+  // Ganancia realizada acumulada (ventas cerradas) — parte del resultado real
+  const realizedPnlUsd = sales.reduce((s, x) => s + Number(x.realized_pnl_usd), 0)
+
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
     const q    = quotes[p.ticker]
     if (!q) return best
@@ -1655,11 +1658,16 @@ export default function StockPositionManager({
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-              {/* Sin conversión a CLP: este mundo vive en USD (convención jul 2026) */}
+              {/* Total en el broker: posiciones + billetera — el número que decide cuánto espacio de compra queda */}
+              {walletAvailable !== null && walletAvailable > 0 && (
+                <p className="text-[11px] mt-1.5 tabular-nums" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  + {fmtUSD(walletAvailable)} en billetera = {fmtUSD((hasQ ? totalValueUsd : totalCostUsd) + walletAvailable)} total en el broker
+                </p>
+              )}
             </div>
 
-            {/* Divider + 3 sub-KPIs */}
-            <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+            {/* Divider + 4 sub-KPIs: la ganancia realizada (ventas) es parte del resultado real */}
+            <div className="border-t grid grid-cols-4" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               {/* Invertido */}
               <div className="px-4 py-3 lg:px-5 lg:py-4">
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
@@ -1667,11 +1675,18 @@ export default function StockPositionManager({
                   {fmtUSD(totalCostUsd)}
                 </p>
               </div>
-              {/* Ganancia total */}
+              {/* Ganancia abierta (posiciones vivas) */}
               <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Ganancia total</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>G. abierta</p>
                 <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                   {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+                </p>
+              </div>
+              {/* Realizada (ventas cerradas) */}
+              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Realizada</p>
+                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: sales.length > 0 ? (realizedPnlUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {sales.length > 0 ? fmtUSDSigned(realizedPnlUsd) : '—'}
                 </p>
               </div>
               {/* Retorno */}
