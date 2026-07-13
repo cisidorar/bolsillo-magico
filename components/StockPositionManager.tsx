@@ -1658,12 +1658,8 @@ export default function StockPositionManager({
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-              {/* Total en el broker: posiciones + billetera — el número que decide cuánto espacio de compra queda */}
-              {walletAvailable !== null && walletAvailable > 0 && (
-                <p className="text-[11px] mt-1.5 tabular-nums" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                  + {fmtUSD(walletAvailable)} en billetera = {fmtUSD((hasQ ? totalValueUsd : totalCostUsd) + walletAvailable)} total en el broker
-                </p>
-              )}
+              {/* Sin línea de billetera acá: el disponible ya vive en su propia
+                  card KPI al lado — repetirlo era doble información */}
             </div>
 
             {/* Divider + 4 sub-KPIs: la ganancia realizada (ventas) es parte del resultado real */}
@@ -1702,9 +1698,8 @@ export default function StockPositionManager({
           {/* ── 3 KPI cards horizontales ── */}
           <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
-            {/* Billetera disponible — reemplaza "Cambio hoy": para quien compra
-                semanalmente, el dato útil es cuánta plata queda, no el vaivén del día */}
-            <div className="card p-4 lg:p-5">
+            {/* Billetera disponible — card completa clickeable hacia la Billetera */}
+            <a href="/inversiones?view=billetera" className="card p-4 lg:p-5 block transition-colors hover:bg-[var(--surface-2)]">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Billetera</p>
               {walletAvailable !== null ? (
                 <>
@@ -1713,18 +1708,18 @@ export default function StockPositionManager({
                     {fmtUSD(Math.max(0, walletAvailable))}
                   </p>
                   <p className="text-xs font-semibold mt-1.5" style={{ color: walletAvailable >= 0 ? 'var(--ink-3)' : 'var(--coral)' }}>
-                    {walletAvailable >= 0 ? 'disponible para comprar' : 'revisa tus aportes: hay más invertido que aportado'}
+                    {walletAvailable >= 0 ? 'disponible para comprar →' : 'revisa tus aportes: hay más invertido que aportado'}
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
-                  <a href="/inversiones?view=ahorro" className="text-xs font-semibold mt-1.5 inline-block" style={{ color: 'var(--primary)' }}>
+                  <p className="text-xs font-semibold mt-1.5" style={{ color: 'var(--primary)' }}>
                     Registra tus aportes →
-                  </a>
+                  </p>
                 </>
               )}
-            </div>
+            </a>
 
             {/* Posiciones */}
             <div className="card p-4 lg:p-5">
@@ -1741,8 +1736,16 @@ export default function StockPositionManager({
             </div>
 
             {/* Mejor retorno — cede su lugar al riesgo cercano cuando lo hay:
-                "MU a 1.2% de su alarma" decide más que un dato de vanidad */}
-            <div className="card p-4 lg:p-5">
+                "MU a 1.2% de su alarma" decide más que un dato de vanidad.
+                Card clickeable: abre directo el popup de esa posición. */}
+            <button
+              onClick={() => {
+                const t = alarmClose && nearestAlarm ? nearestAlarm.ticker : bestPos?.ticker
+                const pos = t ? positions.find(p => p.ticker === t) : undefined
+                if (pos) openEdit(pos)
+              }}
+              className="card p-4 lg:p-5 text-left transition-colors hover:bg-[var(--surface-2)]"
+            >
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: alarmClose ? 'var(--gold)' : 'var(--ink-3)' }}>
                 {alarmClose ? 'Cerca de alarma' : bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
               </p>
@@ -1772,7 +1775,7 @@ export default function StockPositionManager({
               ) : (
                 <p className="text-2xl lg:text-3xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
               )}
-            </div>
+            </button>
           </div>
         </div>
       )}
@@ -1793,11 +1796,14 @@ export default function StockPositionManager({
               {actionable.map((x, i) => (
                 <span key={x.p.id}>
                   {i > 0 && ' · '}
-                  <span className="font-bold" style={{ color: x.f.color }}>{x.p.ticker}</span>
+                  <button onClick={() => openEdit(x.p)} className="font-bold underline underline-offset-2"
+                    style={{ color: x.f.color }}>
+                    {x.p.ticker}
+                  </button>
                   <span style={{ color: 'var(--ink-3)' }}> ({x.f.text.toLowerCase()})</span>
                 </span>
               ))}
-              {' '}— toca la posición para ver el plan de salida.
+              {' '}— toca el ticker para ver el plan de salida.
             </p>
           </div>
         )
@@ -2052,33 +2058,8 @@ export default function StockPositionManager({
         </div>
       )}
 
-      {/* ── Alertas de precio (teaser) ───────────────────────────────────── */}
-      <div
-        className="card flex items-center gap-4 px-5 py-4"
-        style={{ opacity: 0.75 }}
-      >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'var(--primary-soft)' }}
-        >
-          <Bell className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Alertas de precio</p>
-            <span
-              className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
-              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
-            >
-              Próximamente
-            </span>
-          </div>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            Te avisaremos cuando una acción suba o baje del precio que definas.
-          </p>
-        </div>
-        <p className="text-xs font-semibold shrink-0" style={{ color: 'var(--ink-3)' }}>Configurar →</p>
-      </div>
+      {/* El teaser "Alertas de precio · próximamente" se eliminó: la función ya
+          existe de verdad como precio objetivo en Favoritos (con aviso por correo) */}
 
       </div> {/* end space-y-4 */}
     </div>

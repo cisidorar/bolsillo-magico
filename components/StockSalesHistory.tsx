@@ -107,8 +107,11 @@ export default function StockSalesHistory({ initialSales }: Props) {
             </div>
           </div>
 
-          {/* ── Por año + por ticker: la mirada de largo plazo ───────────── */}
+          {/* ── Por año + por ticker: solo cuando agregan información —
+              con 1 año o 1 ticker repetían exactamente el total del hero ── */}
+          {(byYear.length >= 2 || byTicker.length >= 2) && (
           <div className="lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
+            {byYear.length >= 2 && (
             <div className="card p-4 lg:p-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: 'var(--ink-3)' }}>Por año</p>
               <div className="space-y-2">
@@ -127,6 +130,8 @@ export default function StockSalesHistory({ initialSales }: Props) {
                 })}
               </div>
             </div>
+            )}
+            {byTicker.length >= 2 && (
             <div className="card p-4 lg:p-5">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: 'var(--ink-3)' }}>Por acción (top 5)</p>
               <div className="space-y-2">
@@ -142,7 +147,9 @@ export default function StockSalesHistory({ initialSales }: Props) {
                 ))}
               </div>
             </div>
+            )}
           </div>
+          )}
 
           {/* ── Tabla de ventas ──────────────────────────────────────────── */}
           <div className="card overflow-hidden">
