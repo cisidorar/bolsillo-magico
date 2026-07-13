@@ -9,19 +9,18 @@ export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas' | '
  */
 export default function InversionesToggle({
   active,
-  showVentas = false,   // "Ventas" se oculta hasta que exista al menos una venta registrada
 }: {
   active: InversionesView
+  /** @deprecated la tab Ventas ahora es siempre visible (su empty state explica el flujo) */
   showVentas?: boolean
 }) {
-  const allTabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
+  const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
     { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',  Icon: TrendingUp },
     { view: 'ventas',     href: '/inversiones?view=ventas',      label: 'Ventas',    Icon: Receipt },
     { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera', Icon: Wallet },
     { view: 'depositos',  href: '/inversiones?view=depositos',   label: 'Depósitos', Icon: Timer },
     { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro',    Icon: Landmark },
   ]
-  const tabs = allTabs.filter(t => t.view !== 'ventas' || showVentas || active === 'ventas')
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
       {tabs.map(({ view, href, label, Icon }) => (
