@@ -68,12 +68,23 @@ export interface BuyTranche {
   now:  boolean   // true = ejecutable hoy mismo
 }
 
+/** Tramo del plan de salida — para quien TIENE la posición. La regla que más
+ *  suma a largo plazo: cortar perdedoras rápido, dejar correr ganadoras con
+ *  alarma móvil, y escalonar la toma de ganancias en zonas calientes. */
+export interface SellTranche {
+  pct:  number    // % de la posición
+  cond: string    // condición en cotidiano, con el precio incluido
+  now:  boolean   // true = ejecutable hoy mismo
+}
+
 export interface TechnicalAnalysis {
   price:        number
   asOf:         string
   verdict:      string                 // conclusión en 1-2 frases, generada por código
   entryPlan:    string                 // qué tendría que pasar para entrar con base — directo, sin rodeos
   buy:          BuyTranche[]           // plan de compra por tramos; [] = sin zona de compra hoy
+  sell:         SellTranche[]          // plan de salida por tramos si tienes la posición
+  sellPlan:     string                 // el porqué del plan de salida, en una frase
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -894,6 +905,37 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     buy = pullbackRef !== null ? [tr(100, `si baja a ~${fmtLevel(pullbackRef)}`)] : []
   }
 
+  // ── Plan de salida por tramos (%), para quien TIENE la posición ───────────
+  // Maximizar no es vender arriba una vez: es cortar perdedoras rápido, dejar
+  // correr ganadoras con alarma móvil (max entre piso fuerte y SMA50, con 2
+  // cierres para evitar sustos intradía) y escalonar en zonas calientes.
+  const str = (pct: number, cond: string, now = false): SellTranche => ({ pct, cond, now })
+  const hotZone = caution || (rsi14 !== null && rsi14 >= 70) || (distPct !== null && distPct >= 40) || divergence === 'bearish'
+  let sell: SellTranche[]
+  let sellPlan: string
+  if (aboveSma200 === false) {
+    sell = [str(100, 'en el próximo rebote — no esperes recuperar tu precio de compra', true)]
+    sellPlan = 'La tendencia larga se dio vuelta: técnicamente ya no hay razón para seguir adentro. Mantener una perdedora "hasta quedar a mano" es donde más plata se pierde.'
+  } else if (hotZone) {
+    sell = pullbackRef !== null
+      ? [
+          str(40, `ahora (${fmtLevel(price)}) — asegura ganancia en zona caliente`, true),
+          str(60, `si pierde ${fmtLevel(pullbackRef)} en 2 cierres`),
+        ]
+      : [str(40, `ahora (${fmtLevel(price)}) — asegura ganancia en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
+    sellPlan = 'Zona caliente: vender una parte aquí asegura ganancia real y el resto sigue corriendo con alarma. Vender todo arriba resulta perfecto una vez; escalonar gana más veces.'
+  } else if (inSqueeze && supRef) {
+    sell = [str(100, `solo si rompe ${fmtLevel(supRef.price)} hacia abajo con claridad`)]
+    sellPlan = 'En rango estrecho el propio rango define la salida: mientras el piso aguante, no hay nada que hacer.'
+  } else {
+    sell = pullbackRef !== null
+      ? [str(100, `solo si pierde ${fmtLevel(pullbackRef)} dos cierres seguidos`)]
+      : [str(100, 'define tu alarma: el % que estás dispuesto a devolver')]
+    sellPlan = resRef !== null && resRef.price > price
+      ? `Déjala correr — las ganadoras se venden lo más tarde posible. Si llega a ${fmtLevel(resRef.price)} con el impulso ya caliente, ahí se evalúa asegurar una parte.`
+      : 'Déjala correr — las ganadoras se venden lo más tarde posible; la alarma móvil hace el trabajo de vigilar por ti.'
+  }
+
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
   const chartStart = start252
   const chartLen   = closes.length - chartStart
@@ -907,7 +949,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, entryPlan, buy, rating,
+    price, asOf, verdict, entryPlan, buy, sell, sellPlan, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,

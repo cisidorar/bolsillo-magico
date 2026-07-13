@@ -274,16 +274,16 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         {/* Sin microcopy repetido: el disclaimer vive una sola vez, al pie */}
       </div>
 
-      {/* 0.5 Tu posición — retorno vs costo y referencia de stop (solo en cartera) */}
+      {/* 0.5 Tu posición — retorno vs costo + PLAN DE SALIDA por tramos
+          (simétrico al plan de compra; reemplaza la referencia pasiva de piso) */}
       {position && (() => {
         const px = livePrice ?? a.price
         const retPct = ((px - position.avgCost) / position.avgCost) * 100
         const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
-        const stop = a.supportLevels[0] ?? null
         return (
-          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)', borderLeft: '3px solid var(--gold)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición · plan de salida</p>
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
               <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                 {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · costo prom. {fmtUSD(position.avgCost)}
               </p>
@@ -292,11 +292,15 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
                 {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% vs tu costo
               </span>
             </div>
-            {stop && (
-              <p className="text-[10px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                Piso más cercano: {fmtUSD(stop.price)} ({distNow(stop.price) > 0 ? '+' : ''}{distNow(stop.price)}%). Muchos lo usan de referencia: si el precio lo atraviesa hacia abajo, es señal de alerta para la posición.
-              </p>
-            )}
+            <div className="space-y-0.5">
+              {a.sell.map((t, i) => (
+                <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                  <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>{t.pct}%</span>
+                  {' '}{t.cond}
+                </p>
+              ))}
+            </div>
+            <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.sellPlan}</p>
           </div>
         )
       })()}
