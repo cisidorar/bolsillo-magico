@@ -1820,6 +1820,14 @@ export default function StockPositionManager({
                   key={pos.id}
                   onClick={() => openEdit(pos)}
                   className="w-full text-left group px-4 lg:px-6 py-3 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
+                  style={(() => {
+                    // Fila resaltada cuando el plan de salida pide acción hoy
+                    const f = exitFlagOf(posAnalyses[pos.ticker])
+                    return f ? {
+                      borderLeft: `3px solid ${f.color}`,
+                      background: f.text === 'Vender' ? 'rgba(255,111,97,0.05)' : 'rgba(255,194,60,0.05)',
+                    } : undefined
+                  })()}
                 >
 
                   {/* Desktop row — Empresa | Cant. | Precio hoy | Valor | Invertido | Retorno | chevron */}
