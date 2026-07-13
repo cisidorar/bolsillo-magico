@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
-import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, Info } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
+import type { StockPurchase } from '@/app/(dashboard)/inversiones/page'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
 // Modelo CLP-first en la entrada, USD-first en la vida posterior:
@@ -31,6 +32,7 @@ interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
   investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
+  stockPurchases?:  StockPurchase[]   // compras de acciones — para la cartola unificada
   showVentas?:      boolean
 }
 
@@ -56,7 +58,7 @@ function fmtUSDSigned(n: number): string {
   return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd, showVentas = false }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd, stockPurchases = [], showVentas = false }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -87,12 +89,6 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   const depositUsd  = deposits.reduce((s, p) => s + Number(p.usd_amount), 0)
   const totalClp    = deposits.reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
   const avgRate     = depositUsd > 0 ? totalClp / depositUsd : null   // CLP por USD, comisión incluida
-  const investedPct = depositUsd > 0 ? (investedUsd / depositUsd) * 100 : 0
-  const nowD     = new Date()
-  const monthKey = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}`
-  const monthClp = deposits
-    .filter(p => p.purchase_date.startsWith(monthKey))
-    .reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function openAdd() {
@@ -148,7 +144,39 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
   // Solo aportes acá — el detalle de cada venta (ticker, costo base, ganancia)
   // vive en Inversiones → Ventas, esta lista no lo duplica.
-  const sortedDeposits = [...deposits].sort((a, b) => b.purchase_date.localeCompare(a.purchase_date))
+  // ── Cartola unificada: aportes y ventas ENTRAN, compras de acciones SALEN ──
+  type Move = {
+    key:   string
+    date:  string
+    type:  'aporte' | 'venta' | 'compra'
+    label: string
+    sub:   string | null
+    usd:   number              // con signo
+    row:   UsdPurchase | null  // solo filas de billetera son editables/eliminables
+  }
+  const moves: Move[] = [
+    ...purchases.map<Move>(p => p.kind === 'sell'
+      ? {
+          key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
+          label: p.notes ?? 'Venta de acciones', sub: null,
+          usd: Number(p.usd_amount), row: p,
+        }
+      : {
+          key: `w-${p.id}`, date: p.purchase_date, type: 'aporte',
+          label: 'Aporte a la billetera',
+          sub: [
+            p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
+            p.notes,
+          ].filter(Boolean).join(' · ') || null,
+          usd: Number(p.usd_amount), row: p,
+        }),
+    ...stockPurchases.map<Move>(sp => ({
+      key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
+      label: `Compra ${sp.ticker}`,
+      sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
+      usd: -Number(sp.total_paid_usd), row: null,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date))
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -303,126 +331,82 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       ) : (
         <div className="space-y-4">
 
-          {/* ── Hero azul + stats 2x2 (lado a lado en desktop) ─────────────── */}
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch">
-
-            {/* Hero: disponible en billetera */}
-            <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '55 1 0' }}>
-              <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                  Disponible en billetera
+          {/* ── Hero: SOLO lo que importa — cuánto tienes para gastar hoy ──── */}
+          <div className="card overflow-hidden hero-gradient w-full">
+            <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                Disponible para comprar
+              </p>
+              <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                {fmtUSD(Math.max(0, available))}
+              </p>
+              {available < 0 && (
+                <p className="text-[11px] font-bold mt-2" style={{ color: 'white' }}>
+                  Tienes más invertido en acciones que aportes registrados — te faltan aportes por {fmtUSD(-available)}.
                 </p>
-                <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
-                  {fmtUSD(Math.max(0, available))}
-                </p>
-                {available < 0 && (
-                  <p className="text-[11px] font-bold mt-2" style={{ color: 'white' }}>
-                    Tienes más invertido en acciones que aportes registrados — te faltan aportes por {fmtUSD(-available)}.
-                  </p>
-                )}
-              </div>
-              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <div className="px-4 py-3 lg:px-5 lg:py-4">
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Aportado</p>
-                  <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(depositUsd)}</p>
-                </div>
-                <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>En acciones</p>
-                  <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>{fmtUSD(investedUsd)}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 2x2 stats */}
-            <div className="grid grid-cols-2 gap-3 w-full lg:min-w-0" style={{ flex: '45 1 0' }}>
-              <div className="card p-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Invertido</p>
-                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{Math.round(investedPct)}%</p>
-                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>de lo aportado</p>
-              </div>
-              <div className="card p-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Tipo de cambio</p>
-                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
-                  {avgRate !== null ? formatCLP(Math.round(avgRate)) : '—'}
-                </p>
-                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>prom. por USD · comisión incl.</p>
-                {/* Comparación con el dólar de hoy: ¿compraste caro o barato? */}
-                {avgRate !== null && fx !== null && (
-                  <p className="text-[10px] font-bold mt-1 tabular-nums" style={{ color: fx >= avgRate ? 'var(--mint)' : 'var(--coral)' }}>
-                    hoy {formatCLP(Math.round(fx))} · {fx >= avgRate ? '+' : ''}{(((fx - avgRate) / avgRate) * 100).toFixed(1)}% vs tu compra
-                  </p>
-                )}
-              </div>
-              <div className="card p-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Este mes</p>
-                <p className="text-xl font-extrabold tabular-nums" style={{ color: monthClp > 0 ? 'var(--mint)' : 'var(--ink)' }}>
-                  {monthClp > 0 ? `+${formatCLP(monthClp)}` : '—'}
-                </p>
-                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>aportado en {monthName(nowD.getMonth() + 1)}</p>
-              </div>
-              <div className="card p-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>Aportes</p>
-                <p className="text-xl font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{deposits.length}</p>
-                <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                  operación{deposits.length !== 1 ? 'es' : ''} registrada{deposits.length !== 1 ? 's' : ''}
-                </p>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* ── Lista de aportes ─────────────────────────────────────────────── */}
-          {sortedDeposits.length > 0 && (
+          {/* ── Cartola de movimientos: aportes + compras/ventas de acciones ── */}
+          {moves.length > 0 && (
             <div className="card overflow-hidden">
               <div className="flex items-center justify-between px-4 lg:px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Aportes</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Movimientos</p>
                 <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                  {sortedDeposits.length} operación{sortedDeposits.length !== 1 ? 'es' : ''}
+                  {moves.length} operación{moves.length !== 1 ? 'es' : ''}
                 </p>
               </div>
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                {sortedDeposits.map(p => (
-                  <div key={p.id} className="flex items-center gap-3 px-4 lg:px-5 py-3">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.14)' }}>
-                      <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />
+                {moves.map(m => (
+                  <div key={m.key} className="flex items-center gap-3 px-4 lg:px-5 py-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)' }}>
+                      {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                      {m.type === 'venta'  && <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                      {m.type === 'compra' && <ArrowDown className="w-4 h-4" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Aporte a la billetera</p>
+                      <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{m.label}</p>
                       <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {fmtDate(p.purchase_date)}
-                        {p.total_paid_clp !== null && (
-                          <> · {formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD</>
+                        {fmtDate(m.date)}{m.sub && <> · {m.sub}</>}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold tabular-nums text-right shrink-0"
+                      style={{ color: m.usd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                      {fmtUSDSigned(m.usd)}
+                    </p>
+                    {/* Solo las filas de billetera se editan/eliminan aquí; las compras se gestionan en Acciones */}
+                    {m.row !== null ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        {m.type === 'aporte' && (
+                          <button onClick={() => openEdit(m.row!)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
+                            style={{ color: 'var(--ink-3)' }} aria-label="Editar">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                         )}
-                        {p.notes && <> · {p.notes}</>}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
-                        {fmtUSDSigned(Number(p.usd_amount))}
-                      </p>
-                      {p.total_paid_clp !== null && (
-                        <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(p.total_paid_clp)}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => openEdit(p)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
-                        style={{ color: 'var(--ink-3)' }} aria-label="Editar">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => remove(p)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
-                        style={{ color: 'var(--coral)' }} aria-label="Eliminar">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                        <button onClick={() => remove(m.row!)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
+                          style={{ color: 'var(--coral)' }} aria-label="Eliminar">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-8 shrink-0" />
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Conversión de vuelta: dato chico a propósito — esta plata vive en USD */}
-          {fx !== null && available > 0 && (
+          {/* Contexto chico en una sola línea: tasa promedio, dólar hoy y conversión */}
+          {available > 0 && (avgRate !== null || fx !== null) && (
             <p className="text-[11px] tabular-nums text-center" style={{ color: 'var(--ink-3)' }}>
-              Si lo trajeras hoy ≈ {formatCLP(Math.round(available * fx))} (dólar {formatCLP(Math.round(fx))})
+              {avgRate !== null && <>pagaste {formatCLP(Math.round(avgRate))}/USD prom.</>}
+              {avgRate !== null && fx !== null && (
+                <> · dólar hoy {formatCLP(Math.round(fx))} (<span style={{ color: fx >= avgRate ? 'var(--mint)' : 'var(--coral)' }}>{fx >= avgRate ? '+' : ''}{(((fx - avgRate) / avgRate) * 100).toFixed(1)}%</span>)</>
+              )}
+              {fx !== null && <> · si lo trajeras ≈ {formatCLP(Math.round(available * fx))}</>}
             </p>
           )}
 

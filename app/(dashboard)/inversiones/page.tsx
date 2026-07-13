@@ -173,6 +173,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           userId={user.id}
           initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
           investedUsd={investedUsd}
+          stockPurchases={(purchases ?? []) as StockPurchase[]}
           showVentas={hasSales}
         />
       ) : isDepositos ? (
