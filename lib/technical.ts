@@ -914,8 +914,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   let sell: SellTranche[]
   let sellPlan: string
   if (aboveSma200 === false) {
-    sell = [str(100, 'en el próximo rebote — no esperes recuperar tu precio de compra', true)]
-    sellPlan = 'La tendencia larga se dio vuelta: técnicamente ya no hay razón para seguir adentro. Mantener una perdedora "hasta quedar a mano" es donde más plata se pierde.'
+    // Ojo con la redacción: el análisis no conoce TU costo — puedes ir ganando
+    // aunque la acción esté en tendencia bajista (compraste más abajo). El
+    // texto cubre ambos casos; el % personal se ve al lado en la misma tarjeta.
+    sell = [str(100, 'en el próximo rebote — la tendencia ya no la sostiene', true)]
+    sellPlan = 'La tendencia larga se dio vuelta: técnicamente ya no hay razón para seguir adentro. Si vas ganando, esto protege esa ganancia antes de que se siga achicando; si vas perdiendo, esperar a "quedar a mano" es donde más plata se pierde.'
   } else if (hotZone) {
     sell = pullbackRef !== null
       ? [
