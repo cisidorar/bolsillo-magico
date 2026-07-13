@@ -14,6 +14,15 @@ import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/
 import type { TickerHistory } from '@/app/api/stock-history/route'
 import type { TechnicalAnalysis } from '@/lib/technical'
 
+/** Salida accionable HOY según el plan: coral si la tendencia se dio vuelta
+ *  (vender), gold si es zona caliente (asegurar una parte). null = nada hoy. */
+function exitFlagOf(pa: TechnicalAnalysis | 'loading' | 'error' | undefined): { text: string; color: string; bg: string } | null {
+  if (typeof pa !== 'object') return null
+  if (!pa.sell.some(t => t.now)) return null
+  if (pa.trend.aboveSma200 === false) return { text: 'Vender', color: 'var(--coral)', bg: 'rgba(255,111,97,0.14)' }
+  return { text: 'Asegurar parte', color: 'var(--gold)', bg: 'rgba(255,194,60,0.16)' }
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Quote {
   price:         number
@@ -473,6 +482,20 @@ export default function StockPositionManager({
       fetchQuotes(tickers)
       fetchHistory(tickers)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Preload de análisis de TODAS las posiciones al entrar: los avisos de
+  // salida (chip en fila + banner) no sirven si hay que abrir cada popup para
+  // enterarse. Secuencial y suave; el server tiene su propio throttle diario.
+  useEffect(() => {
+    ;(async () => {
+      for (const p of positions) {
+        if (typeof posAnalyses[p.ticker] === 'object') continue
+        await fetchPosAnalysis(p.ticker)
+        await new Promise(res => setTimeout(res, 350))
+      }
+    })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1702,6 +1725,32 @@ export default function StockPositionManager({
         </div>
       )}
 
+      {/* ── Aviso de salidas accionables: te enteras al ENTRAR, sin abrir popups ── */}
+      {positions.length > 0 && (() => {
+        const actionable = positions
+          .map(p => ({ p, f: exitFlagOf(posAnalyses[p.ticker]) }))
+          .filter((x): x is { p: StockPosition; f: NonNullable<ReturnType<typeof exitFlagOf>> } => x.f !== null)
+        if (actionable.length === 0) return null
+        const anySell = actionable.some(x => x.f.text === 'Vender')
+        return (
+          <div className="card px-4 py-3 lg:px-5 flex items-start gap-2.5"
+            style={{ borderLeft: `3px solid ${anySell ? 'var(--coral)' : 'var(--gold)'}` }}>
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: anySell ? 'var(--coral)' : 'var(--gold)' }} />
+            <p className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--ink)' }}>
+              {actionable.length === 1 ? 'Una posición pide acción hoy: ' : `${actionable.length} posiciones piden acción hoy: `}
+              {actionable.map((x, i) => (
+                <span key={x.p.id}>
+                  {i > 0 && ' · '}
+                  <span className="font-bold" style={{ color: x.f.color }}>{x.p.ticker}</span>
+                  <span style={{ color: 'var(--ink-3)' }}> ({x.f.text.toLowerCase()})</span>
+                </span>
+              ))}
+              {' '}— toca la posición para ver el plan de salida.
+            </p>
+          </div>
+        )
+      })()}
+
       {/* ── Gráfica de evolución mensual ─────────────────────────────────── */}
       {positions.length > 0 && (
         loadingHistory
@@ -1785,9 +1834,20 @@ export default function StockPositionManager({
                         fallbackColor={avatarBg}
                       />
                       <div>
-                        <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
-                          {pos.ticker}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
+                            {pos.ticker}
+                          </p>
+                          {(() => {
+                            const f = exitFlagOf(posAnalyses[pos.ticker])
+                            return f && (
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ background: f.bg, color: f.color }}>
+                                {f.text}
+                              </span>
+                            )
+                          })()}
+                        </div>
                         <p className="text-[11px] truncate max-w-[140px]" style={{ color: 'var(--ink-3)' }}>
                           {q?.name ?? '…'}
                         </p>
@@ -1868,11 +1928,19 @@ export default function StockPositionManager({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>{pos.ticker}</span>
-                        {changePct !== null && (
-                          <span className="text-[10px] font-semibold" style={{ color: todayUp ? 'var(--mint)' : 'var(--coral)' }}>
-                            {fmtPct(changePct)} hoy
-                          </span>
-                        )}
+                        {(() => {
+                          const f = exitFlagOf(posAnalyses[pos.ticker])
+                          return f ? (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                              style={{ background: f.bg, color: f.color }}>
+                              {f.text}
+                            </span>
+                          ) : changePct !== null && (
+                            <span className="text-[10px] font-semibold" style={{ color: todayUp ? 'var(--mint)' : 'var(--coral)' }}>
+                              {fmtPct(changePct)} hoy
+                            </span>
+                          )
+                        })()}
                       </div>
                       <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
                         {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
