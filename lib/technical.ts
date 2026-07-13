@@ -85,6 +85,7 @@ export interface TechnicalAnalysis {
   buy:          BuyTranche[]           // plan de compra por tramos; [] = sin zona de compra hoy
   sell:         SellTranche[]          // plan de salida por tramos si tienes la posición
   sellPlan:     string                 // el porqué del plan de salida, en una frase
+  alarm:        number | null          // precio de alarma de salida (estructurado, para mostrar distancia)
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -913,6 +914,9 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const hotZone = caution || (rsi14 !== null && rsi14 >= 70) || (distPct !== null && distPct >= 40) || divergence === 'bearish'
   let sell: SellTranche[]
   let sellPlan: string
+  // Alarma estructurada (mismo precio que va en el texto de los tramos):
+  // permite mostrar "a X% de la alarma" en tablas sin parsear strings
+  let alarm: number | null = null
   if (aboveSma200 === false) {
     // Ojo con la redacción: el análisis no conoce TU costo — puedes ir ganando
     // aunque la acción esté en tendencia bajista (compraste más abajo). El
@@ -927,9 +931,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
         ]
       : [str(40, `ahora (${fmtLevel(price)}) — asegura ganancia en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
     sellPlan = 'Zona caliente: vender una parte aquí asegura ganancia real y el resto sigue corriendo con alarma. Vender todo arriba resulta perfecto una vez; escalonar gana más veces.'
+    alarm = pullbackRef
   } else if (inSqueeze && supRef) {
     sell = [str(100, `solo si rompe ${fmtLevel(supRef.price)} hacia abajo con claridad`)]
     sellPlan = 'En rango estrecho el propio rango define la salida: mientras el piso aguante, no hay nada que hacer.'
+    alarm = supRef.price
   } else {
     sell = pullbackRef !== null
       ? [str(100, `solo si pierde ${fmtLevel(pullbackRef)} dos cierres seguidos`)]
@@ -937,6 +943,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     sellPlan = resRef !== null && resRef.price > price
       ? `Déjala correr — las ganadoras se venden lo más tarde posible. Si llega a ${fmtLevel(resRef.price)} con el impulso ya caliente, ahí se evalúa asegurar una parte.`
       : 'Déjala correr — las ganadoras se venden lo más tarde posible; la alarma móvil hace el trabajo de vigilar por ti.'
+    alarm = pullbackRef
   }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
@@ -952,7 +959,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, entryPlan, buy, sell, sellPlan, rating,
+    price, asOf, verdict, entryPlan, buy, sell, sellPlan, alarm, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,

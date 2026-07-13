@@ -528,6 +528,19 @@ export default function StockPositionManager({
     return p.shares * q.price < p.shares * p.avg_cost_usd
   }).length
 
+  // Posición más cerca de gatillar su alarma de salida — el dato prospectivo
+  // que importa para decidir: "MU está a 1.2% de su salida" > "mejor retorno"
+  const nearestAlarm = positions.reduce<{ ticker: string; distPct: number; alarm: number } | null>((best, p) => {
+    const pa = posAnalyses[p.ticker]
+    if (typeof pa !== 'object' || pa.alarm === null) return best
+    const px = quotes[p.ticker]?.price ?? pa.price
+    const d = ((px - pa.alarm) / pa.alarm) * 100
+    if (d < 0) return best   // ya la perdió: eso lo grita el chip Vender/fila coral
+    if (!best || d < best.distPct) return { ticker: p.ticker, distPct: d, alarm: pa.alarm }
+    return best
+  }, null)
+  const alarmClose = nearestAlarm !== null && nearestAlarm.distPct <= 3
+
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
     const q    = quotes[p.ticker]
     if (!q) return best
@@ -1698,12 +1711,22 @@ export default function StockPositionManager({
               )}
             </div>
 
-            {/* Mejor retorno */}
+            {/* Mejor retorno — cede su lugar al riesgo cercano cuando lo hay:
+                "MU a 1.2% de su alarma" decide más que un dato de vanidad */}
             <div className="card p-4 lg:p-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
-                {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: alarmClose ? 'var(--gold)' : 'var(--ink-3)' }}>
+                {alarmClose ? 'Cerca de alarma' : bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
               </p>
-              {bestPos ? (
+              {alarmClose && nearestAlarm ? (
+                <>
+                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                    {nearestAlarm.ticker}
+                  </p>
+                  <p className="text-xs font-semibold mt-1.5 tabular-nums" style={{ color: 'var(--gold)' }}>
+                    a {nearestAlarm.distPct.toFixed(1)}% de su salida ({fmtUSD(nearestAlarm.alarm)})
+                  </p>
+                </>
+              ) : bestPos ? (
                 <>
                   <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
@@ -1869,7 +1892,7 @@ export default function StockPositionManager({
                       </p>
                     </div>
 
-                    {/* Precio hoy */}
+                    {/* Precio hoy + distancia a la alarma de salida */}
                     <div className="text-right">
                       <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
                         {currentPrice !== null ? fmtUSD(currentPrice) : (loadingQ ? '…' : '—')}
@@ -1879,6 +1902,21 @@ export default function StockPositionManager({
                           {fmtPct(changePct)}
                         </p>
                       )}
+                      {(() => {
+                        const pa = posAnalyses[pos.ticker]
+                        if (typeof pa !== 'object' || pa.alarm === null || currentPrice === null) return null
+                        const d = ((currentPrice - pa.alarm) / pa.alarm) * 100
+                        if (d < 0) return (
+                          <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
+                            bajo la alarma {fmtUSD(pa.alarm)}
+                          </p>
+                        )
+                        return (
+                          <p className="text-[9px] font-semibold tabular-nums" style={{ color: d <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
+                            alarma {fmtUSD(pa.alarm)}{d <= 3 ? ` · a ${d.toFixed(1)}%` : ''}
+                          </p>
+                        )
+                      })()}
                     </div>
 
                     {/* Valor */}
