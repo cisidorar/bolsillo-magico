@@ -285,7 +285,7 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
             <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · costo prom. {fmtUSD(position.avgCost)}
+                {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · costo prom. {fmtUSD(position.avgCost)}
               </p>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
                 style={{ background: retPct >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: retColor }}>

@@ -397,7 +397,8 @@ export default function StockPositionManager({
   const [sellMode,      setSellMode]      = useState(false)   // panel de venta
   const [buyMode,       setBuyMode]       = useState(false)   // panel de comprar más de una posición existente
   const [editMode,      setEditMode]      = useState(false)   // panel de editar campos crudos (corregir un error)
-  const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender
+  const [sellUsd,       setSellUsd]       = useState('')   // USD recibidos al vender (total)
+  const [sellPrice,     setSellPrice]     = useState('')   // precio de venta por acción — editable, no siempre coincide con la cotización en vivo
   const [sellShares,    setSellShares]    = useState('')   // acciones vendidas (soporta venta parcial)
   const [sellDate,      setSellDate]      = useState('')   // fecha de la venta, editable
   const [buyShares,     setBuyShares]     = useState('')   // acciones a comprar (agregar a la posición)
@@ -534,15 +535,17 @@ export default function StockPositionManager({
   function cancelForm() {
     setShowForm(false); setEditingId(null); setForm(emptyForm)
     setFormError(''); setDeleteConfirm(false); setSellMode(false); setBuyMode(false); setEditMode(false)
-    setSellUsd(''); setSellShares(''); setSellDate('')
+    setSellUsd(''); setSellPrice(''); setSellShares(''); setSellDate('')
     setBuyShares(''); setBuyTotalPaid(''); setBuyDate('')
   }
   function openSellPanel() {
     const pos = positions.find(p => p.id === editingId)
     if (pos) {
       const q = quotes[pos.ticker]
+      const price = q?.price ?? pos.avg_cost_usd
       setSellShares(String(pos.shares))
-      setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+      setSellPrice(price.toFixed(2))
+      setSellUsd((price * pos.shares).toFixed(2))
       setSellDate(new Date().toISOString().slice(0, 10))
     }
     setFormError(''); setSellMode(true)
@@ -943,7 +946,7 @@ export default function StockPositionManager({
                       <div className="p-3 text-center border-r" style={{ borderColor: 'var(--border)' }}>
                         <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Acciones</p>
                         <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                          {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                          {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
                         </p>
                       </div>
                       <div className="p-3 text-center border-r" style={{ borderColor: 'var(--border)' }}>
@@ -976,7 +979,7 @@ export default function StockPositionManager({
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
-                                  {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc.
+                                  {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
                                 </p>
                                 <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
                                   {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}
@@ -1239,7 +1242,7 @@ export default function StockPositionManager({
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Acciones totales</span>
                           <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                            {newShares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                            {newShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -1320,8 +1323,10 @@ export default function StockPositionManager({
                               <button
                                 onClick={() => {
                                   const q = quotes[pos.ticker]
+                                  const p = parseFloat(sellPrice.replace(',', '.'))
+                                  const priceToUse = Number.isFinite(p) && p > 0 ? p : (q?.price ?? pos.avg_cost_usd)
                                   setSellShares(String(pos.shares))
-                                  setSellUsd(((q?.price ?? pos.avg_cost_usd) * pos.shares).toFixed(2))
+                                  setSellUsd((priceToUse * pos.shares).toFixed(2))
                                 }}
                                 className="text-[10px] font-bold"
                                 style={{ color: 'var(--primary)' }}
@@ -1337,9 +1342,9 @@ export default function StockPositionManager({
                               const val = e.target.value
                               setSellShares(val)
                               const n = parseFloat(val)
-                              if (pos && Number.isFinite(n) && n > 0) {
-                                const q = quotes[pos.ticker]
-                                setSellUsd(((q?.price ?? pos.avg_cost_usd) * n).toFixed(2))
+                              const p = parseFloat(sellPrice.replace(',', '.'))
+                              if (Number.isFinite(n) && n > 0 && Number.isFinite(p) && p > 0) {
+                                setSellUsd((p * n).toFixed(2))
                               }
                             }}
                             max={maxShares}
@@ -1364,21 +1369,52 @@ export default function StockPositionManager({
                         </div>
                       </div>
 
-                      <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                          USD recibidos
-                        </label>
-                        <input
-                          type="number"
-                          value={sellUsd}
-                          onChange={e => setSellUsd(e.target.value)}
-                          min="0.01"
-                          step="0.01"
-                          className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
-                          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
-                        />
-                        <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-3)' }}>Vuelven a tu billetera en dólares</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                            Precio de venta (USD/acc.)
+                          </label>
+                          <input
+                            type="number"
+                            value={sellPrice}
+                            onChange={e => {
+                              const val = e.target.value
+                              setSellPrice(val)
+                              const p = parseFloat(val.replace(',', '.'))
+                              if (Number.isFinite(p) && p > 0 && Number.isFinite(sharesNum) && sharesNum > 0) {
+                                setSellUsd((p * sharesNum).toFixed(2))
+                              }
+                            }}
+                            placeholder="Precio al que vendiste"
+                            min="0.01"
+                            step="any"
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                            Total recibido
+                          </label>
+                          <input
+                            type="number"
+                            value={sellUsd}
+                            onChange={e => {
+                              const val = e.target.value
+                              setSellUsd(val)
+                              const u = parseFloat(val.replace(',', '.'))
+                              if (Number.isFinite(u) && u > 0 && Number.isFinite(sharesNum) && sharesNum > 0) {
+                                setSellPrice((u / sharesNum).toFixed(2))
+                              }
+                            }}
+                            min="0.01"
+                            step="0.01"
+                            className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
+                            style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+                          />
+                        </div>
                       </div>
+                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>El total recibido vuelve a tu billetera en dólares</p>
                     </div>
 
                     {pnl !== null && (
@@ -1690,7 +1726,7 @@ export default function StockPositionManager({
                     {/* Cant. */}
                     <div className="text-right">
                       <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
                       </p>
                     </div>
 
@@ -1768,7 +1804,7 @@ export default function StockPositionManager({
                         )}
                       </div>
                       <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
+                        {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
                       </p>
                     </div>
                     <div className="text-right shrink-0 min-w-[72px]">

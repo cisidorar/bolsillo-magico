@@ -116,7 +116,7 @@ export default function StockSalesHistory({ initialSales }: Props) {
                         {relativeDate(sale.sale_date)}
                       </p>
                       <p className="text-right text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 4 })}
+                        {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })}
                       </p>
                       <p className="text-right text-sm font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>
                         {fmtUSD(costB)}
@@ -144,7 +144,7 @@ export default function StockSalesHistory({ initialSales }: Props) {
                           <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>{relativeDate(sale.sale_date)}</span>
                         </div>
                         <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                          {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 4 })} acc. · recibido {fmtUSD(Number(sale.proceeds_usd))}
+                          {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · recibido {fmtUSD(Number(sale.proceeds_usd))}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
