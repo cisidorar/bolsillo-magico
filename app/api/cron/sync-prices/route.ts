@@ -233,13 +233,15 @@ export async function GET(request: Request) {
     ...(pos ?? []).map(r => r.ticker as string),
   ])]
 
-  const results = []
-  for (const t of tickers) {
-    results.push(await syncTicker(supabase, t))
-    // Pausa corta: Tiingo permite 50/hora — con <50 tickers no hay riesgo,
-    // pero seamos amables con los fallbacks
-    await new Promise(res => setTimeout(res, 300))
-  }
+  // Sincronizar TODOS los tickers en paralelo, no uno por uno: en serie, si
+  // varios caen a la cadena de fallbacks (hasta ~7s por proveedor × 4
+  // proveedores), la función entera puede superar el límite de 60s de Vercel
+  // — y como las señales del digest se calculan DESPUÉS de sincronizar todo,
+  // un corte a mitad de camino deja daily_signals vacía esa noche aunque
+  // price_history ya tenga lo que alcanzó a guardar antes del corte. En
+  // paralelo, el tiempo total lo marca el ticker más lento, no la suma de
+  // todos — y Tiingo permite 50 req/hora, muy por encima de este volumen.
+  const results = await Promise.all(tickers.map(t => syncTicker(supabase, t)))
 
   const ok     = results.filter(r => r.source !== null).length
   const failed = results.filter(r => r.source === null)

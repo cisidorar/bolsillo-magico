@@ -15,7 +15,10 @@ export interface OhlcvRow {
   volume: number | null
 }
 
-const TIMEOUT   = 10_000
+// 7s por intento: con hasta 4 proveedores en cascada por ticker (~28s peor
+// caso) y el sync ahora corriendo en paralelo por ticker, deja margen bajo el
+// límite de 60s de la función incluso si varios caen a los fallbacks lentos.
+const TIMEOUT   = 7_000
 const LOOKBACK_D = 430   // ~14 meses → ≥252 hábiles + SMA200
 
 const YF_HEADERS = {
