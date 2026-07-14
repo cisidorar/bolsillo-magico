@@ -117,6 +117,17 @@ export default async function InversionesPage({ searchParams }: Props) {
       .order('purchase_date', { ascending: false }),
   ])
 
+  // Última vez que corrió el análisis técnico automático (cron sync-prices →
+  // daily_signals) — visible en Acciones para poder notar de un vistazo si el
+  // pipeline diario dejó de correr, sin tener que revisar logs de Vercel/Supabase.
+  const { data: lastSignal } = await supabase
+    .from('daily_signals')
+    .select('created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
   // Acciones para el saldo disponible (tope de compra)
   const { data: usdPurchases } = await supabase
@@ -198,6 +209,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           <WatchlistPanel
             userId={user.id}
             initialItems={(watchlist ?? []) as WatchlistItem[]}
+            lastAutoUpdate={lastSignal?.created_at ?? null}
             positions={(() => {
               // Agregado por ticker (puede haber varias filas): acciones totales + costo promedio ponderado
               const map: Record<string, { shares: number; avgCost: number }> = {}

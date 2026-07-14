@@ -48,6 +48,7 @@ interface Props {
   userId:       string
   initialItems: WatchlistItem[]
   positions:    Record<string, OwnedPosition>   // por ticker — condiciona venta/toma de ganancias y da contexto en el detalle
+  lastAutoUpdate?: string | null   // created_at de la última fila en daily_signals — salud del cron diario (sync-prices → digest)
 }
 
 const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
@@ -193,6 +194,22 @@ function fmtDateLabel(dateStr: string): string {
 function fmtAsOfDay(dateStr: string): string {
   const [, m, d] = dateStr.split('-').map(Number)
   return `${d} ${MONTHS_ES[m - 1]}`
+}
+
+/** Última corrida del cron diario (sync-prices → daily_signals), en hora de
+ *  Chile — para notar de un vistazo si el pipeline automático dejó de correr. */
+function fmtLastAutoUpdate(iso: string): { label: string; stale: boolean } {
+  const d  = new Date(iso)
+  const cl = new Date(d.toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  const sameDay = cl.getFullYear() === now.getFullYear() && cl.getMonth() === now.getMonth() && cl.getDate() === now.getDate()
+  const hh = String(cl.getHours()).padStart(2, '0')
+  const mm = String(cl.getMinutes()).padStart(2, '0')
+  const label = sameDay ? `hoy ${hh}:${mm}` : `${cl.getDate()} ${MONTHS_ES[cl.getMonth()]}, ${hh}:${mm}`
+  // "Viejo" si no es de hoy ni de ayer (el corte de las 21h hace que el análisis
+  // de "ayer" siga siendo válido temprano en la mañana antes de que corra hoy).
+  const diffDays = Math.floor((now.getTime() - new Date(cl.getFullYear(), cl.getMonth(), cl.getDate()).getTime()) / 86_400_000)
+  return { label, stale: diffDays > 1 }
 }
 
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
@@ -581,7 +598,7 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function WatchlistPanel({ userId, initialItems, positions }: Props) {
+export default function WatchlistPanel({ userId, initialItems, positions, lastAutoUpdate }: Props) {
   const supabase = createClient()
   const owned = new Set(Object.keys(positions))
 
@@ -745,8 +762,18 @@ export default function WatchlistPanel({ userId, initialItems, positions }: Prop
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const autoUpdate = lastAutoUpdate ? fmtLastAutoUpdate(lastAutoUpdate) : null
+
   return (
     <div className="mt-6">
+      {/* Salud del análisis automático diario — para notar sin ir a los logs si el cron dejó de correr */}
+      {autoUpdate && (
+        <p className="text-[11px] font-medium mb-2 flex items-center gap-1.5"
+          style={{ color: autoUpdate.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
+          <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: autoUpdate.stale ? 'var(--coral)' : 'var(--mint)' }} />
+          Análisis automático: {autoUpdate.label}{autoUpdate.stale ? ' — no corrió desde entonces, revisa el cron' : ''}
+        </p>
+      )}
       {/* Header plegable + acción Seguir */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <button
