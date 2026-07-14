@@ -151,7 +151,7 @@ function LoginForm() {
           <div className="absolute -bottom-16 -right-16 w-64 h-64 rounded-full opacity-10" style={{ background: '#fff' }} />
           <div className="absolute top-1/2 left-1/4 w-40 h-40 rounded-full opacity-5" style={{ background: '#fff' }} />
           <div className="relative w-20 h-20 mb-5">
-            <Image src="/camapana.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
+            <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
           </div>
           <h1 className="text-3xl font-black text-white tracking-tight text-center mb-2">Bolsillo Mágico</h1>
           <p className="text-base text-white/70 font-medium text-center mb-12">Tu dinero bajo control, siempre.</p>
@@ -173,7 +173,7 @@ function LoginForm() {
           {/* Logo — solo mobile */}
           <div className="flex flex-col items-center mb-8 lg:hidden">
             <div className="w-16 h-16 relative mb-3">
-              <Image src="/camapana.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
+              <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight">Bolsillo Mágico</h1>
             <p className="text-sm text-white/60 font-medium mt-1">{mobileSubtitle}</p>

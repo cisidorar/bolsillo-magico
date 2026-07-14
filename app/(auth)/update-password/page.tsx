@@ -48,7 +48,7 @@ export default function UpdatePasswordPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 relative mb-3">
-            <Image src="/camapana.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
+            <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
           </div>
           <h1 className="text-2xl font-black text-white tracking-tight">Bolsillo Mágico</h1>
           <p className="text-sm text-white/60 font-medium mt-1">Nueva contraseña</p>

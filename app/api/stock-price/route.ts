@@ -125,17 +125,21 @@ async function fhProfile(ticker: string, key: string): Promise<{ name: string | 
   return { name, domain }
 }
 
-async function fhCandles(ticker: string, key: string): Promise<number[] | null> {
-  const to   = Math.floor(Date.now() / 1000)
-  const from = to - 20 * 86_400   // 20 días calendario → ~14 días hábiles
-  const d = await fhFetch(
-    `https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${key}`,
-  ) as Record<string, unknown> | null
-  if (!d) { console.warn('[fhCandles] null response for', ticker); return null }
-  if (d.s !== 'ok') { console.warn('[fhCandles] s =', d.s, 'for', ticker); return null }
-  if (!Array.isArray(d.c) || (d.c as number[]).length === 0) { console.warn('[fhCandles] empty closes for', ticker); return null }
-  const closes = (d.c as number[]).filter((v): v is number => typeof v === 'number' && !isNaN(v))
-  return closes.length >= 2 ? closes.slice(-7) : null
+// Finnhub bloqueó /stock/candle (histórico OHLCV) al free tier — la sparkline de
+// 7 días ahora sale de price_history, nuestra propia tabla poblada a diario por
+// /api/cron/sync-prices (Tiingo/AlphaVantage/Yahoo/Stooq), sin depender de Finnhub.
+async function dbHistory7d(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ticker: string,
+): Promise<number[] | null> {
+  const { data, error } = await supabase
+    .from('price_history')
+    .select('close')
+    .eq('ticker', ticker)
+    .order('date', { ascending: false })
+    .limit(7)
+  if (error || !data || data.length < 2) return null
+  return data.map(r => Number(r.close)).reverse()   // oldest → newest
 }
 
 // ── Frankfurter (tipo de cambio, sin API key) ─────────────────────────────────
@@ -312,7 +316,7 @@ export async function GET(request: Request) {
       const [quote, history, profile] = await Promise.all([
         fhQuote(ticker, apiKey),
         fetchHistory
-          ? fhCandles(ticker, apiKey)
+          ? dbHistory7d(supabase, ticker)
           : Promise.resolve(null),
         needsProfile
           ? resolveProfile(ticker, apiKey)
@@ -377,7 +381,7 @@ export async function GET(request: Request) {
         ? (cacheMap[ticker].history7d as number[])
         : null
       if (!cached7d || cached7d.length < 2) {
-        const history = await fhCandles(ticker, apiKey)
+        const history = await dbHistory7d(supabase, ticker)
         if (history && result[ticker]) {
           result[ticker].history7d = history
           supabase.from('price_cache')
