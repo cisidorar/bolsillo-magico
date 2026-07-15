@@ -75,11 +75,13 @@ select cron.schedule(
 
 -- 5. Digest diario de Favoritos (Inversiones → Acciones) — compra/venta/toma de
 --    ganancias/precio objetivo, TODO en un solo correo si hubo algo ese día.
---    Corre bastante después del cron de sync-prices de Vercel (22:30 UTC), que
---    es el que sincroniza precios Y calcula las señales del día (daily_signals)
---    — esta función solo lee esa tabla y arma el correo, no recalcula nada.
---    01:00 UTC = 21:00 CLT en horario normal (UTC-4) / 22:00 CLT en horario de
---    verano chileno (UTC-3, oct-mar) — un cambio de hora bien Chile.
+--    Corre después del cron de sync-prices de Vercel (22:30 UTC), que es el
+--    que sincroniza precios Y calcula las señales del día (daily_signals) —
+--    esta función solo lee esa tabla y arma el correo, no recalcula nada.
+--    23:30 UTC = 19:30 CLT en horario normal (UTC-4). En horario de verano
+--    chileno (UTC-3, oct-mar) esto cae a las 20:30 CLT y además queda pegado
+--    justo a la hora de sync-prices (22:30 UTC = ambas al mismo tiempo) — un
+--    cambio de hora bien Chile, revisar si algún día empieza a llegar vacío.
 --
 --    OJO al pegar esta URL: reemplaza <PROJECT_REF> por tu project ref SIN los
 --    símbolos < > (ej. 'https://nnrmfzpyirsshmmwpogw.supabase.co/...'). Dejar
@@ -87,7 +89,7 @@ select cron.schedule(
 --    con este mismo job y con notify-recurring-due/overdue (jul 2026).
 select cron.schedule(
   'notify-watchlist-digest-daily',
-  '0 1 * * *',   -- 01:00 UTC
+  '30 23 * * *',   -- 23:30 UTC = 19:30 CLT (horario normal)
   $$
   select net.http_post(
     url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-watchlist-digest',
