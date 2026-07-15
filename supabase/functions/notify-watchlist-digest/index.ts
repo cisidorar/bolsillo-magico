@@ -84,6 +84,27 @@ interface TickerInfo {
   domain: string | null
 }
 
+// Si sync-prices corrió más de una vez el mismo día (reintento, prueba manual),
+// puede quedar más de una fila por ticker con distinto kind (ninguna choca en
+// el upsert porque el kind es parte de la clave). Acá nos quedamos con una
+// sola por ticker, priorizando la más accionable.
+const KIND_PRIORITY: Record<Signal['kind'], number> = { target: 0, sell: 1, buy: 2, caution: 3, hold: 4 }
+function dedupeByTicker(signals: Signal[]): Signal[] {
+  const best = new Map<string, Signal>()
+  for (const s of signals) {
+    const cur = best.get(s.ticker)
+    if (!cur || KIND_PRIORITY[s.kind] < KIND_PRIORITY[cur.kind]) best.set(s.ticker, s)
+  }
+  return [...best.values()]
+}
+
+/** Accionable = algo que conviene revisar (comprar, vender, objetivo alcanzado)
+ *  — independiente de si el gatillo es "fuerte" o no. `strong` solo decide si
+ *  la tarjeta lleva la explicación técnica larga o el mensaje corto. */
+function isAction(kind: Signal['kind']): boolean {
+  return kind === 'buy' || kind === 'sell' || kind === 'target'
+}
+
 const KIND_TITLE: Record<Signal['kind'], string> = {
   buy:     'SEÑAL DE COMPRA',
   sell:    'SEÑAL DE VENTA',
@@ -175,6 +196,8 @@ Deno.serve(async (req: Request) => {
     list.push(s)
     byUser.set(s.user_id, list)
   }
+  // Una fila por ticker — si sync-prices corrió dos veces hoy, no duplicar.
+  for (const [uid, list] of byUser) byUser.set(uid, dedupeByTicker(list))
 
   const userIds = [...byUser.keys()]
 
@@ -218,7 +241,7 @@ Deno.serve(async (req: Request) => {
     if (logErr) { skipped++; continue }   // ya se envió hoy
 
     const displayName = profile.display_name ?? 'Usuario'
-    const strongCount = userSignals.filter(s => s.strong).length
+    const actionCount = userSignals.filter(s => isAction(s.kind)).length
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -226,8 +249,8 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
-        subject: strongCount > 0
-          ? `${strongCount} señal${strongCount !== 1 ? 'es' : ''} fuerte${strongCount !== 1 ? 's' : ''} para revisar hoy · Bolsillo Mágico`
+        subject: actionCount > 0
+          ? `${actionCount} señal${actionCount !== 1 ? 'es' : ''} para revisar hoy · Bolsillo Mágico`
           : `Tu análisis técnico de hoy · Bolsillo Mágico`,
         html: digestEmailHtml({
           displayName, signals: userSignals, infoMap,
@@ -265,10 +288,18 @@ function brandWordmark(siteUrl: string) {
 // ── Ícono del ticker: logo real si hay dominio cacheado (vía Clearbit),
 // si no, una insignia con el ticker — mismo patrón que ServiceLogo en la app. ──
 
+// Clearbit devuelve 404 liso y llano si no tiene el logo — en email eso se ve
+// como el ícono roto del navegador (no hay onerror que valga en Gmail/Apple
+// Mail). El favicon de Google casi nunca falla: si no encuentra el real,
+// devuelve un genérico igual, así que nunca queda una imagen rota en el correo.
 function tickerIcon(ticker: string, domain: string | null, size: number): string {
   if (domain) {
-    return `<img src="https://logo.clearbit.com/${domain}?size=${size * 2}" width="${size}" height="${size}" alt="${ticker}"
-      style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;display:block;object-fit:cover;background:#0E2A52">`
+    return `<table cellpadding="0" cellspacing="0" role="presentation" style="width:${size}px;height:${size}px">
+      <tr><td align="center" valign="middle" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;overflow:hidden">
+        <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=128" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.62)}" alt="${ticker}"
+          style="width:${Math.round(size * 0.62)}px;height:${Math.round(size * 0.62)}px;display:block;border-radius:4px">
+      </td></tr>
+    </table>`
   }
   const fontSize = ticker.length > 4 ? 9 : ticker.length > 3 ? 10 : 11
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="width:${size}px;height:${size}px">
@@ -293,8 +324,11 @@ function digestEmailHtml({
   sharesMap:   Map<string, number>
   siteUrl:     string
 }) {
-  const strongRows = signals.filter(s => s.strong)
-  const restRows   = signals.filter(s => !s.strong)
+  // Tarjeta destacada = cualquier compra/venta/objetivo alcanzado, sea o no
+  // "fuerte" — lo que importa acá es que sea accionable, no la intensidad del
+  // gatillo. El resto (mantener/toma de ganancias) va en la lista compacta.
+  const strongRows = signals.filter(s => isAction(s.kind))
+  const restRows   = signals.filter(s => !isAction(s.kind))
 
   const buyCount  = signals.filter(s => s.kind === 'buy').length
   const sellCount = signals.filter(s => s.kind === 'sell').length
@@ -395,7 +429,7 @@ function digestEmailHtml({
         </p>
         <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
           Hola ${displayName} — revisé tus ${signals.length} acción${signals.length !== 1 ? 'es' : ''} al cierre.
-          ${strongRows.length > 0 ? `<strong style="color:#ffffff">${strongRows.length} señal${strongRows.length !== 1 ? 'es' : ''} fuerte${strongRows.length !== 1 ? 's' : ''}</strong> merece${strongRows.length !== 1 ? 'n' : ''} tu atención.` : 'Nada urgente hoy — todo dentro de lo esperado.'}
+          ${strongRows.length > 0 ? `<strong style="color:#ffffff">${strongRows.length} señal${strongRows.length !== 1 ? 'es' : ''}</strong> merece${strongRows.length !== 1 ? 'n' : ''} tu atención.` : 'Nada urgente hoy — todo dentro de lo esperado.'}
         </p>
       </td></tr>
 
@@ -425,7 +459,7 @@ function digestEmailHtml({
         ${strongRows.length > 0 ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td style="padding-bottom:12px">
-            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚡ Señales fuertes</span>
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚡ Para revisar hoy</span>
           </td></tr>
           ${strongCardsHtml}
         </table>` : ''}
