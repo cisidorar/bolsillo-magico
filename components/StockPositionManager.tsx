@@ -399,7 +399,7 @@ export default function StockPositionManager({
     if (pos) {
       const q = quotes[pos.ticker]
       const price = q?.price ?? pos.avg_cost_usd
-      setSellShares(String(pos.shares))
+      setSellShares(String(Number(pos.shares.toFixed(6))))
       setSellPrice(price.toFixed(2))
       setSellUsd((price * pos.shares).toFixed(2))
       setSellDate(new Date().toISOString().slice(0, 10))
@@ -1207,7 +1207,12 @@ export default function StockPositionManager({
                 const pos          = positions.find(p => p.id === editingId)
                 const maxShares    = pos?.shares ?? 0
                 const sharesNum    = parseFloat(sellShares.replace(',', '.'))
-                const validShares  = Number.isFinite(sharesNum) && sharesNum > 0 && sharesNum <= maxShares + 1e-6
+                // Tolerancia más generosa que antes (1e-6 → 1e-4): "Todas" precarga
+                // el valor completo de pos.shares como texto, y un redondeo de ida
+                // y vuelta por el input (o un pos.shares con más decimales de los
+                // que se ven) podía dejar sharesNum una pizca por encima de maxShares
+                // y bloquear el botón sin ningún error visible.
+                const validShares  = Number.isFinite(sharesNum) && sharesNum > 0 && sharesNum <= maxShares + 1e-4
                 const proceedsNum  = parseFloat(sellUsd.replace(',', '.'))
                 const validProceeds= Number.isFinite(proceedsNum) && proceedsNum > 0
                 const costBasis    = pos && validShares ? sharesNum * pos.avg_cost_usd : null
@@ -1248,7 +1253,7 @@ export default function StockPositionManager({
                                   const q = quotes[pos.ticker]
                                   const p = parseFloat(sellPrice.replace(',', '.'))
                                   const priceToUse = Number.isFinite(p) && p > 0 ? p : (q?.price ?? pos.avg_cost_usd)
-                                  setSellShares(String(pos.shares))
+                                  setSellShares(String(Number(pos.shares.toFixed(6))))
                                   setSellUsd((priceToUse * pos.shares).toFixed(2))
                                 }}
                                 className="text-[10px] font-bold"
