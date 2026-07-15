@@ -11,7 +11,6 @@ import { formatCLP, relativeDate } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
-import type { TickerHistory } from '@/app/api/stock-history/route'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import { getAnalysis } from '@/lib/analysis-cache'
 
@@ -34,7 +33,6 @@ interface Quote {
   domain?:       string
 }
 type Quotes   = Record<string, Quote>
-type HistData = Record<string, TickerHistory>
 
 // ── Formatting ────────────────────────────────────────────────────────────────
 function fmtUSD(n: number): string {
@@ -165,188 +163,6 @@ function Sparkline({
   )
 }
 
-// ── Evolution Chart ────────────────────────────────────────────────────────────
-
-const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-
-function parseYM(ym: string): Date {
-  const [y, m] = ym.split('-').map(Number)
-  return new Date(y, m - 1, 1)
-}
-
-function monthLabel(ym: string): string {
-  const [y, m] = ym.split('-').map(Number)
-  return `${MONTH_NAMES[m - 1]} '${String(y).slice(2)}`
-}
-
-function computePortfolioPoints(
-  history:   HistData,
-  positions: StockPosition[],
-): { date: string; value: number }[] {
-  // Reunir todas las fechas disponibles
-  const allDates = new Set<string>()
-  for (const h of Object.values(history)) h.dates.forEach(d => allDates.add(d))
-  const sorted = Array.from(allDates).sort()
-  if (!sorted.length) return []
-
-  return sorted.map(date => {
-    let value = 0
-    for (const pos of positions) {
-      const h = history[pos.ticker]
-      if (h) {
-        // buscar el índice exacto o el último disponible antes de esta fecha
-        let price: number | null = null
-        for (let i = 0; i < h.dates.length; i++) {
-          if (h.dates[i] <= date) price = h.closes[i]
-        }
-        value += pos.shares * (price ?? pos.avg_cost_usd)
-      } else {
-        value += pos.shares * pos.avg_cost_usd
-      }
-    }
-    return { date, value }
-  })
-}
-
-type Range = '3M' | '6M' | '1A'
-
-function EvolutionChart({
-  history,
-  positions,
-}: {
-  history:   HistData
-  positions: StockPosition[]
-}) {
-  const [range, setRange] = useState<Range>('1A')
-
-  const allPoints = computePortfolioPoints(history, positions)
-  if (allPoints.length < 2) return null
-
-  const monthsBack = range === '3M' ? 3 : range === '6M' ? 6 : 12
-  const points     = allPoints.slice(-monthsBack)
-  if (points.length < 2) return null
-
-  // SVG dimensions
-  const W       = 1000
-  const H       = 180
-  const padL    = 4
-  const padR    = 4
-  const padT    = 12
-  const padB    = 28   // espacio para labels eje X
-
-  const values  = points.map(p => p.value)
-  const minV    = Math.min(...values)
-  const maxV    = Math.max(...values)
-  const rangeV  = maxV - minV || 1
-
-  const toX = (i: number) =>
-    padL + (i / (points.length - 1)) * (W - padL - padR)
-  const toY = (v: number) =>
-    padT + (1 - (v - minV) / rangeV) * (H - padT - padB)
-
-  const linePath  = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(p.value).toFixed(1)}`).join(' ')
-  const areaPath  = `${linePath} L${toX(points.length - 1).toFixed(1)},${H - padB} L${toX(0).toFixed(1)},${H - padB} Z`
-
-  const isUp      = points[points.length - 1].value >= points[0].value
-  const lineColor = isUp ? '#1FBE8D' : '#FF6F61'
-  const fillId    = 'evolGrad'
-
-  // Labels eje X: mostrar cada N para no saturar
-  const step      = points.length <= 4 ? 1 : points.length <= 7 ? 1 : Math.ceil(points.length / 6)
-  const labelIdxs = points.reduce<number[]>((acc, _, i) => {
-    if (i === 0 || i === points.length - 1 || i % step === 0) acc.push(i)
-    return acc
-  }, [])
-
-  // Cambio total en el rango
-  const startVal  = points[0].value
-  const endVal    = points[points.length - 1].value
-  const changeUsd = endVal - startVal
-  const changePct = startVal > 0 ? (changeUsd / startVal) * 100 : 0
-
-  return (
-    <div className="card overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
-        <div>
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Evolución del portafolio</p>
-          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            {monthLabel(points[0].date)} → {monthLabel(points[points.length - 1].date)}
-            &nbsp;·&nbsp;
-            <span style={{ color: isUp ? 'var(--mint)' : 'var(--coral)', fontWeight: 600 }}>
-              {changeUsd >= 0 ? '+' : ''}{fmtUSD(changeUsd)} ({fmtPct(changePct)})
-            </span>
-          </p>
-        </div>
-
-        {/* Toggle de rango */}
-        <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'var(--surface-2)' }}>
-          {(['3M','6M','1A'] as Range[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className="px-3 py-1 text-xs font-semibold rounded-lg transition-all"
-              style={{
-                background: range === r ? 'var(--primary)' : 'transparent',
-                color:      range === r ? 'var(--primary-ink)' : 'var(--ink-3)',
-              }}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* SVG chart */}
-      <div className="px-2 pb-3">
-        <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          <defs>
-            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor={lineColor} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={lineColor} stopOpacity={0}    />
-            </linearGradient>
-          </defs>
-
-          {/* Grid lines horizontales (sutiles) */}
-          {[0.25, 0.5, 0.75].map(t => {
-            const y = padT + t * (H - padT - padB)
-            return (
-              <line key={t}
-                x1={padL} y1={y} x2={W - padR} y2={y}
-                stroke="var(--border)" strokeWidth={0.5} strokeDasharray="4 4" />
-            )
-          })}
-
-          {/* Área de relleno */}
-          <path d={areaPath} fill={`url(#${fillId})`} />
-
-          {/* Línea principal */}
-          <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Punto final (highlight) */}
-          <circle
-            cx={toX(points.length - 1)} cy={toY(endVal)} r={4}
-            fill={lineColor} stroke="var(--surface)" strokeWidth={2}
-          />
-
-          {/* Labels eje X */}
-          {labelIdxs.map(i => (
-            <text
-              key={i}
-              x={toX(i)} y={H - 6}
-              textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}
-              fontSize={11}
-              fill="var(--ink-3)"
-              fontFamily="'Plus Jakarta Sans', sans-serif"
-            >
-              {monthLabel(points[i].date)}
-            </text>
-          ))}
-        </svg>
-      </div>
-    </div>
-  )
-}
 
 // ── Input helpers ─────────────────────────────────────────────────────────────
 const inputBase: React.CSSProperties = {
@@ -395,8 +211,6 @@ export default function StockPositionManager({
   const [secsAgo,        setSecsAgo]        = useState(0)
   const [marketOpen,     setMarketOpen]     = useState<boolean | null>(null)
   const [marketLabel,    setMarketLabel]    = useState<string>('')
-  const [monthlyHistory, setMonthlyHistory] = useState<HistData>({})
-  const [loadingHistory, setLoadingHistory] = useState(false)
 
   const [showForm,      setShowForm]      = useState(false)
   const [editingId,     setEditingId]     = useState<string | null>(null)
@@ -462,26 +276,10 @@ export default function StockPositionManager({
     }
   }, [])
 
-  const fetchHistory = useCallback(async (tickers: string[]) => {
-    if (!tickers.length) return
-    setLoadingHistory(true)
-    try {
-      const res = await fetch(`/api/stock-history?symbols=${tickers.join(',')}&months=12`)
-      if (!res.ok) return
-      const data: HistData = await res.json()
-      setMonthlyHistory(data)
-    } catch {
-      // historial opcional — no mostrar error
-    } finally {
-      setLoadingHistory(false)
-    }
-  }, [])
-
   useEffect(() => {
     if (positions.length) {
       const tickers = positions.map(p => p.ticker)
       fetchQuotes(tickers)
-      fetchHistory(tickers)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -1779,49 +1577,6 @@ export default function StockPositionManager({
             </button>
           </div>
         </div>
-      )}
-
-      {/* ── Aviso de salidas accionables: te enteras al ENTRAR, sin abrir popups ── */}
-      {positions.length > 0 && (() => {
-        const actionable = positions
-          .map(p => ({ p, f: exitFlagOf(posAnalyses[p.ticker]) }))
-          .filter((x): x is { p: StockPosition; f: NonNullable<ReturnType<typeof exitFlagOf>> } => x.f !== null)
-        if (actionable.length === 0) return null
-        const anySell = actionable.some(x => x.f.text === 'Vender')
-        return (
-          <div className="card px-4 py-3 lg:px-5 flex items-start gap-2.5"
-            style={{ borderLeft: `3px solid ${anySell ? 'var(--coral)' : 'var(--gold)'}` }}>
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: anySell ? 'var(--coral)' : 'var(--gold)' }} />
-            <p className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--ink)' }}>
-              {actionable.length === 1 ? 'Una posición pide acción hoy: ' : `${actionable.length} posiciones piden acción hoy: `}
-              {actionable.map((x, i) => (
-                <span key={x.p.id}>
-                  {i > 0 && ' · '}
-                  <button onClick={() => openEdit(x.p)} className="font-bold underline underline-offset-2"
-                    style={{ color: x.f.color }}>
-                    {x.p.ticker}
-                  </button>
-                  <span style={{ color: 'var(--ink-3)' }}> ({x.f.text.toLowerCase()})</span>
-                </span>
-              ))}
-              {' '}— toca el ticker para ver el plan de salida.
-            </p>
-          </div>
-        )
-      })()}
-
-      {/* ── Gráfica de evolución mensual ─────────────────────────────────── */}
-      {positions.length > 0 && (
-        loadingHistory
-          ? (
-            <div className="card p-5 flex items-center gap-3" style={{ height: 80 }}>
-              <div className="w-4 h-4 rounded-full animate-pulse" style={{ background: 'var(--primary)' }} />
-              <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Cargando evolución histórica…</p>
-            </div>
-          )
-          : Object.keys(monthlyHistory).length > 0
-            ? <EvolutionChart history={monthlyHistory} positions={positions} />
-            : null
       )}
 
       {/* ── Mis posiciones table ─────────────────────────────────────────── */}
