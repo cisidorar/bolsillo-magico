@@ -328,7 +328,6 @@ function digestEmailHtml({
   // "fuerte" — lo que importa acá es que sea accionable, no la intensidad del
   // gatillo. El resto (mantener/toma de ganancias) va en la lista compacta.
   const strongRows = signals.filter(s => isAction(s.kind))
-  const restRows   = signals.filter(s => !isAction(s.kind))
 
   const buyCount  = signals.filter(s => s.kind === 'buy').length
   const sellCount = signals.filter(s => s.kind === 'sell').length
@@ -373,30 +372,6 @@ function digestEmailHtml({
       </td></tr>`
   }).join('')
 
-  const restRowsHtml = restRows.map(s => {
-    const info   = infoMap.get(s.ticker) ?? { name: null, domain: null }
-    const chgColor = s.change_pct >= 0 ? '#1FBE8D' : '#FF6F61'
-    const statusLabel = s.kind === 'buy' ? 'Comprar' : s.kind === 'sell' ? 'Vender' : s.kind === 'caution' ? 'Débil' : 'Mantener'
-    return `
-      <tr><td style="padding:12px 0;border-bottom:1px solid #EEF2F8">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="width:40px;vertical-align:middle">${tickerIcon(s.ticker, info.domain, 40)}</td>
-            <td style="padding-left:12px;vertical-align:middle">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">
-                ${s.ticker}${s.watch ? ' <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:#FFF1DE;color:#D98A1F;font-size:10px;font-weight:800;vertical-align:middle">Vigilar</span>' : ''}
-              </p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0">${statusLabel} · ${s.message}</p>
-            </td>
-            <td style="text-align:right;vertical-align:middle;white-space:nowrap">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtUSD(s.price)}</p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:${chgColor}">${fmtPct(s.change_pct)}</p>
-            </td>
-          </tr>
-        </table>
-      </td></tr>`
-  }).join('')
-
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -414,20 +389,15 @@ function digestEmailHtml({
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
       <!-- ENCABEZADO -->
-      <tr><td style="background:#2B7CF6;padding:32px 32px 28px">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-          <tr>
-            <td style="vertical-align:middle">${brandWordmark(siteUrl)}</td>
-            <td style="text-align:right;vertical-align:middle">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">CIERRE WALL ST.</p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#ffffff">${closeLabelET()}</p>
-            </td>
-          </tr>
-        </table>
-        <p style="margin:24px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
+      <tr><td style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
+        <div>${brandWordmark(siteUrl)}</div>
+        <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">
+          CIERRE WALL ST. · ${closeLabelET()}
+        </p>
+        <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px;text-align:left">
           Tu análisis técnico de hoy
         </p>
-        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
+        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6;text-align:left">
           Hola ${displayName} — revisé tus ${signals.length} acción${signals.length !== 1 ? 'es' : ''} al cierre.
           ${strongRows.length > 0 ? `<strong style="color:#ffffff">${strongRows.length} señal${strongRows.length !== 1 ? 'es' : ''}</strong> merece${strongRows.length !== 1 ? 'n' : ''} tu atención.` : 'Nada urgente hoy — todo dentro de lo esperado.'}
         </p>
@@ -462,14 +432,6 @@ function digestEmailHtml({
             <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚡ Para revisar hoy</span>
           </td></tr>
           ${strongCardsHtml}
-        </table>` : ''}
-
-        ${restRows.length > 0 ? `
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:${strongRows.length > 0 ? 8 : 20}px">
-          <tr><td style="padding-bottom:6px">
-            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">El resto de tu lista</span>
-          </td></tr>
-          ${restRowsHtml}
         </table>` : ''}
 
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
