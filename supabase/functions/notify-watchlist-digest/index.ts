@@ -391,8 +391,8 @@ function digestEmailHtml({
       <!-- ENCABEZADO -->
       <tr><td style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
         <div>${brandWordmark(siteUrl)}</div>
-        <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">
-          CIERRE WALL ST. · ${closeLabelET()}
+        <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7);white-space:nowrap">
+          CIERRE WALL ST. · ${closeLabelET().replace(' ET', '&nbsp;ET')}
         </p>
         <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px;text-align:left">
           Tu análisis técnico de hoy
