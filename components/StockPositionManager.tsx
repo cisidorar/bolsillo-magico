@@ -682,7 +682,7 @@ export default function StockPositionManager({
           onClick={e => { if (e.target === e.currentTarget) cancelForm() }}
         >
           <div
-            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto overflow-x-hidden overscroll-contain"
             style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
           >
             {/* Handle — mobile */}
@@ -1469,30 +1469,30 @@ export default function StockPositionManager({
             {/* Divider + 4 sub-KPIs: la ganancia realizada (ventas) es parte del resultado real */}
             <div className="border-t grid grid-cols-4" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               {/* Invertido */}
-              <div className="px-4 py-3 lg:px-5 lg:py-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: 'white' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: 'white' }}>
                   {fmtUSD(totalCostUsd)}
                 </p>
               </div>
               {/* Ganancia abierta (posiciones vivas) */}
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>G. abierta</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>G. abierta</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                   {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
                 </p>
               </div>
               {/* Realizada (ventas cerradas) */}
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Realizada</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: sales.length > 0 ? (realizedPnlUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Realizada</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: sales.length > 0 ? (realizedPnlUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                   {sales.length > 0 ? fmtUSDSigned(realizedPnlUsd) : '—'}
                 </p>
               </div>
               {/* Retorno */}
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalGainPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                   {hasQ ? fmtPct(totalGainPct) : '—'}
                 </p>
               </div>

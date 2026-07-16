@@ -90,19 +90,19 @@ export default function StockSalesHistory({ initialSales }: Props) {
               </div>
             </div>
             <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-4 py-3 lg:px-5 lg:py-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: totalPnl >= 0 ? '#1FBE8D' : '#FF6F61' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: totalPnl >= 0 ? '#1FBE8D' : '#FF6F61' }}>
                   {fmtPct(totalPnlPct)}
                 </p>
               </div>
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Ventas ganadoras</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: '#1FBE8D' }}>{wins}</p>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Ganadoras</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: '#1FBE8D' }}>{wins}</p>
               </div>
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Ventas perdedoras</p>
-                <p className="text-base lg:text-lg font-bold tabular-nums" style={{ color: '#FF6F61' }}>{losses}</p>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Perdedoras</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: '#FF6F61' }}>{losses}</p>
               </div>
             </div>
           </div>

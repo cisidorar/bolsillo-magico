@@ -560,21 +560,21 @@ export default function DepositManager({ userId, initialSavings, showVentas = fa
 
             {/* Sub-KPIs */}
             <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-4 py-3 lg:px-5 lg:py-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Depositado</p>
-                <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: 'white' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Depositado</p>
+                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: 'white' }}>
                   {formatCLP(totalBalance)}
                 </p>
               </div>
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Interés ganado</p>
-                <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: '#1FBE8D' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Interés ganado</p>
+                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: '#1FBE8D' }}>
                   +{formatCLP(totalEarned)}
                 </p>
               </div>
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Rentabilidad</p>
-                <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: '#1FBE8D' }}>
+              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Rentabilidad</p>
+                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: '#1FBE8D' }}>
                   +{fmtPct(totalReturn)}
                 </p>
               </div>
@@ -582,24 +582,24 @@ export default function DepositManager({ userId, initialSavings, showVentas = fa
           </div>
 
           {/* 3 KPI cards horizontales */}
-          <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
+          <div className="grid grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
             {/* Hoy */}
-            <div className="card p-4 lg:p-5 flex flex-col">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Hoy</p>
+            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Hoy</p>
               <p
-                className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
+                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
                 style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--mint)' }}
               >
                 +{formatCLP(totalDaily)}
               </p>
-              <p className="text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
                 por día
               </p>
               <div className="flex-1" />
               {bestAccount && (
-                <div className="flex items-center gap-1 mt-2">
-                  <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
+                <div className="flex items-center gap-1 mt-2 min-w-0">
+                  <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--mint)' }} />
                   <span className="text-[10px] font-semibold truncate" style={{ color: 'var(--ink-3)' }}>
                     {bestAccount.name} {fmtPct(bestAccount.rate)}
                   </span>
@@ -608,29 +608,29 @@ export default function DepositManager({ userId, initialSavings, showVentas = fa
             </div>
 
             {/* 30 días */}
-            <div className="card p-4 lg:p-5 flex flex-col">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>30 días</p>
+            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>30 días</p>
               <p
-                className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
+                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
                 style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
               >
                 +{formatCLP(totalMonthly)}
               </p>
-              <p className="text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
                 proyección mensual
               </p>
             </div>
 
             {/* 12 meses */}
-            <div className="card p-4 lg:p-5 flex flex-col">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>12 meses</p>
+            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>12 meses</p>
               <p
-                className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
+                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
                 style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
               >
                 +{formatCLP(totalAnnual)}
               </p>
-              <p className="text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
                 proyección anual
               </p>
               <div className="flex-1" />

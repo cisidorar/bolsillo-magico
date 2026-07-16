@@ -108,7 +108,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
           onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}
         >
           <div
-            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto overflow-x-hidden overscroll-contain"
             style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
           >
             {/* Handle mobile */}
