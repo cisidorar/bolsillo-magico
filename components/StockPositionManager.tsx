@@ -662,7 +662,7 @@ export default function StockPositionManager({
 
         {/* Tabs + Agregar — derecha */}
         <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="acciones" showVentas={sales.length > 0} />
+          <InversionesToggle active="acciones" />
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"

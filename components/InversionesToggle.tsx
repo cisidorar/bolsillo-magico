@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { TrendingUp, Timer, Landmark, Receipt, Wallet } from 'lucide-react'
+import { TrendingUp, Timer, Landmark, Wallet } from 'lucide-react'
 
-export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'ventas' | 'billetera'
+export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'billetera'
 
 /**
  * Toggle compartido de las vistas de /inversiones.
@@ -11,12 +11,9 @@ export default function InversionesToggle({
   active,
 }: {
   active: InversionesView
-  /** @deprecated la tab Ventas ahora es siempre visible (su empty state explica el flujo) */
-  showVentas?: boolean
 }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
     { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',  Icon: TrendingUp },
-    { view: 'ventas',     href: '/inversiones?view=ventas',      label: 'Ventas',    Icon: Receipt },
     { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera', Icon: Wallet },
     { view: 'depositos',  href: '/inversiones?view=depositos',   label: 'Depósitos', Icon: Timer },
     { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro',    Icon: Landmark },
