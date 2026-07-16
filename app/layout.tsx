@@ -8,7 +8,11 @@ const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600'], var
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'], variable: '--font-jakarta' })
 
 export const metadata: Metadata = {
-  title: 'Bolsillo Mágico',
+  metadataBase: new URL('https://bolsillomagico.com'),
+  title: {
+    default: 'Bolsillo Mágico — Control de gastos personales',
+    template: '%s · Bolsillo Mágico',
+  },
   description: 'Registra y analiza tus gastos personales',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Bolsillo Mágico' },

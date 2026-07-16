@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   Zap, BarChart3, RefreshCw, Target, CreditCard, Download,
-  Mail, Home, PieChart, ClipboardList,
+  Mail, Home, PieChart, ClipboardList, Wallet, TrendingUp,
   UtensilsCrossed, Car, Music, Film, Gamepad2,
   Check, Clock, CheckCircle2, ArrowRight,
 } from 'lucide-react'
@@ -86,18 +86,22 @@ function AppPreview() {
         <div style={{ position:'absolute', left:-3, top:124, width:3, height:56, background:'#1B2740', borderRadius:'2px 0 0 2px' }} />
         <div style={{ position:'absolute', right:-3, top:96, width:3, height:48, background:'#1B2740', borderRadius:'0 2px 2px 0' }} />
 
-        <div style={{ background:T.bg, borderRadius:34, overflow:'hidden', minHeight:440 }}>
+        <div style={{ background:T.bg, borderRadius:34, overflow:'hidden', height:440, display:'flex', flexDirection:'column' }}>
           {/* Notch */}
-          <div style={{ display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6, background:T.bg }}>
+          <div style={{ flexShrink:0, display:'flex', justifyContent:'center', paddingTop:10, paddingBottom:6, background:T.bg }}>
             <div style={{ width:80, height:22, borderRadius:12, background:'#0B1220' }} />
           </div>
+
+          {/* Screens */}
+          <div style={{ position:'relative', flex:1, overflow:'hidden' }}>
 
           {/* ── Pantalla 1: Inicio ────────────── */}
           <div style={{
             opacity: active === 0 ? 1 : 0,
+            pointerEvents: active === 0 ? 'auto' : 'none',
             transform: active === 0 ? 'translateX(0)' : 'translateX(-20px)',
             transition:'all .5s ease',
-            position: active === 0 ? 'static' : 'absolute',
+            position:'absolute', inset:0, overflowY:'auto',
             padding:'8px 12px 12px',
           }}>
             {/* Hero card */}
@@ -156,8 +160,13 @@ function AppPreview() {
           </div>
 
           {/* ── Pantalla 2: Análisis ─────────── */}
-          {active === 1 && (
-            <div style={{ padding:'8px 12px 12px', animation:'fadeIn .5s ease' }}>
+          <div style={{
+            opacity: active === 1 ? 1 : 0,
+            pointerEvents: active === 1 ? 'auto' : 'none',
+            transition:'opacity .5s ease',
+            position:'absolute', inset:0, overflowY:'auto',
+            padding:'8px 12px 12px',
+          }}>
               <p style={{ fontSize:12, fontWeight:800, color:T.ink, marginBottom:12 }}>Análisis · Julio</p>
 
               {/* Donut */}
@@ -198,12 +207,16 @@ function AppPreview() {
                   <p style={{ fontSize:10, fontWeight:800, color:T.ink, minWidth:32, textAlign:'right', ...NUM }}>{c.pct}%</p>
                 </div>
               ))}
-            </div>
-          )}
+          </div>
 
           {/* ── Pantalla 3: Recurrentes ──────── */}
-          {active === 2 && (
-            <div style={{ padding:'8px 12px 12px', animation:'fadeIn .5s ease' }}>
+          <div style={{
+            opacity: active === 2 ? 1 : 0,
+            pointerEvents: active === 2 ? 'auto' : 'none',
+            transition:'opacity .5s ease',
+            position:'absolute', inset:0, overflowY:'auto',
+            padding:'8px 12px 12px',
+          }}>
               <p style={{ fontSize:12, fontWeight:800, color:T.ink, marginBottom:4 }}>Recurrentes</p>
               <p style={{ fontSize:9, color:T.ink3, fontWeight:700, marginBottom:12, ...NUM }}>Carga mensual · $342.990</p>
               {[
@@ -231,13 +244,15 @@ function AppPreview() {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
+          </div>
+
+          </div>
 
           {/* Tab bar */}
           <div style={{
+            flexShrink:0,
             display:'flex', justifyContent:'space-around', padding:'6px 0 8px',
-            background:'#fff', borderTop:`1px solid ${T.border}`, marginTop:4,
+            background:'#fff', borderTop:`1px solid ${T.border}`,
           }}>
             {[Home, PieChart, RefreshCw, ClipboardList].map((Icon, i) => (
               <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
@@ -288,15 +303,29 @@ export default function LandingPage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareApplication',
+            name: 'Bolsillo Mágico',
+            url: 'https://bolsillomagico.com',
+            applicationCategory: 'FinanceApplication',
+            operatingSystem: 'Web',
+            description: 'App gratuita para controlar tus gastos personales, definir presupuestos, gestionar gastos recurrentes y seguir tus inversiones en dólares.',
+            offers: { '@type': 'Offer', price: '0', priceCurrency: 'CLP' },
+            inLanguage: 'es-CL',
+          }),
+        }}
+      />
       <style>{`
         @keyframes fadeIn  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
-        @keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
         @keyframes slideUp { from{opacity:0;transform:translateY(50px)} to{opacity:1;transform:none} }
         .hero-in   { animation: slideUp .8s cubic-bezier(.22,1,.36,1) both; }
         .hero-in-2 { animation: slideUp .8s .15s cubic-bezier(.22,1,.36,1) both; }
         .hero-in-3 { animation: slideUp .8s .3s  cubic-bezier(.22,1,.36,1) both; }
         .hero-in-4 { animation: slideUp .8s .45s cubic-bezier(.22,1,.36,1) both; }
-        .float     { animation: float 4s ease-in-out infinite; }
 
         .lp-js [data-reveal] {
           opacity:0; transform:translateY(40px);
@@ -335,7 +364,7 @@ export default function LandingPage() {
           .hero-subtitle { margin-left:0 !important; margin-right:0 !important; }
           .hero-ctas { justify-content:flex-start !important; }
           .hero-trust { justify-content:flex-start !important; }
-          .features-grid { grid-template-columns:repeat(3,1fr) !important; max-width:960px !important; }
+          .features-grid { grid-template-columns:repeat(4,1fr) !important; max-width:960px !important; }
           .section-inner { max-width:960px; margin:0 auto; }
           .how-grid { grid-template-columns:repeat(3,1fr) !important; }
         }
@@ -447,7 +476,7 @@ export default function LandingPage() {
           </div>
 
           {/* Phone mockup */}
-          <div className="float hero-in-4" style={{ flexShrink:0, marginTop:48 }}>
+          <div className="hero-in-4" style={{ flexShrink:0, marginTop:48 }}>
             <AppPreview />
           </div>
         </section>
@@ -521,14 +550,16 @@ export default function LandingPage() {
               </h2>
             </div>
 
-            <div className="features-grid" style={{ display:'grid', gridTemplateColumns:'1fr', gap:16, maxWidth:480, margin:'0 auto' }}>
+            <div className="features-grid" style={{ display:'grid', gridTemplateColumns:'1fr', gap:16, maxWidth:960, margin:'0 auto' }}>
               {[
                 { icon:Zap,        title:'Registro instantáneo', desc:'Agrega cualquier gasto en segundos. Sin complicaciones.',     color:T.brand,  bg:T.primarySoft, delay:'1' },
                 { icon:BarChart3,  title:'Análisis visual',      desc:'Entiende tus hábitos con gráficos claros por categoría.',      color:T.mint,   bg:T.mintSoft,    delay:'2' },
                 { icon:RefreshCw,  title:'Gastos recurrentes',   desc:'Suscripciones y cuotas con registro automático.',              color:T.gold,   bg:T.goldSoft,    delay:'3' },
                 { icon:Target,     title:'Presupuesto mensual',  desc:'Define límites y recibe alertas cuando te acercas al tope.',   color:T.coral,  bg:T.coralSoft,   delay:'4' },
                 { icon:CreditCard, title:'Múltiples métodos',    desc:'Débito, crédito, efectivo y digital. Todo separado.',          color:T.violet, bg:T.violetSoft,  delay:'1' },
-                { icon:Download,   title:'Exporta tus datos',    desc:'Descarga tus gastos en CSV cuando quieras. Tus datos, tuyos.', color:T.brand,  bg:T.primarySoft, delay:'2' },
+                { icon:TrendingUp, title:'Seguimiento de ingresos', desc:'Registra tus ingresos y compáralos con tus gastos mes a mes.', color:T.mint,   bg:T.mintSoft,    delay:'2' },
+                { icon:Wallet,     title:'Inversiones en dólares', desc:'Billetera USD y acciones: saldo, rendimiento y ganancias realizadas.', color:T.gold, bg:T.goldSoft, delay:'3' },
+                { icon:Download,   title:'Exporta tus datos',    desc:'Descarga tus gastos en CSV cuando quieras. Tus datos, tuyos.', color:T.brand,  bg:T.primarySoft, delay:'4' },
               ].map(f => (
                 <div
                   key={f.title}

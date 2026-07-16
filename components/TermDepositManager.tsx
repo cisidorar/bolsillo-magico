@@ -107,7 +107,6 @@ function focusOff(e: React.FocusEvent<HTMLInputElement>) {
 interface Props {
   userId:          string
   initialDeposits: TermDeposit[]
-  showVentas?:     boolean
 }
 interface FormState {
   bank:         string
@@ -121,7 +120,7 @@ const emptyForm: FormState = {
   bank: '', amount: '', interestRate: '', startDate: todayStr(), maturityDate: '', notes: '',
 }
 
-export default function TermDepositManager({ userId, initialDeposits, showVentas = false }: Props) {
+export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const supabase = createClient()
 
   const [deposits,      setDeposits]      = useState<TermDeposit[]>(initialDeposits)
@@ -299,7 +298,7 @@ export default function TermDepositManager({ userId, initialDeposits, showVentas
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="depositos" showVentas={showVentas} />
+          <InversionesToggle active="depositos" />
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"

@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
 import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
-import type { StockPurchase } from '@/app/(dashboard)/inversiones/page'
+import type { StockPurchase, StockSale } from '@/app/(dashboard)/inversiones/page'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
 // Modelo CLP-first en la entrada, USD-first en la vida posterior:
@@ -33,7 +32,7 @@ interface Props {
   initialPurchases: UsdPurchase[]
   investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
   stockPurchases?:  StockPurchase[]   // compras de acciones — para la cartola unificada
-  showVentas?:      boolean
+  sales?:           StockSale[]      // ventas — para el detalle (ticker, costo base, ganancia) en cada fila
 }
 
 interface FormState { date: string; clp: string; usd: string; notes: string }
@@ -57,8 +56,12 @@ function fmtInputCLP(digits: string): string {
 function fmtUSDSigned(n: number): string {
   return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
+function fmtPct(n: number): string {
+  const s = Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return n >= 0 ? `+${s}%` : `-${s}%`
+}
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd, stockPurchases = [], showVentas = false }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, investedUsd, stockPurchases = [], sales = [] }: Props) {
   const supabase = createClient()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
@@ -142,39 +145,57 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     await supabase.from('usd_purchases').delete().eq('id', p.id).eq('user_id', userId)
   }
 
-  // Solo aportes acá — el detalle de cada venta (ticker, costo base, ganancia)
-  // vive en Inversiones → Ventas, esta lista no lo duplica.
   // ── Cartola unificada: aportes y ventas ENTRAN, compras de acciones SALEN ──
+  // Cada venta se enriquece con su detalle (ticker, acciones, costo base,
+  // ganancia/pérdida) uniendo la fila 'sell' de la billetera con stock_sales
+  // vía usd_purchase_id — así no hace falta una vista aparte para Ventas.
   type Move = {
     key:   string
     date:  string
     type:  'aporte' | 'venta' | 'compra'
     label: string
     sub:   string | null
-    usd:   number              // con signo
-    row:   UsdPurchase | null  // solo filas de billetera son editables/eliminables
+    usd:   number                 // con signo
+    pnl:   number | null          // ganancia/pérdida realizada (solo ventas con detalle)
+    row:   UsdPurchase | null     // solo filas de billetera son editables/eliminables
   }
+  const salesByPurchaseId = new Map(sales.map(s => [s.usd_purchase_id, s]))
   const moves: Move[] = [
-    ...purchases.map<Move>(p => p.kind === 'sell'
-      ? {
+    ...purchases.map<Move>(p => {
+      if (p.kind === 'sell') {
+        const sale = salesByPurchaseId.get(p.id)
+        if (sale) {
+          const pnl    = Number(sale.realized_pnl_usd)
+          const costB  = Number(sale.cost_basis_usd)
+          const pnlPct = costB > 0 ? (pnl / costB) * 100 : 0
+          return {
+            key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
+            label: `Venta ${sale.ticker}`,
+            sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
+            usd: Number(p.usd_amount), pnl, row: p,
+          }
+        }
+        return {
           key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
           label: p.notes ?? 'Venta de acciones', sub: null,
-          usd: Number(p.usd_amount), row: p,
+          usd: Number(p.usd_amount), pnl: null, row: p,
         }
-      : {
-          key: `w-${p.id}`, date: p.purchase_date, type: 'aporte',
-          label: 'Aporte a la billetera',
-          sub: [
-            p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
-            p.notes,
-          ].filter(Boolean).join(' · ') || null,
-          usd: Number(p.usd_amount), row: p,
-        }),
+      }
+      return {
+        key: `w-${p.id}`, date: p.purchase_date, type: 'aporte',
+        label: 'Aporte a la billetera',
+        sub: [
+          p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
+          p.notes,
+        ].filter(Boolean).join(' · ') || null,
+        usd: Number(p.usd_amount), pnl: null, row: p,
+      }
+    }),
     ...stockPurchases.map<Move>(sp => ({
       key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
       label: `Compra ${sp.ticker}`,
       sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
-      usd: -Number(sp.total_paid_usd), row: null,
+      usd: -Number(sp.total_paid_usd), pnl: null, row: null,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -182,7 +203,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   return (
     <div>
       <div className="flex items-center justify-end gap-2 shrink-0 mb-3">
-        <InversionesToggle active="billetera" showVentas={showVentas} />
+        <InversionesToggle active="billetera" />
         <button
           onClick={openAdd}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
@@ -373,7 +394,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                       </p>
                     </div>
                     <p className="text-sm font-bold tabular-nums text-right shrink-0"
-                      style={{ color: m.usd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                      style={{ color: m.pnl !== null ? (m.pnl >= 0 ? 'var(--mint)' : 'var(--coral)') : (m.usd >= 0 ? 'var(--mint)' : 'var(--ink-2)') }}>
                       {fmtUSDSigned(m.usd)}
                     </p>
                     {/* Solo las filas de billetera se editan/eliminan aquí; las compras se gestionan en Acciones */}
@@ -419,11 +440,8 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
               <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>Cómo funciona la billetera</p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                 Comprar acciones <strong style={{ color: 'var(--ink-2)' }}>descuenta</strong> del disponible — no puedes invertir
-                más de lo aportado. Al vender, los dólares <strong style={{ color: 'var(--ink-2)' }}>vuelven aquí</strong>. El
-                detalle de cada venta (ticker, costo base, ganancia) queda en{' '}
-                <Link href="/inversiones?view=ventas" className="font-semibold" style={{ color: 'var(--primary)' }}>
-                  Inversiones → Ventas
-                </Link>.
+                más de lo aportado. Al vender, los dólares <strong style={{ color: 'var(--ink-2)' }}>vuelven aquí</strong> y la
+                fila queda con el ticker, las acciones vendidas y la ganancia o pérdida de esa venta.
               </p>
             </div>
           </div>
