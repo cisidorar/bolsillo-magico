@@ -23,7 +23,7 @@ const SPINNER = (
 
 const BTN_STYLE = (disabled: boolean) => ({
   height: 52,
-  background: disabled ? '#8EBBD8' : '#2B7CF6',
+  background: disabled ? '#A9C4EE' : '#2B7CF6',
   boxShadow: disabled ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
   border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
 })
@@ -153,7 +153,7 @@ function LoginForm() {
           <div className="relative w-20 h-20 mb-5">
             <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight text-center mb-2">Bolsillo Mágico</h1>
+          <h1 className="text-3xl font-semibold text-white tracking-tight text-center mb-2">Bolsillo Mágico</h1>
           <p className="text-base text-white/70 font-medium text-center mb-12">Tu dinero bajo control, siempre.</p>
           <div className="space-y-5 w-full max-w-xs">
             {FEATURES.map(f => (
@@ -175,7 +175,7 @@ function LoginForm() {
             <div className="w-16 h-16 relative mb-3">
               <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-tight">Bolsillo Mágico</h1>
+            <h1 className="text-2xl font-semibold text-white tracking-tight">Bolsillo Mágico</h1>
             <p className="text-sm text-white/60 font-medium mt-1">{mobileSubtitle}</p>
           </div>
 
@@ -184,8 +184,8 @@ function LoginForm() {
             {/* Header — solo desktop */}
             <div className="hidden lg:block mb-8">
               <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#2B7CF6' }}>Bolsillo Mágico</p>
-              <h2 className="text-2xl font-extrabold text-gray-900">{desktopTitle}</h2>
-              <p className="text-sm text-gray-400 mt-1">{desktopSubtitle}</p>
+              <h2 className="text-[26px] font-semibold" style={{ color: '#0E2A52' }}>{desktopTitle}</h2>
+              <p className="text-sm mt-1" style={{ color: '#94A3B8' }}>{desktopSubtitle}</p>
             </div>
 
             <div className="bg-white lg:bg-transparent rounded-3xl p-6 lg:p-0 shadow-2xl lg:shadow-none">
@@ -193,21 +193,22 @@ function LoginForm() {
                 @keyframes spin { to { transform: rotate(360deg); } }
                 .field {
                   display:flex; align-items:center; gap:10px;
-                  background:#F5F8FF; border:1.5px solid #DAEDF8;
+                  background:#F4F7FB; border:1.5px solid #E4EAF1;
                   border-radius:14px; padding:0 14px; height:52px;
                 }
-                .field:focus-within { border-color:#2B7CF6; box-shadow:0 0 0 3px rgba(43,124,246,.12); }
+                .field:focus-within { border-color:#4D93FF; box-shadow:0 0 0 3px rgba(77,147,255,.15); }
                 .field input {
                   flex:1; background:transparent; border:none; outline:none;
-                  font-size:15px; color:#0D2A3A; font-family:inherit; min-width:0;
+                  font-size:15px; color:#0E2A52; font-family:inherit; min-width:0;
                 }
+                .field input::placeholder { color:#94A3B8; }
               `}</style>
 
               <div className="flex flex-col gap-3">
 
                 {mode === 'signup' && (
                   <div className="field">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                     </svg>
                     <input type="text" value={nameField} onChange={e => setNameField(e.target.value)}
@@ -216,7 +217,7 @@ function LoginForm() {
                 )}
 
                 <div className="field">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
                   </svg>
                   <input type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -224,7 +225,7 @@ function LoginForm() {
                 </div>
 
                 <div className="field">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#93BAD0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
                     <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                   <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
@@ -232,7 +233,7 @@ function LoginForm() {
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     disabled={isLocked} />
                   <button type="button" onClick={() => setShowPw(!showPw)}
-                    style={{ color: '#93BAD0', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
+                    style={{ color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
                     {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
