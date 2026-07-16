@@ -1500,25 +1500,25 @@ export default function StockPositionManager({
           </div>
 
           {/* ── 3 KPI cards horizontales ── */}
-          <div className="grid grid-cols-3 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
+          <div className="grid grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
 
             {/* Billetera disponible — card completa clickeable hacia la Billetera */}
-            <a href="/inversiones?view=billetera" className="card p-4 lg:p-5 block transition-colors hover:bg-[var(--surface-2)]">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Billetera</p>
+            <a href="/inversiones?view=billetera" className="card p-3 lg:p-5 block min-w-0 transition-colors hover:bg-[var(--surface-2)]">
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Billetera</p>
               {walletAvailable !== null ? (
                 <>
-                  <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none"
+                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold tabular-nums leading-none truncate"
                     style={{ fontFamily: 'Fredoka, sans-serif', color: walletAvailable >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
                     {fmtUSD(Math.max(0, walletAvailable))}
                   </p>
-                  <p className="text-xs font-semibold mt-1.5" style={{ color: walletAvailable >= 0 ? 'var(--ink-3)' : 'var(--coral)' }}>
+                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5" style={{ color: walletAvailable >= 0 ? 'var(--ink-3)' : 'var(--coral)' }}>
                     {walletAvailable >= 0 ? 'disponible para comprar →' : 'revisa tus aportes: hay más invertido que aportado'}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
-                  <p className="text-xs font-semibold mt-1.5" style={{ color: 'var(--primary)' }}>
+                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
+                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5" style={{ color: 'var(--primary)' }}>
                     Registra tus aportes →
                   </p>
                 </>
@@ -1526,13 +1526,13 @@ export default function StockPositionManager({
             </a>
 
             {/* Posiciones */}
-            <div className="card p-4 lg:p-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+            <div className="card p-3 lg:p-5 min-w-0">
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
+              <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {positions.length}
               </p>
               {hasQ && (posUp > 0 || posDown > 0) && (
-                <div className="flex items-center gap-2 mt-1.5 text-xs font-semibold">
+                <div className="flex items-center gap-2 mt-1.5 text-[10px] lg:text-xs font-semibold">
                   {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
                   {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
                 </div>
@@ -1548,36 +1548,36 @@ export default function StockPositionManager({
                 const pos = t ? positions.find(p => p.ticker === t) : undefined
                 if (pos) openEdit(pos)
               }}
-              className="card p-4 lg:p-5 text-left transition-colors hover:bg-[var(--surface-2)]"
+              className="card p-3 lg:p-5 min-w-0 text-left transition-colors hover:bg-[var(--surface-2)]"
             >
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: alarmClose ? 'var(--gold)' : 'var(--ink-3)' }}>
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: alarmClose ? 'var(--gold)' : 'var(--ink-3)' }}>
                 {alarmClose ? 'Cerca de alarma' : bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
               </p>
               {alarmClose && nearestAlarm ? (
                 <>
-                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {nearestAlarm.ticker}
                   </p>
-                  <p className="text-xs font-semibold mt-1.5 tabular-nums" style={{ color: 'var(--gold)' }}>
+                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5 tabular-nums" style={{ color: 'var(--gold)' }}>
                     a {nearestAlarm.distPct.toFixed(1)}% de su salida ({fmtUSD(nearestAlarm.alarm)})
                   </p>
                 </>
               ) : bestPos ? (
                 <>
-                  <p className="text-3xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
+                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
                   </p>
                   <div className="flex items-center gap-1 mt-1.5">
                     {bestPos.pct >= 0
                       ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                       : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                    <span className="text-xs font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    <span className="text-[10px] lg:text-xs font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                       {fmtPct(bestPos.pct)} total
                     </span>
                   </div>
                 </>
               ) : (
-                <p className="text-2xl lg:text-3xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
+                <p className="text-lg lg:text-3xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
               )}
             </button>
           </div>
