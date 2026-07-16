@@ -9,6 +9,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      url: 'https://bolsillomagico.com/demo',
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       url: 'https://bolsillomagico.com/login',
       lastModified: new Date(),
       changeFrequency: 'yearly',
