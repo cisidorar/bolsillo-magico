@@ -379,6 +379,17 @@ function digestEmailHtml({
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Tu análisis técnico de hoy · Bolsillo Mágico</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <!-- El diseño ya tiene su propio contraste (header azul, footer navy, tarjetas
+       claras) — le decimos a los clientes que respetan esto (Apple Mail, Outlook,
+       Gmail app) que NO auto-inviertan colores en modo oscuro, porque esa
+       inversión "inteligente" es la que rompe los fondos claros de las tarjetas
+       (quedan negros con texto oscuro encima, ilegible) en vez de mantener el
+       diseño tal cual se ve en modo claro. -->
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <style>
+    :root { color-scheme: light; supported-color-schemes: light; }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 

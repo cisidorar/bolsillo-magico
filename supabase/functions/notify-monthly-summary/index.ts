@@ -382,7 +382,10 @@ function monthlyEmailHtml({
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Resumen mensual · Bolsillo Mágico</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <style>
+    :root { color-scheme: light; supported-color-schemes: light; }
     @media only screen and (max-width:600px) {
       .email-wrap { padding: 0 !important; }
       .email-body { border-radius: 0 !important; }
