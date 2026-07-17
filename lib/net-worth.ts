@@ -62,6 +62,11 @@ export async function computeAndSnapshotNetWorth(
   // ── Acciones y dólares: precio de caché × USD/CLP; fallback al costo ─────
   let stocksClp = 0
   let usdClp = 0
+  // stocksPriced: sólo se marca false por un hueco REAL — hay posiciones de
+  // acciones que no se pueden valorizar (falta su precio o el tipo de cambio).
+  // La billetera USD NO cuenta acá: su fallback (costo en CLP) es un valor
+  // real conocido, no una subvaloración, así que no debe bloquear el snapshot
+  // mensual de un usuario que no tiene acciones pero sí billetera USD.
   let stocksPriced = true
   const positions = stocks ?? []
   const usdPurchases = usdRows ?? []
@@ -78,7 +83,7 @@ export async function computeAndSnapshotNetWorth(
       .in('ticker', [...tickers, 'USDCLP'])
     const priceMap = new Map((cached ?? []).map(c => [c.ticker, Number(c.price)]))
     const fx = priceMap.get('USDCLP') ?? null
-    if (fx === null) stocksPriced = false
+    if (positions.length > 0 && fx === null) stocksPriced = false
     for (const p of positions) {
       const priceUsd = priceMap.get(p.ticker)
       if (priceUsd === undefined) stocksPriced = false
