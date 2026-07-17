@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeConviction } from './conviction'
+import { computeConviction, isActionableBuyNow } from './conviction'
 import type { TechnicalAnalysis, TechnicalRating } from './technical'
 import type { LabelStat } from './signal-backtest'
 
@@ -94,5 +94,26 @@ describe('computeConviction', () => {
     const r = computeConviction(a)
     expect(r.score).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeLessThanOrEqual(100)
+  })
+})
+
+describe('isActionableBuyNow', () => {
+  // Regresión (jul 2026, a pedido de Cas): el panel "¿Qué comprar hoy?" decía
+  // "la mejor compra hoy es X" con tier de convicción alto, mientras el
+  // detalle de X (que mira a.buy) decía "no compres hoy" por falta de
+  // gatillo técnico — mismo dato, dos lecturas contradictorias.
+  it('tier de compra sin ningún tramo "now" en a.buy → NO es accionable hoy', () => {
+    const conviction = { tier: 'compra_fuerte' as const }
+    expect(isActionableBuyNow({ buy: [{ now: false }, { now: false }] }, conviction)).toBe(false)
+  })
+
+  it('tier de compra CON un tramo "now" en a.buy → sí es accionable hoy', () => {
+    const conviction = { tier: 'compra' as const }
+    expect(isActionableBuyNow({ buy: [{ now: false }, { now: true }] }, conviction)).toBe(true)
+  })
+
+  it('tramo "now" presente pero tier no es de compra → no es accionable', () => {
+    const conviction = { tier: 'neutral' as const }
+    expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction)).toBe(false)
   })
 })

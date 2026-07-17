@@ -112,3 +112,26 @@ export function computeConviction(
 
   return { score, tier, verdict, reasons }
 }
+
+/**
+ * ¿Hay caso Y gatillo para comprar HOY, con monto? El score de convicción
+ * mide si la acción es una buena candidata (riesgo/recompensa, fuerza vs.
+ * mercado, técnico) — pero el PLAN DE ENTRADA (`analysis.buy`) decide el
+ * TIMING, y a veces el score es alto (gran riesgo/recompensa, le va mejor
+ * que al mercado) mientras el gráfico todavía no da una entrada razonable
+ * (sin gatillo reciente: toca esperar un retroceso o una ruptura concreta).
+ *
+ * Sin este segundo filtro, "la mejor compra hoy es X" (panel de ranking)
+ * podía chocar de frente con el propio detalle de X diciendo "no compres
+ * hoy" (el mismo dato, dos lecturas distintas) — detectado por Cas, jul 2026.
+ * Se usa para decidir el veredicto de "¿Qué comprar hoy?", el flag de fila
+ * en Radar, y `daily_decisions` (cron + correo) — un solo criterio en los
+ * tres lugares que antes solo miraban el tier de convicción.
+ */
+export function isActionableBuyNow(
+  analysis:   { buy: { now: boolean }[] },
+  conviction: Pick<ConvictionResult, 'tier'>,
+): boolean {
+  const isBuyTier = conviction.tier === 'compra' || conviction.tier === 'compra_fuerte'
+  return isBuyTier && analysis.buy.some(t => t.now)
+}

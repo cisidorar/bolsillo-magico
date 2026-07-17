@@ -3,7 +3,7 @@ import { createClient as createAdminClient, type SupabaseClient } from '@supabas
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import { analyze, positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
-import { computeConviction } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow } from '@/lib/conviction'
 import { getNowChile } from '@/lib/utils'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -387,7 +387,10 @@ async function computeDailyDecisions(
 
     if (candidates.length === 0) continue
     const top   = candidates[0]
-    const isBuy = top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte'
+    // Convicción alta no basta: si el gráfico no da gatillo hoy (a.buy sin
+    // tramo "now"), el detalle del ticker en la app va a decir "no compres
+    // hoy" — este correo/decisión no puede contradecirlo (fix jul 2026).
+    const isBuy = isActionableBuyNow(top.a, top.conviction)
 
     let suggestedUsd: number | null = null
     if (isBuy) {

@@ -11,7 +11,7 @@ import InversionesToggle from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
-import { computeConviction, type ConvictionResult, type ConvictionTier } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow, type ConvictionResult, type ConvictionTier } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { ConvictionChip, RiskRail } from '@/components/RiskRail'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
@@ -47,14 +47,17 @@ function nearTarget(item: WatchlistItem | undefined, price: number | undefined, 
 }
 
 /**
- * "buy" se decide con el TIER DE CONVICCIÓN, no con el rating técnico crudo
- * (fix de commit 18cee34, jul 2026) — convicción ya mezcla riesgo/recompensa
- * y fuerza vs. SPY, y es el mismo número que manda en "¿Qué comprar hoy?" y
- * en el orden de la lista. NO regresar a mirar solo a.rating.label acá.
+ * "buy" exige DOS cosas: tier de convicción de compra (fix commit 18cee34,
+ * jul 2026 — no mirar solo a.rating.label) Y un gatillo de entrada activo
+ * HOY (`a.buy.some(t => t.now)`, vía `isActionableBuyNow`). Sin el segundo
+ * filtro, un ticker con convicción alta pero sin base técnica para entrar
+ * (ej. esperando un retroceso concreto) se marcaba "buy" en la fila aunque
+ * su propio detalle dijera "no compres hoy" — misma inconsistencia que en
+ * el panel "¿Qué comprar hoy?", detectada por Cas, jul 2026.
  */
-function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean, convictionTier?: ConvictionTier): 'buy' | 'sell' | 'caution' | null {
+function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean, conviction?: ConvictionResult | null): 'buy' | 'sell' | 'caution' | null {
   if (typeof a !== 'object') return null
-  const isBuy  = convictionTier === 'compra' || convictionTier === 'compra_fuerte'
+  const isBuy  = conviction !== null && conviction !== undefined && isActionableBuyNow(a, conviction)
   const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
   if (isBuy) return 'buy'
   if (isSell && owned) return 'sell'
@@ -256,8 +259,14 @@ export default function Radar({
   const allLoaded = allTickers.length > 0 && ranking.length === allTickers.length
   const top      = ranking[0] ?? null
   const runnerUp = ranking[1] ?? null
-  const topIsBuy = top !== null && (top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte')
-  const topSizing = topIsBuy && top !== null && portfolioValueUsd > 0
+  // Convicción alta ≠ entrada lista: el score puede ganar por riesgo/recompensa
+  // y fuerza vs. SPY mientras el gráfico todavía no da gatillo (isActionableBuyNow
+  // exige además a.buy con un tramo "now"). Sin este filtro este panel podía
+  // decir "la mejor compra hoy es X" mientras el detalle de X decía "no compres
+  // hoy" — mismo dato, dos lecturas (detectado por Cas, jul 2026).
+  const topIsBuyTier   = top !== null && (top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte')
+  const topActionable  = top !== null && isActionableBuyNow(top.a, top.conviction)
+  const topSizing = topActionable && top !== null && portfolioValueUsd > 0
     ? positionSizeUsd(portfolioValueUsd, quotes[top.ticker]?.price ?? top.a.price, top.a.alarm)
     : null
   const topCashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
@@ -536,12 +545,31 @@ export default function Radar({
               </p>
             ) : top === null ? (
               <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
-            ) : !topIsBuy ? (
+            ) : !topIsBuyTier ? (
               <>
                 <p className="text-sm font-extrabold" style={{ color: 'var(--coral)' }}>Hoy no compres nada de tu lista.</p>
                 <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
                   Ni siquiera {top.ticker}, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
                 </p>
+              </>
+            ) : !topActionable ? (
+              <>
+                {/* Convicción alta, pero sin gatillo de entrada todavía — no decir
+                    "cómpralo hoy" cuando el propio plan técnico dice que esperes:
+                    eso es lo que generaba la contradicción entre este panel y el
+                    detalle del ticker (fix jul 2026, a pedido de Cas). */}
+                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold)' }}>
+                  {top.ticker} es tu mejor candidata ({top.conviction.score}/100), pero todavía no hay entrada.
+                </p>
+                <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{top.a.entryPlan}</p>
+                <ul className="mt-2 space-y-1">
+                  {top.conviction.reasons.slice(0, 2).map((r, i) => (
+                    <li key={i} className="text-[11px] leading-relaxed flex items-start gap-1.5" style={{ color: 'var(--ink-2)' }}>
+                      <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
+                      {r}
+                    </li>
+                  ))}
+                </ul>
               </>
             ) : (
               <>
@@ -733,7 +761,7 @@ export default function Radar({
             const pos = ownedMap[ticker]
             const isOwned = owned.has(ticker)
             const c = convictionFor(ticker)
-            const flag = actionFlag(a, isOwned, c?.tier)
+            const flag = actionFlag(a, isOwned, c)
             const atTarget = targetReached(item, q?.price, isOwned)
             const watchCount = (typeof a === 'object' ? a.watch.length : 0) + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
             const gainUsd = isOwned && pos && q ? pos.shares * (q.price - pos.avgCost) : null
