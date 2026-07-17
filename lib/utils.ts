@@ -162,10 +162,10 @@ export function currentStatementRange(billingDay: number): {
   month: number  // mes del cierre (= mes del estado)
   year:  number
 } {
-  const today    = new Date()
-  const todayDay = today.getDate()
-  const m        = today.getMonth() + 1  // 1-indexed
-  const y        = today.getFullYear()
+  // Hora de Chile, no UTC: cerca de medianoche la fecha UTC ya es "mañana" y
+  // el período abierto puede saltar un mes en el borde (mismo bug que tenía
+  // auto-register). getNowChile funciona en server y client.
+  const { todayDate: todayDay, month: m, year: y } = getNowChile()
 
   // Si el corte aún no llegó este mes → el estado cierra este mes
   // Si el corte ya pasó → el estado cierra el mes que viene

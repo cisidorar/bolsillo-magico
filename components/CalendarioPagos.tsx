@@ -10,6 +10,7 @@ export interface RecurringWithRelations {
   name: string
   amount: number
   billing_day: number
+  billing_month: number | null   // null = mensual, 1-12 = anual (solo aparece en su mes)
   is_active: boolean
   domain: string | null
   total_installments: number | null
@@ -38,7 +39,10 @@ export default function CalendarioPagos({ items }: Props) {
   const [year,  setYear]  = useState(now.getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
 
-  const activeItems  = items.filter(r => r.is_active)
+  // Anuales solo en su mes de cobro — antes aparecían (y sumaban) los 12 meses
+  const activeItems  = items.filter(r =>
+    r.is_active && (r.billing_month == null || r.billing_month === month)
+  )
   const daysInMonth  = new Date(year, month, 0).getDate()
   const offset       = startOffset(year, month)
   const today        = now.getMonth() + 1 === month && now.getFullYear() === year ? now.getDate() : null

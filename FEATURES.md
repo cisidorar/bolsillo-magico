@@ -244,4 +244,51 @@ Auditoría de cómo interactúan F1–F5 entre sí y con el resto de la app. Det
 
 ---
 
+## Iteración 2 — revisión de flujos restantes (jul 2026)
+
+Segunda pasada sobre los flujos no auditados en la iteración 1: `/historial`, `/cuenta/[cardId]`, `/recurrentes`, `/ajustes`, calendario de pagos, watchlist y edge functions de notificaciones.
+
+### Bugs de interacción corregidos en esta iteración
+
+- **Recurrentes anuales marcados "atrasados" 11 meses al año**: el filtro de atrasados en `/recurrentes` no miraba `billing_month` (a diferencia de `/inicio`, que sí lo hace — lógica duplicada que divergió). Un seguro anual de marzo aparecía atrasado de abril a diciembre. Corregido: los anuales solo pueden estar atrasados en su mes.
+- **"Próximo cargo" mostraba anuales en el mes equivocado**: `nextBillingDate` ignoraba `billing_month`. Ahora los anuales apuntan a su próxima ocurrencia real (su mes, este año o el próximo).
+- **"Carga mensual" inflada por anuales**: el KPI sumaba los anuales completos cada mes (un seguro de $600.000 inflaba la carga mensual en $600.000 y el "anual estimado" en $7,2M). Ahora los anuales se prorratean (÷12) en la carga mensual y se suman una sola vez en el anual estimado.
+- **Calendario de pagos mostraba anuales los 12 meses**: `CalendarioPagos` no filtraba por `billing_month` — el ítem aparecía (y sumaba al "total programado") en todos los meses. Corregido.
+- **`currentStatementRange` usaba hora UTC**: el helper compartido (usado por `/inicio` en modo billing y `/cuenta/[cardId]`) calculaba "hoy" con `new Date()` — cerca de medianoche hora chilena el período abierto podía saltar un mes. Ahora usa `getNowChile()` (mismo fix que auto-register).
+
+### Roadmap priorizado por valor (consolidado, iteración 1 + 2)
+
+Orden por (impacto en decisiones del usuario × frecuencia de uso) / esfuerzo:
+
+**1. 🔴 F8 — Calendario de flujo de caja** _(el pendiente de más valor)_
+Todos los insumos ya existen: `payday` (+ último día hábil), `billing_day` de cada recurrente, cierres de tarjeta, y ahora `month_sweeps`. Cruzarlos en una vista "los próximos 30 días": cuándo entra el sueldo, cuándo salen los fijos, cuánto queda disponible entre medio. Previene el sobregiro por timing — el dolor que ninguna otra vista cubre. Encaja natural en `/recurrentes?view=calendar` (extender el calendario existente) o como card en `/inicio`.
+
+**2. 🔴 Resumen mensual por email enriquecido (reconecta P2 sin banner)**
+`notify-monthly-summary` hoy es solo gasto. Agregarle: tasa de ahorro del mes cerrado, Δ patrimonio, y el CTA "¿a dónde fue el sobrante?" con deep-link que registre en `month_sweeps`. Es el canal correcto para el sweep (1 email al mes, no un banner diario) y convierte el email en el ritual de cierre de mes. La infraestructura de P2 ya está montada y sin uso.
+
+**3. 🟠 P5 — Patrimonio en `/inicio`**
+Mini-card (neto real + Δ mes). El dashboard diario es 100% gasto; lo que se ve a diario, crece. Esfuerzo bajo: `computeAndSnapshotNetWorth` ya existe, solo falta llamarlo en inicio (considerar el costo de queries — cachear o mostrar solo si hay activos).
+
+**4. 🟠 Límite de cupo por tarjeta + % de utilización**
+`/inicio` muestra "Cupo usado" pero no existe campo de cupo total en `payment_methods` — el número no tiene contexto. Agregar `credit_limit` (migración simple) habilita: % de utilización, alerta de cupo alto, y mejora la card de estado de cuenta. Complementa la deuda comprometida (F3).
+
+**5. 🟠 P6 — Alerta de plata ociosa**
+Depósito vencido hace N días sin reinvertir (dato ya existe) + saldo USD idle en billetera cuando la watchlist tiene señal de compra activa (ambos datos existen, falta el cruce). Es la conexión inversiones↔señales que hoy no existe.
+
+**6. 🟡 Precio objetivo en watchlist (UI faltante)**
+`watchlist.target_price` está migrado hace meses pero sin UI (documentado en WATCHLIST_TECNICO.md). Completar el círculo: fijar precio objetivo → badge in-app cuando se alcanza. Esfuerzo bajo, feature a medio terminar.
+
+**7. 🟡 Proyección por categoría** _(backlog #9)_
+"Si sigues así, Comida cierra 20% sobre su límite" — la proyección global ya existe, falta por categoría en `/analisis`. Hace accionables los límites por categoría a mitad de mes, no cuando ya se excedieron.
+
+**8. 🟡 P8 (F7) — Rentabilidad real (UF/IPC)** en depósitos e inversiones.
+
+**9. 🟡 P9 (F6) — Mix 50/30/20** (`budget_type` en categorías).
+
+**10. ⚪ P3 (segunda mitad) — `budget_period` global** en `/analisis` y `/presupuesto`. Alto esfuerzo (rehace los rangos de casi todas las métricas del archivo más grande); hacerlo en sesión dedicada.
+
+**11. ⚪ Menores**: acción "capitalizar" interés en cuentas de ahorro; widget de ingreso rápido 2-taps (backlog #4); tags UI (backlog #6, columna ya existe); unificar la lógica de "atrasados" en un helper compartido (hoy vive duplicada en `/inicio` y `/recurrentes` y ya divergió una vez — causa raíz del bug de anuales).
+
+---
+
 _Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8); revisión de lógica entre features y dos rondas de correcciones: (1) patrimonio neto real, timezone, snapshot FX, fondo de emergencia; (2) fallback de presupuesto unificado, categoría en cargo de administración, P4 (meta de ahorro → límite) y P2 (sweep de cierre de mes)_

@@ -11,10 +11,17 @@ import type { RecurringExpense } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-function nextBillingDate(billingDay: number, from: Date): Date {
+function nextBillingDate(billingDay: number, from: Date, billingMonth: number | null = null): Date {
   const d = from.getDate()
   const m = from.getMonth() + 1
   const y = from.getFullYear()
+  // Anual: la próxima ocurrencia es el billing_day de SU mes (este año o el próximo)
+  if (billingMonth !== null) {
+    const lastOfBm  = (yy: number) => new Date(yy, billingMonth, 0).getDate()
+    const thisYear  = new Date(y, billingMonth - 1, Math.min(billingDay, lastOfBm(y)))
+    if (billingMonth > m || (billingMonth === m && Math.min(billingDay, lastOfBm(y)) >= d)) return thisYear
+    return new Date(y + 1, billingMonth - 1, Math.min(billingDay, lastOfBm(y + 1)))
+  }
   const lastThisMonth = new Date(y, m, 0).getDate()
   const thisMonthDay  = Math.min(billingDay, lastThisMonth)
   if (thisMonthDay >= d) return new Date(y, m - 1, thisMonthDay)
@@ -90,25 +97,34 @@ export default async function RecurrentesPage({
   }))
 
   const activeItems  = recurringWithCounts.filter(r => r.is_active)
-  const totalMonthly = activeItems.reduce((s, r) => s + r.amount, 0)
+  // Carga mensual: los anuales NO se suman completos cada mes — se prorratean
+  // a amount/12. Antes un seguro anual de $600.000 inflaba la "carga mensual"
+  // en $600.000 (y el "anual estimado" en $7,2M).
+  const monthlyItems = activeItems.filter(r => r.billing_month === null)
+  const annualItems  = activeItems.filter(r => r.billing_month !== null)
+  const totalMonthly = monthlyItems.reduce((s, r) => s + r.amount, 0)
+    + Math.round(annualItems.reduce((s, r) => s + r.amount, 0) / 12)
   const activeCount  = activeItems.length
 
-  // Atrasados: billing_day ya pasó este mes y no hay gasto registrado este mes
+  // Atrasados: billing_day ya pasó este mes y no hay gasto registrado este mes.
+  // Los anuales solo pueden estar atrasados en SU mes de cobro (billing_month);
+  // sin este filtro aparecían "atrasados" los 11 meses restantes del año.
   const paidThisMonthSet = new Set(
     (thisMonthExpenses ?? [])
       .map((e: { recurring_expense_id: string | null }) => e.recurring_expense_id)
       .filter(Boolean)
   )
   const overdueItems = activeItems.filter(r =>
+    (r.billing_month === null || r.billing_month === month) &&
     r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
   )
   const overdueCount = overdueItems.length
   const overdueNames = overdueItems.map(r => r.name)
 
-  // Próximo cargo
+  // Próximo cargo — los anuales van a su próxima ocurrencia real (su mes)
   const nextPayment = activeItems.length > 0
     ? activeItems
-        .map(r => ({ ...r, nextDate: nextBillingDate(r.billing_day, now) }))
+        .map(r => ({ ...r, nextDate: nextBillingDate(r.billing_day, now, r.billing_month) }))
         .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())[0]
     : null
   const nextDateLabel = nextPayment
@@ -125,7 +141,9 @@ export default async function RecurrentesPage({
   const avgMonthly     = monthKeys.length > 0
     ? Math.round(monthKeys.reduce((s, k) => s + monthlyTotals[k], 0) / monthKeys.length)
     : totalMonthly
-  const yearlyEstimate = totalMonthly * 12
+  // Anual estimado: mensuales ×12 + anuales una sola vez (no ×12)
+  const yearlyEstimate = monthlyItems.reduce((s, r) => s + r.amount, 0) * 12
+    + annualItems.reduce((s, r) => s + r.amount, 0)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
