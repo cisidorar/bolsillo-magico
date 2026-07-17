@@ -123,10 +123,11 @@ export default async function AnalisisPage({
       .from('savings_accounts')
       .select('balance')
       .eq('user_id', user!.id),
-    // Recurrentes activos para deuda comprometida a futuro (F3)
+    // Recurrentes activos para deuda comprometida a futuro (F3) y proyección
+    // consciente del calendario (id: para saber si ya se registró este mes)
     supabase
       .from('recurring_expenses')
-      .select('amount, billing_month, total_installments, paid_installments')
+      .select('id, amount, billing_month, total_installments, paid_installments')
       .eq('user_id', user!.id)
       .eq('is_active', true),
     // Depósitos a plazo VENCIDOS: en la práctica son líquidos (rescatables),
@@ -417,12 +418,44 @@ export default async function AnalisisPage({
 
   // Proyección mensual vs presupuesto global
   const daysInMonth  = new Date(year, month, 0).getDate()
-  const projection   = isCurrentMonth && now.getDate() > 3
-    ? Math.round((totalSelected / now.getDate()) * daysInMonth)
+
+  // Fix: la proyección ANTES prorateaba el gasto TOTAL como si se repitiera a
+  // diario (total/díasTranscurridos × díasDelMes). Si un fijo grande (arriendo,
+  // seguro) cae temprano en el mes, eso infla brutalmente la proyección de la
+  // primera quincena — el fijo se cuenta como si se repitiera cada día. Ahora
+  // solo se prorratea el gasto VARIABLE; los fijos (ya pagados este mes o los
+  // que aún faltan por pagar) se suman una sola vez, con su monto real.
+  type RecurringLite = { id: string; amount: number; billing_month: number | null; total_installments: number | null; paid_installments: number }
+  const activeRecurring = (recurringRaw ?? []) as RecurringLite[]
+  const postedRecurringIds = new Set(
+    selectedExpenses.filter(e => e.recurring_expense_id).map(e => e.recurring_expense_id as string)
+  )
+  const recurringSpentSoFar = selectedExpenses.reduce((s, e) => s + (e.recurring_expense_id ? e.amount : 0), 0)
+  const variableSpentSoFar  = totalSelected - recurringSpentSoFar
+  // Fijos de ESTE mes que aún no se han registrado como gasto (cuotas vigentes,
+  // anuales de este mes, indefinidos) — para no prorratearlos ni omitirlos.
+  let fixedStillDueThisMonth = 0
+  for (const r of activeRecurring) {
+    if (postedRecurringIds.has(r.id)) continue   // ya registrado este mes, ya está en recurringSpentSoFar
+    if (r.total_installments !== null) {
+      if (Math.max(0, r.total_installments - r.paid_installments) > 0) fixedStillDueThisMonth += r.amount
+    } else if (r.billing_month !== null) {
+      if (r.billing_month === month) fixedStillDueThisMonth += r.amount
+    } else {
+      fixedStillDueThisMonth += r.amount
+    }
+  }
+
+  const projection = isCurrentMonth && now.getDate() > 3
+    ? Math.round((variableSpentSoFar / now.getDate()) * daysInMonth) + recurringSpentSoFar + fixedStillDueThisMonth
     : null
-  // Projection without the biggest single purchase (to detect one-off distortion)
-  const projectionWithoutTop = isCurrentMonth && now.getDate() > 3 && topExpense
-    ? Math.round(((totalSelected - topExpense.amount) / now.getDate()) * daysInMonth) + topExpense.amount
+  // Projection without the biggest single purchase (to detect one-off distortion).
+  // Si la compra top es en sí un recurrente, ya se cuenta entero (no prorrateado)
+  // y no tiene sentido "quitarla": el ajuste solo aplica a gasto variable.
+  const topIsVariable = topExpense !== null && !topExpense.recurring_expense_id
+  const projectionWithoutTop = isCurrentMonth && now.getDate() > 3 && topIsVariable
+    ? Math.round(((variableSpentSoFar - topExpense!.amount) / now.getDate()) * daysInMonth)
+      + recurringSpentSoFar + fixedStillDueThisMonth + topExpense!.amount
     : null
   const projInflatedByTop = projection !== null && projectionWithoutTop !== null && globalBudget !== null
     && projection > globalBudget && projectionWithoutTop <= globalBudget * 1.05
@@ -491,8 +524,7 @@ export default async function AnalisisPage({
   }
 
   // F3: deuda comprometida a futuro — cuotas + recurrentes + tarjetas por facturar
-  type RecurringLite = { amount: number; billing_month: number | null; total_installments: number | null; paid_installments: number }
-  const activeRecurring = (recurringRaw ?? []) as RecurringLite[]
+  // (activeRecurring/RecurringLite ya se definieron arriba, junto a la proyección)
 
   // Compras ya hechas con tarjeta de crédito cuyo estado de cuenta cae en meses futuros
   const nowMonthIdx = now.getFullYear() * 12 + now.getMonth()
