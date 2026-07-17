@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign } from 'lucide-react'
+import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult } from '@/lib/net-worth'
 
@@ -275,9 +275,15 @@ export default function PatrimonioCards({
                 ))}
               </div>
               {!nw.stocksPriced && (
-                <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>
-                  Abre Acciones para actualizar precios de mercado; mientras tanto se usa el último valor disponible.
-                </p>
+                <div className="flex items-start gap-2 rounded-2xl px-3 py-2.5 mt-3"
+                  style={{ background: 'rgba(255,194,60,0.14)', border: '1px solid rgba(255,194,60,0.35)' }}>
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    <span className="font-bold">Tus acciones no están sumadas en este total</span> — falta el precio
+                    de mercado en caché. <Link href="/inversiones" className="font-semibold underline hover:opacity-70">Abre Acciones</Link> para
+                    actualizarlo; el patrimonio real es más alto que lo que ves acá.
+                  </p>
+                </div>
               )}
             </div>
 
