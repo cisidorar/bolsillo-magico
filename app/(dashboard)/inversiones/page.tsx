@@ -5,6 +5,10 @@ import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
 import WatchlistPanel, { type WatchlistItem } from '@/components/WatchlistPanel'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
+import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
+import { getNowChile } from '@/lib/utils'
+import TodayQueue, { type TodayDecision, type TodaySignal } from '@/components/TodayQueue'
+import PerformanceSection from '@/components/PerformanceSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +20,7 @@ export interface StockPosition {
   notes:           string | null
   wallet_funded:   boolean   // marcador: wallet_cost_usd > 0
   wallet_cost_usd: number    // porción del costo que salió de la billetera USD (descuenta del saldo)
+  trail_stop_usd:  number | null   // trailing stop (ratchet, solo sube) — lo escribe el cron sync-prices
   created_at:      string
   updated_at:      string
 }
@@ -126,6 +131,28 @@ export default async function InversionesPage({ searchParams }: Props) {
     .limit(1)
     .maybeSingle()
 
+  // ── "Hoy" (U1 del roadmap UX): la cola de acciones del día, leída del
+  // servidor — misma fuente que el correo, no un recálculo client-side que
+  // puede desalinearse con el cierre analizado. daily_decisions trae el
+  // veredicto comparado (mejor compra o "no compres nada"); daily_signals
+  // trae lo accionable por ticker que no es "comprar" (vender, tomar
+  // ganancias, precio objetivo alcanzado).
+  const { dateStr: todayCL } = getNowChile()
+  const [{ data: todayDecisionRow }, { data: todaySignalRows }] = await Promise.all([
+    supabase
+      .from('daily_decisions')
+      .select('ticker, tier, score, suggested_usd, verdict, reasons')
+      .eq('user_id', user.id)
+      .eq('decision_date', todayCL)
+      .maybeSingle(),
+    supabase
+      .from('daily_signals')
+      .select('ticker, kind, message, price')
+      .eq('user_id', user.id)
+      .eq('signal_date', todayCL)
+      .in('kind', ['sell', 'caution', 'target']),
+  ])
+
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
   // Acciones para el saldo disponible (tope de compra)
   const { data: usdPurchases } = await supabase
@@ -143,6 +170,50 @@ export default async function InversionesPage({ searchParams }: Props) {
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
+
+  // Mismo cálculo que StockPositionManager (walletAvailable): efectivo real
+  // para comprar. Se pasa a Favoritos para sugerir montos concretos (Fase 5.3).
+  const walletAvailableUsd = walletUsdBase > 0 ? walletUsdBase - investedUsd : null
+
+  // ── Benchmark vs SPY (Fase 2.2 del roadmap): ¿le ganaste al mercado? ──────
+  // Basado en cierres de price_history (misma tabla que usa el motor técnico)
+  // — no requiere precio en vivo. Se computa server-side porque necesita leer
+  // price_history directo, cosa que los client components no hacen.
+  let spyBenchmark: SpyBenchmarkResult | null = null
+  if ((purchases?.length ?? 0) > 0) {
+    const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker))]
+    const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
+      supabase
+        .from('price_history')
+        .select('date, close')
+        .eq('ticker', 'SPY')
+        .order('date', { ascending: true }),
+      positionTickers.length > 0
+        ? supabase
+            .from('price_history')
+            .select('ticker, date, close')
+            .in('ticker', positionTickers)
+            .order('date', { ascending: false })
+        : Promise.resolve({ data: [] as { ticker: string; date: string; close: number }[] }),
+    ])
+
+    const latestCloseByTicker = new Map<string, number>()
+    for (const row of latestRows ?? []) {
+      if (!latestCloseByTicker.has(row.ticker)) latestCloseByTicker.set(row.ticker, Number(row.close))
+    }
+
+    const cashFlows = [
+      ...(purchases ?? []).map(p => ({ date: p.purchase_date, usd: Number(p.total_paid_usd) })),
+      ...(sales ?? []).map(s => ({ date: s.sale_date, usd: -Number(s.proceeds_usd) })),
+    ]
+
+    spyBenchmark = computeSpyBenchmark(
+      cashFlows,
+      (spyRows ?? []).map(r => ({ date: r.date as string, close: Number(r.close) })),
+      (stocks ?? []).map(s => ({ ticker: s.ticker, shares: s.shares })),
+      latestCloseByTicker,
+    )
+  }
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
@@ -187,17 +258,26 @@ export default async function InversionesPage({ searchParams }: Props) {
         />
       ) : (
         <>
+          <TodayQueue
+            decision={(todayDecisionRow ?? null) as TodayDecision | null}
+            signals={(todaySignalRows ?? []) as TodaySignal[]}
+          />
           <StockPositionManager
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
             walletUsdBase={walletUsdBase}
             initialSales={(sales ?? []) as StockSale[]}
             initialPurchases={(purchases ?? []) as StockPurchase[]}
+            spyBenchmark={spyBenchmark}
+            lastAutoUpdate={lastSignal?.created_at ?? null}
           />
+          <div className="mt-6">
+            <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} />
+          </div>
           <WatchlistPanel
             userId={user.id}
             initialItems={(watchlist ?? []) as WatchlistItem[]}
-            lastAutoUpdate={lastSignal?.created_at ?? null}
+            walletAvailableUsd={walletAvailableUsd}
             positions={(() => {
               // Agregado por ticker (puede haber varias filas): acciones totales + costo promedio ponderado
               const map: Record<string, { shares: number; avgCost: number }> = {}

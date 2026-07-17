@@ -79,6 +79,21 @@ interface Signal {
   watch:      boolean
 }
 
+// Fase 5.4 del roadmap: la decisión de portafolio, calculada por el cron de
+// Vercel (sync-prices → computeDailyDecisions, mismo ranking de convicción
+// que el panel "¿Qué comprar hoy?" de la app) y guardada en daily_decisions.
+// ticker=null significa "hoy no compres nada" — un veredicto explícito, no
+// la ausencia de una tarjeta de compra.
+interface Decision {
+  user_id:       string
+  ticker:        string | null
+  tier:          string | null
+  score:         number
+  suggested_usd: number | null
+  verdict:       string
+  reasons:       string[]
+}
+
 interface TickerInfo {
   name:   string | null
   domain: string | null
@@ -149,6 +164,14 @@ Deno.serve(async (req: Request) => {
       ['IBIT', { name: 'iShares Bitcoin Trust', domain: null }],
     ])
     const sharesMap = new Map<string, number>([['MELI', 0.3], ['NVDA', 2.1]])
+    const testDecision: Decision = {
+      user_id: 'x', ticker: 'NVDA', tier: 'compra', score: 78, suggested_usd: 450,
+      verdict: 'Compra: el caso es razonable, sin ser contundente.',
+      reasons: [
+        'Lectura técnica a favor: compra (2 a favor, 0 en contra).',
+        'Riesgo/recompensa a favor: arriesgas 4.2% para un potencial de +11.0% (2.6×).',
+      ],
+    }
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -156,7 +179,7 @@ Deno.serve(async (req: Request) => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: testEmail,
         subject: `2 señales fuertes para revisar hoy · Bolsillo Mágico`,
-        html: digestEmailHtml({ displayName: 'Cata', signals: testSignals, infoMap, sharesMap, siteUrl: SITE_URL }),
+        html: digestEmailHtml({ displayName: 'Cata', signals: testSignals, infoMap, sharesMap, siteUrl: SITE_URL, decision: testDecision }),
       }),
     })
     return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
@@ -179,6 +202,17 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ sent: 0, users: 0 }), { headers: { 'Content-Type': 'application/json' } })
   }
   const signals = rows as Signal[]
+
+  // Decisión de portafolio del día — puede faltar (usuario sin watchlist con
+  // historia suficiente todavía); el correo funciona igual sin ella, solo
+  // sin el bloque de veredicto al inicio.
+  const { data: decisionRows } = await supabase
+    .from('daily_decisions')
+    .select('user_id, ticker, tier, score, suggested_usd, verdict, reasons')
+    .eq('decision_date', today)
+  const decisionByUser = new Map<string, Decision>(
+    ((decisionRows ?? []) as Decision[]).map(d => [d.user_id, d]),
+  )
 
   // Nombre/dominio (logo) por ticker — cacheado por la app en price_cache.
   const tickers = [...new Set(signals.map(s => s.ticker))]
@@ -255,6 +289,7 @@ Deno.serve(async (req: Request) => {
         html: digestEmailHtml({
           displayName, signals: userSignals, infoMap,
           sharesMap: sharesByUser.get(userId) ?? new Map(), siteUrl: SITE_URL,
+          decision: decisionByUser.get(userId) ?? null,
         }),
       }),
     })
@@ -311,18 +346,70 @@ function tickerIcon(ticker: string, domain: string | null, size: number): string
 
 // ── Email HTML ────────────────────────────────────────────────────────────────
 
+function fmtDecisionUsd(n: number): string {
+  return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+// Bloque de veredicto — Fase 5.4: el correo abre con la decisión, no con una
+// lista de señales. Compra clara = tarjeta verde con monto; sin caso hoy =
+// banda gris pero con la misma contundencia ("No compres nada hoy"), nunca
+// un silencio.
+function decisionBlockHtml(decision: Decision | null, infoMap: Map<string, TickerInfo>): string {
+  if (!decision) return ''
+  const isBuy = decision.ticker !== null && (decision.tier === 'compra' || decision.tier === 'compra_fuerte')
+  if (!isBuy) {
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+      <tr><td style="background:#F5F7FA;border-radius:16px;padding:16px 18px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#3D4C63">
+          Hoy no compres nada de tu lista
+        </p>
+        <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0;line-height:1.5">
+          ${decision.verdict}
+        </p>
+      </td></tr>
+    </table>`
+  }
+  const info = infoMap.get(decision.ticker!) ?? { name: null, domain: null }
+  const reasonsHtml = decision.reasons.slice(0, 2).map(r => `
+    <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#3D4C63;line-height:1.5">· ${r}</p>
+  `).join('')
+  return `
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+    <tr><td style="background:#EAFBF5;border:1.5px solid #1FBE8D;border-radius:16px;padding:18px 20px">
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+        <tr>
+          <td style="width:36px;vertical-align:top">${tickerIcon(decision.ticker!, info.domain, 36)}</td>
+          <td style="padding-left:12px;vertical-align:top">
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:15px;font-weight:800;color:#0E2A52">
+              La compra de hoy: ${decision.ticker} <span style="color:#1FBE8D">(${decision.score}/100)</span>
+            </p>
+            ${decision.suggested_usd !== null ? `
+            <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#1FBE8D">
+              Compra hasta ${fmtDecisionUsd(decision.suggested_usd)} ahora
+            </p>` : ''}
+            ${reasonsHtml}
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>`
+}
+
 function digestEmailHtml({
   displayName,
   signals,
   infoMap,
   sharesMap,
   siteUrl,
+  decision,
 }: {
   displayName: string
   signals:     Signal[]
   infoMap:     Map<string, TickerInfo>
   sharesMap:   Map<string, number>
   siteUrl:     string
+  decision:    Decision | null
 }) {
   // Tarjeta destacada = cualquier compra/venta/objetivo alcanzado, sea o no
   // "fuerte" — lo que importa acá es que sea accionable, no la intensidad del
@@ -436,6 +523,8 @@ function digestEmailHtml({
 
       <!-- CUERPO -->
       <tr><td style="padding:8px 32px 28px">
+
+        ${decisionBlockHtml(decision, infoMap)}
 
         ${strongRows.length > 0 ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">

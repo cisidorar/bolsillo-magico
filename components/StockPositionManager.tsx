@@ -11,8 +11,20 @@ import { formatCLP, relativeDate } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
-import type { TechnicalAnalysis } from '@/lib/technical'
+import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { getAnalysis } from '@/lib/analysis-cache'
+import { RiskRail } from '@/components/RiskRail'
+import type { SpyBenchmarkResult } from '@/lib/benchmark'
+import { fmtLastAutoUpdate } from '@/lib/format-freshness'
+
+/** Alarma efectiva: el trailing persistido (ratchet del cron) nunca baja, así
+ *  que manda sobre el alarm recalculado del día si quedó por encima. */
+function effectiveAlarm(pa: TechnicalAnalysis, trailStopUsd: number | null): number | null {
+  const trail = trailStopUsd !== null ? trailStopUsd : null
+  if (pa.alarm === null) return trail
+  if (trail === null) return pa.alarm
+  return Math.max(pa.alarm, trail)
+}
 
 /** Salida accionable HOY según el plan: coral si la tendencia se dio vuelta
  *  (vender), gold si es zona caliente (asegurar una parte). null = nada hoy. */
@@ -192,12 +204,16 @@ interface Props {
   initialSales?:    StockSale[]
   /** Compras ya registradas individualmente (desde que existe esta tabla) — mismo propósito. */
   initialPurchases?: StockPurchase[]
+  /** Comparación vs SPY (computada server-side) — sub-línea del hero (U5 roadmap UX). */
+  spyBenchmark?: SpyBenchmarkResult | null
+  /** created_at de la última fila en daily_signals — para el pill único de frescura (U6 roadmap UX). */
+  lastAutoUpdate?: string | null
 }
 interface FormState { ticker: string; shares: string; totalPaid: string; notes: string }
 const emptyForm: FormState = { ticker: '', shares: '', totalPaid: '', notes: '' }
 
 export default function StockPositionManager({
-  userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
+  userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [], spyBenchmark = null, lastAutoUpdate = null,
 }: Props) {
   const supabase     = createClient()
 
@@ -327,21 +343,30 @@ export default function StockPositionManager({
     return p.shares * q.price < p.shares * p.avg_cost_usd
   }).length
 
-  // Posición más cerca de gatillar su alarma de salida — el dato prospectivo
-  // que importa para decidir: "MU está a 1.2% de su salida" > "mejor retorno"
-  const nearestAlarm = positions.reduce<{ ticker: string; distPct: number; alarm: number } | null>((best, p) => {
-    const pa = posAnalyses[p.ticker]
-    if (typeof pa !== 'object' || pa.alarm === null) return best
-    const px = quotes[p.ticker]?.price ?? pa.price
-    const d = ((px - pa.alarm) / pa.alarm) * 100
-    if (d < 0) return best   // ya la perdió: eso lo grita el chip Vender/fila coral
-    if (!best || d < best.distPct) return { ticker: p.ticker, distPct: d, alarm: pa.alarm }
-    return best
-  }, null)
-  const alarmClose = nearestAlarm !== null && nearestAlarm.distPct <= 3
-
   // Ganancia realizada acumulada (ventas cerradas) — parte del resultado real
   const realizedPnlUsd = sales.reduce((s, x) => s + Number(x.realized_pnl_usd), 0)
+
+  // Retorno total del hero: abierta + realizada juntas, en vez de dos
+  // columnas separadas que había que sumar mentalmente (U5 roadmap UX).
+  const totalReturnUsd = totalGainUsd + realizedPnlUsd
+  const totalReturnPct = totalCostUsd > 0 ? (totalReturnUsd / totalCostUsd) * 100 : 0
+
+  // Position sizing por riesgo (regla 1%): monto máximo sugerido para un
+  // ticker dado su stop (alarm técnico o trailing persistido, el mayor).
+  // Portafolio = valor de posiciones + billetera disponible. Es sugerencia
+  // visible al comprar — no bloquea nada.
+  function sizingFor(ticker: string): { maxUsd: number; stop: number; distPct: number } | null {
+    const pa = posAnalyses[ticker]
+    if (typeof pa !== 'object') return null
+    const live  = quotes[ticker]?.price ?? pa.price
+    const pos   = positions.find(p => p.ticker === ticker)
+    const trail = pos?.trail_stop_usd != null ? Number(pos.trail_stop_usd) : null
+    const stopRaw = Math.max(pa.alarm ?? -Infinity, trail ?? -Infinity)
+    const stop  = Number.isFinite(stopRaw) ? stopRaw : null
+    const portfolio = totalValueUsd + Math.max(0, walletAvailable ?? 0)
+    const s = positionSizeUsd(portfolio, live, stop)
+    return s ? { maxUsd: s.maxUsd, stop: stop as number, distPct: s.stopDistPct } : null
+  }
 
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
     const q    = quotes[p.ticker]
@@ -598,12 +623,15 @@ export default function StockPositionManager({
       .update({
         shares: newShares, avg_cost_usd: newAvgCost,
         wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
+        // Comprar más cambia el perfil de la posición: el trailing acumulado
+        // deja de representarla — se resetea y el cron lo recalcula esa noche
+        trail_stop_usd: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id).eq('user_id', userId)
     if (error) { setSaving(false); setFormError('Error al guardar'); return }
     setPositions(prev => prev.map(p => p.id === id
-      ? { ...p, shares: newShares, avg_cost_usd: newAvgCost, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0 }
+      ? { ...p, shares: newShares, avg_cost_usd: newAvgCost, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0, trail_stop_usd: null }
       : p))
     fetchQuotes(positions.map(p => p.ticker))
 
@@ -624,7 +652,10 @@ export default function StockPositionManager({
 
       {/* ── Top bar — espacio compacto arriba y abajo ────────────────── */}
       <div className="flex items-center justify-between gap-3 mb-3">
-        {/* Estado del mercado — izquierda */}
+        {/* Estado del mercado + frescura del análisis — un solo pill (U6 roadmap
+            UX): antes convivían el dot de mercado acá, "cierre · hace Xs" en la
+            tabla, y "Análisis automático" en Favoritos — tres criterios de color
+            distintos para variaciones del mismo dato. */}
         <div className="flex items-center gap-2 min-w-0 text-[11px]">
           {lastUpdated && !quotesError && marketOpen !== null && (
             <>
@@ -658,6 +689,14 @@ export default function StockPositionManager({
               </button>
             </div>
           )}
+          {lastAutoUpdate && (() => {
+            const au = fmtLastAutoUpdate(lastAutoUpdate)
+            return (
+              <span className="flex items-center gap-1 font-medium truncate" style={{ color: au.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
+                · análisis {au.label}{au.stale ? ' — revisa el cron' : ''}
+              </span>
+            )
+          })()}
         </div>
 
         {/* Tabs + Agregar — derecha */}
@@ -893,14 +932,30 @@ export default function StockPositionManager({
                             </span>
                           </div>
                           <div className="space-y-0.5">
-                            {pa.sell.map((t, i) => (
-                              <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-                                <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>{t.pct}%</span>
-                                {' '}{t.cond}
-                              </p>
-                            ))}
+                            {pa.sell.map((t, i) => {
+                              // Monto concreto en USD, no solo el %: "vende US$820"
+                              // pesa una decisión más que "vende 40%" — hay que
+                              // calcular cuánto es antes de poder actuar.
+                              const base = currentValue ?? costBasis
+                              const usdAmount = base * (t.pct / 100)
+                              return (
+                                <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                                  <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>
+                                    {t.now ? `Vende ${fmtUSD(usdAmount)}` : `${t.pct}%`}
+                                  </span>
+                                  {' '}{t.cond}
+                                  {t.now && <span className="font-semibold" style={{ color: 'var(--ink-3)' }}> ({t.pct}% de la posición)</span>}
+                                </p>
+                              )
+                            })}
                           </div>
                           <p className="text-[11px] leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{pa.sellPlan}</p>
+                          {/* Trailing persistido (ratchet del cron): si quedó por sobre el alarm del día, manda él */}
+                          {pos.trail_stop_usd !== null && Number(pos.trail_stop_usd) > (pa.alarm ?? -Infinity) + 0.005 && (
+                            <p className="text-[11px] font-semibold mt-1.5" style={{ color: 'var(--gold)' }}>
+                              Tu salida móvil quedó en {fmtUSD(Number(pos.trail_stop_usd))}: subió junto al precio y no baja aunque los niveles del día bajen.
+                            </p>
+                          )}
                           {/* Guard intradía: los precios del plan son del cierre anterior */}
                           {(() => {
                             const live = quotes[pos.ticker]?.price
@@ -976,7 +1031,14 @@ export default function StockPositionManager({
                       maxLength={10}
                       className="w-full text-sm font-bold border px-4 py-3"
                       style={{ ...inputBase, fontFamily: 'ui-monospace, monospace', fontSize: 15 }}
-                      onFocus={focusOn} onBlur={focusOff}
+                      onFocus={focusOn}
+                      onBlur={e => {
+                        focusOff(e)
+                        // Análisis del ticker al salir del campo: alimenta la
+                        // sugerencia de monto por riesgo más abajo
+                        const t = e.currentTarget.value.trim().toUpperCase()
+                        if (/^[A-Z0-9.\-]{1,10}$/.test(t) && typeof posAnalyses[t] !== 'object') fetchPosAnalysis(t)
+                      }}
                     />
                   </div>
 
@@ -1025,6 +1087,23 @@ export default function StockPositionManager({
                       </span>
                     </div>
                   )}
+
+                  {/* Sugerencia de monto por riesgo (regla 1%) — solo compra nueva */}
+                  {!editingId && (() => {
+                    const s = sizingFor(form.ticker.trim().toUpperCase())
+                    if (!s) return null
+                    const total = parseFloat(form.totalPaid)
+                    const over  = Number.isFinite(total) && total > s.maxUsd * 1.005
+                    return (
+                      <div className="px-4 py-2.5 rounded-xl" style={{ background: over ? 'rgba(255,194,60,0.10)' : 'var(--surface-2)' }}>
+                        <p className="text-[11px] leading-relaxed" style={{ color: over ? 'var(--gold)' : 'var(--ink-2)' }}>
+                          <span className="font-bold">Sugerido máx {fmtUSD(s.maxUsd)}</span> para arriesgar solo 1% del portafolio
+                          {' '}(salida en {fmtUSD(s.stop)}, a −{s.distPct.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%).
+                          {over && ' Con este monto arriesgas más que eso — decisión tuya, pero que sea consciente.'}
+                        </p>
+                      </div>
+                    )
+                  })()}
 
                   {/* Nota */}
                   <div>
@@ -1159,6 +1238,32 @@ export default function StockPositionManager({
                         />
                       </div>
                     </div>
+
+                    {/* Sugerencia de monto por riesgo (regla 1%): contando lo que ya tienes */}
+                    {pos && (() => {
+                      const s = sizingFor(pos.ticker)
+                      if (!s) return null
+                      const live = quotes[pos.ticker]?.price ?? null
+                      const currentValue = live !== null ? pos.shares * live : pos.shares * pos.avg_cost_usd
+                      const room = s.maxUsd - currentValue
+                      const over = Number.isFinite(parseFloat(buyTotalPaid.replace(',', '.')))
+                        && parseFloat(buyTotalPaid.replace(',', '.')) > Math.max(0, room) * 1.005
+                      return (
+                        <div className="px-4 py-2.5 rounded-xl" style={{ background: over || room <= 0 ? 'rgba(255,194,60,0.10)' : 'var(--surface-2)' }}>
+                          <p className="text-[11px] leading-relaxed" style={{ color: over || room <= 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
+                            {room > 0 ? (
+                              <>
+                                <span className="font-bold">Margen sugerido {fmtUSD(room)}</span> para que la posición completa
+                                arriesgue solo 1% del portafolio (salida en {fmtUSD(s.stop)}).
+                                {over && ' Con este monto pasas ese límite — decisión tuya, pero que sea consciente.'}
+                              </>
+                            ) : (
+                              <>Esta posición ya está al tope de la regla del 1% (salida en {fmtUSD(s.stop)}): comprar más concentra el riesgo.</>
+                            )}
+                          </p>
+                        </div>
+                      )
+                    })()}
 
                     {newShares !== null && newAvgCost !== null && (
                       <div className="rounded-2xl p-3 space-y-1.5" style={{ background: 'var(--surface-2)' }}>
@@ -1476,24 +1581,27 @@ export default function StockPositionManager({
                 </p>
               </div>
               {/* Ganancia abierta (posiciones vivas) */}
+              {/* Retorno total: abierta + realizada juntas — antes eran 2 columnas
+                  separadas que obligaban a sumarlas mentalmente (U5 roadmap UX) */}
               <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>G. abierta</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
                 </p>
               </div>
-              {/* Realizada (ventas cerradas) */}
+              {/* Retorno % */}
               <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Realizada</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: sales.length > 0 ? (realizedPnlUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {sales.length > 0 ? fmtUSDSigned(realizedPnlUsd) : '—'}
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno %</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {hasQ ? fmtPct(totalReturnPct) : '—'}
                 </p>
               </div>
-              {/* Retorno */}
+              {/* vs SPY — antes enterrado en Billetera; es el número más honesto
+                  del portafolio y ahora vive donde se decide (U5 roadmap UX) */}
               <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? fmtPct(totalGainPct) : '—'}
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>vs SPY</p>
+                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: spyBenchmark?.diffPct != null ? (spyBenchmark.diffPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {spyBenchmark?.diffPct != null ? fmtPct(spyBenchmark.diffPct) : '—'}
                 </p>
               </div>
             </div>
@@ -1539,30 +1647,20 @@ export default function StockPositionManager({
               )}
             </div>
 
-            {/* Mejor retorno — cede su lugar al riesgo cercano cuando lo hay:
-                "MU a 1.2% de su alarma" decide más que un dato de vanidad.
-                Card clickeable: abre directo el popup de esa posición. */}
+            {/* Mejor retorno — el "cerca de alarma" ahora vive arriba de todo
+                en la card "Hoy" (U1 del roadmap UX): repetirlo acá era doble
+                información. Card clickeable: abre directo el popup de esa posición. */}
             <button
               onClick={() => {
-                const t = alarmClose && nearestAlarm ? nearestAlarm.ticker : bestPos?.ticker
-                const pos = t ? positions.find(p => p.ticker === t) : undefined
+                const pos = bestPos ? positions.find(p => p.ticker === bestPos.ticker) : undefined
                 if (pos) openEdit(pos)
               }}
               className="card p-3 lg:p-5 min-w-0 text-left transition-colors hover:bg-[var(--surface-2)]"
             >
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: alarmClose ? 'var(--gold)' : 'var(--ink-3)' }}>
-                {alarmClose ? 'Cerca de alarma' : bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
+              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
               </p>
-              {alarmClose && nearestAlarm ? (
-                <>
-                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
-                    {nearestAlarm.ticker}
-                  </p>
-                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5 tabular-nums" style={{ color: 'var(--gold)' }}>
-                    a {nearestAlarm.distPct.toFixed(1)}% de su salida ({fmtUSD(nearestAlarm.alarm)})
-                  </p>
-                </>
-              ) : bestPos ? (
+              {bestPos ? (
                 <>
                   <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
                     {bestPos.ticker}
@@ -1587,18 +1685,6 @@ export default function StockPositionManager({
       {/* ── Mis posiciones table ─────────────────────────────────────────── */}
       {positions.length > 0 && (
         <div className="card overflow-hidden">
-
-          {/* Table header bar */}
-          <div className="flex items-center justify-end px-4 lg:px-6 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-            {/* ⊙ cierre · hace Xs */}
-            <p className="text-[10px] flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: lastUpdated ? 'var(--mint)' : 'var(--ink-3)' }} />
-              cierre ·{' '}
-              {lastUpdated
-                ? `hace ${Math.round((Date.now() - lastUpdated.getTime()) / 1000)}s`
-                : 'sin datos'}
-            </p>
-          </div>
 
           {/* Column headers (desktop only) */}
           <div
@@ -1700,17 +1786,18 @@ export default function StockPositionManager({
                       )}
                       {(() => {
                         const pa = posAnalyses[pos.ticker]
-                        if (typeof pa !== 'object' || pa.alarm === null || currentPrice === null) return null
-                        const d = ((currentPrice - pa.alarm) / pa.alarm) * 100
-                        if (d < 0) return (
+                        if (typeof pa !== 'object' || currentPrice === null) return null
+                        const alarm = effectiveAlarm(pa, pos.trail_stop_usd)
+                        if (alarm === null) return null
+                        if (currentPrice < alarm) return (
                           <p className="text-[9px] font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
-                            bajo la alarma {fmtUSD(pa.alarm)}
+                            bajo la alarma {fmtUSD(alarm)}
                           </p>
                         )
                         return (
-                          <p className="text-[9px] font-semibold tabular-nums" style={{ color: d <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
-                            alarma {fmtUSD(pa.alarm)}{d <= 3 ? ` · a ${d.toFixed(1)}%` : ''}
-                          </p>
+                          <div className="flex justify-end mt-1">
+                            <RiskRail price={currentPrice} stop={alarm} resistance={pa.resistanceLevels[0]?.price ?? null} compact />
+                          </div>
                         )
                       })()}
                     </div>
@@ -1787,6 +1874,22 @@ export default function StockPositionManager({
                       <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
                         {pos.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · {currentPrice !== null ? fmtUSD(currentPrice) : '—'}
                       </p>
+                      {(() => {
+                        const pa = posAnalyses[pos.ticker]
+                        if (typeof pa !== 'object' || currentPrice === null) return null
+                        const alarm = effectiveAlarm(pa, pos.trail_stop_usd)
+                        if (alarm === null) return null
+                        if (currentPrice < alarm) return (
+                          <p className="text-[9px] font-bold tabular-nums mt-1" style={{ color: 'var(--coral)' }}>
+                            bajo la alarma {fmtUSD(alarm)}
+                          </p>
+                        )
+                        return (
+                          <div className="mt-1">
+                            <RiskRail price={currentPrice} stop={alarm} resistance={pa.resistanceLevels[0]?.price ?? null} compact />
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div className="text-right shrink-0 min-w-[72px]">
                       {gainUsd !== null ? (

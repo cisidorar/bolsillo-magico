@@ -7,7 +7,11 @@ import ServiceLogo from '@/components/ServiceLogo'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import type { NewsResponse } from '@/app/api/stock-news/route'
+import type { SignalBacktestResponse } from '@/app/api/signal-backtest/route'
 import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
+import { computeConviction, type ConvictionResult } from '@/lib/conviction'
+import { positionSizeUsd } from '@/lib/technical'
+import { ConvictionChip, RiskRail } from '@/components/RiskRail'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,7 +52,8 @@ interface Props {
   userId:       string
   initialItems: WatchlistItem[]
   positions:    Record<string, OwnedPosition>   // por ticker — condiciona venta/toma de ganancias y da contexto en el detalle
-  lastAutoUpdate?: string | null   // created_at de la última fila en daily_signals — salud del cron diario (sync-prices → digest)
+  /** Saldo USD disponible en la billetera — para decir montos concretos, no solo %. null/undefined = billetera sin usar. */
+  walletAvailableUsd?: number | null
 }
 
 const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
@@ -196,30 +201,37 @@ function fmtAsOfDay(dateStr: string): string {
   return `${d} ${MONTHS_ES[m - 1]}`
 }
 
-/** Última corrida del cron diario (sync-prices → daily_signals), en hora de
- *  Chile — para notar de un vistazo si el pipeline automático dejó de correr. */
-function fmtLastAutoUpdate(iso: string): { label: string; stale: boolean } {
-  const d  = new Date(iso)
-  const cl = new Date(d.toLocaleString('en-US', { timeZone: 'America/Santiago' }))
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
-  const sameDay = cl.getFullYear() === now.getFullYear() && cl.getMonth() === now.getMonth() && cl.getDate() === now.getDate()
-  const hh = String(cl.getHours()).padStart(2, '0')
-  const mm = String(cl.getMinutes()).padStart(2, '0')
-  const label = sameDay ? `hoy ${hh}:${mm}` : `${cl.getDate()} ${MONTHS_ES[cl.getMonth()]}, ${hh}:${mm}`
-  // "Viejo" si no es de hoy ni de ayer (el corte de las 21h hace que el análisis
-  // de "ayer" siga siendo válido temprano en la mañana antes de que corra hoy).
-  const diffDays = Math.floor((now.getTime() - new Date(cl.getFullYear(), cl.getMonth(), cl.getDate()).getTime()) / 86_400_000)
-  return { label, stale: diffDays > 1 }
-}
-
 // ── Panel técnico de un ticker — lectura de largo plazo ─────────────────────
 
-function TechnicalDetail({ a, ticker, position, livePrice }: {
+type DetailSection = 'plan' | 'chart' | 'signals' | 'history'
+
+function TechnicalDetail({ a, ticker, position, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m }: {
   a:         TechnicalAnalysis
   ticker:    string
   position?: OwnedPosition        // solo si el ticker está en cartera
   livePrice?: number              // quote en vivo; fallback al cierre del análisis
+  /** Para convertir los tramos de compra de % a montos concretos en USD. */
+  portfolioValueUsd?: number
+  walletAvailableUsd?: number | null
+  /** Para el score de convicción de la cabecera — mismo criterio que el ranking de favoritos. */
+  spyReturn6m?: number | null
 }) {
+  // U3 (roadmap UX): cabecera fija con score + acción + monto; el resto vive
+  // en secciones colapsables — antes eran ~12 bloques apilados en un solo scroll.
+  const [openSection, setOpenSection] = useState<DetailSection>('plan')
+  // Monto sugerido por tramo: % del tramo × el máximo por riesgo (regla del
+  // 1%, misma que en Acciones). El tramo "ahora" además queda topado al
+  // efectivo real disponible — no tiene sentido sugerir comprar más de lo
+  // que hay en la billetera.
+  const sizing = portfolioValueUsd !== undefined && portfolioValueUsd > 0
+    ? positionSizeUsd(portfolioValueUsd, livePrice ?? a.price, a.alarm)
+    : null
+  const cashCap = walletAvailableUsd !== null && walletAvailableUsd !== undefined ? Math.max(0, walletAvailableUsd) : null
+  function trancheUsd(pct: number, now: boolean): number | null {
+    if (!sizing) return null
+    const raw = sizing.maxUsd * (pct / 100)
+    return now && cashCap !== null ? Math.min(raw, cashCap) : raw
+  }
   // Noticias on-demand: la IA solo RESUME titulares (Finnhub), jamás toca el
   // análisis técnico. Cache 12 h server-side; el estado se resetea por ticker
   // vía key={ticker} en el call site.
@@ -231,6 +243,20 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
       if (!r.ok) throw new Error()
       setNews(await r.json() as NewsResponse)
     } catch { setNews('error') }
+  }
+
+  // Evaluación de señales a posteriori (Fase 2.3 del roadmap) — on-demand,
+  // mismo patrón que noticias: es una consulta pesada (recorre ~1 año de
+  // señales) que no vale la pena precargar para cada ticker de la watchlist.
+  const [backtest, setBacktest] = useState<SignalBacktestResponse['result'] | 'loading' | 'error' | null>(null)
+  async function loadBacktest() {
+    setBacktest('loading')
+    try {
+      const r = await fetch(`/api/signal-backtest?symbol=${ticker}`)
+      if (!r.ok) throw new Error()
+      const d = await r.json() as SignalBacktestResponse
+      setBacktest(d.result)
+    } catch { setBacktest('error') }
   }
   const range = a.high52 - a.low52 || 1
   const posPct = Math.min(Math.max(((a.price - a.low52) / range) * 100, 0), 100)
@@ -257,6 +283,36 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
   }
   const ratingUi = { ...RATING_UI[a.rating.label], text: `Lectura técnica: ${a.rating.action}` }
 
+  // Cabecera: score de convicción (mismo cálculo que el ranking de favoritos)
+  // + la acción concreta de HOY con monto, no solo el rating en abstracto.
+  const conviction = computeConviction(a, null, spyReturn6m)
+  const buyNow  = a.buy.find(t => t.now)
+  const sellNow = position ? a.sell.find(t => t.now) : undefined
+  let headerAction: string
+  let headerColor: string
+  if (sellNow) {
+    const currentValue = position!.shares * (livePrice ?? a.price)
+    const usdAmount = currentValue * (sellNow.pct / 100)
+    headerAction = `Vende ${fmtUSD(usdAmount)} ahora`
+    headerColor = 'var(--gold)'
+  } else if (buyNow) {
+    const usd = trancheUsd(buyNow.pct, true)
+    const noCash = cashCap !== null && cashCap < 1
+    headerAction = noCash ? 'Sin saldo disponible para comprar' : usd !== null ? `Compra ${fmtUSD(usd)} ahora` : 'Compra ahora'
+    headerColor = 'var(--mint)'
+  } else {
+    headerAction = position ? 'Mantener — sin acción hoy' : 'No comprar hoy'
+    headerColor = 'var(--ink-3)'
+  }
+  const rationale = [conviction.verdict, conviction.reasons[0]].filter(Boolean).join(' ')
+
+  const SECTIONS: { id: DetailSection; label: string; icon: typeof BarChart3 }[] = [
+    { id: 'plan',    label: 'Plan',              icon: Target },
+    { id: 'chart',   label: 'Gráfico y niveles', icon: BarChart3 },
+    { id: 'signals', label: 'Señales y radar',   icon: Activity },
+    { id: 'history', label: 'Historial',         icon: Newspaper },
+  ]
+
   return (
     <div className="px-4 lg:px-6 pb-4 lg:pb-6 space-y-3 lg:space-y-4">
 
@@ -273,25 +329,51 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         </div>
       )}
 
-      {/* 0. Lectura técnica + veredicto — una sola tarjeta (son la misma idea:
-          la conclusión y su porqué; separadas duplicaban el ritmo visual) */}
+      {/* 0. Cabecera fija: score + acción con monto + el porqué en 2 líneas
+          (U3 del roadmap UX) — esto es lo único que hace falta leer para
+          decidir; el resto de bloques son profundización opcional. */}
       <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg, borderLeft: `3px solid ${ratingUi.color}` }}>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-bold" style={{ color: ratingUi.color }}>{ratingUi.text}</p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <ConvictionChip score={conviction.score} tier={conviction.tier} />
+            <p className="text-sm font-extrabold truncate" style={{ color: headerColor }}>{headerAction}</p>
+          </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
             style={{ background: 'var(--surface)', color: ratingUi.color }}>
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
-        <p className="text-xs leading-relaxed font-semibold mt-1.5" style={{ color: 'var(--ink)' }}>{a.verdict}</p>
+        <p className="text-xs leading-relaxed font-semibold mt-1.5" style={{ color: 'var(--ink)' }}>{rationale}</p>
         {position && a.rating.caution && (
           <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold)' }}>
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
           </p>
         )}
-        {/* Sin microcopy repetido: el disclaimer vive una sola vez, al pie */}
       </div>
 
+      {/* Navegación de secciones — solo una a la vez, "Plan" abierta por defecto */}
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1">
+        {SECTIONS.map(s => {
+          const Icon = s.icon
+          const active = openSection === s.id
+          return (
+            <button
+              key={s.id}
+              onClick={() => setOpenSection(s.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all"
+              style={active
+                ? { background: 'var(--primary)', color: 'white' }
+                : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+            >
+              <Icon className="w-3 h-3" />
+              {s.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Sección: Plan (compra + salida) ─────────────────────────────── */}
+      {openSection === 'plan' && <>
       {/* 0.5 Tu posición — retorno vs costo + PLAN DE SALIDA por tramos
           (simétrico al plan de compra; reemplaza la referencia pasiva de piso) */}
       {position && (() => {
@@ -311,12 +393,19 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
               </span>
             </div>
             <div className="space-y-0.5">
-              {a.sell.map((t, i) => (
-                <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-                  <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>{t.pct}%</span>
-                  {' '}{t.cond}
-                </p>
-              ))}
+              {a.sell.map((t, i) => {
+                const currentValue = position.shares * (livePrice ?? a.price)
+                const usdAmount = currentValue * (t.pct / 100)
+                return (
+                  <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                    <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>
+                      {t.now ? `Vende ${fmtUSD(usdAmount)}` : `${t.pct}%`}
+                    </span>
+                    {' '}{t.cond}
+                    {t.now && <span className="font-semibold" style={{ color: 'var(--ink-3)' }}> ({t.pct}% de la posición)</span>}
+                  </p>
+                )
+              })}
             </div>
             <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.sellPlan}</p>
           </div>
@@ -328,19 +417,29 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Plan de compra</p>
         {a.buy.length > 0 ? (
           <div className="space-y-0.5">
-            {a.buy.map((t, i) => (
-              <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-                <span className="font-extrabold" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>{t.pct}%</span>
-                {' '}{t.cond}
-              </p>
-            ))}
+            {a.buy.map((t, i) => {
+              const usd = trancheUsd(t.pct, t.now)
+              const noCash = t.now && cashCap !== null && cashCap < 1
+              return (
+                <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
+                  <span className="font-extrabold" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>
+                    {noCash ? 'Sin saldo disponible' : usd !== null ? `Compra ${fmtUSD(usd)}` : `${t.pct}%`}
+                  </span>
+                  {' '}{t.cond}
+                  {usd !== null && !noCash && <span className="font-semibold" style={{ color: 'var(--ink-3)' }}> ({t.pct}%)</span>}
+                </p>
+              )
+            })}
           </div>
         ) : (
           <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--ink-3)' }}>Nada por ahora</p>
         )}
         <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
       </div>
+      </>}
 
+      {/* ── Sección: Historial (noticias + backtest, ambos on-demand) ──── */}
+      {openSection === 'history' && <>
       {/* 1.7 Noticias on-demand — botón ghost mientras no se pide (una tarjeta
           entera para un link pesaba demasiado en la pila superior) */}
       <div className={news === null ? 'px-1' : 'rounded-2xl px-3.5 py-3'}
@@ -384,12 +483,15 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
               </div>
             )}
             <p className="text-[9px] mt-2 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-              Resumen automático de titulares — puede omitir contexto; no es recomendación ni afecta la lectura técnica.
+              Resumen automático de titulares — puede omitir contexto y no afecta la lectura técnica de arriba.
             </p>
           </>
         )}
       </div>
+      </>}
 
+      {/* ── Sección: Gráfico y niveles ───────────────────────────────────── */}
+      {openSection === 'chart' && <>
       {/* 2. Gráfico 12 meses con niveles y SMA200 */}
       <div className="rounded-2xl px-3 pt-3 pb-2" style={{ background: 'var(--surface-2)' }}>
         <div className="flex items-center justify-between mb-1 px-0.5">
@@ -406,11 +508,9 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
         <PriceChart a={a} />
       </div>
 
-      {/* 3-6. Stats a la izquierda, niveles/señales a la derecha en desktop */}
-      <div className="lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start space-y-3 lg:space-y-0">
-
-        {/* Columna izquierda: tendencia, rendimiento, RSI, rango */}
-        <div className="space-y-3">
+      {/* 3-6. Tendencia, rendimiento, RSI, rango y niveles — apilados (ya no
+          comparten grid con señales/radar, que ahora es su propia sección) */}
+      <div className="space-y-3">
           {/* 3. Tendencia de fondo + rendimiento */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
@@ -534,9 +634,11 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
               </p>
             </div>
           )}
-        </div>
+      </div>
+      </>}
 
-        {/* Columna derecha: señales + radar */}
+      {/* ── Sección: Señales y radar ─────────────────────────────────────── */}
+      {openSection === 'signals' && <>
         <div className="space-y-3">
           {/* 5. Señales (incluye divergencias) */}
           {a.signals.length > 0 ? (
@@ -584,8 +686,78 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
             </div>
           )}
         </div>
-      </div>
+      </>}
 
+      {/* 7. Evaluación de señales a posteriori — on-demand, mismo patrón que noticias
+          (vive en Historial junto a Noticias, ambas son profundización on-demand) */}
+      {openSection === 'history' && <>
+      <div className={backtest === null ? 'px-1' : 'rounded-2xl px-3.5 py-3'}
+        style={backtest === null ? undefined : { background: 'var(--surface-2)' }}>
+        {backtest === null ? (
+          <button onClick={loadBacktest} className="flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-80"
+            style={{ color: 'var(--primary)' }}>
+            <BarChart3 className="w-3.5 h-3.5 flex-shrink-0" />
+            ¿Le funcionó esta señal antes? — ver historial
+          </button>
+        ) : backtest === 'loading' ? (
+          <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+            <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+            Revisando el último año de señales de {ticker}…
+          </p>
+        ) : backtest === 'error' ? (
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+            No se pudo evaluar (falta historia suficiente).{' '}
+            <button onClick={loadBacktest} className="underline underline-offset-2 font-bold" style={{ color: 'var(--primary)' }}>Reintentar</button>
+          </p>
+        ) : backtest.stats.length === 0 ? (
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+            {ticker} no tuvo señales de compra/venta en el último año — sin datos para evaluar.
+          </p>
+        ) : (
+          <>
+            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+              <BarChart3 className="w-3 h-3" /> Cómo le fue a esta señal en {ticker} (último año)
+            </p>
+            <div className="space-y-2">
+              {backtest.stats.map(s => {
+                const isBuy = s.label === 'compra' || s.label === 'compra_fuerte'
+                const color = isBuy ? 'var(--mint)' : 'var(--coral)'
+                return (
+                  <div key={s.label} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: 'var(--surface)' }}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                        {s.label === 'compra_fuerte' ? 'Compra fuerte' : s.label === 'compra' ? 'Compra'
+                          : s.label === 'venta_fuerte' ? 'Venta fuerte' : 'Venta'}
+                        <span className="font-semibold ml-1" style={{ color: 'var(--ink-3)' }}>· {s.count} vez{s.count !== 1 ? 'es' : ''}</span>
+                      </p>
+                      {s.hitRate20 !== null && (
+                        <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                          Acertó {s.hitRate20}% de las veces a 1 mes
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-bold tabular-nums" style={{ color }}>
+                        {s.avgReturn20 !== null ? `${s.avgReturn20 > 0 ? '+' : ''}${s.avgReturn20}%` : '—'} <span className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>1m</span>
+                      </p>
+                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {s.avgReturn60 !== null ? `${s.avgReturn60 > 0 ? '+' : ''}${s.avgReturn60}%` : '—'} a 3m
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[9px] mt-2 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+              Retorno promedio del PRECIO (no de una operación real) en los {backtest.windowDays} días hábiles tras cada vez que la señal apareció en esta acción. Pocas repeticiones = poco confiable; no es garantía de que se repita.
+            </p>
+          </>
+        )}
+      </div>
+      </>}
+
+      {/* Disclaimer único al pie — U3 elimina los micro-descargos repetidos
+          por bloque (noticias, backtest) en favor de este, que ya cubre todo. */}
       <p className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
         <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
         Lectura informativa al cierre del {a.asOf}. No es recomendación de compra o venta: estas señales
@@ -598,7 +770,7 @@ function TechnicalDetail({ a, ticker, position, livePrice }: {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function WatchlistPanel({ userId, initialItems, positions, lastAutoUpdate }: Props) {
+export default function WatchlistPanel({ userId, initialItems, positions, walletAvailableUsd = null }: Props) {
   const supabase = createClient()
   const owned = new Set(Object.keys(positions))
 
@@ -607,6 +779,21 @@ export default function WatchlistPanel({ userId, initialItems, positions, lastAu
   const [expanded,   setExpanded]   = useState<string | null>(null)
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const [errDetails, setErrDetails] = useState<Record<string, string>>({})
+
+  // SPY como referencia de fuerza relativa (Fase 5.1) — un solo fetch, se
+  // reutiliza para todos los tickers vía computeConviction. Silencioso si
+  // falla: el score simplemente pesa sin ese componente.
+  const [spyReturn6m, setSpyReturn6m] = useState<number | null>(null)
+  useEffect(() => {
+    getAnalysis('SPY').then(a => setSpyReturn6m(a.returns.m6)).catch(() => { /* opcional */ })
+  }, [])
+
+  // Portafolio total aproximado: posiciones a precio actual + efectivo
+  // disponible — base para el sizing por riesgo (Fase 5.3, misma regla del
+  // 1% que en Acciones).
+  const portfolioValueUsd = Object.entries(positions).reduce(
+    (s, [tk, p]) => s + p.shares * (quotes[tk]?.price ?? p.avgCost), 0,
+  ) + Math.max(0, walletAvailableUsd ?? 0)
 
   // Nota: el tag "Nueva" por señal (diff vs última visita) se probó y se quitó
   // a pedido de Cas (jul 2026) — el radar "revisar pronto" cumple mejor ese rol.
@@ -761,19 +948,95 @@ export default function WatchlistPanel({ userId, initialItems, positions, lastAu
     await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-  const autoUpdate = lastAutoUpdate ? fmtLastAutoUpdate(lastAutoUpdate) : null
+  // ── Ranking de convicción — "¿Qué comprar hoy?" (Fase 5.2) ────────────────
+  // Compara TODOS los favoritos con análisis ya cargado y ordena por
+  // convicción de compra. No usa el backtest por ticker acá (es pesado, vive
+  // on-demand en el detalle) — el ranking se apoya en técnico + riesgo/
+  // recompensa + fuerza vs SPY, que ya están disponibles sin fetch extra.
+  const ranking = items
+    .map(i => {
+      const a = analyses[i.ticker]
+      if (typeof a !== 'object') return null
+      return { ticker: i.ticker, a, conviction: computeConviction(a, null, spyReturn6m) }
+    })
+    .filter((r): r is { ticker: string; a: TechnicalAnalysis; conviction: ConvictionResult } => r !== null)
+    .sort((x, y) => y.conviction.score - x.conviction.score)
+  const allLoaded = items.length > 0 && ranking.length === items.length
+  const top      = ranking[0] ?? null
+  const runnerUp = ranking[1] ?? null
+  const topIsBuy = top !== null && (top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte')
+  const topSizing = topIsBuy && top !== null && portfolioValueUsd > 0
+    ? positionSizeUsd(portfolioValueUsd, quotes[top.ticker]?.price ?? top.a.price, top.a.alarm)
+    : null
+  const topCashCap = walletAvailableUsd !== null ? Math.max(0, walletAvailableUsd) : null
+  const topSuggestedUsd = topSizing !== null
+    ? (topCashCap !== null ? Math.min(topSizing.maxUsd, topCashCap) : topSizing.maxUsd)
+    : null
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="mt-6">
-      {/* Salud del análisis automático diario — para notar sin ir a los logs si el cron dejó de correr */}
-      {autoUpdate && (
-        <p className="text-[11px] font-medium mb-2 flex items-center gap-1.5"
-          style={{ color: autoUpdate.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
-          <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0" style={{ background: autoUpdate.stale ? 'var(--coral)' : 'var(--mint)' }} />
-          Análisis automático: {autoUpdate.label}{autoUpdate.stale ? ' — no corrió desde entonces, revisa el cron' : ''}
-        </p>
+      {/* ── ¿Qué comprar hoy? — veredicto explícito, no una lista de avisos ── */}
+      {items.length > 0 && (
+        <div className="card overflow-hidden mb-4">
+          <div className="px-4 lg:px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
+            <Target className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>¿Qué comprar hoy?</p>
+          </div>
+          <div className="px-4 lg:px-5 py-4">
+            {!allLoaded ? (
+              <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                Comparando tus {items.length} favoritos…
+              </p>
+            ) : top === null ? (
+              <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
+            ) : !topIsBuy ? (
+              <>
+                <p className="text-sm font-extrabold" style={{ color: 'var(--coral)' }}>
+                  Hoy no compres nada de tu lista.
+                </p>
+                <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
+                  Ni siquiera {top.ticker}, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--mint)' }}>
+                  La mejor compra hoy es {top.ticker} ({top.conviction.score}/100)
+                  {runnerUp && ` — mejor que ${runnerUp.ticker} (${runnerUp.conviction.score}/100)`}.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {top.conviction.reasons.slice(0, 3).map((r, i) => (
+                    <li key={i} className="text-[11px] leading-relaxed flex items-start gap-1.5" style={{ color: 'var(--ink-2)' }}>
+                      <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
+                      {r}
+                    </li>
+                  ))}
+                </ul>
+                {topSuggestedUsd !== null && (
+                  <p className="text-sm font-bold tabular-nums mt-2.5 px-3 py-2 rounded-xl inline-block" style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                    Compra hasta {fmtUSD(topSuggestedUsd)} de {top.ticker} ahora
+                  </p>
+                )}
+                {ranking.length > 1 && (
+                  <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>
+                    Resto del ranking: {ranking.slice(1, 4).map(r => `${r.ticker} (${r.conviction.score})`).join(' · ')}
+                  </p>
+                )}
+              </>
+            )}
+            <p className="text-[9px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
+              Score de convicción: técnico + riesgo/recompensa + fuerza vs. el mercado (SPY). No es garantía —
+              es la mejor lectura con lo que hay hoy.
+            </p>
+          </div>
+        </div>
       )}
+
+      {/* Salud del análisis automático diario: se consolidó en el pill único
+          del top bar de Acciones (U6 roadmap UX) — antes se repetía acá con
+          otro criterio de color/texto para el mismo dato. */}
       {/* Header plegable + acción Seguir */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <button
@@ -1056,27 +1319,21 @@ export default function WatchlistPanel({ userId, initialItems, positions, lastAu
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{item.ticker}</p>
-                      {/* Previsualización unificada: SIEMPRE la lectura técnica como
-                          chip — antes convivían "Compra", "N señales" o nada, y cada
-                          fila contaba una historia distinta */}
+                      {/* Chip de convicción: un solo número comparable entre tickers,
+                          el mismo que ordena el panel "¿Qué comprar hoy?" y el correo
+                          — reemplaza la mezcla anterior de "Compra"/"N señales"/nada,
+                          que contaba una historia distinta en cada fila (U2 roadmap UX). */}
                       {typeof a === 'object' && (() => {
-                        const l = a.rating.label
-                        const ui = flag === 'caution'
-                          ? { color: FLAG_UI.caution.color, bg: FLAG_UI.caution.bg, text: 'Toma de ganancias', Icon: AlertTriangle }
-                          : l === 'compra_fuerte' ? { color: FLAG_UI.buy.color,  bg: FLAG_UI.buy.bg,  text: 'Compra fuerte', Icon: TrendingUp }
-                          : l === 'compra'        ? { color: FLAG_UI.buy.color,  bg: FLAG_UI.buy.bg,  text: 'Compra',        Icon: TrendingUp }
-                          : l === 'venta_fuerte'  ? { color: FLAG_UI.sell.color, bg: FLAG_UI.sell.bg, text: 'Venta fuerte',  Icon: TrendingDown }
-                          : l === 'venta'         ? { color: FLAG_UI.sell.color, bg: FLAG_UI.sell.bg, text: 'Venta',         Icon: TrendingDown }
-                          : { color: 'var(--ink-3)', bg: 'var(--surface-2)', text: 'Neutral', Icon: null }
-                        const Icon = ui.Icon
-                        return (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                            style={{ background: ui.bg, color: ui.color }}>
-                            {Icon && <Icon className="w-3 h-3" />}
-                            {ui.text}
-                          </span>
-                        )
+                        const c = computeConviction(a, null, spyReturn6m)
+                        return <ConvictionChip score={c.score} tier={c.tier} />
                       })()}
+                      {flag === 'caution' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.color }}>
+                          <AlertTriangle className="w-3 h-3" />
+                          Toma de ganancias
+                        </span>
+                      )}
                       {atTarget && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                           style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
@@ -1096,6 +1353,12 @@ export default function WatchlistPanel({ userId, initialItems, positions, lastAu
                       <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
                         {q.name}{isOwned && ' · en cartera'}
                       </p>
+                    )}
+                    {/* Riesgo visible sin abrir el detalle — solo si la tienes (U2 roadmap UX) */}
+                    {isOwned && typeof a === 'object' && q?.price !== undefined && (
+                      <div className="mt-1">
+                        <RiskRail price={q.price} stop={a.alarm} resistance={a.resistanceLevels[0]?.price ?? null} compact />
+                      </div>
                     )}
                   </div>
                   {q ? (
@@ -1335,6 +1598,9 @@ export default function WatchlistPanel({ userId, initialItems, positions, lastAu
                     ticker={ticker}
                     position={positions[ticker]}
                     livePrice={q?.price}
+                    portfolioValueUsd={portfolioValueUsd}
+                    walletAvailableUsd={walletAvailableUsd}
+                    spyReturn6m={spyReturn6m}
                   />
                 )}
 

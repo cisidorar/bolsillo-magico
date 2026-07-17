@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { analyze, smaLast, smaSeries, rsiWilder, macd, type DailyCandles } from './technical'
+import {
+  analyze, smaLast, smaSeries, rsiWilder, macd,
+  atrSeries, chandelierStop, positionSizeUsd,
+  type DailyCandles,
+} from './technical'
 
 // ── Fixtures sintéticas ───────────────────────────────────────────────────────
 // Series construidas a mano cuyas propiedades conocemos con certeza. La meta
@@ -77,6 +81,42 @@ describe('indicadores', () => {
     expect(signalLine).toHaveLength(100)
     expect(histogram).toHaveLength(100)
   })
+
+  it('atrSeries: rango constante da ATR igual al rango', () => {
+    const n = 40
+    const closes = Array.from({ length: n }, () => 100)
+    const highs  = closes.map(c => c + 1)
+    const lows   = closes.map(c => c - 1)
+    const atr = atrSeries(highs, lows, closes, 14)
+    expect(atr[n - 1]).toBeCloseTo(2, 5)   // TR = high − low = 2 todos los días
+    expect(atr[13]).toBeNull()             // alineación: null hasta tener period+1 datos
+  })
+
+  it('chandelierStop queda bajo el máximo reciente por mult×ATR', () => {
+    const highs = Array.from({ length: 30 }, (_, i) => 100 + i)   // máximo = 129
+    expect(chandelierStop(highs, 2, 22, 3)).toBe(129 - 6)
+  })
+
+  it('positionSizeUsd: la regla del 1% dimensiona por distancia al stop', () => {
+    // Portafolio $10.000, riesgo 1% = $100; stop a −5% → posición máx $2.000
+    const s = positionSizeUsd(10_000, 100, 95, 1)
+    expect(s).not.toBeNull()
+    expect(s!.riskUsd).toBe(100)
+    expect(s!.stopDistPct).toBe(5)
+    expect(s!.maxUsd).toBe(2000)
+  })
+
+  it('positionSizeUsd: nunca sugiere más que el portafolio completo', () => {
+    // Stop pegado al precio (−0.5%): sin tope sería 2× el portafolio
+    const s = positionSizeUsd(10_000, 100, 99.5, 1)
+    expect(s!.maxUsd).toBeLessThanOrEqual(10_000)
+  })
+
+  it('positionSizeUsd: sin stop bajo el precio no hay sugerencia', () => {
+    expect(positionSizeUsd(10_000, 100, null)).toBeNull()
+    expect(positionSizeUsd(10_000, 100, 101)).toBeNull()
+    expect(positionSizeUsd(0, 100, 95)).toBeNull()
+  })
 })
 
 // ── Escenario 1: uptrend sano sin gatillos ────────────────────────────────────
@@ -97,6 +137,15 @@ describe('uptrend sano', () => {
     expect(a.sell.some(t => t.now)).toBe(false)
     expect(a.alarm).not.toBeNull()
     expect(a.alarm!).toBeLessThan(a.price)
+  })
+
+  it('expone la volatilidad (ATR) y la alarma respeta el aire de 3×ATR o el nivel estructural', () => {
+    expect(a.atr14).not.toBeNull()
+    expect(a.atrPct).toBeGreaterThan(0)
+    // La alarma nunca queda pegada al precio: como mínimo conserva el mayor
+    // entre el nivel estructural y el chandelier — siempre bajo el precio
+    expect(a.alarm!).toBeLessThan(a.price)
+    expect(a.alarm!).toBeGreaterThan(a.price * 0.7)   // y tampoco absurdamente lejos en un uptrend suave
   })
 
   it('los tramos de compra suman 100% cuando existen', () => {
@@ -165,6 +214,12 @@ describe('tendencia bajista', () => {
 
   it('nunca lee Compra bajo el promedio largo', () => {
     expect(['compra', 'compra_fuerte']).not.toContain(a.rating.label)
+  })
+
+  it('el copy es imperativo, no una lista de avisos (jul 2026 — a pedido de Cas)', () => {
+    // "No compres" / "Vende" al frente, no "ten en cuenta que" o "es posible que"
+    expect(a.entryPlan).toMatch(/^No compres/)
+    expect(a.sellPlan).toMatch(/^Vende/)
   })
 })
 

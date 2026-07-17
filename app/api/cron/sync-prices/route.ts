@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { syncTicker, readCandles } from '@/lib/price-providers'
-import { analyze, type TechnicalAnalysis } from '@/lib/technical'
+import { analyze, positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
+import { computeConviction } from '@/lib/conviction'
 import { getNowChile } from '@/lib/utils'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -226,6 +227,48 @@ async function snapshotAllNetWorths(supabase: SupabaseClient): Promise<{ ok: num
   return { ok, failed }
 }
 
+// ── Trailing stop por posición (ratchet: solo sube) ─────────────────────────
+// El alarm del análisis se recalcula cada día y puede BAJAR si bajan sus
+// insumos (soportes/SMA50/chandelier). Para proteger ganancias de verdad, el
+// trailing persistido en stock_positions.trail_stop_usd toma el máximo entre
+// lo guardado y el alarm del día: nunca retrocede mientras la posición viva.
+// (Se resetea al comprar más — eso lo hace el cliente, no este cron.)
+async function updateTrailingStops(supabase: SupabaseClient): Promise<{ updated: number; skipped: number }> {
+  const { data: pos } = await supabase
+    .from('stock_positions')
+    .select('id, ticker, trail_stop_usd')
+  const rows = (pos ?? []) as { id: string; ticker: string; trail_stop_usd: number | null }[]
+  if (rows.length === 0) return { updated: 0, skipped: 0 }
+
+  const alarmByTicker = new Map<string, number | null>()
+  for (const ticker of new Set(rows.map(r => r.ticker))) {
+    try {
+      const candles = await readCandles(supabase, ticker)
+      if (candles.closes.length < 30) { alarmByTicker.set(ticker, null); continue }
+      alarmByTicker.set(ticker, analyze(candles).alarm)
+    } catch (err) {
+      console.error(`[sync-prices] trailing stop: analyze() falló para ${ticker}:`, err)
+      alarmByTicker.set(ticker, null)
+    }
+  }
+
+  let updated = 0, skipped = 0
+  for (const row of rows) {
+    const alarm = alarmByTicker.get(row.ticker) ?? null
+    if (alarm === null) { skipped++; continue }
+    const current = row.trail_stop_usd !== null ? Number(row.trail_stop_usd) : null
+    const next = current !== null ? Math.max(current, alarm) : alarm
+    if (current !== null && next <= current + 0.005) { skipped++; continue }   // sin cambio: no escribir
+    const { error } = await supabase
+      .from('stock_positions')
+      .update({ trail_stop_usd: Math.round(next * 100) / 100 })
+      .eq('id', row.id)
+    if (error) { console.error(`[sync-prices] trail_stop update error (${row.ticker}):`, error.message); skipped++ }
+    else updated++
+  }
+  return { updated, skipped }
+}
+
 async function computeDailySignals(supabase: SupabaseClient) {
   const [{ data: wl }, { data: pos }] = await Promise.all([
     supabase.from('watchlist').select('id, user_id, ticker, target_price, target_direction, target_notified'),
@@ -239,12 +282,16 @@ async function computeDailySignals(supabase: SupabaseClient) {
 
   const allSignals: SignalRow[] = []
   const allNotifiedIds: string[] = []
+  // Se reutiliza para la decisión de portafolio (computeDailyDecisions) — evita
+  // recalcular analyze() por segunda vez para los mismos tickers.
+  const analysesByTicker = new Map<string, TechnicalAnalysis>()
 
   for (const ticker of tickers) {
     try {
       const candles = await readCandles(supabase, ticker)
       if (candles.closes.length < 30) continue   // sin historia suficiente, no se puede opinar
       const analysis = analyze(candles)
+      analysesByTicker.set(ticker, analysis)
       const closes = candles.closes
       const changePct = closes.length >= 2
         ? Math.round(((closes[closes.length - 1] - closes[closes.length - 2]) / closes[closes.length - 2]) * 1000) / 10
@@ -270,7 +317,109 @@ async function computeDailySignals(supabase: SupabaseClient) {
     if (error) console.error('[sync-prices] target_notified update error:', error.message)
   }
 
-  return { signals: allSignals.length, targetsReached: allNotifiedIds.length }
+  const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker)
+
+  return { signals: allSignals.length, targetsReached: allNotifiedIds.length, decisions: decisions.decisions }
+}
+
+// ── Decisión diaria de portafolio (Fase 5.4 del roadmap) ─────────────────────
+// El digest listaba señales ticker por ticker sin decir explícitamente "esto
+// es lo que harías hoy". Esta función corre el mismo ranking de convicción
+// del panel "¿Qué comprar hoy?" (lib/conviction.ts) para CADA usuario, sobre
+// SU watchlist, y guarda una sola fila con el veredicto — que el correo lee
+// para abrir con la decisión en vez de con la lista completa.
+async function computeDailyDecisions(
+  supabase: SupabaseClient,
+  wlRows: WatchlistRow[],
+  analysesByTicker: Map<string, TechnicalAnalysis>,
+): Promise<{ decisions: number }> {
+  if (wlRows.length === 0) return { decisions: 0 }
+
+  // Fuerza relativa vs SPY: se reutiliza si SPY ya se analizó (ahora siempre
+  // se sincroniza); si nadie la sigue en watchlist, se calcula aparte — es
+  // solo un ticker más y ya está sincronizada por el paso anterior del cron.
+  let spyReturn6m: number | null = analysesByTicker.get('SPY')?.returns.m6 ?? null
+  if (spyReturn6m === null) {
+    try {
+      const spyCandles = await readCandles(supabase, 'SPY')
+      if (spyCandles.closes.length >= 30) spyReturn6m = analyze(spyCandles).returns.m6
+    } catch { /* sin SPY el score simplemente pesa sin ese componente */ }
+  }
+
+  const userIds = [...new Set(wlRows.map(r => r.user_id))]
+  const [{ data: posRows }, { data: usdRows }] = await Promise.all([
+    supabase.from('stock_positions').select('user_id, ticker, shares, avg_cost_usd').in('user_id', userIds),
+    supabase.from('usd_purchases').select('user_id, usd_amount').in('user_id', userIds),
+  ])
+
+  const positionsByUser = new Map<string, { ticker: string; shares: number; avgCost: number }[]>()
+  for (const p of posRows ?? []) {
+    const uid = p.user_id as string
+    const list = positionsByUser.get(uid) ?? []
+    list.push({ ticker: p.ticker as string, shares: Number(p.shares), avgCost: Number(p.avg_cost_usd) })
+    positionsByUser.set(uid, list)
+  }
+  // Saldo de billetera aproximado: Σ movimientos (aportes+ventas) − costo de
+  // TODAS las posiciones del usuario. El cron no distingue legacy vs
+  // financiadas por la billetera (esa distinción vive en wallet_cost_usd,
+  // consultable, pero para una SUGERENCIA de monto esta aproximación nunca
+  // infla el saldo — en el peor caso lo subestima, que es el lado seguro.
+  const walletMovByUser = new Map<string, number>()
+  for (const r of usdRows ?? []) {
+    const uid = r.user_id as string
+    walletMovByUser.set(uid, (walletMovByUser.get(uid) ?? 0) + Number(r.usd_amount))
+  }
+
+  const decisionRows: {
+    user_id: string; ticker: string | null; tier: string | null; score: number
+    suggested_usd: number | null; verdict: string; reasons: string[]
+  }[] = []
+
+  for (const userId of userIds) {
+    const userTickers = [...new Set(wlRows.filter(r => r.user_id === userId).map(r => r.ticker))]
+    const candidates = userTickers
+      .map(ticker => {
+        const a = analysesByTicker.get(ticker)
+        return a ? { ticker, a, conviction: computeConviction(a, null, spyReturn6m) } : null
+      })
+      .filter((c): c is { ticker: string; a: TechnicalAnalysis; conviction: ReturnType<typeof computeConviction> } => c !== null)
+      .sort((x, y) => y.conviction.score - x.conviction.score)
+
+    if (candidates.length === 0) continue
+    const top   = candidates[0]
+    const isBuy = top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte'
+
+    let suggestedUsd: number | null = null
+    if (isBuy) {
+      const positions = positionsByUser.get(userId) ?? []
+      const costOfPositions = positions.reduce((s, p) => s + p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost), 0)
+      const walletCash      = Math.max(0, walletMovByUser.get(userId) ?? 0)
+      const portfolioValueUsd = costOfPositions + walletCash
+      if (portfolioValueUsd > 0) {
+        const sizing = positionSizeUsd(portfolioValueUsd, top.a.price, top.a.alarm)
+        // Además del riesgo, no sugerir más de lo que realmente hay disponible
+        if (sizing) suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash || sizing.maxUsd) * 100) / 100
+      }
+    }
+
+    decisionRows.push({
+      user_id: userId,
+      ticker:  isBuy ? top.ticker : null,
+      tier:    isBuy ? top.conviction.tier : null,
+      score:   top.conviction.score,
+      suggested_usd: suggestedUsd,
+      verdict: isBuy
+        ? top.conviction.verdict
+        : `Ni ${top.ticker}, tu mejor candidata (${top.conviction.score}/100), tiene caso suficiente para comprar hoy.`,
+      reasons: top.conviction.reasons.slice(0, 3),
+    })
+  }
+
+  if (decisionRows.length > 0) {
+    const { error } = await supabase.from('daily_decisions').upsert(decisionRows, { onConflict: 'user_id,decision_date' })
+    if (error) console.error('[sync-prices] daily_decisions upsert error:', error.message)
+  }
+  return { decisions: decisionRows.length }
 }
 
 export async function GET(request: Request) {
@@ -296,12 +445,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots })
   }
 
-  // Tickers en uso: watchlist ∪ posiciones (todos los usuarios)
+  // Tickers en uso: watchlist ∪ posiciones (todos los usuarios) ∪ SPY.
+  // SPY se sincroniza SIEMPRE, la sigas o no: es el benchmark contra el que
+  // se compara el rendimiento del portafolio ("¿le ganaste al mercado?"),
+  // así que necesita historia propia aunque nadie la tenga en watchlist.
   const [{ data: wl }, { data: pos }] = await Promise.all([
     supabase.from('watchlist').select('ticker'),
     supabase.from('stock_positions').select('ticker'),
   ])
   const tickers = [...new Set([
+    'SPY',
     ...(wl ?? []).map(r => r.ticker as string),
     ...(pos ?? []).map(r => r.ticker as string),
   ])]
@@ -321,13 +474,17 @@ export async function GET(request: Request) {
   console.log(`[sync-prices] ${ok}/${tickers.length} ok`, failed.map(f => `${f.ticker}: ${f.reasons.join('·')}`))
 
   // Señales del digest diario — solo tiene sentido si hay favoritos con historia
-  const digest = wl && wl.length > 0 ? await computeDailySignals(supabase) : { signals: 0, targetsReached: 0 }
+  const digest = wl && wl.length > 0 ? await computeDailySignals(supabase) : { signals: 0, targetsReached: 0, decisions: 0 }
+
+  // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
+  const trailingStops = await updateTrailingStops(supabase)
 
   return NextResponse.json({
     synced: ok,
     total:  tickers.length,
     failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
     digest,
+    trailingStops,
     netWorthSnapshots,
   })
 }

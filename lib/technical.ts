@@ -97,6 +97,9 @@ export interface TechnicalAnalysis {
   }
   // Momentum
   rsi14:        number | null
+  // Volatilidad: rango real promedio de 14 días (base del stop chandelier)
+  atr14:        number | null
+  atrPct:       number | null   // ATR como % del precio — comparable entre tickers
   divergence:   'bullish' | 'bearish' | null
   macdCross:    'bullish' | 'bearish' | null
   volumeSignal: 'up' | 'down' | null
@@ -183,6 +186,74 @@ export function rsiSeries(closes: number[], period = 14): (number | null)[] {
 export function rsiWilder(closes: number[], period = 14): number | null {
   const s = rsiSeries(closes, period)
   return s[s.length - 1]
+}
+
+// ── ATR (Average True Range) de Wilder ──────────────────────────────────────
+// Mide cuánto se mueve la acción en un día "normal" (rango real promedio).
+// Es la base de los stops por volatilidad: un stop a 3×ATR le da a cada
+// acción el aire que SU volatilidad necesita — apretado en las tranquilas,
+// holgado en las movidas — en vez de un % fijo igual para todas.
+
+export function atrSeries(
+  highs: number[], lows: number[], closes: number[], period = 14,
+): (number | null)[] {
+  const n = closes.length
+  const out: (number | null)[] = new Array(n).fill(null)
+  if (n < period + 1) return out
+  const tr = (i: number): number => Math.max(
+    highs[i] - lows[i],
+    Math.abs(highs[i] - closes[i - 1]),
+    Math.abs(lows[i]  - closes[i - 1]),
+  )
+  let seed = 0
+  for (let i = 1; i <= period; i++) seed += tr(i)
+  seed /= period
+  out[period] = seed
+  for (let i = period + 1; i < n; i++) {
+    out[i] = ((out[i - 1] as number) * (period - 1) + tr(i)) / period
+  }
+  return out
+}
+
+/** Salida chandelier: máximo de las últimas ~22 ruedas − mult×ATR.
+ *  Es el trailing stop clásico por volatilidad: sigue al precio de cerca
+ *  cuando sube y deja de bajar cuando el precio corrige. */
+export function chandelierStop(
+  highs: number[], atr: number, lookback = 22, mult = 3,
+): number {
+  const start = Math.max(0, highs.length - lookback)
+  return Math.max(...highs.slice(start)) - mult * atr
+}
+
+// ── Position sizing por riesgo ───────────────────────────────────────────────
+// La regla que más pesa en el resultado de largo plazo no es qué comprar sino
+// CUÁNTO: arriesgar un % fijo y chico del portafolio por posición hace que
+// ninguna pérdida individual te saque del juego. monto = riesgo permitido /
+// distancia al stop — stop cercano permite posición grande, stop lejano la
+// achica solo.
+
+export interface PositionSize {
+  maxUsd:       number   // monto máximo sugerido para la posición
+  riskUsd:      number   // lo que se pierde si el stop se ejecuta
+  stopDistPct:  number   // distancia al stop en %
+}
+
+/** null si no hay stop bajo el precio o los insumos no alcanzan. */
+export function positionSizeUsd(
+  portfolioUsd: number,
+  price:        number,
+  stop:         number | null,
+  riskPct = 1,
+): PositionSize | null {
+  if (stop === null || portfolioUsd <= 0 || price <= 0 || stop >= price) return null
+  const stopDistPct = ((price - stop) / price) * 100
+  const riskUsd     = portfolioUsd * (riskPct / 100)
+  const maxUsd      = Math.min(riskUsd / (stopDistPct / 100), portfolioUsd)
+  return {
+    maxUsd:      Math.round(maxUsd * 100) / 100,
+    riskUsd:     Math.round(riskUsd * 100) / 100,
+    stopDistPct: Math.round(stopDistPct * 10) / 10,
+  }
 }
 
 // ── MACD (12,26,9) — momentum de mediano plazo sobre velas diarias ──────────
@@ -414,6 +485,9 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   const sma200 = sma200Full[lastIdx]
   const rsiAll = rsiSeries(closes, 14)
   const rsi14  = rsiAll[lastIdx]
+  const atrAll = atrSeries(highs, lows, closes, 14)
+  const atr14  = atrAll[lastIdx]
+  const atrPct = atr14 !== null ? Math.round((atr14 / price) * 1000) / 10 : null
 
   // ── Tendencia de fondo con persistencia ───────────────────────────────────
   let aboveSma200: boolean | null = null
@@ -556,7 +630,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     signals.push({
       kind: 'near_support', tone: 'mint', trigger: true,
       title: `Está tocando un piso que ya la frenó ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'}`,
-      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de caer ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: muchos suelen comprar ahí. Pero si esta vez lo atraviesa hacia abajo, ese piso deja de servir.`,
+      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de caer ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: es zona de compra. Pero si esta vez lo atraviesa hacia abajo, ese piso deja de servir — sal si eso pasa.`,
       tech: `Soporte en ${fmtLevel(l.price)}`,
     })
   } else if (nearRes) {
@@ -564,7 +638,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     signals.push({
       kind: 'near_resistance', tone: 'gold', trigger: true,
       title: `Está frente a un techo que ya la frenó ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'}`,
-      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de subir ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: muchos suelen vender ahí. Si lo supera con decisión, suele leerse como señal de fuerza.`,
+      detail: `Cerca de ${fmtLevel(l.price)} el precio dejó de subir ${l.touches} ${l.touches !== 1 ? 'veces' : 'vez'} desde ${fmtDateShort(l.firstDate)}: no compres justo aquí, espera. Si lo supera con decisión, ahí sí es señal de fuerza para entrar.`,
       tech: `Resistencia en ${fmtLevel(l.price)}`,
     })
   }
@@ -572,7 +646,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (distHighPct >= -2) signals.push({
     kind: 'near_52w_high', tone: 'gold', trigger: false,
     title: 'Está en su punto más alto del año',
-    detail: 'A menos de 2% de su máximo de los últimos 12 meses. Comprar en máximos no es un error en sí — las acciones fuertes marcan máximos muchas veces seguidas — pero el retroceso de corto plazo es más probable. Comprar por partes o esperar un respiro reparte ese riesgo.',
+    detail: 'A menos de 2% de su máximo de los últimos 12 meses. Comprar en máximos no es un error en sí — las acciones fuertes marcan máximos muchas veces seguidas — pero el retroceso de corto plazo es más probable: compra por partes o espera un respiro para repartir ese riesgo.',
     tech: 'Máximo de 52 semanas',
   })
   // Sobre-extensión: el espejo del "cuchillo cayendo", en dos tramos.
@@ -588,7 +662,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   else if (distPct !== null && distPct >= 15) signals.push({
     kind: 'overextended', tone: 'gold', trigger: false,
     title: 'Está muy estirada por encima de su promedio',
-    detail: `Va ${distPct}% por encima de su promedio de largo plazo. Después de estirones así es común que el precio descanse o retroceda hacia el promedio — para comprar, muchos prefieren esperar ese retroceso.`,
+    detail: `Va ${distPct}% por encima de su promedio de largo plazo. Después de estirones así es común que el precio descanse o retroceda hacia el promedio — espera ese retroceso antes de comprar.`,
     tech: `Precio +${distPct}% sobre la SMA200`,
   })
 
@@ -682,7 +756,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   if (rsi14 !== null && rsi14 >= 62 && rsi14 < 70) watch.push({
     kind: 'watch_rsi_high', tone: 'gold', trigger: false,
     title: 'Subió con fuerza estos días — puede venir una pausa',
-    detail: 'La subida de estos días se está acercando al punto donde normalmente descansa, aunque todavía no llega. En simple: comprar justo después de un estirón suele salir más caro; muchos prefieren esperar unos días a que se calme o baje un poco.',
+    detail: 'La subida de estos días se está acercando al punto donde normalmente descansa, aunque todavía no llega. En simple: comprar justo después de un estirón suele salir más caro — espera unos días a que se calme o baje un poco.',
     tech: `RSI en ${Math.round(rsi14)} — recién sobre 70 se considera "subió de más" (aún no llega)`,
   })
 
@@ -820,7 +894,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
 
   let entryPlan: string
   if (aboveSma200 === false) {
-    entryPlan = 'Sin base mientras siga bajo su promedio largo. El primer aviso a favor sería un cruce alcista de MACD o una divergencia alcista — hasta entonces, fuera del radar de compra.'
+    entryPlan = 'No compres. Sin base mientras siga bajo su promedio largo: espera un cruce alcista de MACD o una divergencia alcista antes de considerar entrar — hasta entonces, fuera del radar de compra.'
   } else if (label === 'compra' || label === 'compra_fuerte') {
     // Coherencia (caso AAPL): si el contexto dice "estirada/en máximos", el
     // plan no puede decir "adelante" a secas — y un stop a −8% con el próximo
@@ -828,15 +902,15 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     const riskPct   = supRef ? Math.round(Math.abs(supRef.distPct)) : null
     const rewardPct = resRef && resRef.distPct > 0 ? resRef.distPct : null
     let plan = (inMax || stretched)
-      ? `Gatillos a favor, pero estarías comprando ${inMax ? 'en máximos' : 'estirada'}: mejor por partes, no todo de una.`
-      : 'Los gatillos están a favor.'
+      ? `Compra, pero por partes: estarías comprando ${inMax ? 'en máximos' : 'estirada'} — no entres todo de una vez.`
+      : 'Compra: los gatillos están a favor.'
     if (supRef) {
       plan += ` Línea de salida: ${fmtLevel(supRef.price)}${riskPct !== null && riskPct > 6 ? ` — ojo, queda ~${riskPct}% abajo (stop caro); un retroceso antes de entrar lo abarata` : ''}.`
     } else {
       plan += ' No hay piso probado cerca: define tu precio de salida ANTES de entrar.'
     }
     if (riskPct !== null && rewardPct !== null && rewardPct < riskPct) {
-      plan += ` Además el próximo techo está a +${rewardPct}% y tu salida a −${riskPct}%: la relación no te favorece aquí.`
+      plan += ` Además el próximo techo está a +${rewardPct}% y tu salida a −${riskPct}%: la relación no te favorece aquí — piénsalo dos veces.`
     }
     entryPlan = plan
   } else if (label === 'venta' || label === 'venta_fuerte' || caution || (distPct !== null && distPct >= 40)) {
@@ -844,14 +918,14 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     if (supRef) waits.push(`un retroceso a ${fmtLevel(supRef.price)} que aguante 2-3 cierres`)
     if (resRef) waits.push(`una ruptura de ${fmtLevel(resRef.price)} con volumen`)
     entryPlan = waits.length > 0
-      ? `Hoy no hay base para entrar. Lo que la crearía: ${waits.join(', o ')}.`
-      : 'Hoy no hay base para entrar: deja que se enfríe y que construya un piso primero.'
+      ? `No compres hoy: no hay base para entrar. Lo que la crearía: ${waits.join(', o ')}.`
+      : 'No compres hoy: no hay base para entrar — deja que se enfríe y que construya un piso primero.'
   } else if (inSqueeze && resRef && supRef) {
-    entryPlan = `Atrapada en rango: la base aparece si rompe ${fmtLevel(resRef.price)} hacia arriba con volumen, o si rebota con fuerza desde ${fmtLevel(supRef.price)}. Antes de eso, entrar es adivinar el lado.`
+    entryPlan = `Espera: atrapada en rango. Compra recién si rompe ${fmtLevel(resRef.price)} hacia arriba con volumen, o si rebota con fuerza desde ${fmtLevel(supRef.price)} — antes de eso, entrar es adivinar el lado.`
   } else if (onSupport && supRef) {
-    entryPlan = `Está sobre un piso probado (${fmtLevel(supRef.price)}): si lo respeta un par de cierres, es de las entradas con más base. Si lo pierde, se cae la razón para entrar.`
+    entryPlan = `Compra si respeta el piso probado (${fmtLevel(supRef.price)}) un par de cierres — es de las entradas con más base. Si lo pierde, no entres: se cae la razón.`
   } else {
-    entryPlan = 'Tendencia sana pero sin gatillo: la entrada con base aparece en un retroceso a un piso o en una señal del radar. Comprar sin gatillo es pagar por impaciencia.'
+    entryPlan = 'Espera: tendencia sana pero sin gatillo todavía. Compra recién en un retroceso a un piso o con una señal del radar — comprar sin gatillo es pagar por impaciencia.'
   }
 
   // ── Plan de compra por tramos (%), regla determinista ─────────────────────
@@ -912,6 +986,22 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   // cierres para evitar sustos intradía) y escalonar en zonas calientes.
   const str = (pct: number, cond: string, now = false): SellTranche => ({ pct, cond, now })
   const hotZone = caution || (rsi14 !== null && rsi14 >= 70) || (distPct !== null && distPct >= 40) || divergence === 'bearish'
+  // Referencia de SALIDA: lo más alto entre el nivel estructural (piso/SMA50)
+  // y el stop chandelier por volatilidad (máximo de ~22 ruedas − 3×ATR). El
+  // chandelier sube junto al precio: tras un estirón fuerte protege la
+  // ganancia mucho antes de que el precio vuelva hasta un piso viejo — y al
+  // estar hecho de la volatilidad PROPIA del ticker, no ahoga a las movidas
+  // ni les da aire de más a las tranquilas. Solo salidas: las entradas siguen
+  // usando pisos con historia.
+  const exitRef = (() => {
+    const cands: number[] = []
+    if (pullbackRef !== null) cands.push(pullbackRef)
+    if (atr14 !== null) {
+      const ch = chandelierStop(highs, atr14)
+      if (ch < price) cands.push(ch)
+    }
+    return cands.length > 0 ? Math.max(...cands) : null
+  })()
   let sell: SellTranche[]
   let sellPlan: string
   // Alarma estructurada (mismo precio que va en el texto de los tramos):
@@ -922,31 +1012,31 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     // aunque la acción esté en tendencia bajista (compraste más abajo). El
     // texto cubre ambos casos; el % personal se ve al lado en la misma tarjeta.
     sell = [str(100, 'en el próximo rebote — la tendencia ya no la sostiene', true)]
-    sellPlan = 'La tendencia larga se dio vuelta: técnicamente ya no hay razón para seguir adentro. Si vas ganando, esto protege esa ganancia antes de que se siga achicando; si vas perdiendo, esperar a "quedar a mano" es donde más plata se pierde.'
+    sellPlan = 'Vende: la tendencia larga se dio vuelta, técnicamente ya no hay razón para seguir adentro. Si vas ganando, vende ahora y protege esa ganancia antes de que se achique; si vas perdiendo, no esperes a "quedar a mano" — ahí es donde más plata se pierde.'
   } else if (hotZone) {
-    sell = pullbackRef !== null
+    sell = exitRef !== null
       ? [
           str(40, `ahora (${fmtLevel(price)}) — reduce riesgo en zona caliente`, true),
-          str(60, `si pierde ${fmtLevel(pullbackRef)} en 2 cierres`),
+          str(60, `si pierde ${fmtLevel(exitRef)} en 2 cierres`),
         ]
       : [str(40, `ahora (${fmtLevel(price)}) — reduce riesgo en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
     // Neutral respecto de TU costo: el análisis no lo conoce. Vender una parte
     // en zona caliente es gestión de riesgo hacia adelante — asegura ganancia
     // si vas arriba, achica el golpe si vas abajo.
-    sellPlan = 'Zona caliente: el precio está sobre-extendido y las caídas violentas son típicas aquí. Vender una parte reduce el riesgo — si vas ganando, asegura ganancia real; si vas perdiendo, achica la posición antes de que el golpe crezca. El resto sigue corriendo con alarma.'
-    alarm = pullbackRef
+    sellPlan = 'Vende una parte ahora: zona caliente, el precio está sobre-extendido y las caídas violentas son típicas aquí. Si vas ganando, asegura ganancia real ahora; si vas perdiendo, achica la posición antes de que el golpe crezca. Deja correr el resto con la alarma puesta.'
+    alarm = exitRef
   } else if (inSqueeze && supRef) {
     sell = [str(100, `solo si rompe ${fmtLevel(supRef.price)} hacia abajo con claridad`)]
-    sellPlan = 'En rango estrecho el propio rango define la salida: mientras el piso aguante, no hay nada que hacer.'
+    sellPlan = 'No vendas todavía: en rango estrecho el propio rango define la salida — mientras el piso aguante, espera.'
     alarm = supRef.price
   } else {
-    sell = pullbackRef !== null
-      ? [str(100, `solo si pierde ${fmtLevel(pullbackRef)} dos cierres seguidos`)]
+    sell = exitRef !== null
+      ? [str(100, `solo si pierde ${fmtLevel(exitRef)} dos cierres seguidos`)]
       : [str(100, 'define tu alarma: el % que estás dispuesto a devolver')]
     sellPlan = resRef !== null && resRef.price > price
-      ? `Déjala correr — las ganadoras se venden lo más tarde posible. Si llega a ${fmtLevel(resRef.price)} con el impulso ya caliente, ahí se evalúa asegurar una parte.`
-      : 'Déjala correr — las ganadoras se venden lo más tarde posible; la alarma móvil hace el trabajo de vigilar por ti.'
-    alarm = pullbackRef
+      ? `No vendas: déjala correr, las ganadoras se venden lo más tarde posible. Si llega a ${fmtLevel(resRef.price)} con el impulso ya caliente, ahí sí evalúa asegurar una parte.`
+      : 'No vendas: déjala correr. Las ganadoras se venden lo más tarde posible — la alarma móvil hace el trabajo de vigilar por ti.'
+    alarm = exitRef
   }
 
   // ── Gráfico 12 meses (downsampled a ~130 puntos) ─────────────────────────
@@ -964,7 +1054,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   return {
     price, asOf, verdict, entryPlan, buy, sell, sellPlan, alarm, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
-    rsi14, divergence, macdCross, volumeSignal: volSignal,
+    rsi14, atr14, atrPct, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
     high52, low52, distHighPct, distLowPct, returns,
     chart, signals, watch,
