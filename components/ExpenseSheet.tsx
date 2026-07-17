@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { suggestCategory, recordCategoryRule, type CategorySuggestion } from '@/app/actions/suggest-category'
+import { useToast } from '@/components/ToastProvider'
 import type { Category, PaymentMethod, ExpenseWithRelations } from '@/types'
 
 interface Props {
@@ -51,6 +52,7 @@ export default function ExpenseSheet({
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const { showToast } = useToast()
 
   const [internalOpen, setInternalOpen] = useState(false)
   const isOpen = externalOpen !== undefined ? externalOpen : internalOpen
@@ -196,13 +198,63 @@ export default function ExpenseSheet({
     else setInternalOpen(false)
   }, [onClose, todayStr])
 
+  // Evita perder datos ingresados si el usuario toca fuera del sheet o presiona
+  // Escape por error. En modo edición, compara contra los valores originales.
+  const hasUnsavedChanges = isEditing && editExpense
+    ? (
+        amount !== String(editExpense.amount) ||
+        catId !== editExpense.category_id ||
+        pmId !== editExpense.payment_method_id ||
+        desc !== (editExpense.description ?? '') ||
+        dateStr !== editExpense.date
+      )
+    : (amount.trim() !== '' || desc.trim() !== '' || catId !== null)
+
+  const requestClose = useCallback(() => {
+    if (hasUnsavedChanges && !window.confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return
+    close()
+  }, [hasUnsavedChanges, close])
+
+  // Cerrar con Escape (sin perder datos por accidente)
+  useEffect(() => {
+    if (!isOpen) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') requestClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [isOpen, requestClose])
+
   async function handleDelete() {
     if (!editExpense) return
     setDeleting(true)
-    await supabase.from('expenses').delete().eq('id', editExpense.id)
+    const snapshot = editExpense
+    const { error: err } = await supabase.from('expenses').delete().eq('id', snapshot.id)
     setDeleting(false)
+    if (err) { setError('Error al eliminar. Intenta de nuevo.'); return }
     router.refresh()
     close()
+    showToast('Gasto eliminado', {
+      action: {
+        label: 'Deshacer',
+        onClick: async () => {
+          const { error: undoErr } = await supabase.from('expenses').insert({
+            user_id: snapshot.user_id,
+            amount: snapshot.amount,
+            category_id: snapshot.category_id,
+            payment_method_id: snapshot.payment_method_id,
+            recurring_expense_id: snapshot.recurring_expense_id,
+            description: snapshot.description,
+            date: snapshot.date,
+            tags: snapshot.tags,
+          })
+          if (!undoErr) {
+            router.refresh()
+            showToast('Gasto restaurado')
+          }
+        },
+      },
+    })
   }
 
   function numpad(key: string) {
@@ -241,6 +293,10 @@ export default function ExpenseSheet({
 
       setSaving(false)
       if (err) { setError('Error al guardar. Intenta de nuevo.'); return }
+      router.refresh()
+      close()
+      showToast('Cambios guardados')
+      return
     } else {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setSaving(false); setError('Sesión expirada. Recarga la página.'); return }
@@ -263,8 +319,10 @@ export default function ExpenseSheet({
       }
     }
 
+    const savedAmount = formatCLP(parseInt(amount))
     router.refresh()
     close()
+    showToast(`Gasto guardado — ${savedAmount}`)
   }
 
   if (!isOpen) return null
@@ -324,10 +382,14 @@ export default function ExpenseSheet({
 
   // Mini-calendar JSX (shared, used inside popovers)
   const calendarPopover = calOpen ? (
-    <div className="absolute bottom-full right-0 mb-1 z-50 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-lg w-[240px]">
+    <div className="absolute bottom-full right-0 mb-1 z-50 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-lg w-[280px]">
       {/* Month nav */}
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-100 bg-gray-50">
-        <button onClick={() => navCalMonth(-1)} className="p-0.5 rounded text-gray-500 hover:bg-gray-200 transition-colors">
+        <button
+          onClick={() => navCalMonth(-1)}
+          aria-label="Mes anterior"
+          className="w-9 h-9 flex items-center justify-center rounded text-gray-500 hover:bg-gray-200 transition-colors"
+        >
           <ChevronDown className="w-3 h-3 rotate-90" />
         </button>
         <span className="text-[11px] font-semibold text-gray-700 capitalize">
@@ -336,7 +398,8 @@ export default function ExpenseSheet({
         <button
           onClick={() => navCalMonth(1)}
           disabled={calAtMaxMonth}
-          className={cn('p-0.5 rounded transition-colors', calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200')}
+          aria-label="Mes siguiente"
+          className={cn('w-9 h-9 flex items-center justify-center rounded transition-colors', calAtMaxMonth ? 'text-gray-300 cursor-default' : 'text-gray-500 hover:bg-gray-200')}
         >
           <ChevronDown className="w-3 h-3 -rotate-90" />
         </button>
@@ -361,7 +424,7 @@ export default function ExpenseSheet({
                 disabled={isFuture}
                 onClick={() => pickCalDate(day)}
                 className={cn(
-                  'w-full aspect-square flex items-center justify-center rounded-full text-[10px] font-medium transition-colors',
+                  'w-full aspect-square min-h-[38px] flex items-center justify-center rounded-full text-[11px] font-medium transition-colors',
                   isSelected ? 'bg-brand-600 text-white font-bold' :
                   isToday    ? 'bg-brand-50 text-brand-700 font-bold' :
                   isFuture   ? 'text-gray-300 cursor-default' :
@@ -495,7 +558,8 @@ export default function ExpenseSheet({
           <button
             type="button"
             onClick={() => setCatPickerOpen(true)}
-            className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+            aria-label="Cambiar categoría"
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
           >
             <ChevronDown className="w-3 h-3" />
           </button>
@@ -627,7 +691,10 @@ export default function ExpenseSheet({
     return (
       <div
         className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-        onClick={e => { if (e.target === e.currentTarget) close() }}
+        onClick={e => { if (e.target === e.currentTarget) requestClose() }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Editar gasto"
       >
         <div className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
           {/* Handle */}
@@ -636,7 +703,7 @@ export default function ExpenseSheet({
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
             <h2 className="text-base font-bold text-gray-900">Editar gasto</h2>
-            <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors" aria-label="Cerrar">
+            <button onClick={requestClose} className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors" aria-label="Cerrar">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -825,7 +892,10 @@ export default function ExpenseSheet({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-      onClick={e => { if (e.target === e.currentTarget) close() }}
+      onClick={e => { if (e.target === e.currentTarget) requestClose() }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nuevo gasto"
     >
       <div className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-y-auto" style={{ maxHeight: '92dvh' }}>
 
@@ -833,7 +903,7 @@ export default function ExpenseSheet({
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3 lg:hidden" />
           <h2 className="text-base font-semibold text-gray-900 mt-2 lg:mt-0">Nuevo gasto</h2>
-          <button onClick={close} className="p-2 -mr-2 text-gray-400 hover:text-gray-600" aria-label="Cerrar">
+          <button onClick={requestClose} className="w-11 h-11 -mr-2 flex items-center justify-center text-gray-400 hover:text-gray-600" aria-label="Cerrar">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -979,7 +1049,8 @@ export default function ExpenseSheet({
                   </span>
                   <button
                     onClick={() => setPmPickerOpen(true)}
-                    className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
+                    aria-label="Cambiar método de pago"
+                    className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 transition-colors"
                   >
                     <ChevronDown className="w-3 h-3" />
                   </button>

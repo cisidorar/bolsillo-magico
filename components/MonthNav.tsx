@@ -39,7 +39,8 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
     <div className="flex items-center gap-0.5 bg-white dark:bg-[#1a2744] border border-gray-200 dark:border-[#2d4f7a] rounded-xl shadow-sm dark:shadow-none p-0.5">
       <button
         onClick={() => navigate(-1)}
-        className="p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors"
+        className="flex items-center justify-center rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors"
+        style={{ minWidth: 40, minHeight: 40 }}
         aria-label="Mes anterior"
       >
         <ChevronLeft className="w-4 h-4" />
@@ -49,7 +50,8 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
         onClick={!isCurrentMonth ? goToCurrent : undefined}
         disabled={isCurrentMonth}
         title={!isCurrentMonth ? 'Ir al mes actual' : undefined}
-        className="text-xs font-bold text-brand-700 dark:text-blue-300 min-w-[96px] text-center capitalize px-1 py-1 rounded-lg transition-colors disabled:cursor-default hover:bg-brand-50 dark:hover:bg-[#0d1b2e] disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+        className="text-xs font-bold text-brand-700 dark:text-blue-300 min-w-[96px] text-center capitalize px-1 rounded-lg transition-colors disabled:cursor-default hover:bg-brand-50 dark:hover:bg-[#0d1b2e] disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+        style={{ minHeight: 40 }}
       >
         {monthName(month)} {year !== now.getFullYear() ? year : ''}
         {isCurrentMonth && (
@@ -60,7 +62,8 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
       <button
         onClick={() => navigate(1)}
         disabled={isCurrentMonth}
-        className="p-1.5 rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="flex items-center justify-center rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        style={{ minWidth: 40, minHeight: 40 }}
         aria-label="Mes siguiente"
       >
         <ChevronRight className="w-4 h-4" />

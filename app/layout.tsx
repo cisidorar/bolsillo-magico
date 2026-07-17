@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Fredoka, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import ThemeProvider from '@/components/ThemeProvider'
+import ToastProvider from '@/components/ToastProvider'
 import { getServerSession, createClient } from '@/lib/supabase/server'
 
 const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-fredoka' })
@@ -47,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="es" className={serverTheme} suppressHydrationWarning>
       <body className={`${fredoka.variable} ${jakarta.variable}`} suppressHydrationWarning>
         <ThemeProvider />
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   )

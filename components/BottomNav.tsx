@@ -2,22 +2,49 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, List, Settings, Plus, BarChart2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Home, List, LayoutGrid, Plus, BarChart2 } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
+import MoreSheet from './MoreSheet'
 
 const navItems = [
   { href: '/inicio',    icon: Home,      label: 'Inicio'    },
   { href: '/historial', icon: List,      label: 'Historial' },
   null, // FAB
   { href: '/analisis',  icon: BarChart2, label: 'Análisis'  },
-  { href: '/ajustes',   icon: Settings,  label: 'Ajustes'   },
+  // "Más" no navega directo — abre un sheet con Ingresos, Inversiones,
+  // Recurrentes, Presupuesto, Categorías, Métodos y Ajustes. Antes esas
+  // secciones solo eran alcanzables entrando primero a Ajustes.
+  { href: '/ajustes',   icon: LayoutGrid, label: 'Más', isMore: true },
 ]
+
+// Rutas que conceptualmente cuelgan de una pestaña del BottomNav pero viven
+// fuera de su prefijo (ej. /categorias no empieza con /ajustes). Se resuelven
+// en orden: la primera coincidencia de prefijo gana.
+const ROUTE_TAB_MAP: { prefix: string; tab: string }[] = [
+  { prefix: '/ajustes',      tab: '/ajustes'   },
+  { prefix: '/categorias',   tab: '/ajustes'   },
+  { prefix: '/metodos',      tab: '/ajustes'   },
+  { prefix: '/presupuesto',  tab: '/ajustes'   },
+  { prefix: '/ingresos',     tab: '/ajustes'   },
+  { prefix: '/inversiones',  tab: '/ajustes'   },
+  { prefix: '/recurrentes',  tab: '/ajustes'   },
+  { prefix: '/cuenta',       tab: '/historial' },
+  { prefix: '/analisis',     tab: '/analisis'  },
+  { prefix: '/historial',    tab: '/historial' },
+  { prefix: '/inicio',       tab: '/inicio'    },
+]
+
+function activeTabFor(pathname: string): string | null {
+  const match = ROUTE_TAB_MAP.find(r => pathname.startsWith(r.prefix))
+  return match?.tab ?? null
+}
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const activeTab = activeTabFor(pathname)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   return (
     <>
@@ -38,14 +65,10 @@ export default function BottomNav() {
             }
 
             const Icon   = item.icon
-            const active = pathname === item.href
+            const active = activeTab === item.href
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200"
-              >
+            const content = (
+              <>
                 <div
                   className="p-1.5 rounded-xl transition-all"
                   style={active ? { background: 'var(--primary-soft)' } : {}}
@@ -61,6 +84,33 @@ export default function BottomNav() {
                 >
                   {item.label}
                 </span>
+              </>
+            )
+
+            if (item.isMore) {
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => setMoreOpen(true)}
+                  aria-current={active ? 'page' : undefined}
+                  aria-haspopup="dialog"
+                  className="flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl transition-all duration-200"
+                  style={{ minWidth: 44, minHeight: 44 }}
+                >
+                  {content}
+                </button>
+              )
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                className="flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl transition-all duration-200"
+                style={{ minWidth: 44, minHeight: 44 }}
+              >
+                {content}
               </Link>
             )
           })}
@@ -74,6 +124,8 @@ export default function BottomNav() {
           fetchData
         />
       )}
+
+      <MoreSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} />
     </>
   )
 }
