@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import { analyze, type TechnicalAnalysis } from '@/lib/technical'
+import { computeAndSnapshotNetWorth } from '@/lib/net-worth'
+import { getNowChile } from '@/lib/utils'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
 // Programado en vercel.json (22:30 UTC ≈ post-cierre NYSE). Protegido con
@@ -160,6 +162,65 @@ function buildSignals(
   return { signals, notifiedIds }
 }
 
+// ── FX USD/CLP para el snapshot de patrimonio ────────────────────────────────
+// Antes, USDCLP en price_cache solo se refrescaba cuando un usuario abría
+// /inversiones (vía /api/stock-price) — si el snapshot corre desde el cron
+// sin que nadie haya abierto la app ese día, usaba un FX potencialmente viejo
+// o inexistente y las acciones quedaban sin valorizar (stocksPriced=false).
+// Frankfurter no requiere API key (mismo proveedor que usa el fallback de
+// /api/stock-price), así que se puede refrescar acá de forma autocontenida.
+async function refreshUsdClp(supabase: SupabaseClient): Promise<void> {
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=CLP', { cache: 'no-store' })
+    if (!r.ok) return
+    const d = await r.json()
+    const price = d?.rates?.CLP as number | undefined
+    if (!price) return
+    const { error } = await supabase.from('price_cache').upsert(
+      { ticker: 'USDCLP', price, change_pct: 0, name: 'USD/CLP', history7d: null, fetched_at: new Date().toISOString() },
+      { onConflict: 'ticker' },
+    )
+    if (error) console.error('[sync-prices] usdclp cache error:', error.message)
+  } catch (err) {
+    console.error('[sync-prices] refreshUsdClp falló:', err)
+  }
+}
+
+// ── P1/F4 fix: snapshot de patrimonio neto desde el cron (no depende de que
+// el usuario abra /analisis). Corre TODOS los días (a diferencia del sync de
+// precios, que se salta fines de semana/feriados NYSE) porque el usuario
+// puede agregar ahorros, depósitos o pagar cuotas cualquier día — y cada día
+// sin snapshot es historia perdida para siempre (los meses pasados quedan
+// congelados). computeAndSnapshotNetWorth ya protege el caso sin precio/FX
+// en caché (no persiste un mes subvalorado).
+async function snapshotAllNetWorths(supabase: SupabaseClient): Promise<{ ok: number; failed: number }> {
+  const [{ data: stockUsers }, { data: savingsUsers }, { data: depositUsers }, { data: usdUsers }] = await Promise.all([
+    supabase.from('stock_positions').select('user_id'),
+    supabase.from('savings_accounts').select('user_id'),
+    supabase.from('term_deposits').select('user_id'),
+    supabase.from('usd_purchases').select('user_id'),
+  ])
+  const userIds = new Set<string>([
+    ...(stockUsers ?? []).map(r => r.user_id as string),
+    ...(savingsUsers ?? []).map(r => r.user_id as string),
+    ...(depositUsers ?? []).map(r => r.user_id as string),
+    ...(usdUsers ?? []).map(r => r.user_id as string),
+  ])
+
+  const { now } = getNowChile()
+  let ok = 0, failed = 0
+  for (const userId of userIds) {
+    try {
+      await computeAndSnapshotNetWorth(supabase, userId, now)
+      ok++
+    } catch (err) {
+      failed++
+      console.error(`[sync-prices] snapshot patrimonio falló para user ${userId}:`, err)
+    }
+  }
+  return { ok, failed }
+}
+
 async function computeDailySignals(supabase: SupabaseClient) {
   const [{ data: wl }, { data: pos }] = await Promise.all([
     supabase.from('watchlist').select('id, user_id, ticker, target_price, target_direction, target_notified'),
@@ -214,14 +275,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!isTradingDay()) {
-    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)' })
-  }
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) return NextResponse.json({ error: 'Supabase env faltante' }, { status: 503 })
   const supabase = createAdminClient(url, key)
+
+  // P1/F4: snapshot de patrimonio SIEMPRE corre, incluso fines de semana o
+  // feriados NYSE (a diferencia del sync de precios) — el usuario puede
+  // ahorrar, pagar cuotas o depositar cualquier día, y un mes sin snapshot
+  // es historia perdida para siempre (los meses pasados quedan congelados).
+  await refreshUsdClp(supabase)
+  const netWorthSnapshots = await snapshotAllNetWorths(supabase)
+
+  if (!isTradingDay()) {
+    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots })
+  }
 
   // Tickers en uso: watchlist ∪ posiciones (todos los usuarios)
   const [{ data: wl }, { data: pos }] = await Promise.all([
@@ -255,5 +323,6 @@ export async function GET(request: Request) {
     total:  tickers.length,
     failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
     digest,
+    netWorthSnapshots,
   })
 }

@@ -1,8 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { billingPeriod } from './utils'
 
 // ── F4: cálculo y snapshot de patrimonio neto ────────────────────────────────
 // Valoriza los tres tipos de activos y hace upsert del snapshot del mes actual.
 // Los meses pasados quedan congelados (histórico real, no recalculado).
+//
+// P1 (fix real, jul 2026): hasta ahora el snapshot solo guardaba el BRUTO.
+// La resta de deuda comprometida (cuotas pendientes + tarjeta por facturar)
+// vivía solo en la UI (PatrimonioCards "Neto real"), nunca se persistía — el
+// histórico y el gráfico de evolución medían bruto, premiando endeudarse
+// (comprar en cuotas infla la curva) sin registrar el efecto de pagar deuda.
+// Ahora el snapshot calcula y persiste también debt_clp y net_clp, de forma
+// autocontenida (no depende de que quien llame ya haya calculado la deuda),
+// para que también pueda correr desde el cron diario sin visitar /analisis.
 
 export interface NetWorthSnapshot {
   month:        number
@@ -12,6 +22,10 @@ export interface NetWorthSnapshot {
   savings_clp:  number
   usd_clp:      number   // caja de dólares valorizada al USDCLP en caché
   total_clp:    number
+  // Null en snapshots guardados ANTES de este fix (jul 2026) — no se
+  // recalculan retroactivamente, los meses pasados quedan congelados.
+  debt_clp:     number | null   // deuda comprometida a futuro (cuotas pendientes + tarjeta por facturar)
+  net_clp:      number | null   // patrimonio neto real = total_clp - debt_clp
 }
 
 export interface NetWorthResult {
@@ -37,18 +51,70 @@ function depositAccrued(amount: number, rate: number, startDate: string, maturit
   return total > 0 ? Math.round(interest * (gone / total)) : 0
 }
 
+/**
+ * Deuda comprometida a futuro: cuotas pendientes (ya compradas, faltan por
+ * pagar) + compras a crédito ya hechas cuyo estado de cuenta aún no cierra
+ * (próximos 6 meses). Misma fórmula que usa /analisis para "Ya comprometido",
+ * pero autocontenida — no depende de que la página que llama ya la haya
+ * calculado, para poder correr también desde el cron diario.
+ * No incluye recurrentes indefinidos (arriendo, suscripciones): son gasto
+ * futuro recurrente, no deuda ya contraída sobre un activo.
+ */
+async function computeCommittedDebt(
+  supabase: SupabaseClient,
+  userId: string,
+  now: Date,
+): Promise<number> {
+  const nowMonthIdx = now.getFullYear() * 12 + now.getMonth()
+  const lookback = new Date(now.getTime() - 60 * 86_400_000).toISOString().split('T')[0]
+
+  const [{ data: recurring }, { data: cardExpenses }] = await Promise.all([
+    supabase.from('recurring_expenses')
+      .select('amount, total_installments, paid_installments')
+      .eq('user_id', userId).eq('is_active', true).not('total_installments', 'is', null),
+    supabase.from('expenses')
+      .select('amount, date, payment_method:payment_methods(card_type, billing_day)')
+      .eq('user_id', userId).gte('date', lookback),
+  ])
+
+  const cuotasPendingTotal = (recurring ?? []).reduce((s, r) => {
+    const remaining = Math.max(0, (r.total_installments ?? 0) - (r.paid_installments ?? 0))
+    return remaining > 0 ? s + remaining * r.amount : s
+  }, 0)
+
+  let cardPending = 0
+  for (const e of (cardExpenses ?? []) as unknown as { amount: number; date: string; payment_method: { card_type: string; billing_day: number | null } | null }[]) {
+    const pm = e.payment_method
+    if (!pm || pm.card_type !== 'credit' || !pm.billing_day) continue
+    const stmt   = billingPeriod(e.date, pm.billing_day)
+    const offset = (stmt.year * 12 + (stmt.month - 1)) - nowMonthIdx
+    if (offset >= 1 && offset <= 6) cardPending += e.amount
+  }
+
+  return cuotasPendingTotal + cardPending
+}
+
+/**
+ * @param knownDebtTotal Si quien llama ya calculó la deuda comprometida con
+ *   más detalle (ej. /analisis, que necesita el desglose mes a mes para la
+ *   card "Ya comprometido"), pasarla acá evita recalcularla con una ventana
+ *   distinta y que ambos números diverjan. Si se omite (ej. desde el cron,
+ *   que no tiene ese cálculo a mano), se calcula internamente.
+ */
 export async function computeAndSnapshotNetWorth(
   supabase: SupabaseClient,
   userId: string,
   now: Date,
+  knownDebtTotal?: number,
 ): Promise<NetWorthResult> {
-  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: history }] = await Promise.all([
+  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: history }, committedDebtTotal] = await Promise.all([
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
     supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
     supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
-    supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, usd_clp, total_clp')
+    supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, usd_clp, total_clp, debt_clp, net_clp')
       .eq('user_id', userId).order('year').order('month'),
+    knownDebtTotal !== undefined ? Promise.resolve(knownDebtTotal) : computeCommittedDebt(supabase, userId, now),
   ])
 
   // ── Ahorro: saldo + interés compuesto ────────────────────────────────────
@@ -100,6 +166,7 @@ export async function computeAndSnapshotNetWorth(
   }
 
   const totalClp = stocksClp + depositsClp + savingsClp + usdClp
+  const netClp   = totalClp - committedDebtTotal
   const current: NetWorthSnapshot = {
     month: now.getMonth() + 1,
     year:  now.getFullYear(),
@@ -108,6 +175,8 @@ export async function computeAndSnapshotNetWorth(
     savings_clp:  savingsClp,
     usd_clp:      usdClp,
     total_clp:    totalClp,
+    debt_clp:     committedDebtTotal,
+    net_clp:      netClp,
   }
 
   // ── Upsert del snapshot del mes actual (fire-and-forget con await corto) ─

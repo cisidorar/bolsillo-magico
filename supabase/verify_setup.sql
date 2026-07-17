@@ -48,6 +48,9 @@ SELECT * FROM (
   SELECT 35, 'columna watchlist.target_direction', EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'watchlist' AND column_name = 'target_direction') UNION ALL
+  SELECT 36, 'columna net_worth_snapshots.net_clp (P1 fix — neto real historizado)', EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'net_worth_snapshots' AND column_name = 'net_clp') UNION ALL
   -- Índices de integridad
   SELECT 40, 'índice expenses_recurring_once_per_day_idx (AutoRegister idempotente)', EXISTS (
     SELECT 1 FROM pg_indexes

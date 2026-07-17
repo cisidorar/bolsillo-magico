@@ -592,10 +592,18 @@ export default async function DashboardPage() {
               )}
             </div>
 
-            {/* Ahorro */}
+            {/* Disponible / gasto vs. anterior — OJO: esto NO es la tasa de ahorro
+                real (ingreso − gasto) que se muestra en /analisis y /ingresos.
+                Antes esta card decía "Ahorro" en ambas ramas y chocaba con esa
+                métrica: podía leerse "Ahorro $300.000" acá mientras /analisis
+                mostraba tasa de ahorro negativa el mismo día. Título dinámico
+                según qué se está mostrando en cada rama para no prestarse a
+                confusión con la métrica real. */}
             <div className="card flex flex-col justify-between p-4" style={{ background: 'var(--surface)' }}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Ahorro</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                  {budgetAmount !== null ? 'Disponible' : savings !== null ? 'Gasto vs. anterior' : 'Ahorro'}
+                </p>
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(31,190,141,0.12)' }}>
                   <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />
                 </div>

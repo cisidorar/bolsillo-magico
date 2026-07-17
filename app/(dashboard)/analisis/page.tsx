@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
-import { computeAndSnapshotNetWorth } from '@/lib/net-worth'
+import { computeAndSnapshotNetWorth, type NetWorthResult } from '@/lib/net-worth'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
@@ -136,10 +136,12 @@ export default async function AnalisisPage({
       .lt('maturity_date', getNowChile().dateStr),
   ])
 
-  // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual)
-  const netWorth = !isAnual
-    ? await computeAndSnapshotNetWorth(supabase, user!.id, now)
-    : null
+  // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual).
+  // La llamada real vive más abajo (línea con committedDebtTotal ya calculado):
+  // se le pasa esa cifra para que el snapshot persista debt_clp/net_clp usando
+  // el mismo cálculo detallado que ya arma esta página, sin duplicarlo con una
+  // ventana distinta (ver computeAndSnapshotNetWorth en lib/net-worth.ts).
+  let netWorth: NetWorthResult | null = null
 
   const catBudgetMap = new Map(
     ((categoryBudgets ?? []) as CategoryBudget[]).map(b => [b.category_id, b.amount])
@@ -542,6 +544,12 @@ export default async function AnalisisPage({
   // futuro recurrente, no una deuda ya contraída sobre un activo.
   const totalCardPending = commitMonths.reduce((s, m) => s + m.card, 0)
   const committedDebtTotal = cuotasPendingTotal + totalCardPending
+
+  // F4/P1: snapshot del mes actual + histórico, con la deuda ya calculada
+  // arriba para que el neto real persistido coincida con el que se muestra.
+  if (!isAnual) {
+    netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
+  }
   // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
   // Se compara solo la parte fija: la tarjeta varía mes a mes y no es "liberación".
   let freeMonthLabel: string | null = null

@@ -208,7 +208,7 @@ Auditoría de cómo interactúan F1–F5 entre sí y con el resto de la app. Det
 
 1. **El "período" no es un concepto global.** `profiles.budget_period` (calendario vs facturación) solo lo respeta `/inicio`. `/analisis` (health score, tasa de ahorro, categorías excedidas) siempre usa mes calendario; `/presupuesto` usa el período de facturación de la tarjeta default sin mirar la preferencia. Con modo billing activo, inicio y análisis muestran totales distintos para "este período".
 2. **Fallback de presupuesto distinto entre páginas.** `/inicio` usa `thisBudget ?? allBudgets[0]`; `/analisis` solo el mes exacto. Mismo dato, dos verdades.
-3. **"Patrimonio neto" no es neto.** `computeAndSnapshotNetWorth` suma activos (stocks + depósitos + ahorro + USD) pero nunca resta `cuotasPendingTotal` + tarjeta por facturar (F3), calculados en la misma página. Un usuario con $10M en activos y $4M en cuotas ve "$10M de patrimonio". ⇒ **Resuelto por P1, ver abajo.**
+3. **"Patrimonio neto" no es neto.** `computeAndSnapshotNetWorth` suma activos (stocks + depósitos + ahorro + USD) pero nunca resta `cuotasPendingTotal` + tarjeta por facturar (F3), calculados en la misma página. Un usuario con $10M en activos y $4M en cuotas ve "$10M de patrimonio". ⇒ **P1 original (jul 2026) restaba esto solo en la UI (`PatrimonioCards`), sin persistirlo — el histórico y el gráfico de evolución seguían siendo brutos. Corregido de verdad en la iteración 3 (ver abajo): ahora se persiste `debt_clp`/`net_clp` en cada snapshot.**
 4. **Flujo y stock desconectados.** La tasa de ahorro (F1) dice "sobraron $X" pero nada verifica que el sobrante haya aterrizado en un activo — la app no reconcilia surplus acumulado vs Δ patrimonio.
 5. **Snapshot de patrimonio se congela mal sin FX.** Si `USDCLP` no está en `price_cache`, las acciones aportan $0 al total pero el snapshot igual se guarda si `total_clp > 0`; el histórico queda subvalorado permanentemente (los meses pasados están congelados por diseño). ⇒ **Resuelto, ver abajo.**
 6. **Riesgo de doble conteo de interés en cuentas de ahorro.** El interés se calcula desde `start_date` sobre el balance actual; si el usuario actualiza el balance (incluyendo interés ya ganado) sin resetear `start_date`, el interés se cuenta dos veces.
@@ -219,7 +219,7 @@ Auditoría de cómo interactúan F1–F5 entre sí y con el resto de la app. Det
 
 ### Cambios ejecutados (jul 2026)
 
-- **P1 — Patrimonio neto real**: `computeAndSnapshotNetWorth` ahora resta deuda comprometida (cuotas pendientes + tarjeta por facturar del próximo mes) del total de activos. `PatrimonioCards` muestra el neto real junto al bruto.
+- **P1 — Patrimonio neto real (UI, jul 2026)**: `PatrimonioCards` muestra el neto real (bruto − deuda comprometida) junto al bruto. *Nota: esto solo afectaba la UI, no lo que se persistía — ver corrección real en "Iteración 3" más abajo.*
 - **Fix timezone auto-register**: `runAutoRegister()` usa `getNowChile()` en vez de `new Date()` UTC.
 - **Fix snapshot sin FX**: no se hace upsert del snapshot mensual cuando hay posiciones de acciones sin precio en caché (`stocksPriced === false`), para no congelar un mes subvalorado.
   - **Corrección posterior (jul 2026)**: la condición original marcaba `stocksPriced = false` también cuando el usuario NO tenía acciones pero sí billetera USD sin `USDCLP` en caché — bloqueando para siempre el snapshot de usuarios sin acciones (ej: solo ahorro + billetera USD), ya que nadie abre `/inversiones` (Acciones) para poblar ese precio. La billetera USD ya tenía un fallback razonable (costo en CLP), no es un hueco real. Ahora `stocksPriced` solo se marca false por acciones efectivamente sin precio.
@@ -291,4 +291,26 @@ Depósito vencido hace N días sin reinvertir (dato ya existe) + saldo USD idle 
 
 ---
 
-_Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8); revisión de lógica entre features y dos rondas de correcciones: (1) patrimonio neto real, timezone, snapshot FX, fondo de emergencia; (2) fallback de presupuesto unificado, categoría en cargo de administración, P4 (meta de ahorro → límite) y P2 (sweep de cierre de mes)_
+## Iteración 3 — el patrimonio neto histórico era bruto (jul 2026)
+
+Tercera pasada de auditoría (`revision-logica-gstos-iteracion3.md`), verificada línea a línea contra el código. Confirmó que **P1 nunca se implementó de verdad**: la resta de deuda vivía solo en `PatrimonioCards` (UI); `computeAndSnapshotNetWorth` seguía persistiendo el bruto en `net_worth_snapshots`, así que el histórico y el gráfico de evolución medían bruto — comprar en cuotas inflaba la curva, pagar deuda no la movía, y como los meses pasados quedan congelados por diseño, cada mes sin el fix era historia neta perdida para siempre.
+
+### Cambios ejecutados
+
+- **Fix real de P1**: `computeAndSnapshotNetWorth` (`lib/net-worth.ts`) ahora calcula la deuda comprometida internamente (`computeCommittedDebt`, misma fórmula que "Ya comprometido": cuotas pendientes + tarjeta por facturar próximos 6 meses) y persiste `debt_clp`/`net_clp` en cada snapshot — migración `20260719_net_worth_debt.sql` (columnas nullable; los snapshots previos a este fix no se recalculan). `/analisis` le pasa su `committedDebtTotal` ya calculado con más detalle (evita duplicar la ventana de cálculo y que ambos números diverjan); si no se pasa (ej. desde el cron), se calcula solo.
+- **Snapshot desacoplado de la visita a `/analisis`**: `app/api/cron/sync-prices/route.ts` ahora corre `computeAndSnapshotNetWorth` para todos los usuarios con datos de patrimonio (acciones, ahorro, depósitos o billetera USD) **todos los días**, incluso fines de semana/feriados NYSE (a diferencia del sync de precios de acciones) — el usuario puede ahorrar o pagar cuotas cualquier día. También refresca `USDCLP` en `price_cache` vía Frankfurter antes de snapshotear (antes solo se refrescaba cuando alguien abría `/inversiones`, dejando el snapshot del cron sin FX fresco).
+- **KPI "Ahorro" de `/inicio` renombrado**: título dinámico ("Disponible" cuando hay presupuesto, "Gasto vs. anterior" en el fallback) para no chocar con la tasa de ahorro real (ingreso − gasto) de `/analisis` e `/ingresos` — antes ambos podían mostrar números contradictorios el mismo día bajo el mismo nombre "Ahorro".
+
+### Pendiente de la iteración 3 (no ejecutado en esta pasada)
+
+- Reconciliación surplus (`month_sweeps`) ↔ Δ `net_clp` del mismo mes — cierra el loop flujo↔stock. `month_sweeps` sigue siendo infraestructura montada sin usar.
+- Proyección de fin de mes consciente del calendario de recurrentes (hoy sobreestima la primera quincena cuando el fijo grande cae temprano).
+- Insights de IA con señales de patrimonio (tasa de ahorro, fondo de emergencia, Δ patrimonio) en el contexto — hoy `analyze-month` tiene prohibido hablar de inversión.
+- `/presupuesto` sigue ignorando `budget_period`/`period_card_id` (usa la tarjeta de crédito default sin mirar la preferencia del usuario).
+- Menores: fallback de billetera USD sin FX sobrevalora (no descuenta `wallet_cost_usd`); `catsDentro` en `/inicio` cuenta categorías sin límite como "dentro"; `credit_limit` en `payment_methods` para % de utilización.
+
+Detalle completo con roadmap priorizado en `revision-logica-gstos-iteracion3.md`.
+
+---
+
+_Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8); revisión de lógica entre features y tres rondas de correcciones: (1) patrimonio neto real (UI), timezone, snapshot FX, fondo de emergencia; (2) fallback de presupuesto unificado, categoría en cargo de administración, P4 (meta de ahorro → límite) y P2 (sweep de cierre de mes); (3) patrimonio neto real historizado de verdad (persistido, no solo en UI) + snapshot automático desde el cron + KPI "Ahorro" desambiguado_
