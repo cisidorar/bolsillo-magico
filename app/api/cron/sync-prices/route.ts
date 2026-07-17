@@ -482,38 +482,11 @@ export async function GET(request: Request) {
   // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
   const trailingStops = await updateTrailingStops(supabase)
 
-  // Correo diario: antes dependía de un pg_cron APARTE (notify-watchlist-digest-daily,
-  // ver supabase/setup_cron.sql) programado 1h después de este cron, con margen
-  // "a ojo" para que sync-prices alcanzara a terminar — frágil (ese margen se
-  // corre solo con el cambio de horario de verano chileno) y agregaba hasta 1h
-  // de espera entre que la señal se calcula y el correo realmente sale. Ahora
-  // este cron dispara la Edge Function directamente al terminar de calcular
-  // daily_signals/daily_decisions: mismo evento, sin desfase. La Edge Function
-  // sigue siendo idempotente por usuario/día (notification_log), así que si el
-  // pg_cron viejo queda activo por error no duplica correos — igual conviene
-  // desactivarlo (select cron.unschedule('notify-watchlist-digest-daily');).
-  let digestEmail: { sent?: number; users?: number; skipped?: number; error?: string } = {}
-  if (wl && wl.length > 0) {
-    try {
-      const r = await fetch(`${url}/functions/v1/notify-watchlist-digest`, {
-        method:  'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body:    '{}',
-      })
-      digestEmail = await r.json()
-      if (!r.ok) console.error('[sync-prices] notify-watchlist-digest respondió con error:', digestEmail)
-    } catch (err) {
-      console.error('[sync-prices] no se pudo invocar notify-watchlist-digest:', err)
-      digestEmail = { error: String(err) }
-    }
-  }
-
   return NextResponse.json({
     synced: ok,
     total:  tickers.length,
     failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
     digest,
-    digestEmail,
     trailingStops,
     netWorthSnapshots,
   })

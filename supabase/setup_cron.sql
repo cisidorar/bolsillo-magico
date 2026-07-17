@@ -73,39 +73,34 @@ select cron.schedule(
   $$
 );
 
--- 5. Digest diario de Favoritos (Inversiones → Acciones) — DESACTIVADO como
---    pg_cron aparte (jul 2026). Antes corría acá 1h después del cron de
---    sync-prices de Vercel (22:30 UTC) con margen "a ojo" para que alcanzara a
---    terminar — frágil (el margen se corría solo con el horario de verano
---    chileno) y agregaba hasta 1h de espera entre que la señal se calcula y el
---    correo sale de verdad. Ahora /api/cron/sync-prices (Vercel) invoca la
---    Edge Function DIRECTAMENTE al terminar de calcular daily_signals/
---    daily_decisions — sin desfase, un solo evento.
+-- 5. Digest diario de Favoritos (Inversiones → Acciones) — compra/venta/toma de
+--    ganancias/precio objetivo, TODO en un solo correo si hubo algo ese día.
+--    Corre después del cron de sync-prices de Vercel (22:30 UTC), que es el
+--    que sincroniza precios Y calcula las señales del día (daily_signals) —
+--    esta función solo lee esa tabla y arma el correo, no recalcula nada.
+--    23:30 UTC = 19:30 CLT en horario normal (UTC-4). En horario de verano
+--    chileno (UTC-3, oct-mar) esto cae a las 20:30 CLT y además queda pegado
+--    justo a la hora de sync-prices (22:30 UTC = ambas al mismo tiempo) — un
+--    cambio de hora bien Chile, revisar si algún día empieza a llegar vacío.
 --
---    Si tu proyecto todavía tiene el job viejo programado (de una instalación
---    anterior a jul 2026), sácalo para no duplicar correos — aunque la Edge
---    Function es idempotente por usuario/día (notification_log) y un duplicado
---    no manda dos correos, es una invocación de más sin sentido:
---
---    select cron.unschedule('notify-watchlist-digest-daily');
---
---    (Bloque dejado comentado abajo solo como referencia de cómo se programaba
---    antes — no ejecutar salvo que quieras volver al modelo de cron aparte.)
---
--- select cron.schedule(
---   'notify-watchlist-digest-daily',
---   '30 23 * * *',   -- 23:30 UTC = 19:30 CLT (horario normal)
---   $$
---   select net.http_post(
---     url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-watchlist-digest',
---     headers := jsonb_build_object(
---       'Authorization', 'Bearer <SERVICE_ROLE>',
---       'Content-Type',  'application/json'
---     ),
---     body    := '{}'::jsonb
---   ) as result;
---   $$
--- );
+--    OJO al pegar esta URL: reemplaza <PROJECT_REF> por tu project ref SIN los
+--    símbolos < > (ej. 'https://nnrmfzpyirsshmmwpogw.supabase.co/...'). Dejar
+--    los < > literales rompe el hostname y el job falla en silencio — nos pasó
+--    con este mismo job y con notify-recurring-due/overdue (jul 2026).
+select cron.schedule(
+  'notify-watchlist-digest-daily',
+  '30 23 * * *',   -- 23:30 UTC = 19:30 CLT (horario normal)
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-watchlist-digest',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
 
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;

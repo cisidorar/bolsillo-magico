@@ -1,21 +1,16 @@
 /**
  * notify-watchlist-digest — Edge Function
  *
- * Invocada DIRECTAMENTE por /api/cron/sync-prices (Vercel) al terminar de
- * calcular las señales del día (jul 2026 — antes corría en un pg_cron aparte,
- * programado 1h después "a ojo"; ver supabase/setup_cron.sql para el porqué
- * del cambio). Para cuando esta función corre, sync-prices ya calculó
- * analyze() para CADA ticker de la watchlist (accionable o no) y dejó el
- * estado del día en daily_signals: una fila "primaria" por usuario+ticker
- * (buy/sell/caution/hold, mutuamente excluyentes) + una fila 'target' aparte
- * si además llegó a su precio objetivo ese día.
+ * Corre diariamente (pg_cron), después de /api/cron/sync-prices (Vercel) —
+ * ese cron ya calculó analyze() para CADA ticker de la watchlist (accionable
+ * o no) y dejó el estado del día en daily_signals: una fila "primaria" por
+ * usuario+ticker (buy/sell/caution/hold, mutuamente excluyentes) + una fila
+ * 'target' aparte si además llegó a su precio objetivo ese día.
  * Esta función SOLO lee esa tabla, agrupa por usuario y manda UN correo por
  * usuario con el resumen completo del día — no recalcula nada técnico.
  *
  * Si un usuario no tiene ninguna fila hoy (nada en su watchlist con historia
- * suficiente), no recibe correo. Sigue siendo invocable a mano (pg_cron,
- * curl, etc.) — es idempotente por usuario/día vía notification_log, así que
- * invocarla dos veces el mismo día no duplica correos.
+ * suficiente), no recibe correo.
  *
  * Requiere: RESEND_API_KEY, SITE_URL, DB_SERVICE_KEY
  */
