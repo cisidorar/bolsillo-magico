@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
+import { useToast } from '@/components/ToastProvider'
 
 // ── U4 (roadmap UX): modal SOLO transaccional — extraído de
 // StockPositionManager.tsx. Ya no es la puerta de entrada a la información
@@ -60,14 +61,20 @@ interface Props {
   onClose:       () => void
   /** Se llama tras un guardado exitoso — Radar puede refrescar quotes/analysis del ticker. */
   onDone?:       (ticker: string) => void
+  /** I1 (roadmap interacción): al abrir desde una sugerencia con monto ("Compra
+   *  hasta US$450 de NVDA"), llega pre-lleno — sin esto había que re-tipear a
+   *  mano el número que la propia app acababa de calcular. Las acciones se
+   *  derivan del precio en vivo; el usuario igual puede editar todo. */
+  prefill?:      { totalUsd?: number }
 }
 
 export default function TransactionModal({
   userId, mode, ticker, positions, setPositions, purchases, setPurchases, sales, setSales,
-  walletUsdBase, quotes, posAnalyses, onClose, onDone,
+  walletUsdBase, quotes, posAnalyses, onClose, onDone, prefill,
 }: Props) {
   const supabase = createClient()
   const pos = ticker ? positions.find(p => p.ticker === ticker) ?? null : null
+  const { showToast } = useToast()
 
   const [form,       setForm]       = useState({ ticker: ticker ?? '', shares: '', totalPaid: '', notes: '' })
   const [saving,     setSaving]     = useState(false)
@@ -88,7 +95,10 @@ export default function TransactionModal({
     if (mode === 'edit' && pos) {
       setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid: (pos.shares * pos.avg_cost_usd).toFixed(2), notes: pos.notes ?? '' })
     } else if (mode === 'new') {
-      setForm({ ticker: ticker ?? '', shares: '', totalPaid: '', notes: '' })
+      const suggestedUsd = prefill?.totalUsd
+      const live = ticker ? quotes[ticker]?.price : undefined
+      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(6).replace(/\.?0+$/, '') : ''
+      setForm({ ticker: ticker ?? '', shares: suggestedShares, totalPaid: suggestedUsd ? suggestedUsd.toFixed(2) : '', notes: '' })
     } else if (mode === 'sell' && pos) {
       const q = quotes[pos.ticker]
       const price = q?.price ?? pos.avg_cost_usd
@@ -97,7 +107,12 @@ export default function TransactionModal({
       setSellUsd((price * pos.shares).toFixed(2))
       setSellDate(new Date().toISOString().slice(0, 10))
     } else if (mode === 'buyMore') {
-      setBuyShares(''); setBuyTotalPaid(''); setBuyDate(new Date().toISOString().slice(0, 10))
+      const suggestedUsd = prefill?.totalUsd
+      const live = pos ? quotes[pos.ticker]?.price : undefined
+      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(6).replace(/\.?0+$/, '') : ''
+      setBuyShares(suggestedShares)
+      setBuyTotalPaid(suggestedUsd ? suggestedUsd.toFixed(2) : '')
+      setBuyDate(new Date().toISOString().slice(0, 10))
     }
     setFormError('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,6 +219,11 @@ export default function TransactionModal({
       if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
       if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
     }
+    // I2 (roadmap interacción): confirmar qué se guardó — antes el modal solo
+    // se cerraba, sin decir si la compra quedó registrada.
+    showToast(isEdit
+      ? `Posición editada: ${tk}`
+      : `Compra registrada: ${shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${tk} por ${fmtUSD(totalPaid)}`)
     onDone?.(tk)
     onClose()
   }
@@ -214,6 +234,7 @@ export default function TransactionModal({
     await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
     setPositions(prev => prev.filter(p => p.id !== pos.id))
     setDeleting(false)
+    showToast(`Posición eliminada: ${pos.ticker} (sin registrar venta)`)
     onClose()
   }
 
@@ -286,6 +307,10 @@ export default function TransactionModal({
     }
 
     setDeleting(false)
+    showToast(
+      `Venta registrada: ${sharesSold.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${pos.ticker} · `
+      + `${realizedPnl >= 0 ? '+' : '-'}${fmtUSD(Math.abs(realizedPnl))} · ${fmtUSD(proceeds)} volvieron a tu billetera`
+    )
     onDone?.(pos.ticker)
     onClose()
   }
@@ -339,6 +364,7 @@ export default function TransactionModal({
     if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
 
     setSaving(false)
+    showToast(`Compra registrada: +${addShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${pos.ticker} (ahora ${newShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.)`)
     onDone?.(pos.ticker)
     onClose()
   }

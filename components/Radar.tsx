@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plus, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check,
@@ -19,6 +20,7 @@ import TransactionModal, { type TransactionMode } from '@/components/Transaction
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
+import { useToast } from '@/components/ToastProvider'
 
 // ── U4 (roadmap UX): "Radar" — un solo mundo para posiciones y favoritos.
 // Reemplaza StockPositionManager.tsx + WatchlistPanel.tsx: antes eran dos
@@ -97,6 +99,20 @@ interface Quote { price: number; changePercent: number; name: string; domain?: s
 
 const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
 
+/** I1 (roadmap interacción): el ranking nombraba tickers en texto plano sin
+ *  forma de abrirlos — había que buscarlos a mano en la lista de abajo. */
+function TickerLink({ t, onOpen, bold = false, muted = false }: { t: string; onOpen: (ticker: string) => void; bold?: boolean; muted?: boolean }) {
+  return (
+    <button
+      onClick={() => onOpen(t)}
+      className={`underline underline-offset-2 decoration-dotted ${bold ? 'font-extrabold' : 'font-bold'}`}
+      style={{ color: muted ? 'var(--ink-3)' : 'inherit' }}
+    >
+      {t}
+    </button>
+  )
+}
+
 type Tab = 'tengo' | 'sigo' | 'todo'
 
 interface Props {
@@ -115,6 +131,7 @@ export default function Radar({
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
 }: Props) {
   const supabase = createClient()
+  const { showToast } = useToast()
 
   const [positions, setPositions] = useState<StockPosition[]>(initialPositions)
   const [sales,     setSales]     = useState<StockSale[]>(initialSales)
@@ -133,8 +150,11 @@ export default function Radar({
   const [marketOpen,  setMarketOpen]  = useState<boolean | null>(null)
   const [marketLabel, setMarketLabel] = useState('')
 
-  // Modal transaccional — SOLO comprar/vender/editar/eliminar (U4 roadmap UX)
-  const [txn, setTxn] = useState<{ mode: TransactionMode; ticker: string | null } | null>(null)
+  // Modal transaccional — SOLO comprar/vender/editar/eliminar (U4 roadmap UX).
+  // prefillUsd (I1 roadmap interacción): al abrir desde una sugerencia con
+  // monto, el modal llega con ese número ya cargado — sin esto había que
+  // re-tipear a mano lo que la app acababa de calcular.
+  const [txn, setTxn] = useState<{ mode: TransactionMode; ticker: string | null; prefillUsd?: number } | null>(null)
 
   // ── Posición agregada por ticker (puede haber legacy con varias filas) ──
   const ownedMap = useMemo(() => {
@@ -234,6 +254,21 @@ export default function Radar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // I5 (roadmap interacción): antes las quotes se pedían UNA vez al montar —
+  // si dejabas la pestaña abierta mirando el mercado, el pill seguía diciendo
+  // "en vivo" con precios de hace rato. Refresco silencioso cada 75s, solo
+  // con mercado abierto y la pestaña realmente visible (no gasta requests en
+  // segundo plano ni fuera de horario).
+  const allTickersKey = allTickers.join(',')
+  useEffect(() => {
+    if (!marketOpen || allTickers.length === 0) return
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchQuotes(allTickers)
+    }, 75_000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketOpen, allTickersKey])
+
   async function openDetail(ticker: string) {
     setExpanded(ticker)
     const a = analyses[ticker]
@@ -241,10 +276,48 @@ export default function Radar({
     await fetchAnalysis(ticker)
   }
 
+  // I1 (roadmap interacción): TodayQueue es un Server Component sin estado —
+  // sus filas enlazan a `?ticker=X` en vez de manipular el detalle directo.
+  // Al montar, si llega ese query param, se abre el detalle acá y se limpia
+  // la URL (replace, sin agregar entrada al historial) para que un refresh
+  // no lo vuelva a abrir solo.
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const t = searchParams.get('ticker')
+    if (t) {
+      openDetail(t.toUpperCase())
+      router.replace(pathname, { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const convictionFor = useCallback((ticker: string): ConvictionResult | null => {
     const a = analyses[ticker]
     return typeof a === 'object' ? computeConviction(a, null, spyReturn6m) : null
   }, [analyses, spyReturn6m])
+
+  /** I1 (roadmap interacción): mismo cálculo de "monto sugerido" que ya vive
+   *  repartido entre el panel de ranking y el hint del modal — un solo lugar
+   *  para prefillear el modal al abrirlo desde cualquier sugerencia. Si el
+   *  ticker ya es posición, el monto es el MARGEN restante hasta el tope del
+   *  1% (para "Comprar más"), no el máximo bruto. */
+  function suggestedUsdFor(ticker: string): number | null {
+    const a = analyses[ticker]
+    if (typeof a !== 'object') return null
+    const live = quotes[ticker]?.price ?? a.price
+    const sizing = portfolioValueUsd > 0 ? positionSizeUsd(portfolioValueUsd, live, a.alarm) : null
+    if (!sizing) return null
+    const cashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
+    let usd = cashCap !== null ? Math.min(sizing.maxUsd, cashCap) : sizing.maxUsd
+    const pos = ownedMap[ticker]
+    if (pos) {
+      const currentValue = pos.shares * live
+      usd = Math.min(usd, Math.max(0, sizing.maxUsd - currentValue))
+    }
+    return usd > 1 ? Math.round(usd * 100) / 100 : null
+  }
 
   // ── Ranking "¿Qué comprar hoy?" — sobre TODO el universo (posiciones + favoritos) ──
   const ranking = allTickers
@@ -318,12 +391,50 @@ export default function Radar({
     setItems(prev => [...prev, data as WatchlistItem])
     fetchQuotes([t])
     fetchAnalysis(t)
+    // I6 (roadmap interacción): antes de esto, seguir un ticker no mostraba
+    // nada visible — la fila nueva aparecía al fondo de la lista sin señal.
+    // Se agregó porque el usuario quiere VERLO: cerrar el buscador y abrir
+    // su detalle directo.
+    closeSearch()
+    openDetail(t)
   }
 
+  /**
+   * I2 (roadmap interacción): "Dejar de seguir" borraba al instante sin red
+   * de seguridad — un mis-tap en mobile perdía el ticker y su precio
+   * objetivo. Ahora se quita de la vista al toque (optimista) pero el
+   * DELETE real en Supabase se difiere 5s (mismo tiempo que dura el toast
+   * con acción); si el usuario toca "Deshacer" a tiempo, se cancela el
+   * borrado y la fila vuelve tal cual estaba — nunca llegó a irse del server.
+   */
   async function removeTicker(item: WatchlistItem) {
     setItems(prev => prev.filter(i => i.id !== item.id))
     if (expanded === item.ticker) setExpanded(null)
-    await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
+
+    let undone = false
+    showToast(`Dejaste de seguir ${item.ticker}`, {
+      action: {
+        label: 'Deshacer',
+        onClick: () => {
+          undone = true
+          setItems(prev => prev.some(i => i.id === item.id) ? prev : [...prev, item])
+        },
+      },
+    })
+
+    await new Promise(res => setTimeout(res, 5000))
+    if (!undone) await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
+  }
+
+  // I4 (roadmap interacción): leyenda de una sola vez sobre la lista — mismo
+  // patrón de persistencia que otras preferencias de UI en la app (localStorage).
+  const [showLegend, setShowLegend] = useState(true)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('radarLegendDismissed') === '1') setShowLegend(false)
+  }, [])
+  function dismissLegend() {
+    setShowLegend(false)
+    try { localStorage.setItem('radarLegendDismissed', '1') } catch { /* modo privado */ }
   }
 
   // ── Precio objetivo ───────────────────────────────────────────────────────
@@ -346,6 +457,14 @@ export default function Radar({
       : i))
     setTargetInput(null)
     setTargetDirOverride(null)
+    // I2 (roadmap interacción): confirmar el objetivo guardado con el dato
+    // concreto — antes el popup solo se cerraba sin decir qué quedó activo.
+    if (value === null) {
+      showToast(`Ya no seguimos ningún precio objetivo para ${item.ticker}`)
+    } else {
+      const verb = direction === 'above' ? 'suba' : 'baje'
+      showToast(`Objetivo guardado: te avisamos si ${item.ticker} ${verb} a ${fmtUSD(value)}`)
+    }
   }
 
   // ── Fila: orden por atractivo real de compra (mismo criterio que el
@@ -372,7 +491,13 @@ export default function Radar({
   const tabTickers = tab === 'tengo' ? positionTickers
     : tab === 'sigo' ? watchTickers.filter(t => !owned.has(t))
     : allTickers
-  const rows = [...tabTickers].sort((x, y) => buyRank(y) - buyRank(x))
+  // I3 (roadmap interacción): mientras la precarga sigue en curso, NO
+  // reordenar — las filas saltaban bajo el dedo a medida que llegaba cada
+  // análisis. Se ordena por convicción recién cuando todo terminó de cargar;
+  // antes de eso se respeta el orden natural (posiciones primero, luego
+  // favoritos en el orden en que se siguieron).
+  const rows = allLoaded ? [...tabTickers].sort((x, y) => buyRank(y) - buyRank(x)) : tabTickers
+  const loadedCount = allTickers.filter(t => typeof analyses[t] === 'object').length
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -389,6 +514,21 @@ export default function Radar({
               ) : (
                 <span style={{ color: 'var(--ink-3)' }} className="font-medium">{marketLabel}</span>
               )}
+              {/* I5 (roadmap interacción): hora de la última quote — antes el
+                  pill decía "en vivo" sin importar cuánto rato llevaba abierta
+                  la pestaña; ahora se ve cuándo se refrescó de verdad. */}
+              <span className="tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                · {lastUpdated.toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button
+                onClick={() => fetchQuotes(allTickers)}
+                disabled={loadingQ}
+                title="Actualizar precios ahora"
+                className="flex-shrink-0 disabled:opacity-50"
+                style={{ color: 'var(--ink-3)' }}
+              >
+                <RefreshCw className={`w-3 h-3 ${loadingQ ? 'animate-spin' : ''}`} />
+              </button>
             </>
           )}
           {quotesError && (
@@ -539,17 +679,22 @@ export default function Radar({
           </div>
           <div className="px-4 lg:px-5 py-4">
             {!allLoaded ? (
-              <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                Comparando tus {allTickers.length} tickers…
-              </p>
+              <div>
+                <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                  Comparando… {loadedCount}/{allTickers.length}
+                </p>
+                <div className="h-1 rounded-full overflow-hidden mt-2 max-w-[200px]" style={{ background: 'var(--surface-2)' }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${(loadedCount / allTickers.length) * 100}%`, background: 'var(--primary)' }} />
+                </div>
+              </div>
             ) : top === null ? (
               <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
             ) : !topIsBuyTier ? (
               <>
                 <p className="text-sm font-extrabold" style={{ color: 'var(--coral)' }}>Hoy no compres nada de tu lista.</p>
                 <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
-                  Ni siquiera {top.ticker}, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
+                  Ni siquiera <TickerLink t={top.ticker} onOpen={openDetail} />, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
                 </p>
               </>
             ) : !topActionable ? (
@@ -559,7 +704,7 @@ export default function Radar({
                     eso es lo que generaba la contradicción entre este panel y el
                     detalle del ticker (fix jul 2026, a pedido de Cas). */}
                 <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold)' }}>
-                  {top.ticker} es tu mejor candidata ({top.conviction.score}/100), pero todavía no hay entrada.
+                  <TickerLink t={top.ticker} onOpen={openDetail} bold /> es tu mejor candidata ({top.conviction.score}/100), pero todavía no hay entrada.
                 </p>
                 <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{top.a.entryPlan}</p>
                 <ul className="mt-2 space-y-1">
@@ -574,8 +719,8 @@ export default function Radar({
             ) : (
               <>
                 <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--mint)' }}>
-                  La mejor compra hoy es {top.ticker} ({top.conviction.score}/100)
-                  {runnerUp && ` — mejor que ${runnerUp.ticker} (${runnerUp.conviction.score}/100)`}.
+                  La mejor compra hoy es <TickerLink t={top.ticker} onOpen={openDetail} bold />{' '}({top.conviction.score}/100)
+                  {runnerUp && <> — mejor que <TickerLink t={runnerUp.ticker} onOpen={openDetail} /> ({runnerUp.conviction.score}/100)</>}.
                 </p>
                 <ul className="mt-2 space-y-1">
                   {top.conviction.reasons.slice(0, 3).map((r, i) => (
@@ -586,13 +731,23 @@ export default function Radar({
                   ))}
                 </ul>
                 {topSuggestedUsd !== null && (
-                  <p className="text-sm font-bold tabular-nums mt-2.5 px-3 py-2 rounded-xl inline-block" style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                  <button
+                    onClick={() => setTxn({ mode: owned.has(top.ticker) ? 'buyMore' : 'new', ticker: top.ticker, prefillUsd: topSuggestedUsd })}
+                    className="text-sm font-bold tabular-nums mt-2.5 px-3 py-2 rounded-xl inline-block transition-opacity hover:opacity-85 active:scale-[.98]"
+                    style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
+                  >
                     Compra hasta {fmtUSD(topSuggestedUsd)} de {top.ticker} ahora
-                  </p>
+                  </button>
                 )}
                 {ranking.length > 1 && (
-                  <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>
-                    Resto del ranking: {ranking.slice(1, 4).map(r => `${r.ticker} (${r.conviction.score})`).join(' · ')}
+                  <p className="text-[10px] mt-2 flex flex-wrap items-center gap-x-1" style={{ color: 'var(--ink-3)' }}>
+                    Resto del ranking:{' '}
+                    {ranking.slice(1, 4).map((r, i) => (
+                      <span key={r.ticker}>
+                        {i > 0 && ' · '}
+                        <TickerLink t={r.ticker} onOpen={openDetail} muted /> ({r.conviction.score})
+                      </span>
+                    ))}
                   </p>
                 )}
               </>
@@ -638,6 +793,19 @@ export default function Radar({
           </button>
         ))}
       </div>
+
+      {/* Leyenda descartable — se explica una vez, no en cada fila (I4 roadmap interacción) */}
+      {showLegend && (
+        <div className="flex items-start gap-2.5 rounded-2xl px-3.5 py-2.5 mb-3" style={{ background: 'var(--surface-2)' }}>
+          <p className="flex-1 text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            <span className="font-bold" style={{ color: 'var(--ink)' }}>●&nbsp;número</span> = convicción de compra (0-100, toca cualquiera para el detalle) ·{' '}
+            <span className="font-bold" style={{ color: 'var(--ink)' }}>barra roja/verde</span> = riesgo hasta tu salida vs. aire hasta el próximo techo.
+          </p>
+          <button onClick={dismissLegend} className="flex-shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5" style={{ color: 'var(--ink-3)' }}>
+            Entendido
+          </button>
+        </div>
+      )}
 
       {/* ── Popup de búsqueda ("Seguir") ─────────────────────────────────── */}
       {showSearch && (
@@ -781,7 +949,8 @@ export default function Radar({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{ticker}</p>
-                    {c && <ConvictionChip score={c.score} tier={c.tier} />}
+                    {c ? <ConvictionChip score={c.score} tier={c.tier} />
+                      : <span className="inline-block w-6 h-3.5 rounded-full animate-pulse" style={{ background: 'var(--surface-2)' }} />}
                     {flag === 'caution' && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                         style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.color }}>
@@ -904,6 +1073,13 @@ export default function Radar({
                             className="flex-1 min-w-0 text-xs font-semibold outline-none border rounded-xl px-3 py-1.5"
                             style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                           />
+                          {/* I6 (roadmap interacción): distancia en vivo mientras
+                              se escribe — antes solo se veía al guardar y reabrir. */}
+                          {q && Number.isFinite(parseFloat(targetInput)) && parseFloat(targetInput) > 0 && (
+                            <span className="text-[10px] font-bold flex-shrink-0 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                              a {(Math.abs(q.price - parseFloat(targetInput)) / parseFloat(targetInput) * 100).toFixed(1)}%
+                            </span>
+                          )}
                           <button
                             onClick={() => {
                               const v = parseFloat(targetInput)
@@ -1010,7 +1186,7 @@ export default function Radar({
                     portfolioValueUsd={portfolioValueUsd}
                     walletAvailableUsd={walletAvailable}
                     spyReturn6m={spyReturn6m}
-                    onBuyMore={isOwned ? (t) => setTxn({ mode: 'buyMore', ticker: t }) : undefined}
+                    onBuyMore={isOwned ? (t) => setTxn({ mode: 'buyMore', ticker: t, prefillUsd: suggestedUsdFor(t) ?? undefined }) : undefined}
                     onSell={isOwned ? (t) => setTxn({ mode: 'sell', ticker: t }) : undefined}
                   />
                 )}
@@ -1019,7 +1195,7 @@ export default function Radar({
                 <div className="px-4 pb-4 space-y-2">
                   {!isOwned && (
                     <button
-                      onClick={() => setTxn({ mode: 'new', ticker })}
+                      onClick={() => setTxn({ mode: 'new', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
                       className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl transition-colors"
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                     >
@@ -1075,7 +1251,17 @@ export default function Radar({
           onDone={(ticker) => {
             fetchQuotes([ticker])
             fetchAnalysis(ticker, true)
+            // I6 (roadmap interacción): comprar un ticker que no seguías lo
+            // deja fuera de daily_decisions y del correo diario — sin
+            // watchlist, la app no vuelve a mirarlo. Se ofrece seguirlo en
+            // el mismo momento, un solo tap.
+            if (txn?.mode === 'new' && !items.some(i => i.ticker === ticker)) {
+              showToast(`¿Seguir ${ticker} para recibir sus señales diarias?`, {
+                action: { label: 'Seguir', onClick: () => addSymbol(ticker) },
+              })
+            }
           }}
+          prefill={txn.prefillUsd !== undefined ? { totalUsd: txn.prefillUsd } : undefined}
         />
       )}
     </div>

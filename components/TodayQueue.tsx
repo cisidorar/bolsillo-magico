@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Target, DollarSign, AlertTriangle, Flag } from 'lucide-react'
 
 // ── "Hoy": la cola de acciones del día, arriba de todo (U1 del roadmap UX) ──
@@ -56,10 +57,13 @@ export default function TodayQueue({
 
       <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
 
-        {/* Decisión de compra — el veredicto comparado, mismo cálculo del correo */}
+        {/* Decisión de compra — el veredicto comparado, mismo cálculo del correo.
+            Clickeable (I1 roadmap interacción): antes había que bajar a buscar el
+            ticker en la lista para poder actuar sobre lo que este panel decía. */}
         {decision && (
           isBuy ? (
-            <div className="px-4 lg:px-5 py-3.5 flex items-center gap-3" style={{ background: 'rgba(31,190,141,0.06)' }}>
+            <Link href={`?ticker=${decision.ticker}`} scroll={false}
+              className="px-4 lg:px-5 py-3.5 flex items-center gap-3 transition-colors hover:bg-black/5" style={{ background: 'rgba(31,190,141,0.06)' }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.16)' }}>
                 <span className="text-[11px] font-extrabold tabular-nums" style={{ color: 'var(--mint)' }}>{decision.score}</span>
               </div>
@@ -69,7 +73,7 @@ export default function TodayQueue({
                 </p>
                 <p className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--ink-3)' }}>{decision.verdict}</p>
               </div>
-            </div>
+            </Link>
           ) : (
             <div className="px-4 lg:px-5 py-3.5 flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}>
@@ -87,7 +91,8 @@ export default function TodayQueue({
         {signals.map((s, i) => {
           const ui = KIND_UI[s.kind]
           return (
-            <div key={`${s.ticker}-${s.kind}-${i}`} className="px-4 lg:px-5 py-3.5 flex items-center gap-3" style={{ background: ui.bg }}>
+            <Link key={`${s.ticker}-${s.kind}-${i}`} href={`?ticker=${s.ticker}`} scroll={false}
+              className="px-4 lg:px-5 py-3.5 flex items-center gap-3 transition-colors hover:bg-black/5" style={{ background: ui.bg }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface)' }}>
                 <ui.Icon className="w-4 h-4" style={{ color: ui.color }} />
               </div>
@@ -97,7 +102,7 @@ export default function TodayQueue({
                 </p>
                 <p className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--ink-3)' }}>{s.message}</p>
               </div>
-            </div>
+            </Link>
           )
         })}
 
