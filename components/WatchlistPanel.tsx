@@ -9,7 +9,7 @@ import type { SearchResult } from '@/app/api/stock-search/route'
 import type { NewsResponse } from '@/app/api/stock-news/route'
 import type { SignalBacktestResponse } from '@/app/api/signal-backtest/route'
 import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
-import { computeConviction, type ConvictionResult } from '@/lib/conviction'
+import { computeConviction, type ConvictionResult, type ConvictionTier } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { ConvictionChip, RiskRail } from '@/components/RiskRail'
 
@@ -67,9 +67,19 @@ const TICKER_RE = /^[A-Z0-9.\-]{1,12}$/
  * - caution: solo con posición — tendencia aún alcista pero presión bajista
  *   acumulada: considerar toma de ganancias antes de que se pierda la tendencia.
  */
-function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean): 'buy' | 'sell' | 'caution' | null {
+/**
+ * "buy" se decide con el TIER DE CONVICCIÓN, no con el rating técnico crudo —
+ * son cosas distintas a propósito: convicción ya mezcla riesgo/recompensa y
+ * fuerza vs. SPY, y es el mismo número que manda en "¿Qué comprar hoy?" y en
+ * el ranking de la lista. Antes esta función miraba solo a.rating.label, así
+ * que un ticker con rating "neutral" pero convicción 78/100 (p. ej. porque el
+ * riesgo/recompensa y la fuerza relativa son excelentes) no se marcaba como
+ * compra en ningún lado de la lista, aunque el panel de arriba lo señalara
+ * como la mejor compra del día — inconsistencia detectada por Cas (jul 2026).
+ */
+function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean, convictionTier?: ConvictionTier): 'buy' | 'sell' | 'caution' | null {
   if (typeof a !== 'object') return null
-  const isBuy  = a.rating.label === 'compra' || a.rating.label === 'compra_fuerte'
+  const isBuy  = convictionTier === 'compra' || convictionTier === 'compra_fuerte'
   const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
   if (isBuy) return 'buy'
   if (isSell && owned) return 'sell'
@@ -948,6 +958,16 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
     await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
   }
 
+  // Un solo cálculo de convicción por ticker, reutilizado en el ranking, el
+  // orden de la lista y el flag/chip de cada fila — antes cada uno lo
+  // recalculaba por su cuenta y el flag de fila ni siquiera lo usaba (miraba
+  // el rating técnico crudo), por lo que un ticker podía ser "la mejor compra
+  // hoy" arriba y no tener ninguna marca de compra en la lista de abajo.
+  const convictionFor = useCallback((ticker: string): ConvictionResult | null => {
+    const a = analyses[ticker]
+    return typeof a === 'object' ? computeConviction(a, null, spyReturn6m) : null
+  }, [analyses, spyReturn6m])
+
   // ── Ranking de convicción — "¿Qué comprar hoy?" (Fase 5.2) ────────────────
   // Compara TODOS los favoritos con análisis ya cargado y ordena por
   // convicción de compra. No usa el backtest por ticker acá (es pesado, vive
@@ -956,8 +976,9 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
   const ranking = items
     .map(i => {
       const a = analyses[i.ticker]
-      if (typeof a !== 'object') return null
-      return { ticker: i.ticker, a, conviction: computeConviction(a, null, spyReturn6m) }
+      const conviction = convictionFor(i.ticker)
+      if (typeof a !== 'object' || conviction === null) return null
+      return { ticker: i.ticker, a, conviction }
     })
     .filter((r): r is { ticker: string; a: TechnicalAnalysis; conviction: ConvictionResult } => r !== null)
     .sort((x, y) => y.conviction.score - x.conviction.score)
@@ -1054,11 +1075,11 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
           {/* Aviso in-app visible aún con la lista plegada: candidatas a comprar/vender */}
           {!open && (() => {
             const flags = items
-              .map(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)))
+              .map(i => actionFlag(analyses[i.ticker], owned.has(i.ticker), convictionFor(i.ticker)?.tier))
               .filter((f): f is 'buy' | 'sell' | 'caution' => f !== null)
             const targets = items.filter(i => targetReached(i, quotes[i.ticker]?.price, owned.has(i.ticker)))
             const count = new Set([
-              ...items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker)) !== null).map(i => i.id),
+              ...items.filter(i => actionFlag(analyses[i.ticker], owned.has(i.ticker), convictionFor(i.ticker)?.tier) !== null).map(i => i.id),
               ...targets.map(i => i.id),
             ]).size
             const watchTotal = items.filter(i => {
@@ -1271,19 +1292,18 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
               const a = analyses[item.ticker]
               const price = quotes[item.ticker]?.price
               const isOwned = owned.has(item.ticker)
+              const c = convictionFor(item.ticker)
               let r = 0
               if (!isOwned && targetReached(item, price, isOwned)) r += 100
+              // Base: el score de convicción (0-100) — es el mismo número que
+              // "ordenados por probabilidad de compra" promete arriba, así que
+              // el orden de la lista tiene que salir de acá, no del rating crudo.
+              if (c) r += c.score
               if (typeof a === 'object') {
-                const l = a.rating.label
-                if (l === 'compra_fuerte')     r += 90
-                else if (l === 'compra')       r += 80
-                else if (l === 'venta')        r -= 40
-                else if (l === 'venta_fuerte') r -= 60
+                if (a.rating.label === 'venta')        r -= 40
+                else if (a.rating.label === 'venta_fuerte') r -= 60
                 if (a.rating.caution) r -= 20
-                if (a.buy.some(t => t.now)) r += 25          // se puede ejecutar hoy
-                else if (a.buy.length === 0) r -= 15         // sin plan de compra
-                r += a.watch.filter(w => w.tone === 'mint').length * 10
-                r += Math.max(0, a.rating.triggerScore)
+                if (a.buy.some(t => t.now)) r += 15          // se puede ejecutar hoy
               }
               if (nearTarget(item, price, isOwned)) r += 40
               return r
@@ -1293,7 +1313,8 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
             const q = quotes[item.ticker]
             const a = analyses[item.ticker]
             const isOwned = owned.has(item.ticker)
-            const flag = actionFlag(a, isOwned)
+            const c = convictionFor(item.ticker)
+            const flag = actionFlag(a, isOwned, c?.tier)
             const atTarget = targetReached(item, q?.price, isOwned)
             const watchCount = (typeof a === 'object' ? a.watch.length : 0)
               + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
@@ -1323,10 +1344,7 @@ export default function WatchlistPanel({ userId, initialItems, positions, wallet
                           el mismo que ordena el panel "¿Qué comprar hoy?" y el correo
                           — reemplaza la mezcla anterior de "Compra"/"N señales"/nada,
                           que contaba una historia distinta en cada fila (U2 roadmap UX). */}
-                      {typeof a === 'object' && (() => {
-                        const c = computeConviction(a, null, spyReturn6m)
-                        return <ConvictionChip score={c.score} tier={c.tier} />
-                      })()}
+                      {c && <ConvictionChip score={c.score} tier={c.tier} />}
                       {flag === 'caution' && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                           style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.color }}>
