@@ -11,8 +11,6 @@ import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
 import IncomeEditor from '@/components/IncomeEditor'
 import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
-import SurplusReconciliation from '@/components/SurplusReconciliation'
-import type { SweepDecision } from '@/app/actions/month-sweep'
 
 export const revalidate = 0
 
@@ -58,7 +56,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }, { data: monthSweepRow }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -137,14 +135,6 @@ export default async function AnalisisPage({
       .select('amount, interest_rate, start_date, maturity_date')
       .eq('user_id', user!.id)
       .lt('maturity_date', getNowChile().dateStr),
-    // P2 reconectado: ¿ya se registró qué pasó con el sobrante de ESTE mes?
-    isAnual
-      ? Promise.resolve({ data: null })
-      : supabase
-          .from('month_sweeps')
-          .select('decision, surplus_amount')
-          .eq('user_id', user!.id).eq('month', month).eq('year', year)
-          .maybeSingle(),
   ])
 
   // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual).
@@ -592,24 +582,6 @@ export default async function AnalisisPage({
   if (!isAnual) {
     netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
   }
-
-  // ── P2 reconectado: reconciliación surplus ↔ Δ patrimonio ────────────────
-  // El health score y "tasa de ahorro" dicen "sobraron $X" pero nada verificaba
-  // que ese dinero aterrizara en un activo — el sobrante que no se mueve a
-  // ningún lado tiende a gastarse solo, sin que el usuario lo note. Comparamos
-  // el surplus del mes SELECCIONADO (ya cerrado) contra el Δ de patrimonio neto
-  // real (net_clp) del mismo mes, usando los snapshots ya historizados arriba.
-  const selectedSnapshot = netWorth?.snapshots.find(s => s.month === month && s.year === year) ?? null
-  const priorSnapshot     = netWorth?.snapshots.find(s => s.month === prevMonth && s.year === prevYear) ?? null
-  const netWorthDelta = selectedSnapshot && priorSnapshot
-    && selectedSnapshot.net_clp !== null && priorSnapshot.net_clp !== null
-    ? selectedSnapshot.net_clp - priorSnapshot.net_clp
-    : null
-  const existingSweep = (monthSweepRow as { decision: string; surplus_amount: number } | null) ?? null
-  // Solo tiene sentido para un mes ya CERRADO (no el actual, que sigue en curso)
-  // con sobrante positivo y con ambos snapshots disponibles para comparar.
-  const showSweepReconciliation = !isAnual && !isCurrentMonth
-    && surplus !== null && surplus > 0 && netWorthDelta !== null
 
   // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
   // Se compara solo la parte fija: la tarjeta varía mes a mes y no es "liberación".
@@ -1822,18 +1794,6 @@ export default async function AnalisisPage({
               </div>
             </div>
           </div>
-        )}
-
-        {/* ── P2 reconectado: ¿el sobrante del mes aterrizó en un activo? ── */}
-        {showSweepReconciliation && (
-          <SurplusReconciliation
-            month={month}
-            year={year}
-            monthLabel={monthName(month)}
-            surplus={surplus!}
-            netWorthDelta={netWorthDelta!}
-            existingDecision={(existingSweep?.decision as SweepDecision | undefined) ?? null}
-          />
         )}
 
         {/* ── Construcción de patrimonio: F1 tasa de ahorro + F2 fondo de emergencia ── */}
