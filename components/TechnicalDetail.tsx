@@ -240,7 +240,18 @@ export default function TechnicalDetail({
     headerAction = position ? 'Mantener — sin acción hoy' : 'No comprar hoy'
     headerColor = 'var(--ink-3)'
   }
-  const rationale = [conviction.verdict, conviction.reasons[0]].filter(Boolean).join(' ')
+  // Bug reportado por Cas (jul 2026): con tier de compra pero sin gatillo de
+  // entrada hoy, la cabecera decía "No comprar hoy" y el texto de abajo
+  // arrancaba con "Compra clara: la evidencia está a favor" — mismo bloque,
+  // dos lecturas opuestas en dos líneas seguidas. conviction.verdict describe
+  // el SCORE (evidencia general), no si hay gatillo hoy; isActionableBuyNow ya
+  // exige ambas cosas para la acción, pero el verdict no lo sabía. Acá se
+  // reescribe la frase para ese caso puntual en vez de dejar pasar la
+  // contradicción textual.
+  const buyTierNoTrigger = !sellNow && !buyNow && (conviction.tier === 'compra' || conviction.tier === 'compra_fuerte')
+  const rationale = buyTierNoTrigger
+    ? `Buena evidencia en general (${conviction.score}/100), pero sin gatillo de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
+    : [conviction.verdict, conviction.reasons[0]].filter(Boolean).join(' ')
 
   const SECTIONS: { id: DetailSection; label: string; icon: typeof BarChart3 }[] = [
     { id: 'plan',    label: 'Plan',              icon: Target },
