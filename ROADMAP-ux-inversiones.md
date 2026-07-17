@@ -33,14 +33,16 @@ Ordenado por impacto. U1–U3 son independientes entre sí; U4 es el refactor gr
 - Resto reorganizado en 4 secciones tipo tab (una a la vez, "Plan" abierta por defecto): **"Plan"** (posición + salida por tramos, compra por tramos), **"Gráfico y niveles"** (gráfico 12m, tendencia, rendimiento, RSI, rango 52 sem., soportes/resistencias), **"Señales y radar"** (señales activas + radar de "cerca de pasar"), **"Historial"** (noticias y backtest on-demand, que ya vivían así). El guard intradía y la cabecera son siempre visibles, contextuales a cualquier sección.
 - Un solo disclaimer al pie (ya existía) — se recortó el micro-descargo duplicado del bloque de noticias que repetía "no es recomendación".
 
-## U4 — Un solo mundo: fusionar posiciones y favoritos (impacto alto, esfuerzo alto)
+## U4 — Un solo mundo: fusionar posiciones y favoritos ✅ (implementado jul 2026)
 
-**Problema.** El mismo ticker puede ser posición y favorito: dos listas, dos patrones de detalle distintos (modal transaccional vs detalle técnico expandido), dos fetch paths, y el usuario debe saber en cuál lista buscar qué. La tabla de posiciones no muestra convicción; los favoritos no muestran tu posición sin abrir el detalle.
+**Problema.** El mismo ticker podía ser posición y favorito: dos listas, dos patrones de detalle distintos (modal transaccional vs detalle técnico expandido), dos fetch paths, y el usuario debía saber en cuál lista buscar qué. La tabla de posiciones no mostraba convicción; los favoritos no mostraban tu posición sin abrir el detalle.
 
-**Propuesta.**
-- Una sola lista **"Radar"** con filtro Tengo / Sigo / Todo. Cada fila: logo, ticker, chip de convicción, risk rail (si hay posición), retorno (si hay posición). Orden por defecto: accionables primero, luego por convicción.
-- Un solo detalle (el de U3) para todos; si hay posición, incluye el bloque "Tu posición · plan de salida" (ya existe). El modal actual queda SOLO para transacciones (comprar/vender/editar), invocado desde el detalle — deja de ser la puerta de entrada a la información.
-- Esto elimina ~600 líneas duplicadas entre `StockPositionManager` y `WatchlistPanel` y el doble estado `posAnalyses`/`analyses`.
+**Hecho.**
+- `components/Radar.tsx` reemplaza `StockPositionManager.tsx` + `WatchlistPanel.tsx`: una sola lista con filtro **Tengo / Sigo / Todo**. Cada fila: logo, ticker, `ConvictionChip`, `RiskRail` compacto (si hay posición), retorno $ y % (si hay posición). Orden por defecto: accionables primero (target alcanzado, venta, cerca de objetivo), luego por score de convicción — mismo criterio reparado en el fix de convicción de fila (commit `18cee34`).
+- `components/TechnicalDetail.tsx` (extraído de `WatchlistPanel`, el de U3) es ahora el único detalle, para cualquier ticker tenga o no posición. El bloque "Tu posición · plan de salida" ahora incluye también el timeline de **Movimientos** (compras/ventas históricas) que antes solo vivía en el modal transaccional, y botones "Comprar más" / "Vender" que abren el modal.
+- `components/TransactionModal.tsx` (extraído de `StockPositionManager`) queda SOLO para transacciones: nueva posición, comprar más, vender, editar, eliminar — se invoca desde el detalle, ya no es la puerta de entrada a la información. Toda la lógica de dinero (tope de billetera, costo promedio ponderado, venta parcial, reset de `trail_stop_usd`, inserts en `stock_purchases`/`stock_sales`/`usd_purchases`) se preservó funcionalmente idéntica.
+- Un solo fetch de análisis técnico por ticker (`analyses` en `Radar`) — se eliminó el doble estado `posAnalyses`/`analyses` que existía entre los dos componentes viejos.
+- `app/(dashboard)/inversiones/page.tsx` ahora renderiza `TodayQueue` → `Radar` → `PerformanceSection`, sin cambios en las otras pestañas (Ahorro, Depósitos, Billetera).
 
 ## U5 — El rendimiento en su casa ✅ (implementado jul 2026)
 

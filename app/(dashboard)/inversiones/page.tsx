@@ -1,9 +1,8 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import StockPositionManager from '@/components/StockPositionManager'
+import Radar, { type WatchlistItem } from '@/components/Radar'
 import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
-import WatchlistPanel, { type WatchlistItem } from '@/components/WatchlistPanel'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { getNowChile } from '@/lib/utils'
@@ -171,10 +170,6 @@ export default async function InversionesPage({ searchParams }: Props) {
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
 
-  // Mismo cálculo que StockPositionManager (walletAvailable): efectivo real
-  // para comprar. Se pasa a Favoritos para sugerir montos concretos (Fase 5.3).
-  const walletAvailableUsd = walletUsdBase > 0 ? walletUsdBase - investedUsd : null
-
   // ── Benchmark vs SPY (Fase 2.2 del roadmap): ¿le ganaste al mercado? ──────
   // Basado en cierres de price_history (misma tabla que usa el motor técnico)
   // — no requiere precio en vivo. Se computa server-side porque necesita leer
@@ -262,7 +257,11 @@ export default async function InversionesPage({ searchParams }: Props) {
             decision={(todayDecisionRow ?? null) as TodayDecision | null}
             signals={(todaySignalRows ?? []) as TodaySignal[]}
           />
-          <StockPositionManager
+          {/* U4 (roadmap UX): un solo mundo — Radar reemplaza StockPositionManager
+              + WatchlistPanel. Un solo fetch de análisis por ticker, un solo
+              detalle (TechnicalDetail, el de U3) para cualquiera, el modal
+              transaccional (TransactionModal) queda solo para comprar/vender/editar. */}
+          <Radar
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
             walletUsdBase={walletUsdBase}
@@ -270,32 +269,11 @@ export default async function InversionesPage({ searchParams }: Props) {
             initialPurchases={(purchases ?? []) as StockPurchase[]}
             spyBenchmark={spyBenchmark}
             lastAutoUpdate={lastSignal?.created_at ?? null}
+            initialWatchlist={(watchlist ?? []) as WatchlistItem[]}
           />
           <div className="mt-6">
             <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} />
           </div>
-          <WatchlistPanel
-            userId={user.id}
-            initialItems={(watchlist ?? []) as WatchlistItem[]}
-            walletAvailableUsd={walletAvailableUsd}
-            positions={(() => {
-              // Agregado por ticker (puede haber varias filas): acciones totales + costo promedio ponderado
-              const map: Record<string, { shares: number; avgCost: number }> = {}
-              for (const s of (stocks ?? []) as StockPosition[]) {
-                const prev = map[s.ticker]
-                if (prev) {
-                  const totalShares = prev.shares + s.shares
-                  map[s.ticker] = {
-                    shares: totalShares,
-                    avgCost: (prev.shares * prev.avgCost + s.shares * s.avg_cost_usd) / totalShares,
-                  }
-                } else {
-                  map[s.ticker] = { shares: s.shares, avgCost: s.avg_cost_usd }
-                }
-              }
-              return map
-            })()}
-          />
         </>
       )}
 
