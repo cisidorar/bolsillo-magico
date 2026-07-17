@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import { analyze, type TechnicalAnalysis } from '@/lib/technical'
-import { computeAndSnapshotNetWorth } from '@/lib/net-worth'
+import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
 import { getNowChile } from '@/lib/utils'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -212,6 +212,11 @@ async function snapshotAllNetWorths(supabase: SupabaseClient): Promise<{ ok: num
   for (const userId of userIds) {
     try {
       await computeAndSnapshotNetWorth(supabase, userId, now)
+      // Ventana de gracia: el usuario carga gastos ~1 vez por semana, fechados
+      // al día real — la última semana de un mes puede no estar cargada al
+      // cierre. Corrige debt_clp/net_clp del mes recién cerrado durante los
+      // primeros días del mes siguiente, sin tocar los activos ya congelados.
+      await reconcileClosedMonthDebt(supabase, userId, now)
       ok++
     } catch (err) {
       failed++

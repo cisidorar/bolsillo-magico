@@ -59,14 +59,20 @@ function depositAccrued(amount: number, rate: number, startDate: string, maturit
  * calculado, para poder correr también desde el cron diario.
  * No incluye recurrentes indefinidos (arriendo, suscripciones): son gasto
  * futuro recurrente, no deuda ya contraída sobre un activo.
+ *
+ * @param asOf Fecha de referencia para el cálculo (offsets de facturación Y
+ *   cota superior de los gastos considerados). Por defecto es "ahora", pero
+ *   `reconcileClosedMonthDebt` la fija al último día de un mes ya cerrado
+ *   para recalcular su deuda sin filtrarse gastos de meses posteriores.
  */
 async function computeCommittedDebt(
   supabase: SupabaseClient,
   userId: string,
-  now: Date,
+  asOf: Date,
 ): Promise<number> {
-  const nowMonthIdx = now.getFullYear() * 12 + now.getMonth()
-  const lookback = new Date(now.getTime() - 60 * 86_400_000).toISOString().split('T')[0]
+  const asOfMonthIdx = asOf.getFullYear() * 12 + asOf.getMonth()
+  const asOfStr  = asOf.toISOString().split('T')[0]
+  const lookback = new Date(asOf.getTime() - 60 * 86_400_000).toISOString().split('T')[0]
 
   const [{ data: recurring }, { data: cardExpenses }] = await Promise.all([
     supabase.from('recurring_expenses')
@@ -74,7 +80,7 @@ async function computeCommittedDebt(
       .eq('user_id', userId).eq('is_active', true).not('total_installments', 'is', null),
     supabase.from('expenses')
       .select('amount, date, payment_method:payment_methods(card_type, billing_day)')
-      .eq('user_id', userId).gte('date', lookback),
+      .eq('user_id', userId).gte('date', lookback).lte('date', asOfStr),
   ])
 
   const cuotasPendingTotal = (recurring ?? []).reduce((s, r) => {
@@ -87,11 +93,61 @@ async function computeCommittedDebt(
     const pm = e.payment_method
     if (!pm || pm.card_type !== 'credit' || !pm.billing_day) continue
     const stmt   = billingPeriod(e.date, pm.billing_day)
-    const offset = (stmt.year * 12 + (stmt.month - 1)) - nowMonthIdx
+    const offset = (stmt.year * 12 + (stmt.month - 1)) - asOfMonthIdx
     if (offset >= 1 && offset <= 6) cardPending += e.amount
   }
 
   return cuotasPendingTotal + cardPending
+}
+
+// Días del mes siguiente durante los cuales se sigue corrigiendo la deuda del
+// mes recién cerrado (ver reconcileClosedMonthDebt).
+const DEBT_GRACE_DAYS = 10
+
+/**
+ * Reconciliación de ventana de gracia (jul 2026): el usuario no registra
+ * gastos a diario — a veces carga la semana completa de una sola vez, fechada
+ * al día real en que ocurrió cada gasto. Eso significa que al cerrar un mes,
+ * los gastos con tarjeta de la última semana pueden no estar cargados todavía
+ * — el snapshot de `debt_clp`/`net_clp` de ese mes se congela subestimando la
+ * deuda justo en el peor momento (el cierre), y como los meses pasados no se
+ * recalculan, ese hueco quedaría permanente.
+ *
+ * Esta función corre en el cron durante los primeros `DEBT_GRACE_DAYS` del
+ * mes siguiente: recalcula SOLO `debt_clp`/`net_clp` (nunca los activos, que
+ * si se recalcularan con las fórmulas de interés seguirían la fecha de HOY,
+ * no la del cierre, e inyectarían interés futuro en un mes ya cerrado) del
+ * mes anterior, usando lo que ya se haya cargado tarde, y sin mirar gastos
+ * fechados después de ese mes (`computeCommittedDebt` con `asOf` = último día
+ * del mes cerrado).
+ */
+export async function reconcileClosedMonthDebt(
+  supabase: SupabaseClient,
+  userId: string,
+  today: Date,
+): Promise<void> {
+  if (today.getDate() > DEBT_GRACE_DAYS) return
+
+  const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const prevMonth = prevMonthDate.getMonth() + 1
+  const prevYear  = prevMonthDate.getFullYear()
+  const lastDayOfPrevMonth = new Date(prevYear, prevMonth, 0) // día 0 del mes siguiente = último día de este
+
+  const { data: existing } = await supabase
+    .from('net_worth_snapshots')
+    .select('total_clp, debt_clp')
+    .eq('user_id', userId).eq('month', prevMonth).eq('year', prevYear)
+    .maybeSingle()
+  if (!existing) return // no hay snapshot de ese mes (usuario nuevo o sin activos) — nada que corregir
+
+  const newDebt = await computeCommittedDebt(supabase, userId, lastDayOfPrevMonth)
+  if (newDebt === existing.debt_clp) return // nada cambió, no gastar un write
+
+  const newNet = existing.total_clp - newDebt
+  const { error } = await supabase.from('net_worth_snapshots')
+    .update({ debt_clp: newDebt, net_clp: newNet, updated_at: new Date().toISOString() })
+    .eq('user_id', userId).eq('month', prevMonth).eq('year', prevYear)
+  if (error) console.error('[reconcileClosedMonthDebt] update error:', error.message)
 }
 
 /**
