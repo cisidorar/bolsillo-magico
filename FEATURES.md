@@ -200,4 +200,47 @@ Distinto del presupuesto: previene sobregiros por *timing*. Con las fechas de su
 
 ---
 
-_Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8)_
+## Revisión de lógica entre features (jul 2026)
+
+Auditoría de cómo interactúan F1–F5 entre sí y con el resto de la app. Detalle completo en `revision-logica-gstos.md` (generado en la sesión). Resumen:
+
+### Inconsistencias detectadas
+
+1. **El "período" no es un concepto global.** `profiles.budget_period` (calendario vs facturación) solo lo respeta `/inicio`. `/analisis` (health score, tasa de ahorro, categorías excedidas) siempre usa mes calendario; `/presupuesto` usa el período de facturación de la tarjeta default sin mirar la preferencia. Con modo billing activo, inicio y análisis muestran totales distintos para "este período".
+2. **Fallback de presupuesto distinto entre páginas.** `/inicio` usa `thisBudget ?? allBudgets[0]`; `/analisis` solo el mes exacto. Mismo dato, dos verdades.
+3. **"Patrimonio neto" no es neto.** `computeAndSnapshotNetWorth` suma activos (stocks + depósitos + ahorro + USD) pero nunca resta `cuotasPendingTotal` + tarjeta por facturar (F3), calculados en la misma página. Un usuario con $10M en activos y $4M en cuotas ve "$10M de patrimonio". ⇒ **Resuelto por P1, ver abajo.**
+4. **Flujo y stock desconectados.** La tasa de ahorro (F1) dice "sobraron $X" pero nada verifica que el sobrante haya aterrizado en un activo — la app no reconcilia surplus acumulado vs Δ patrimonio.
+5. **Snapshot de patrimonio se congela mal sin FX.** Si `USDCLP` no está en `price_cache`, las acciones aportan $0 al total pero el snapshot igual se guarda si `total_clp > 0`; el histórico queda subvalorado permanentemente (los meses pasados están congelados por diseño). ⇒ **Resuelto, ver abajo.**
+6. **Riesgo de doble conteo de interés en cuentas de ahorro.** El interés se calcula desde `start_date` sobre el balance actual; si el usuario actualiza el balance (incluyendo interés ya ganado) sin resetear `start_date`, el interés se cuenta dos veces.
+7. **Depósitos vencidos = plata ociosa invisible.** Quedan como capital+interés en el patrimonio indefinidamente, sin alerta de "N días sin reinvertir". ⇒ **Fondo de emergencia (F2) corregido para contarlos como líquidos, ver abajo.**
+8. **Cargo de administración rompe el cuadre por categoría.** Se inserta con `category_id: null`, no aparece en `byCat` pero sí en el total del mes — la suma de categorías nunca cuadra con el total.
+9. **Timezone en auto-register.** Usaba `new Date()`/`toISOString()` (UTC) en vez de `getNowChile()`; entre ~20:00–00:00 hora Chile la fecha UTC ya es "mañana", desalineando fechas y dedup. ⇒ **Resuelto, ver abajo.**
+10. **Fondo de emergencia subestimaba liquidez.** Solo contaba `savings_accounts`, ignorando depósitos a plazo ya vencidos (líquidos en la práctica). ⇒ **Resuelto, ver abajo.**
+
+### Cambios ejecutados (jul 2026)
+
+- **P1 — Patrimonio neto real**: `computeAndSnapshotNetWorth` ahora resta deuda comprometida (cuotas pendientes + tarjeta por facturar del próximo mes) del total de activos. `PatrimonioCards` muestra el neto real junto al bruto.
+- **Fix timezone auto-register**: `runAutoRegister()` usa `getNowChile()` en vez de `new Date()` UTC.
+- **Fix snapshot sin FX**: no se hace upsert del snapshot mensual cuando hay posiciones de acciones sin precio en caché (`stocksPriced === false`), para no congelar un mes subvalorado.
+- **Fix fondo de emergencia**: `monthsCovered` (F2) ahora suma depósitos a plazo vencidos (líquidos) a `savings_accounts`.
+- **Fix cargo de administración sin categoría**: `auto-register.ts` ahora usa (o crea) una categoría "Comisiones" en vez de `category_id: null`, para que el cargo aparezca en los desgloses por categoría y el total cuadre.
+- **P3 (parcial) — Fallback de presupuesto unificado**: `/analisis` usaba solo el presupuesto del mes exacto; ahora aplica el mismo fallback que `/inicio` y `/presupuesto` (mes exacto → presupuesto más reciente registrado). Resuelve el hallazgo #2 (dos verdades para el mismo dato).
+  - La otra mitad de P3 (que `/analisis` y `/presupuesto` respeten `budget_period` — calendario vs. facturación — como ya hace `/inicio`) queda **pendiente**: requiere rehacer los rangos de fecha de prácticamente todas las métricas de `/analisis` (health score, tasa de ahorro, categorías excedidas, comparación mes a mes), el archivo más grande y sensible de la app (2000+ líneas). Se deja documentado para abordar en una sesión dedicada con más margen de testing manual.
+
+- **P2 — Sweep de cierre de mes**: `MonthSweepBanner` en `/inicio` — cuando el mes calendario ya cerrado tuvo sobrante (ingreso que lo financió − gasto total) y todavía no hay decisión registrada, pregunta "¿A dónde fue esa plata?" con 3 opciones de 1 tap (la guardé/invertí · billetera USD · quedó en la corriente), persistidas en `month_sweeps` (migración `20260718_month_sweeps.sql`). No mueve saldos automáticamente — el usuario sigue actualizando `/inversiones` a mano; esto cierra el loop de *seguimiento* (reconcilia flujo↔stock, hallazgo #4). Requiere aplicar la migración.
+- **P4 — Metas de ahorro que derivan el límite de gasto**: `SavingsGoalHelper` en `/presupuesto` — con el ingreso promedio de 6 meses cerrados (`incomes`), calcula "quiero ahorrar $Z → tu límite sería ingreso−Z" y lo aplica con un tap a `budgets` (reutilizando el mismo upsert que `MonthlyBudgetInput`). Avisa si el resultado queda por debajo del piso comprometido (`committedFloor`).
+- **P5 — Patrimonio en `/inicio`**: mini-card de patrimonio (total + Δ del mes) en el dashboard diario, hoy 100% enfocado en gasto.
+- **P6 — Alerta de plata ociosa**: depósito vencido hace N días sin reinvertir + saldo USD idle cuando la watchlist tiene señal de compra activa.
+- **P7 (F8) — Calendario de flujo de caja**: cruzar `payday`, `billing_day` de recurrentes y cierres de tarjeta para anticipar sobregiros por timing.
+- **P8 (F7) — Rentabilidad real (UF/IPC)** en depósitos e inversiones.
+- **P9 (F6) — Mix 50/30/20** (`budget_type` en categorías) para diagnóstico estructural del gasto.
+- Pendiente menor: acción "capitalizar" interés en cuentas de ahorro (hallazgo #6, para no arriesgar doble conteo si el usuario actualiza el balance manualmente).
+- Pendiente: la otra mitad de P3 — que `/analisis` y `/presupuesto` respeten `budget_period` (calendario vs. facturación) — ver nota arriba.
+
+### ⚠️ Requiere aplicar migraciones nuevas antes de usar en producción
+
+- `supabase/migrations/20260718_month_sweeps.sql` (P2). Correr `supabase/verify_setup.sql` para confirmar.
+
+---
+
+_Última actualización: julio 2026 — análisis de metodología financiera agregado (F1–F8); revisión de lógica entre features y dos rondas de correcciones: (1) patrimonio neto real, timezone, snapshot FX, fondo de emergencia; (2) fallback de presupuesto unificado, categoría en cargo de administración, P4 (meta de ahorro → límite) y P2 (sweep de cierre de mes)_

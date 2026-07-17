@@ -56,7 +56,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRow }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -87,8 +87,12 @@ export default async function AnalisisPage({
     supabase.from('incomes').select('amount, description').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
     // Ingreso del mes ANTERIOR (el que financió los gastos de este mes)
     supabase.from('incomes').select('amount').eq('user_id', user!.id).eq('month', prevMonth).eq('year', prevYear).maybeSingle(),
-    // Presupuesto mensual global
-    supabase.from('budgets').select('amount').eq('user_id', user!.id).eq('month', month).eq('year', year).maybeSingle(),
+    // Presupuesto mensual global — últimos 12 para poder aplicar el mismo
+    // fallback "usa el más reciente si el mes exacto no tiene" que /inicio y
+    // /presupuesto (antes /analisis exigía el mes exacto: mismo dato, 2
+    // verdades distintas entre páginas).
+    supabase.from('budgets').select('amount, month, year')
+      .eq('user_id', user!.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
     // AI insights (may be empty — generated async by AnalyzeTrigger)
     supabase
       .from('monthly_insights')
@@ -123,6 +127,13 @@ export default async function AnalisisPage({
       .select('amount, billing_month, total_installments, paid_installments')
       .eq('user_id', user!.id)
       .eq('is_active', true),
+    // Depósitos a plazo VENCIDOS: en la práctica son líquidos (rescatables),
+    // así que cuentan como fondo de emergencia igual que los ahorros (F2)
+    supabase
+      .from('term_deposits')
+      .select('amount, interest_rate, start_date, maturity_date')
+      .eq('user_id', user!.id)
+      .lt('maturity_date', getNowChile().dateStr),
   ])
 
   // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual)
@@ -376,7 +387,10 @@ export default async function AnalisisPage({
   const prevMonthIncome  = (prevIncomeRow as { amount?: number } | null)?.amount ?? 0
   const surplus          = prevMonthIncome > 0 ? prevMonthIncome - totalSelected : null
   const surplusPct       = surplus !== null && prevMonthIncome > 0 ? Math.round((surplus / prevMonthIncome) * 100) : null
-  const globalBudget     = (monthBudgetRow as { amount?: number } | null)?.amount ?? null
+  type MonthBudgetRow = { amount: number; month: number; year: number }
+  const allMonthBudgets  = (monthBudgetRows ?? []) as MonthBudgetRow[]
+  const thisMonthBudgetRow = allMonthBudgets.find(b => b.month === month && b.year === year)
+  const globalBudget     = thisMonthBudgetRow?.amount ?? allMonthBudgets[0]?.amount ?? null
 
   // ── Insumos del health score ──────────────────────────────────────────────
   // Category budget compliance
@@ -434,9 +448,14 @@ export default async function AnalisisPage({
   const rateAvg6  = ratesLast6.length  > 0 ? Math.round(ratesLast6.reduce((s, v) => s + v, 0) / ratesLast6.length)   : null
   const rateAvg12 = ratesLast12.length > 0 ? Math.round(ratesLast12.reduce((s, v) => s + v, 0) / ratesLast12.length) : null
 
-  // Fondo de emergencia: ahorros líquidos / gasto promedio de meses completados
+  // Fondo de emergencia: ahorros líquidos / gasto promedio de meses completados.
+  // Los depósitos a plazo ya VENCIDOS son líquidos en la práctica (rescatables)
+  // así que suman igual que una cuenta de ahorro: capital + interés total devengado.
   const savingsBalances  = ((savingsRaw ?? []) as { balance: number }[]).map(s => s.balance)
+  const maturedDepositsLiquid = ((maturedDepositsRaw ?? []) as { amount: number; interest_rate: number }[])
+    .map(d => d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)))
   const totalSavings     = savingsBalances.reduce((s, v) => s + v, 0)
+    + maturedDepositsLiquid.reduce((s, v) => s + v, 0)
   const completedExpenses: number[] = []
   for (let i = 1; i <= 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -516,6 +535,13 @@ export default async function AnalisisPage({
   const fixedMonthlyTotal = activeRecurring
     .filter(r => r.total_installments === null && r.billing_month === null)
     .reduce((s, r) => s + r.amount, 0)
+  // P1: deuda comprometida total para el patrimonio neto REAL — cuotas
+  // pendientes (ya compradas, faltan por pagar) + compras a crédito ya hechas
+  // cuyo estado de cuenta aún no cierra (los próximos 6 meses de cardByOffset).
+  // No incluye recurrentes indefinidos (arriendo, suscripciones): son gasto
+  // futuro recurrente, no una deuda ya contraída sobre un activo.
+  const totalCardPending = commitMonths.reduce((s, m) => s + m.card, 0)
+  const committedDebtTotal = cuotasPendingTotal + totalCardPending
   // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
   // Se compara solo la parte fija: la tarjeta varía mes a mes y no es "liberación".
   let freeMonthLabel: string | null = null
@@ -523,7 +549,8 @@ export default async function AnalisisPage({
     if (commitMonths[i].fixed < commitMonths[i - 1].fixed) { freeMonthLabel = commitMonths[i].label; break }
   }
 
-  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null || savingsBalances.length > 0
+  const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null
+    || savingsBalances.length > 0 || maturedDepositsLiquid.length > 0
     || activeRecurring.length > 0 || (netWorth !== null && netWorth.current.total_clp > 0)
 
   // UX: no mostrar meses vacíos al inicio del gráfico — con poca historia el chart
@@ -1737,7 +1764,7 @@ export default async function AnalisisPage({
             avg6={rateAvg6}
             avg12={rateAvg12}
             totalSavings={totalSavings}
-            savingsCount={savingsBalances.length}
+            savingsCount={savingsBalances.length + maturedDepositsLiquid.length}
             avgMonthlyExpense={avgMonthlyExpense}
             monthsCovered={monthsCovered}
             monthLabel={monthName(month)}
@@ -1753,6 +1780,7 @@ export default async function AnalisisPage({
             cardNextTotal={cardNextTotal}
             freeMonthLabel={freeMonthLabel}
             netWorth={netWorth}
+            committedDebtTotal={committedDebtTotal}
           />
         )}
 

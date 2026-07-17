@@ -3,6 +3,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
 import MonthlyBudgetInput from '@/components/MonthlyBudgetInput'
+import SavingsGoalHelper from '@/components/SavingsGoalHelper'
 import { formatCLP, billingPeriod, billingPeriodRange, getNowChile, monthName } from '@/lib/utils'
 import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
@@ -54,7 +55,10 @@ export default async function PresupuestoPage() {
     fetchEnd   = `${nextYearOfPrev}-${String(nextOfPrev).padStart(2, '0')}-01`
   }
 
-  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }] = await Promise.all([
+  // Ventana de 6 meses para el ingreso promedio (P4: presupuesto derivado de meta de ahorro)
+  const incomeWindowStart = new Date(year, month - 1 - 6, 1)
+
+  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }, { data: recentIncomes }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
@@ -70,6 +74,13 @@ export default async function PresupuestoPage() {
       .eq('is_active', true),
     supabase.from('budgets').select('amount, month, year')
       .eq('user_id', user.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
+    // Ingreso promedio de los últimos 6 meses cerrados — base para sugerir un
+    // límite de gasto que deje espacio a una meta de ahorro (P4)
+    supabase
+      .from('incomes')
+      .select('amount, month, year')
+      .eq('user_id', user.id)
+      .gte('year', incomeWindowStart.getFullYear()),
   ])
 
   // Mapa de gasto por categoría del período anterior
@@ -127,6 +138,20 @@ export default async function PresupuestoPage() {
 
   const monthLabelCap = monthName(month).charAt(0).toUpperCase() + monthName(month).slice(1) + ' ' + year
 
+  // P4: ingreso promedio de los últimos 6 meses CERRADOS (excluye el actual, parcial)
+  const incomeByMonth = new Map(((recentIncomes ?? []) as { amount: number; month: number; year: number }[])
+    .map(i => [`${i.year}-${i.month}`, i.amount]))
+  const closedIncomes: number[] = []
+  for (let i = 1; i <= 6; i++) {
+    let m = month - i, y = year
+    if (m <= 0) { m += 12; y -= 1 }
+    const amt = incomeByMonth.get(`${y}-${m}`)
+    if (amt) closedIncomes.push(amt)
+  }
+  const avgIncome6 = closedIncomes.length > 0
+    ? Math.round(closedIncomes.reduce((s, v) => s + v, 0) / closedIncomes.length)
+    : null
+
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
       <div className="mb-5">
@@ -143,6 +168,15 @@ export default async function PresupuestoPage() {
         year={year}
         currentAmount={defaultBudgetAmount}
         monthLabel={monthLabelCap}
+      />
+
+      {/* P4: calculadora "pay yourself first" — deriva el límite de una meta de ahorro */}
+      <SavingsGoalHelper
+        userId={user.id}
+        month={month}
+        year={year}
+        avgIncome={avgIncome6}
+        committedFloor={committedFloor}
       />
 
       {/* Piso comprometido: fijos + cuotas del mes que el límite debe cubrir sí o sí */}

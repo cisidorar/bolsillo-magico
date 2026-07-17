@@ -41,6 +41,9 @@ interface Props {
   freeMonthLabel: string | null    // primer mes donde bajan los fijos
   // F4: patrimonio neto
   netWorth: NetWorthResult | null
+  // P1: deuda comprometida total (cuotas pendientes + tarjeta por facturar) —
+  // se resta del patrimonio bruto para mostrar el neto REAL
+  committedDebtTotal: number
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
@@ -131,7 +134,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth,
+  netWorth, committedDebtTotal,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -193,6 +196,8 @@ export default function PatrimonioCards({
     { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro' },
     { label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=ahorro' },
   ].filter(b => b.value > 0) : []
+  // P1: neto real = bruto − deuda ya contraída (cuotas pendientes + tarjeta por facturar)
+  const netReal = nw ? nw.current.total_clp - committedDebtTotal : null
 
   return (
     <div className="mb-5">
@@ -237,6 +242,23 @@ export default function PatrimonioCards({
                 <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
                   Primer registro: desde ahora tu evolución se guarda mes a mes.
                 </p>
+              )}
+
+              {/* P1: neto real — resta lo que ya debes (cuotas + tarjeta por facturar) */}
+              {committedDebtTotal > 0 && netReal !== null && (
+                <div className="flex items-center justify-between rounded-2xl px-3 py-2.5 mt-3"
+                  style={{ background: 'var(--surface-2)' }}>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Neto real</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      Bruto − {formatCLP(committedDebtTotal)} ya comprometidos
+                    </p>
+                  </div>
+                  <p className="text-base font-extrabold tabular-nums"
+                    style={{ color: netReal >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
+                    {formatCLP(netReal)}
+                  </p>
+                </div>
               )}
 
               <div className="space-y-2 mt-3">

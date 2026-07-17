@@ -11,6 +11,7 @@ import ExpenseSheet from '@/components/ExpenseSheet'
 import EmptyStateCTA from '@/components/EmptyStateCTA'
 import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
+import MonthSweepBanner from '@/components/MonthSweepBanner'
 import ServiceLogo from '@/components/ServiceLogo'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
@@ -32,6 +33,11 @@ export default async function DashboardPage() {
   const prevMStr  = String(prevM).padStart(2, '0')
   const prevNextM = prevM === 12 ? 1 : prevM + 1
   const prevNextY = prevM === 12 ? prevY + 1 : prevY
+
+  // P2: mes calendario ya cerrado (prevM) — el ingreso que lo financió es el
+  // del mes anterior a ese (convención: sueldo M-1 financia M)
+  const sweepIncomeM = prevM === 1 ? 12 : prevM - 1
+  const sweepIncomeY = prevM === 1 ? prevY - 1 : prevY
 
   const twoMonthsAgo        = new Date(year, now.getMonth() - 2, 1)
   const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
@@ -81,6 +87,9 @@ export default async function DashboardPage() {
     { data: allRecurringExpenses },
     { data: statementExpenses },
     { data: prevMonthExpenses },
+    { data: sweepIncomeRow },
+    { data: closedMonthExpensesRaw },
+    { data: existingSweep },
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -116,6 +125,15 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .gte('date', prevStart)
       .lt('date',  prevEndEx),
+    // P2 — sweep de cierre de mes: ingreso que financió el mes ya cerrado
+    supabase.from('incomes').select('amount').eq('user_id', user!.id)
+      .eq('month', sweepIncomeM).eq('year', sweepIncomeY).maybeSingle(),
+    // Gasto TOTAL del mes calendario ya cerrado (independiente del modo billing)
+    supabase.from('expenses').select('amount').eq('user_id', user!.id)
+      .gte('date', `${prevY}-${prevMStr}-01`).lt('date', `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`),
+    // ¿Ya se registró una decisión de sweep para ese mes?
+    supabase.from('month_sweeps').select('id').eq('user_id', user!.id)
+      .eq('month', prevM).eq('year', prevY).maybeSingle(),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -197,6 +215,13 @@ export default async function DashboardPage() {
   }).length
   const allCatsWithBudget = allCats  // para el JSX existente
   const topCat           = catSummary[0]?.name ?? '—'
+
+  // P2: sweep de cierre de mes — ¿sobró plata el mes que ya cerró y no se ha
+  // registrado qué se hizo con ella?
+  const sweepIncomeAmt   = (sweepIncomeRow as { amount?: number } | null)?.amount ?? 0
+  const closedMonthTotal = (closedMonthExpensesRaw ?? []).reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+  const sweepSurplus     = sweepIncomeAmt > 0 ? sweepIncomeAmt - closedMonthTotal : null
+  const showSweepBanner  = sweepSurplus !== null && sweepSurplus > 0 && !existingSweep
 
   // Saludo
   const hour           = now.getHours()
@@ -420,6 +445,16 @@ export default async function DashboardPage() {
   return (
     <>
       <div className="px-4 lg:px-8 pt-2 lg:pt-6 pb-2">
+
+        {/* ── P2: sweep de cierre de mes (visible en mobile y desktop) ── */}
+        {showSweepBanner && (
+          <MonthSweepBanner
+            month={prevM}
+            year={prevY}
+            monthLabel={monthName(prevM).charAt(0).toUpperCase() + monthName(prevM).slice(1)}
+            surplus={sweepSurplus!}
+          />
+        )}
 
         {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}
 

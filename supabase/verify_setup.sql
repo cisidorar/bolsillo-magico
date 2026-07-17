@@ -28,6 +28,7 @@ SELECT * FROM (
   SELECT 19, 'tabla stock_purchases',     to_regclass('public.stock_purchases')     IS NOT NULL UNION ALL
   SELECT 20, 'tabla daily_signals',       to_regclass('public.daily_signals')       IS NOT NULL UNION ALL
   SELECT 21, 'tabla monthly_insights',    to_regclass('public.monthly_insights')    IS NOT NULL UNION ALL
+  SELECT 22, 'tabla month_sweeps',        to_regclass('public.month_sweeps')        IS NOT NULL UNION ALL
   -- Columnas agregadas por migraciones posteriores
   SELECT 30, 'columna net_worth_snapshots.usd_clp', EXISTS (
     SELECT 1 FROM information_schema.columns

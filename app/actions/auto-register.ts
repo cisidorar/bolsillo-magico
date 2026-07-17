@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { billingPeriod, billingPeriodRange } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
 import { cookies } from 'next/headers'
 
 function daysInMonth(year: number, month: number): number {
@@ -17,16 +17,14 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { registered: [] }
 
-  const today       = new Date()
-  const todayStr    = today.toISOString().split('T')[0]
+  // Hora de Chile (no UTC): evita registrar con la fecha de "mañana" entre
+  // ~20:00-00:00 hora Santiago, que desalinea dedup y período de facturación.
+  const { now: today, dateStr: todayStr, todayDate: todayDay, month: currentMonth, year: currentYear } = getNowChile()
   const cookieKey   = `auto_reg_${user.id.slice(0, 8)}_${todayStr}`
   const cookieStore = await cookies()
 
   if (cookieStore.has(cookieKey)) return { registered: [] }
 
-  const todayDay     = today.getDate()
-  const currentMonth = today.getMonth() + 1
-  const currentYear  = today.getFullYear()
   const monthStr     = String(currentMonth).padStart(2, '0')
   const nextMonth    = currentMonth === 12 ? 1  : currentMonth + 1
   const nextYear     = currentMonth === 12 ? currentYear + 1 : currentYear
@@ -195,6 +193,43 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     .gt('admin_fee', 0)
     .not('billing_day', 'is', null)
 
+  // Categoría para los cargos de administración: sin esto, category_id
+  // quedaba null y el cargo desaparecía de "Por categoría" (byCat lo filtra),
+  // rompiendo el cuadre visual entre el total del mes y la suma de categorías.
+  // Reutiliza "Comisiones" si ya existe, o la crea una sola vez.
+  let feeCategoryId: string | null = null
+  if ((cardsWithFee ?? []).length > 0) {
+    const { data: existingCat } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', user.id)
+      .ilike('name', 'Comisiones')
+      .maybeSingle()
+
+    if (existingCat) {
+      feeCategoryId = existingCat.id
+    } else {
+      const { count } = await supabase
+        .from('categories')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+      const { data: createdCat } = await supabase
+        .from('categories')
+        .insert({
+          user_id:    user.id,
+          name:       'Comisiones',
+          icon:       'Landmark',
+          color:      '#5F5E5A',
+          bg_color:   '#F1EFE8',
+          is_default: false,
+          sort_order: (count ?? 0) + 1,
+        })
+        .select('id')
+        .maybeSingle()
+      feeCategoryId = createdCat?.id ?? null
+    }
+  }
+
   for (const card of cardsWithFee ?? []) {
     const billingDay = card.billing_day as number
     const fee        = card.admin_fee as number
@@ -226,7 +261,7 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     const { error } = await supabase.from('expenses').insert({
       user_id:           user.id,
       amount:            fee,
-      category_id:       null,
+      category_id:       feeCategoryId,
       payment_method_id: card.id,
       description:       feeDesc,
       date:              todayStr,

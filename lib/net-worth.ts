@@ -106,7 +106,10 @@ export async function computeAndSnapshotNetWorth(
   }
 
   // ── Upsert del snapshot del mes actual (fire-and-forget con await corto) ─
-  if (totalClp > 0) {
+  // No persistir si hay posiciones de acciones sin precio en caché: el total
+  // quedaría subvalorado (stocksClp = 0 para esas posiciones) y, como los
+  // meses pasados quedan congelados por diseño, ese hueco sería permanente.
+  if (totalClp > 0 && stocksPriced) {
     await supabase.from('net_worth_snapshots').upsert(
       { user_id: userId, ...current, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,month,year' },
