@@ -304,11 +304,14 @@ Tercera pasada de auditoría (`revision-logica-gstos-iteracion3.md`), verificada
 
 - **Proyección de fin de mes consciente del calendario de recurrentes**: antes prorrateaba el gasto TOTAL como si se repitiera a diario (`total/díasTranscurridos × díasDelMes`) — un fijo grande (arriendo, seguro) que cae temprano en el mes inflaba brutalmente la proyección de la primera quincena. Ahora solo se prorratea el gasto variable; los fijos (`recurringSpentSoFar` ya registrados + `fixedStillDueThisMonth` los que faltan por registrar este mes, vía `activeRecurring`) se suman una sola vez con su monto real. Afecta en cascada: proyección mostrada, tasa de ahorro proyectada (`projectedRate`), health score (`sAhorro`, `sDisciplina`/`projInflatedByTop`) y la alerta de presupuesto.
 
+- **Fallback CLP de billetera USD ya no sobrevalora**: sin `USDCLP` en caché, antes sumaba `total_paid_clp` de TODOS los aportes históricos sin descontar lo ya invertido en acciones (`wallet_cost_usd`) — esa plata se contaba dos veces (como caja y como acción). Ahora valoriza `totalUsdCash` (ya neto en USD) a la tasa CLP/USD **promedio histórica** de los depósitos (`Σ total_paid_clp / Σ usd_amount` de `kind='deposit'`), no a un monto absoluto de todos los movimientos.
+- **`catsDentro`/`catsExcedidas` de `/inicio` ya no premian no definir límites**: antes una categoría SIN límite contaba como "dentro" (podía leerse "8 de 10 dentro" con solo 3 categorías realmente acotadas). Ahora el resumen rápido solo considera categorías CON límite definido, y el denominador dice "de N con límite" en vez del total de categorías.
+
 ### Pendiente de la iteración 3 (no ejecutado en esta pasada)
 
 - Insights de IA con señales de patrimonio (tasa de ahorro, fondo de emergencia, Δ patrimonio) en el contexto — hoy `analyze-month` tiene prohibido hablar de inversión.
 - `/presupuesto` sigue ignorando `budget_period`/`period_card_id` (usa la tarjeta de crédito default sin mirar la preferencia del usuario).
-- Menores: fallback de billetera USD sin FX sobrevalora (no descuenta `wallet_cost_usd`); `catsDentro` en `/inicio` cuenta categorías sin límite como "dentro"; `credit_limit` en `payment_methods` para % de utilización.
+- Menores restantes: `credit_limit` en `payment_methods` para % de utilización; acción "capitalizar" interés en ahorro (doble conteo si se actualiza el balance sin resetear `start_date`); F8 calendario de flujo de caja.
 
 Detalle completo con roadmap priorizado en `revision-logica-gstos-iteracion3.md`.
 

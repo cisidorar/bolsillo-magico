@@ -158,11 +158,23 @@ export async function computeAndSnapshotNetWorth(
       // Preferimos excluir la conversión solo si no hay FX; en ese caso el valor queda en 0 y se marca stocksPriced=false.
       if (fx !== null) stocksClp += Math.round(usd * fx)
     }
-    // Caja de dólares: al FX de mercado; sin FX, fallback al costo (lo pagado
-    // en CLP es un piso real conocido, a diferencia de las acciones).
+    // Caja de dólares: al FX de mercado; sin FX, fallback a un piso real conocido.
+    // Fix: el fallback ANTES sumaba total_paid_clp de TODOS los movimientos
+    // (incluyendo aportes ya invertidos en acciones vía wallet_cost_usd) sin
+    // descontar esa porción — plata que salió de la billetera se contaba dos
+    // veces (como caja Y como acción). totalUsdCash ya está neto en USD
+    // (aportes + ventas − wallet_cost_usd); acá se valoriza esa cifra neta a
+    // la tasa CLP/USD promedio histórica de los aportes (no la de mercado,
+    // que no tenemos sin FX, pero sí un piso real de lo efectivamente pagado).
+    const depositRows  = usdPurchases.filter(r => r.kind === 'deposit' && r.total_paid_clp != null)
+    const depositUsdSum = depositRows.reduce((s, r) => s + Number(r.usd_amount), 0)
+    const depositClpSum = depositRows.reduce((s, r) => s + Number(r.total_paid_clp), 0)
+    const avgHistoricalRate = depositUsdSum > 0 ? depositClpSum / depositUsdSum : null
     usdClp = fx !== null
       ? Math.round(totalUsdCash * fx)
-      : usdPurchases.reduce((s, r) => s + r.total_paid_clp, 0)
+      : avgHistoricalRate !== null
+        ? Math.round(totalUsdCash * avgHistoricalRate)
+        : 0
   }
 
   const totalClp = stocksClp + depositsClp + savingsClp + usdClp

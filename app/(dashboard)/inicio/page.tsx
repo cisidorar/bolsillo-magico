@@ -182,17 +182,18 @@ export default async function DashboardPage() {
     recurringByCatInicio[e.category.id] = (recurringByCatInicio[e.category.id] ?? 0) + e.amount
   })
 
-  // Resumen rápido — todas las categorías (con y sin límite específico)
-  // Sin límite → siempre "dentro". Con límite → comparar contra gasto.
+  // Resumen rápido — SOLO categorías con límite definido.
+  // Fix: antes incluía las categorías SIN límite como "dentro" siempre — eso
+  // premiaba no definir límites ("8 de 10 dentro" con solo 3 categorías
+  // realmente acotadas). El denominador ahora es catsConLimite, no allCats.
   const allCats       = (categories ?? []) as { id: string }[]
-  const catsDentro    = allCats.filter(c => {
-    const limit = catBudgetMap.get(c.id) ?? null
-    if (limit === null) return true  // sin límite = siempre dentro
+  const catsConLimite = allCats.filter(c => catBudgetMap.has(c.id))
+  const catsDentro    = catsConLimite.filter(c => {
+    const limit = catBudgetMap.get(c.id)!
     return (byCat[c.id]?.total ?? 0) <= limit
   }).length
-  const catsExcedidas = allCats.filter(c => {
-    const limit = catBudgetMap.get(c.id) ?? null
-    if (limit === null) return false
+  const catsExcedidas = catsConLimite.filter(c => {
+    const limit = catBudgetMap.get(c.id)!
     return (byCat[c.id]?.total ?? 0) > limit
   }).length
   const allCatsWithBudget = allCats  // para el JSX existente
@@ -926,11 +927,11 @@ export default async function DashboardPage() {
             {/* ── Resumen rápido ── */}
             <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Resumen rápido</h2>
-              {allCats.length > 0 && typedExpenses.length > 0 && (
+              {catsConLimite.length > 0 && typedExpenses.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
                     <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
-                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {allCats.length}</p>
+                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {catsConLimite.length} con límite</p>
                     <div className="flex items-center justify-center gap-1">
                       <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--mint)' }} />
                       <p className="text-[10px] font-semibold" style={{ color: 'var(--mint)' }}>dentro</p>
@@ -938,7 +939,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,111,97,0.10)' }}>
                     <p className="text-2xl font-extrabold" style={{ color: 'var(--coral)' }}>{catsExcedidas}</p>
-                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {allCats.length}</p>
+                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {catsConLimite.length} con límite</p>
                     <div className="flex items-center justify-center gap-1">
                       <XCircle className="w-3 h-3" style={{ color: 'var(--coral)' }} />
                       <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>excedidas</p>
