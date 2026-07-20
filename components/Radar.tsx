@@ -14,7 +14,7 @@ import type { SearchResult } from '@/app/api/stock-search/route'
 import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
 import { computeConviction, isActionableBuyNow, type ConvictionResult, type ConvictionTier } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
-import { ConvictionChip, RiskRail } from '@/components/RiskRail'
+import { ConvictionChip } from '@/components/RiskRail'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
@@ -999,11 +999,6 @@ export default function Radar({
                     <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
                       {q.name}{isOwned && ' · en cartera'}
                     </p>
-                  )}
-                  {isOwned && typeof a === 'object' && q?.price !== undefined && (
-                    <div className="mt-1">
-                      <RiskRail price={q.price} stop={a.alarm} resistance={a.resistanceLevels[0]?.price ?? null} compact />
-                    </div>
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
