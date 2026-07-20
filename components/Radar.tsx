@@ -197,6 +197,21 @@ export default function Radar({
   const totalReturnUsd = totalGainUsd + realizedPnlUsd
   const totalReturnPct = totalCostUsd > 0 ? (totalReturnUsd / totalCostUsd) * 100 : 0
 
+  // Retorno del día, agregado del portafolio — antes solo se veía el retorno
+  // TOTAL en el hero; el del día había que armarlo a mano sumando el % de
+  // cada fila (y ni siquiera se mostraba para posiciones, que solo traían el
+  // total). Cas pidió poder ver ambos de un vistazo (jul 2026). q.changePercent
+  // es % contra el cierre anterior; se deriva el cierre anterior de ahí para
+  // sumar el cambio en USD real de cada posición, no solo promediar los %.
+  const dailyChangeUsd = positions.reduce((s, p) => {
+    const q = quotes[p.ticker]
+    if (!q) return s
+    const prevClose = q.price / (1 + q.changePercent / 100)
+    return s + p.shares * (q.price - prevClose)
+  }, 0)
+  const prevTotalValueUsd = totalValueUsd - dailyChangeUsd
+  const dailyChangePct = prevTotalValueUsd > 0 ? (dailyChangeUsd / prevTotalValueUsd) * 100 : 0
+
   const posUp = positions.filter(p => { const q = quotes[p.ticker]; return q && p.shares * q.price > p.shares * p.avg_cost_usd }).length
   const posDown = positions.filter(p => { const q = quotes[p.ticker]; return q && p.shares * q.price < p.shares * p.avg_cost_usd }).length
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
@@ -582,6 +597,16 @@ export default function Radar({
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
+              {/* Retorno de HOY, junto al valor grande — el retorno total ya vive
+                  en la fila de KPIs de abajo; separarlos en dos lugares distintos
+                  (no ambos "totales") es justo lo que Cas pedía poder ver de un
+                  vistazo. */}
+              {hasQ && (
+                <p className="flex items-center gap-1 text-xs lg:text-sm font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                  {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                  {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
+                </p>
+              )}
             </div>
             <div className="border-t grid grid-cols-4" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
@@ -986,9 +1011,17 @@ export default function Radar({
                     <>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
                       {isOwned && gainUsd !== null && gainPct !== null ? (
-                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {fmtUSDSigned(gainUsd)} ({fmtPct(gainPct, false)})
-                        </p>
+                        <>
+                          <p className="text-[11px] font-semibold tabular-nums" style={{ color: gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                            {fmtUSDSigned(gainUsd)} ({fmtPct(gainPct, false)})
+                          </p>
+                          {/* Con posición, arriba solo se veía el retorno TOTAL —
+                              el del día quedaba escondido hasta abrir el detalle.
+                              Ahora ambos, uno abajo del otro (jul 2026). */}
+                          <p className="text-[9px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                            {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
+                          </p>
+                        </>
                       ) : (
                         <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                           {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
