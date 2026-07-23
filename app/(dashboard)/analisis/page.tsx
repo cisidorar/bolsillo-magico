@@ -1882,8 +1882,13 @@ export default async function AnalisisPage({
 
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
+            {/* Columna izquierda: Tendencia + Con qué pagaste + Cuándo gastas
+                apiladas juntas (a pedido de Cas) — Categorías queda sola a la
+                derecha con todo el alto de la columna para su lista. */}
+            <div className="space-y-5">
+
             {/* Tendencia 6 meses */}
-            <div className="card p-4 lg:self-start">
+            <div className="card p-4">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tendencia 6 meses</p>
                 {monthData.length >= 2 && (
@@ -1958,96 +1963,6 @@ export default async function AnalisisPage({
                 )
               })()}
             </div>
-
-            {/* Categorías vs. presupuesto — header dentro de la card, como las demás */}
-            <div className="card overflow-hidden">
-              <div className="flex items-center justify-between px-4 pt-4 pb-3">
-                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Categorías vs. presupuesto</p>
-                <div className="flex items-center gap-3 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#1FBE8D' }} />OK</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FFC23C' }} />Cerca</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FF6F61' }} />Excedido</span>
-                </div>
-              </div>
-              <div>
-                {catSummary.map((c, idx) => {
-                  const limit        = catBudgetMap.get(c.id) ?? null
-                  const over         = limit ? c.total > limit : false
-                  const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
-                  const barWidth     = limit ? budgetPct! : Math.round((c.total / (catSummary[0]?.total ?? 1)) * 100)
-                  const recurringAmt  = recurringByCat[c.id] ?? 0
-                  const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
-                  const barColor = (over && isAllRecurring) ? c.color
-                    : over ? '#FF6F61'
-                    : budgetPct !== null && budgetPct >= 80 ? '#FFC23C'
-                    : c.color
-                  const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
-                  return (
-                    <Link
-                      key={c.id}
-                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                      className="flex flex-col px-4 py-3 transition-colors hover:bg-black/5 active:bg-black/10"
-                      style={{ borderTop: '1px solid var(--border)' }}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
-                          {isEmoji(c.icon)
-                            ? <span className="text-sm leading-none">{c.icon}</span>
-                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--ink)' }}>{c.name}</p>
-                            {budgetPct !== null && (
-                              <span className="text-[10px] font-bold" style={{ color: barColor }}>{budgetPct}%</span>
-                            )}
-                            {!limit && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-                                Sin presupuesto · definir
-                              </span>
-                            )}
-                          </div>
-                          {over && !isAllRecurring && (
-                            <p className="text-[10px] font-semibold" style={{ color: '#FF6F61' }}>
-                              +{formatCLP(c.total - limit!)} sobre el límite
-                            </p>
-                          )}
-                          {limit && !over && (
-                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>quedan {formatCLP(limit - c.total)}</p>
-                          )}
-                          {!limit && (
-                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
-                              {totalSelected > 0 ? `${pct(c.total, totalSelected)}% del total` : ''}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
-                          {limit && <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>de {formatCLP(limit)}</p>}
-                        </div>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: barColor }} />
-                      </div>
-                    </Link>
-                  )
-                })}
-                {/* Acceso directo a definir límites cuando faltan */}
-                {catSummary.some(c => !catBudgetMap.get(c.id)) && (
-                  <Link href="/presupuesto"
-                    className="flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-bold transition-colors hover:bg-black/5"
-                    style={{ color: 'var(--primary)', borderTop: '1px solid var(--border)' }}>
-                    Definir límites por categoría <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                )}
-              </div>
-            </div>
-
-          </div>
-
-          {/* ── Comportamiento: medios de pago + día de la semana ─────────────── */}
-          <div className="mt-5 lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
             {/* Medios de pago */}
             <div className="card p-4">
@@ -2136,6 +2051,93 @@ export default async function AnalisisPage({
                   {weekendPct >= 30 && <> El fin de semana se lleva el {weekendPct}% del mes.</>}
                 </p>
               )}
+            </div>
+
+            </div>
+
+            {/* Categorías vs. presupuesto — header dentro de la card, como las demás */}
+            <div className="card overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Categorías vs. presupuesto</p>
+                <div className="flex items-center gap-3 text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#1FBE8D' }} />OK</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FFC23C' }} />Cerca</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: '#FF6F61' }} />Excedido</span>
+                </div>
+              </div>
+              <div>
+                {catSummary.map((c, idx) => {
+                  const limit        = catBudgetMap.get(c.id) ?? null
+                  const over         = limit ? c.total > limit : false
+                  const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
+                  const barWidth     = limit ? budgetPct! : Math.round((c.total / (catSummary[0]?.total ?? 1)) * 100)
+                  const recurringAmt  = recurringByCat[c.id] ?? 0
+                  const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
+                  const barColor = (over && isAllRecurring) ? c.color
+                    : over ? '#FF6F61'
+                    : budgetPct !== null && budgetPct >= 80 ? '#FFC23C'
+                    : c.color
+                  const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/analisis/${c.id}?month=${month}&year=${year}`}
+                      className="flex flex-col px-4 py-3 transition-colors hover:bg-black/5 active:bg-black/10"
+                      style={{ borderTop: '1px solid var(--border)' }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}>
+                          {isEmoji(c.icon)
+                            ? <span className="text-sm leading-none">{c.icon}</span>
+                            : CatIcon ? <CatIcon className="w-4 h-4" style={{ color: c.color }} /> : null}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--ink)' }}>{c.name}</p>
+                            {budgetPct !== null && (
+                              <span className="text-[10px] font-bold" style={{ color: barColor }}>{budgetPct}%</span>
+                            )}
+                            {!limit && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                                Sin presupuesto · definir
+                              </span>
+                            )}
+                          </div>
+                          {over && !isAllRecurring && (
+                            <p className="text-[10px] font-semibold" style={{ color: '#FF6F61' }}>
+                              +{formatCLP(c.total - limit!)} sobre el límite
+                            </p>
+                          )}
+                          {limit && !over && (
+                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>quedan {formatCLP(limit - c.total)}</p>
+                          )}
+                          {!limit && (
+                            <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                              {totalSelected > 0 ? `${pct(c.total, totalSelected)}% del total` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
+                          {limit && <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>de {formatCLP(limit)}</p>}
+                        </div>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: barColor }} />
+                      </div>
+                    </Link>
+                  )
+                })}
+                {/* Acceso directo a definir límites cuando faltan */}
+                {catSummary.some(c => !catBudgetMap.get(c.id)) && (
+                  <Link href="/presupuesto"
+                    className="flex items-center justify-center gap-1.5 px-4 py-3 text-xs font-bold transition-colors hover:bg-black/5"
+                    style={{ color: 'var(--primary)', borderTop: '1px solid var(--border)' }}>
+                    Definir límites por categoría <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
+              </div>
             </div>
 
           </div>
