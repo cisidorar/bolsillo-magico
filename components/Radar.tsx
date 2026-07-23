@@ -353,9 +353,17 @@ export default function Radar({
   // decir "la mejor compra hoy es X" mientras el detalle de X decía "no compres
   // hoy" — mismo dato, dos lecturas (detectado por Cas, jul 2026).
   const topIsBuyTier   = top !== null && (top.conviction.tier === 'compra' || top.conviction.tier === 'compra_fuerte')
-  const topActionable  = top !== null && isActionableBuyNow(top.a, top.conviction)
-  const topSizing = topActionable && top !== null && portfolioValueUsd > 0
-    ? positionSizeUsd(portfolioValueUsd, quotes[top.ticker]?.price ?? top.a.price, top.a.alarm)
+  // Segunda vuelta del mismo bug (jul 2026): el panel solo miraba si el #1 del
+  // ranking por SCORE tenía gatillo hoy — si no, decía "todavía no hay entrada"
+  // aunque otro ticker más abajo en el ranking SÍ tuviera gatillo activo (ej.
+  // INTC arriba con 78 sin entrada, TSM con 76 y flag verde de compra en la
+  // lista de abajo — dos lecturas contradictorias otra vez, detectado por
+  // Cas). Ahora se busca el primer candidato ACCIONABLE en todo el ranking
+  // (ya viene ordenado por score, así que sigue siendo el de mayor convicción
+  // *entre los que tienen entrada hoy*), no solo el de mayor score a secas.
+  const bestActionable = ranking.find(r => isActionableBuyNow(r.a, r.conviction)) ?? null
+  const topSizing = bestActionable !== null && portfolioValueUsd > 0
+    ? positionSizeUsd(portfolioValueUsd, quotes[bestActionable.ticker]?.price ?? bestActionable.a.price, bestActionable.a.alarm)
     : null
   const topCashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
   const topSuggestedUsd = topSizing !== null
@@ -715,19 +723,21 @@ export default function Radar({
               </div>
             ) : top === null ? (
               <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
-            ) : !topIsBuyTier ? (
+            ) : !topIsBuyTier && bestActionable === null ? (
               <>
                 <p className="text-sm font-extrabold" style={{ color: 'var(--coral)' }}>Hoy no compres nada de tu lista.</p>
                 <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
                   Ni siquiera <TickerLink t={top.ticker} onOpen={openDetail} />, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
                 </p>
               </>
-            ) : !topActionable ? (
+            ) : bestActionable === null ? (
               <>
                 {/* Convicción alta, pero sin gatillo de entrada todavía — no decir
                     "cómpralo hoy" cuando el propio plan técnico dice que esperes:
                     eso es lo que generaba la contradicción entre este panel y el
-                    detalle del ticker (fix jul 2026, a pedido de Cas). */}
+                    detalle del ticker (fix jul 2026, a pedido de Cas). Acá ya se
+                    revisó TODO el ranking (bestActionable === null), no solo el
+                    top: si nadie tiene gatillo hoy, este mensaje es correcto. */}
                 <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold)' }}>
                   <TickerLink t={top.ticker} onOpen={openDetail} bold /> es tu mejor candidata ({top.conviction.score}/100), pero todavía no hay entrada.
                 </p>
@@ -744,11 +754,22 @@ export default function Radar({
             ) : (
               <>
                 <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--mint)' }}>
-                  La mejor compra hoy es <TickerLink t={top.ticker} onOpen={openDetail} bold />{' '}({top.conviction.score}/100)
-                  {runnerUp && <> — mejor que <TickerLink t={runnerUp.ticker} onOpen={openDetail} /> ({runnerUp.conviction.score}/100)</>}.
+                  La mejor compra hoy es <TickerLink t={bestActionable.ticker} onOpen={openDetail} bold />{' '}({bestActionable.conviction.score}/100)
+                  {runnerUp && runnerUp.ticker !== bestActionable.ticker && <> — mejor que <TickerLink t={runnerUp.ticker} onOpen={openDetail} /> ({runnerUp.conviction.score}/100)</>}.
                 </p>
+                {/* bestActionable puede no ser el #1 del ranking por score (top):
+                    puede haber un candidato con MÁS convicción en general pero
+                    sin gatillo de entrada hoy. Decirlo evita la lectura opuesta
+                    ("¿por qué el score más alto de la lista no es la sugerencia
+                    de arriba?" — mismo tipo de contradicción que motivó este fix,
+                    jul 2026, a pedido de Cas). */}
+                {top.ticker !== bestActionable.ticker && (
+                  <p className="text-[11px] leading-relaxed mt-1" style={{ color: 'var(--ink-3)' }}>
+                    <TickerLink t={top.ticker} onOpen={openDetail} muted /> tiene más convicción en general ({top.conviction.score}/100), pero todavía no tiene gatillo de entrada.
+                  </p>
+                )}
                 <ul className="mt-2 space-y-1">
-                  {top.conviction.reasons.slice(0, 3).map((r, i) => (
+                  {bestActionable.conviction.reasons.slice(0, 3).map((r, i) => (
                     <li key={i} className="text-[11px] leading-relaxed flex items-start gap-1.5" style={{ color: 'var(--ink-2)' }}>
                       <span className="mt-1 w-1 h-1 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
                       {r}
@@ -757,17 +778,17 @@ export default function Radar({
                 </ul>
                 {topSuggestedUsd !== null && (
                   <button
-                    onClick={() => setTxn({ mode: owned.has(top.ticker) ? 'buyMore' : 'new', ticker: top.ticker, prefillUsd: topSuggestedUsd })}
+                    onClick={() => setTxn({ mode: owned.has(bestActionable.ticker) ? 'buyMore' : 'new', ticker: bestActionable.ticker, prefillUsd: topSuggestedUsd })}
                     className="text-sm font-bold tabular-nums mt-2.5 px-3 py-2 rounded-xl inline-block transition-opacity hover:opacity-85 active:scale-[.98]"
                     style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
                   >
-                    Compra hasta {fmtUSD(topSuggestedUsd)} de {top.ticker} ahora
+                    Compra hasta {fmtUSD(topSuggestedUsd)} de {bestActionable.ticker} ahora
                   </button>
                 )}
                 {ranking.length > 1 && (
                   <p className="text-[10px] mt-2 flex flex-wrap items-center gap-x-1" style={{ color: 'var(--ink-3)' }}>
                     Resto del ranking:{' '}
-                    {ranking.slice(1, 4).map((r, i) => (
+                    {ranking.filter(r => r.ticker !== bestActionable.ticker).slice(0, 3).map((r, i) => (
                       <span key={r.ticker}>
                         {i > 0 && ' · '}
                         <TickerLink t={r.ticker} onOpen={openDetail} muted /> ({r.conviction.score})

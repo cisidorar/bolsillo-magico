@@ -386,20 +386,30 @@ async function computeDailyDecisions(
       .sort((x, y) => y.conviction.score - x.conviction.score)
 
     if (candidates.length === 0) continue
-    const top   = candidates[0]
+    const top = candidates[0]
     // Convicción alta no basta: si el gráfico no da gatillo hoy (a.buy sin
     // tramo "now"), el detalle del ticker en la app va a decir "no compres
     // hoy" — este correo/decisión no puede contradecirlo (fix jul 2026).
-    const isBuy = isActionableBuyNow(top.a, top.conviction)
+    //
+    // Segunda vuelta del mismo bug (jul 2026, a pedido de Cas): esto solo
+    // miraba si el #1 por SCORE (top) tenía gatillo hoy — si no, mandaba
+    // "no compres nada" aunque otro ticker más abajo en el ranking SÍ tuviera
+    // gatillo activo (mismo caso que el panel "¿Qué comprar hoy?" de la app,
+    // que tiene el mismo fix). candidates ya viene ordenado por score desc,
+    // así que el primer accionable sigue siendo el de mayor convicción entre
+    // los que de verdad tienen entrada hoy.
+    const bestActionable = candidates.find(c => isActionableBuyNow(c.a, c.conviction)) ?? null
+    const isBuy = bestActionable !== null
+    const picked = bestActionable ?? top
 
     let suggestedUsd: number | null = null
-    if (isBuy) {
+    if (isBuy && picked) {
       const positions = positionsByUser.get(userId) ?? []
       const costOfPositions = positions.reduce((s, p) => s + p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost), 0)
       const walletCash      = Math.max(0, walletMovByUser.get(userId) ?? 0)
       const portfolioValueUsd = costOfPositions + walletCash
       if (portfolioValueUsd > 0) {
-        const sizing = positionSizeUsd(portfolioValueUsd, top.a.price, top.a.alarm)
+        const sizing = positionSizeUsd(portfolioValueUsd, picked.a.price, picked.a.alarm)
         // Además del riesgo, no sugerir más de lo que realmente hay disponible
         if (sizing) suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash || sizing.maxUsd) * 100) / 100
       }
@@ -407,14 +417,14 @@ async function computeDailyDecisions(
 
     decisionRows.push({
       user_id: userId,
-      ticker:  isBuy ? top.ticker : null,
-      tier:    isBuy ? top.conviction.tier : null,
-      score:   top.conviction.score,
+      ticker:  isBuy ? picked.ticker : null,
+      tier:    isBuy ? picked.conviction.tier : null,
+      score:   picked.conviction.score,
       suggested_usd: suggestedUsd,
       verdict: isBuy
-        ? top.conviction.verdict
+        ? picked.conviction.verdict
         : `Ni ${top.ticker}, tu mejor candidata (${top.conviction.score}/100), tiene caso suficiente para comprar hoy.`,
-      reasons: top.conviction.reasons.slice(0, 3),
+      reasons: picked.conviction.reasons.slice(0, 3),
     })
   }
 
