@@ -5,6 +5,7 @@ import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
+import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
 import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import PerformanceSection from '@/components/PerformanceSection'
@@ -180,6 +181,11 @@ export default async function InversionesPage({ searchParams }: Props) {
   // — no requiere precio en vivo. Se computa server-side porque necesita leer
   // price_history directo, cosa que los client components no hacen.
   let spyBenchmark: SpyBenchmarkResult | null = null
+  // W3 (roadmap de vista, fase 2): evolución del portafolio en el tiempo —
+  // reusa la MISMA consulta de price_history que ya se pedía para el
+  // benchmark vs SPY (todo el historial de los tickers en posición), sin
+  // fetch aparte.
+  let portfolioHistory: PortfolioPoint[] = []
   if ((purchases?.length ?? 0) > 0) {
     const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker))]
     const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
@@ -212,6 +218,11 @@ export default async function InversionesPage({ searchParams }: Props) {
       (spyRows ?? []).map(r => ({ date: r.date as string, close: Number(r.close) })),
       (stocks ?? []).map(s => ({ ticker: s.ticker, shares: s.shares })),
       latestCloseByTicker,
+    )
+
+    portfolioHistory = computePortfolioHistory(
+      (latestRows ?? []).map(r => ({ ticker: r.ticker as string, date: r.date as string, close: Number(r.close) })),
+      (stocks ?? []).map(s => ({ ticker: s.ticker, shares: s.shares })),
     )
   }
 
@@ -278,6 +289,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             initialWatchlist={(watchlist ?? []) as WatchlistItem[]}
             todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
             todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
+            portfolioHistory={portfolioHistory}
           />
           <div className="mt-6">
             <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} purchases={(purchases ?? []) as StockPurchase[]} />

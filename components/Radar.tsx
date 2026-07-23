@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plus, ChevronRight, ChevronDown, ChevronUp, Info, RefreshCw, X, Search, Check,
-  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag,
+  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, TrendingUp,
 } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
@@ -25,6 +25,8 @@ import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
 import { useToast } from '@/components/ToastProvider'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
+import type { PortfolioPoint } from '@/lib/portfolio-history'
+import PortfolioChart from '@/components/PortfolioChart'
 
 // ── U4 (roadmap UX): "Radar" — un solo mundo para posiciones y favoritos.
 // Reemplaza StockPositionManager.tsx + WatchlistPanel.tsx: antes eran dos
@@ -133,12 +135,15 @@ interface Props {
    *  que el recálculo en vivo confirma o corrige explícitamente. */
   todayDecision?:    TodayDecision | null
   todaySignals?:     TodaySignal[]
+  /** W3 (roadmap de vista, fase 2): evolución del valor de la cartera —
+   *  computado server-side con price_history + shares actuales. */
+  portfolioHistory?: PortfolioPoint[]
 }
 
 export default function Radar({
   userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
-  todayDecision = null, todaySignals = [],
+  todayDecision = null, todaySignals = [], portfolioHistory = [],
 }: Props) {
   const supabase = createClient()
   const { showToast } = useToast()
@@ -245,6 +250,22 @@ export default function Radar({
   }, null)
 
   const portfolioValueUsd = totalValueUsd + Math.max(0, walletAvailable ?? 0)
+
+  // W2 (roadmap de vista, fase 2): "cómo va lo que ya tengo" de un vistazo —
+  // antes había que ir al tab Tengo y leer fila por fila. Una fila por
+  // ticker (agregado, no por lote — mismo criterio que ownedMap), ordenada
+  // por valor actual, con el retorno $/% y el % de hoy juntos.
+  const myPerformance = positionTickers
+    .map(ticker => {
+      const pos = ownedMap[ticker]
+      const q = quotes[ticker]
+      const price = q?.price ?? pos.avgCost
+      const valueUsd = pos.shares * price
+      const gainUsd = q ? pos.shares * (q.price - pos.avgCost) : null
+      const gainPct = q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : null
+      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null }
+    })
+    .sort((a, b) => b.valueUsd - a.valueUsd)
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
@@ -705,42 +726,43 @@ export default function Radar({
           del DOM es el mismo de siempre: hero, decisión, tabs, lista). */}
       <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:items-start">
       <div className="lg:order-2 lg:sticky lg:top-6 lg:min-w-0">
-      {/* ── Hero + 3 KPIs (portafolio) ───────────────────────────────────── */}
+      {/* ── Hero + KPIs (portafolio) ─────────────────────────────────────── */}
+      {/* W1 (roadmap de vista, fase 2): esto vive en la columna sticky de
+          380px desde V2 — el diseño viejo (flex 40/60, grid-cols-4,
+          text-5xl…) estaba pensado para el ancho completo de la página y
+          salía cortado acá (bug reportado por Cas con screenshot). Ahora es
+          UN solo diseño compacto, sin escalar tamaños en lg:, que funciona
+          igual de bien apilado en la columna que a lo ancho en mobile. */}
       {positions.length > 0 && (
-        <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch mb-4">
-          <div className="card overflow-hidden hero-gradient w-full lg:min-w-0" style={{ flex: '40 1 0' }}>
-            <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-4">
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="card overflow-hidden hero-gradient w-full">
+            <div className="px-5 pt-5 pb-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
               <div className="flex items-baseline gap-2 flex-wrap">
-                <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                <p className="text-3xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
                   {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-              {/* Retorno de HOY, junto al valor grande — el retorno total ya vive
-                  en la fila de KPIs de abajo; separarlos en dos lugares distintos
-                  (no ambos "totales") es justo lo que Cas pedía poder ver de un
-                  vistazo. */}
+              {/* Retorno de HOY y retorno TOTAL, juntos bajo el valor grande —
+                  ambos de un vistazo sin tener que expandir (pedido de Cas). */}
               <div className="flex items-center justify-between gap-2">
                 <div>
                   {hasQ && (
-                    <p className="flex items-center gap-1 text-xs lg:text-sm font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                    <p className="flex items-center gap-1 text-xs font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
                       {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
                       {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
                     </p>
                   )}
-                  {/* V4: retorno TOTAL también en la fila compacta — en mobile
-                      colapsado es lo único que se ve además de hoy, sin tener
-                      que expandir para saber si vas ganando en general. */}
                   {hasQ && (
-                    <p className="lg:hidden text-[11px] font-semibold mt-1" style={{ color: totalReturnUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                    <p className="text-[11px] font-semibold mt-1" style={{ color: totalReturnUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
                       {fmtUSDSigned(totalReturnUsd)} ({fmtPct(totalReturnPct)}) total
                     </p>
                   )}
                 </div>
                 <button
                   onClick={toggleHeroExpanded}
-                  className="lg:hidden flex items-center gap-1 text-[10px] font-bold px-2 py-1.5 rounded-lg flex-shrink-0"
+                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1.5 rounded-lg flex-shrink-0"
                   style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
                 >
                   {heroExpanded ? 'Menos' : 'Más'}
@@ -748,90 +770,85 @@ export default function Radar({
                 </button>
               </div>
             </div>
-            <div className={`border-t grid-cols-4 ${heroExpanded ? 'grid' : 'hidden'} lg:grid`} style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
-              </div>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
-                </p>
-              </div>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno %</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? fmtPct(totalReturnPct) : '—'}
-                </p>
-              </div>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>vs SPY</p>
-                <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: spyBenchmark?.diffPct != null ? (spyBenchmark.diffPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {spyBenchmark?.diffPct != null ? fmtPct(spyBenchmark.diffPct) : '—'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0 ${heroExpanded ? 'grid' : 'hidden'} lg:grid`} style={{ flex: '60 1 0', alignContent: 'stretch' }}>
-            <a href="/inversiones?view=billetera" className="card p-3 lg:p-5 block min-w-0 transition-colors hover:bg-[var(--surface-2)]">
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Billetera</p>
-              {walletAvailable !== null ? (
-                <>
-                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold tabular-nums leading-none truncate"
-                    style={{ fontFamily: 'Fredoka, sans-serif', color: walletAvailable >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
-                    {fmtUSD(Math.max(0, walletAvailable))}
-                  </p>
-                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5" style={{ color: walletAvailable >= 0 ? 'var(--ink-3)' : 'var(--coral)' }}>
-                    {walletAvailable >= 0 ? 'disponible para comprar →' : 'revisa tus aportes: hay más invertido que aportado'}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
-                  <p className="text-[10px] lg:text-xs font-semibold mt-1.5" style={{ color: 'var(--primary)' }}>Registra tus aportes →</p>
-                </>
-              )}
-            </a>
-
-            <div className="card p-3 lg:p-5 min-w-0">
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-              <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
-                {positionTickers.length}
-              </p>
-              {hasQ && (posUp > 0 || posDown > 0) && (
-                <div className="flex items-center gap-2 mt-1.5 text-[10px] lg:text-xs font-semibold">
-                  {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
-                  {posDown > 0 && <span style={{ color: 'var(--coral)' }}>{posDown}↓</span>}
+            {heroExpanded && (
+              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <div className="px-4 py-3 min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
                 </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => { if (bestPos) openDetail(bestPos.ticker) }}
-              className="card p-3 lg:p-5 min-w-0 text-left transition-colors hover:bg-[var(--surface-2)]"
-            >
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
-                {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
-              </p>
-              {bestPos ? (
-                <>
-                  <p className="text-xl sm:text-2xl lg:text-4xl font-extrabold leading-none" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>
-                    {bestPos.ticker}
+                <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno %</p>
+                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                    {hasQ ? fmtPct(totalReturnPct) : '—'}
                   </p>
-                  <div className="flex items-center gap-1 mt-1.5">
-                    {bestPos.pct >= 0 ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} /> : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                    <span className="text-[10px] lg:text-xs font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                      {fmtPct(bestPos.pct)} total
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <p className="text-lg lg:text-3xl font-extrabold" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink-3)' }}>—</p>
-              )}
-            </button>
+                </div>
+                <div className="px-4 py-3 border-t min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                    {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
+                  </p>
+                </div>
+                <div className="px-4 py-3 border-t border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>vs SPY</p>
+                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: spyBenchmark?.diffPct != null ? (spyBenchmark.diffPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                    {spyBenchmark?.diffPct != null ? fmtPct(spyBenchmark.diffPct) : '—'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Billetera / Posiciones / Mejor retorno — antes 3 cards de
+              text-4xl en grid-cols-3 (pensadas para ancho completo, salían
+              truncadas en 380px). Ahora una sola card con 3 filas compactas. */}
+          {heroExpanded && (
+            <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+              <a href="/inversiones?view=billetera" className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Billetera</p>
+                  <p className="text-[10px] font-semibold mt-0.5 truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
+                    {walletAvailable === null ? 'Registra tus aportes →' : walletAvailable >= 0 ? 'disponible →' : 'revisa tus aportes'}
+                  </p>
+                </div>
+                <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ fontFamily: 'Fredoka, sans-serif', color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral)' : 'var(--ink)' }}>
+                  {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
+                </p>
+              </a>
+
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <p className="text-base font-extrabold tabular-nums" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+                    {positionTickers.length}
+                  </p>
+                  {hasQ && (posUp > 0 || posDown > 0) && (
+                    <span className="text-[10px] font-semibold">
+                      {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
+                      {posDown > 0 && <span style={{ color: 'var(--coral)' }}> {posDown}↓</span>}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => { if (bestPos) openDetail(bestPos.ticker) }}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--surface-2)]"
+              >
+                <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
+                  {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
+                </p>
+                {bestPos ? (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-sm font-extrabold" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>{bestPos.ticker}</span>
+                    {bestPos.pct >= 0 ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} /> : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
+                    <span className="text-[10px] font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>{fmtPct(bestPos.pct)}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm font-extrabold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>—</span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1021,6 +1038,69 @@ export default function Radar({
         </div>
       )}
 
+      {/* W2 (roadmap de vista, fase 2): "cómo va lo que ya tengo" — antes no
+          existía ningún lugar que respondiera esto de un vistazo; había que
+          ir al tab Tengo y leer fila por fila (pedido explícito de Cas). */}
+      {positions.length > 0 && (
+        <div className="card overflow-hidden mb-4">
+          <div className="px-4 lg:px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
+            <TrendingUp className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Mi rendimiento</p>
+          </div>
+          {/* Totales: no realizado (posiciones abiertas) + realizado (ventas
+              cerradas) = retorno total del portafolio. */}
+          <div className="px-4 lg:px-5 py-3 border-b grid grid-cols-3 gap-2" style={{ borderColor: 'var(--border)' }}>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>No realizado</p>
+              <p className="text-xs font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
+                {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Realizado</p>
+              <p className="text-xs font-bold tabular-nums truncate" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                {fmtUSDSigned(realizedPnlUsd)}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Total</p>
+              <p className="text-xs font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
+                {hasQ ? `${fmtUSDSigned(totalReturnUsd)} (${fmtPct(totalReturnPct)})` : '—'}
+              </p>
+            </div>
+          </div>
+          {/* W3: evolución del valor de la cartera — solo si hay suficiente
+              historial para que la curva diga algo. */}
+          {portfolioHistory.length >= 2 && (
+            <div className="px-4 lg:px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <PortfolioChart points={portfolioHistory} costBasisUsd={totalCostUsd} />
+            </div>
+          )}
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {myPerformance.map(row => (
+              <button
+                key={row.ticker}
+                onClick={() => openDetail(row.ticker)}
+                className="w-full flex items-center justify-between gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
+              >
+                <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{row.ticker}</span>
+                <div className="text-right min-w-0">
+                  <p className="text-xs font-bold tabular-nums truncate" style={{ color: 'var(--ink)' }}>{fmtUSD(row.valueUsd)}</p>
+                  <p className="text-[10px] font-semibold tabular-nums" style={{ color: row.gainUsd === null ? 'var(--ink-3)' : row.gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    {row.gainUsd !== null && row.gainPct !== null ? `${fmtUSDSigned(row.gainUsd)} (${fmtPct(row.gainPct, false)})` : '—'}
+                    {row.dailyPct !== null && (
+                      <span style={{ color: row.dailyPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {' · '}{row.dailyPct >= 0 ? '+' : ''}{row.dailyPct.toFixed(2)}% hoy
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       </div>{/* /columna derecha (V2) */}
 
       <div className="lg:order-1 lg:min-w-0">
@@ -1109,7 +1189,16 @@ export default function Radar({
             const c = convictionFor(ticker)
             const flag = actionFlag(a, isOwned, c, marketRegime)
             const atTarget = targetReached(item, q?.price, isOwned)
-            const watchCount = (typeof a === 'object' ? a.watch.length : 0) + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
+            // W4 (roadmap de vista, fase 2): antes CUALQUIER condición suelta
+            // de a.watch (hay varias, bastante comunes por separado — RSI en
+            // un rango ancho, distancia a soporte/resistencia, etc.) prendía
+            // el chip "revisar pronto". Con el umbral en 1, salía en casi
+            // toda la lista (screenshot de Cas: 10 de 13 filas) y dejaba de
+            // informar nada. Ahora exige 2+ señales a la vez, o precio
+            // objetivo cerca (eso sí es siempre relevante, lo definió Cas).
+            const watchCount = (typeof a === 'object' ? a.watch.length : 0)
+            const isNearTarget = nearTarget(item, q?.price, isOwned)
+            const showWatchChip = watchCount >= 2 || isNearTarget
             const gainUsd = isOwned && pos && q ? pos.shares * (q.price - pos.avgCost) : null
             const gainPct = isOwned && pos && q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : null
             // V6 (roadmap de vista): resumen de la fila para lectores de
@@ -1155,7 +1244,7 @@ export default function Radar({
                         <Target className="w-3 h-3" /> En tu precio
                       </span>
                     )}
-                    {!flag && !atTarget && watchCount > 0 && (
+                    {!flag && !atTarget && showWatchChip && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                         style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                         revisar pronto
