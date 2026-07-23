@@ -11,9 +11,12 @@ import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
-import { getAnalysis, AnalysisError } from '@/lib/analysis-cache'
-import { computeConviction, isActionableBuyNow, type ConvictionResult, type ConvictionTier } from '@/lib/conviction'
+import { getAnalysis, getCachedBacktestStats, AnalysisError } from '@/lib/analysis-cache'
+import { computeConviction, isActionableBuyNow, computeMarketRegime, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
+import { detectLeverage } from '@/lib/leveraged-etfs'
+import { getEarnings } from '@/lib/earnings-cache'
+import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip } from '@/components/RiskRail'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
@@ -57,9 +60,9 @@ function nearTarget(item: WatchlistItem | undefined, price: number | undefined, 
  * su propio detalle dijera "no compres hoy" — misma inconsistencia que en
  * el panel "¿Qué comprar hoy?", detectada por Cas, jul 2026.
  */
-function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean, conviction?: ConvictionResult | null): 'buy' | 'sell' | 'caution' | null {
+function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owned: boolean, conviction?: ConvictionResult | null, regime?: MarketRegime | null): 'buy' | 'sell' | 'caution' | null {
   if (typeof a !== 'object') return null
-  const isBuy  = conviction !== null && conviction !== undefined && isActionableBuyNow(a, conviction)
+  const isBuy  = conviction !== null && conviction !== undefined && isActionableBuyNow(a, conviction, regime)
   const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
   if (isBuy) return 'buy'
   if (isSell && owned) return 'sell'
@@ -179,11 +182,23 @@ export default function Radar({
   const watchTickers    = useMemo(() => items.map(i => i.ticker), [items])
   const allTickers      = useMemo(() => [...new Set([...positionTickers, ...watchTickers])], [positionTickers, watchTickers])
 
-  // SPY como referencia de fuerza relativa — un solo fetch para todo Radar
+  // SPY como referencia de fuerza relativa — un solo fetch para todo Radar.
+  // D4 (roadmap de calidad de decisión): el mismo análisis también da el
+  // régimen de mercado (trend de SPY), que exige más para considerar una
+  // entrada accionable cuando el mercado en general va para abajo.
   const [spyReturn6m, setSpyReturn6m] = useState<number | null>(null)
+  const [marketRegime, setMarketRegime] = useState<MarketRegime | null>(null)
   useEffect(() => {
-    getAnalysis('SPY').then(a => setSpyReturn6m(a.returns.m6)).catch(() => { /* opcional */ })
+    getAnalysis('SPY').then(a => {
+      setSpyReturn6m(a.returns.m6)
+      setMarketRegime(computeMarketRegime(a.trend))
+    }).catch(() => { /* opcional */ })
   }, [])
+
+  // D3 (roadmap de calidad de decisión): próxima fecha de resultados del
+  // candidato que el panel "¿Qué comprar hoy?" está sugiriendo — se resuelve
+  // más abajo, junto al cómputo del ranking.
+  const [bestActionableEarnings, setBestActionableEarnings] = useState<EarningsInfo | null>(null)
 
   // Billetera disponible: mismo cálculo en toda la app (Radar/TransactionModal)
   const fundedCostUsd = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
@@ -308,9 +323,13 @@ export default function Radar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // D1 (roadmap de calidad de decisión): antes se pasaba backtestStats=null
+  // acá — el 20% del score reservado al track record nunca se aplicaba.
+  // getCachedBacktestStats() lee del mismo cache que ya llenó getAnalysis()
+  // para este ticker (misma respuesta de /api/technical), sin fetch aparte.
   const convictionFor = useCallback((ticker: string): ConvictionResult | null => {
     const a = analyses[ticker]
-    return typeof a === 'object' ? computeConviction(a, null, spyReturn6m) : null
+    return typeof a === 'object' ? computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m) : null
   }, [analyses, spyReturn6m])
 
   /** I1 (roadmap interacción): mismo cálculo de "monto sugerido" que ya vive
@@ -324,12 +343,16 @@ export default function Radar({
     const live = quotes[ticker]?.price ?? a.price
     const sizing = portfolioValueUsd > 0 ? positionSizeUsd(portfolioValueUsd, live, a.alarm) : null
     if (!sizing) return null
+    // D6: ETFs apalancados (SOXL, etc.) — el tope de riesgo real se divide
+    // por el factor, si no la regla del 1% termina arriesgando ~3%.
+    const leverage = detectLeverage(ticker, quotes[ticker]?.name ?? null)
+    const maxUsd = leverage ? sizing.maxUsd / leverage.factor : sizing.maxUsd
     const cashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
-    let usd = cashCap !== null ? Math.min(sizing.maxUsd, cashCap) : sizing.maxUsd
+    let usd = cashCap !== null ? Math.min(maxUsd, cashCap) : maxUsd
     const pos = ownedMap[ticker]
     if (pos) {
       const currentValue = pos.shares * live
-      usd = Math.min(usd, Math.max(0, sizing.maxUsd - currentValue))
+      usd = Math.min(usd, Math.max(0, maxUsd - currentValue))
     }
     return usd > 1 ? Math.round(usd * 100) / 100 : null
   }
@@ -361,14 +384,32 @@ export default function Radar({
   // Cas). Ahora se busca el primer candidato ACCIONABLE en todo el ranking
   // (ya viene ordenado por score, así que sigue siendo el de mayor convicción
   // *entre los que tienen entrada hoy*), no solo el de mayor score a secas.
-  const bestActionable = ranking.find(r => isActionableBuyNow(r.a, r.conviction)) ?? null
+  const bestActionable = ranking.find(r => isActionableBuyNow(r.a, r.conviction, marketRegime)) ?? null
   const topSizing = bestActionable !== null && portfolioValueUsd > 0
     ? positionSizeUsd(portfolioValueUsd, quotes[bestActionable.ticker]?.price ?? bestActionable.a.price, bestActionable.a.alarm)
     : null
+  // D6: mismo ajuste por apalancamiento que suggestedUsdFor.
+  const topLeverage = bestActionable !== null ? detectLeverage(bestActionable.ticker, quotes[bestActionable.ticker]?.name ?? null) : null
+  // D3: resultados a ≤2 días hábiles reducen el monto sugerido a la mitad —
+  // mismo criterio que TechnicalDetail. Solo se pide para el candidato que
+  // de verdad se está sugiriendo (no los 20 tickers de la lista); el fetch y
+  // el useEffect que lo dispara viven justo debajo, junto al resto de estado.
+  const topDaysToEarnings = businessDaysUntil(bestActionableEarnings?.nextDate ?? null)
+  const topEarningsVeryClose = topDaysToEarnings !== null && topDaysToEarnings <= 2
   const topCashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
   const topSuggestedUsd = topSizing !== null
-    ? (topCashCap !== null ? Math.min(topSizing.maxUsd, topCashCap) : topSizing.maxUsd)
+    ? (() => {
+        let maxUsd = topLeverage ? topSizing.maxUsd / topLeverage.factor : topSizing.maxUsd
+        if (topEarningsVeryClose) maxUsd = maxUsd / 2
+        return topCashCap !== null ? Math.min(maxUsd, topCashCap) : maxUsd
+      })()
     : null
+  useEffect(() => {
+    if (!bestActionable) { setBestActionableEarnings(null); return }
+    let cancelled = false
+    getEarnings(bestActionable.ticker).then(e => { if (!cancelled) setBestActionableEarnings(e) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [bestActionable?.ticker])
 
   // ── Búsqueda con debounce ("Seguir") ─────────────────────────────────────
   const [showSearch, setShowSearch] = useState(false)
@@ -709,6 +750,18 @@ export default function Radar({
           <div className="px-4 lg:px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
             <Target className="w-4 h-4" style={{ color: 'var(--primary)' }} />
             <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>¿Qué comprar hoy?</p>
+            {/* D4 (roadmap de calidad de decisión): el veredicto de abajo siempre
+                se lee dentro de este contexto — en bajista el listón para
+                "accionable hoy" sube (exige compra_fuerte, ver isActionableBuyNow). */}
+            {marketRegime && (
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                style={{
+                  background: marketRegime === 'alcista' ? 'rgba(31,190,141,0.12)' : marketRegime === 'bajista' ? 'rgba(255,111,97,0.12)' : 'var(--surface-2)',
+                  color:      marketRegime === 'alcista' ? 'var(--mint)' : marketRegime === 'bajista' ? 'var(--coral)' : 'var(--ink-3)',
+                }}>
+                Mercado: {marketRegime === 'alcista' ? 'alcista' : marketRegime === 'bajista' ? 'bajista' : 'mixto'}
+              </span>
+            )}
           </div>
           <div className="px-4 lg:px-5 py-4">
             {!allLoaded ? (
@@ -766,6 +819,14 @@ export default function Radar({
                 {top.ticker !== bestActionable.ticker && (
                   <p className="text-[11px] leading-relaxed mt-1" style={{ color: 'var(--ink-3)' }}>
                     <TickerLink t={top.ticker} onOpen={openDetail} muted /> tiene más convicción en general ({top.conviction.score}/100), pero todavía no tiene gatillo de entrada.
+                  </p>
+                )}
+                {/* D3 (roadmap de calidad de decisión): earnings a la vuelta de
+                    la esquina — el monto de abajo ya viene reducido a la mitad. */}
+                {topDaysToEarnings !== null && topDaysToEarnings <= 5 && (
+                  <p className="text-[11px] leading-relaxed mt-1 font-semibold" style={{ color: 'var(--gold)' }}>
+                    Reporta resultados {topDaysToEarnings === 0 ? 'hoy' : `en ${topDaysToEarnings} día${topDaysToEarnings !== 1 ? 's' : ''} hábil${topDaysToEarnings !== 1 ? 'es' : ''}`}
+                    {topEarningsVeryClose ? ' — monto reducido a la mitad por esto.' : ' — el gráfico pesa menos hasta entonces.'}
                   </p>
                 )}
                 <ul className="mt-2 space-y-1">
@@ -975,7 +1036,7 @@ export default function Radar({
             const pos = ownedMap[ticker]
             const isOwned = owned.has(ticker)
             const c = convictionFor(ticker)
-            const flag = actionFlag(a, isOwned, c)
+            const flag = actionFlag(a, isOwned, c, marketRegime)
             const atTarget = targetReached(item, q?.price, isOwned)
             const watchCount = (typeof a === 'object' ? a.watch.length : 0) + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
             const gainUsd = isOwned && pos && q ? pos.shares * (q.price - pos.avgCost) : null
@@ -1227,6 +1288,7 @@ export default function Radar({
                     key={ticker}
                     a={a}
                     ticker={ticker}
+                    name={q?.name ?? null}
                     position={pos}
                     rawPosition={rawPos}
                     purchases={purchases}
@@ -1296,6 +1358,8 @@ export default function Radar({
           walletUsdBase={walletUsdBase}
           quotes={quotes}
           posAnalyses={analyses}
+          spyReturn6m={spyReturn6m}
+          marketRegime={marketRegime}
           onClose={() => setTxn(null)}
           onDone={(ticker) => {
             fetchQuotes([ticker])

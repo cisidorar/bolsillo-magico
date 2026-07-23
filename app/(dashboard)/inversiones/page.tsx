@@ -45,6 +45,11 @@ export interface StockPurchase {
   purchase_date:  string
   notes:          string | null
   created_at:     string
+  /** D5 (roadmap de calidad de decisión): lectura con la que se decidió esta
+   *  compra — null en compras registradas antes de jul 2026 (no reconstruible). */
+  conviction_score?:  number | null
+  conviction_tier?:   string | null
+  had_entry_trigger?: boolean | null
 }
 
 export interface TermDeposit {
@@ -272,7 +277,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             initialWatchlist={(watchlist ?? []) as WatchlistItem[]}
           />
           <div className="mt-6">
-            <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} />
+            <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} purchases={(purchases ?? []) as StockPurchase[]} />
           </div>
         </>
       )}

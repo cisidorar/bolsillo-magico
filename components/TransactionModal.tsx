@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
+import { detectLeverage } from '@/lib/leveraged-etfs'
+import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
+import { getCachedBacktestStats } from '@/lib/analysis-cache'
 import { useToast } from '@/components/ToastProvider'
 
 // ── U4 (roadmap UX): modal SOLO transaccional — extraído de
@@ -66,15 +69,34 @@ interface Props {
    *  mano el número que la propia app acababa de calcular. Las acciones se
    *  derivan del precio en vivo; el usuario igual puede editar todo. */
   prefill?:      { totalUsd?: number }
+  /** D5 (roadmap de calidad de decisión): para guardar la lectura completa
+   *  (score, tier, régimen) con la que se decidió cada compra. */
+  spyReturn6m?:  number | null
+  marketRegime?: MarketRegime | null
 }
 
 export default function TransactionModal({
   userId, mode, ticker, positions, setPositions, purchases, setPurchases, sales, setSales,
-  walletUsdBase, quotes, posAnalyses, onClose, onDone, prefill,
+  walletUsdBase, quotes, posAnalyses, onClose, onDone, prefill, spyReturn6m, marketRegime,
 }: Props) {
   const supabase = createClient()
   const pos = ticker ? positions.find(p => p.ticker === ticker) ?? null : null
   const { showToast } = useToast()
+
+  // D5: lectura de convicción al momento de comprar — null si no hay análisis
+  // cargado para el ticker (caso borde: ticker recién tipeado a mano en modo
+  // 'new' que todavía no pasó por Radar). No bloquea la compra: es memoria,
+  // no un requisito.
+  function convictionSnapshotFor(tk: string): { score: number; tier: string; hadTrigger: boolean } | null {
+    const a = posAnalyses[tk]
+    if (typeof a !== 'object') return null
+    const conviction = computeConviction(a, getCachedBacktestStats(tk), spyReturn6m ?? null)
+    return {
+      score: conviction.score,
+      tier:  conviction.tier,
+      hadTrigger: isActionableBuyNow(a, conviction, marketRegime ?? null),
+    }
+  }
 
   const [form,       setForm]       = useState({ ticker: ticker ?? '', shares: '', totalPaid: '', notes: '' })
   const [saving,     setSaving]     = useState(false)
@@ -146,7 +168,12 @@ export default function TransactionModal({
     const stop  = Number.isFinite(stopRaw) ? stopRaw : null
     const portfolio = totalValueUsd + Math.max(0, walletAvailable ?? 0)
     const s = positionSizeUsd(portfolio, live, stop)
-    return s ? { maxUsd: s.maxUsd, stop: stop as number, distPct: s.stopDistPct } : null
+    if (!s) return null
+    // D6 (roadmap de calidad de decisión): ETFs apalancados (SOXL, etc.) —
+    // dividir por el factor para que "arriesgar 1%" siga siendo 1% real.
+    const leverage = detectLeverage(tk, quotes[tk]?.name ?? null)
+    const maxUsd = leverage ? s.maxUsd / leverage.factor : s.maxUsd
+    return { maxUsd, stop: stop as number, distPct: s.stopDistPct }
   }
 
   // ── Guardar (nueva posición o editar campos crudos) ─────────────────────
@@ -209,11 +236,17 @@ export default function TransactionModal({
       })
 
       // Registro histórico de la compra — para el timeline de "Movimientos"
+      // D5: se guarda también la lectura de convicción del momento (null si
+      // no hay análisis cargado para el ticker — no bloquea la compra).
+      const snapshot = convictionSnapshotFor(tk)
       const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
         .insert({
           user_id: userId, ticker: tk, shares, total_paid_usd: totalPaid,
           purchase_date: new Date().toISOString().slice(0, 10),
           notes: form.notes.trim() || null,
+          conviction_score: snapshot?.score ?? null,
+          conviction_tier:  snapshot?.tier ?? null,
+          had_entry_trigger: snapshot?.hadTrigger ?? null,
         })
         .select().single()
       if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
@@ -357,8 +390,15 @@ export default function TransactionModal({
       : p))
 
     // Registro histórico de la compra — para el timeline de "Movimientos"
+    // D5: misma lectura de convicción del momento que en una posición nueva.
+    const buyMoreSnapshot = convictionSnapshotFor(pos.ticker)
     const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
-      .insert({ user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate })
+      .insert({
+        user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate,
+        conviction_score: buyMoreSnapshot?.score ?? null,
+        conviction_tier:  buyMoreSnapshot?.tier ?? null,
+        had_entry_trigger: buyMoreSnapshot?.hadTrigger ?? null,
+      })
       .select().single()
     if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
     if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])

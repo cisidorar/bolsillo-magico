@@ -127,11 +127,40 @@ export function computeConviction(
  * Se usa para decidir el veredicto de "¿Qué comprar hoy?", el flag de fila
  * en Radar, y `daily_decisions` (cron + correo) — un solo criterio en los
  * tres lugares que antes solo miraban el tier de convicción.
+ *
+ * D4 (roadmap de calidad de decisión, jul 2026): con `regime === 'bajista'`
+ * el listón sube — exige `compra_fuerte`, no basta `compra`. Los gatillos
+ * técnicos (rupturas, rebotes en soporte) fallan más seguido cuando el
+ * mercado en general va para abajo; `regime` es opcional y por defecto se
+ * comporta exactamente igual que antes (compatibilidad hacia atrás).
  */
 export function isActionableBuyNow(
   analysis:   { buy: { now: boolean }[] },
   conviction: Pick<ConvictionResult, 'tier'>,
+  regime?:    MarketRegime | null,
 ): boolean {
-  const isBuyTier = conviction.tier === 'compra' || conviction.tier === 'compra_fuerte'
-  return isBuyTier && analysis.buy.some(t => t.now)
+  const hasTrigger = analysis.buy.some(t => t.now)
+  if (!hasTrigger) return false
+  if (regime === 'bajista') return conviction.tier === 'compra_fuerte'
+  return conviction.tier === 'compra' || conviction.tier === 'compra_fuerte'
+}
+
+// ── Régimen de mercado (D4, roadmap de calidad de decisión) ──────────────────
+// SPY ya se analiza todas las noches y ya alimenta la fuerza relativa (15%
+// del score) — el RÉGIMEN (¿el mercado en general sube o baja?) no modulaba
+// nada más: mismo listón para un gatillo de entrada en cualquier clima. Con
+// SPY bajo su SMA200 y esa media bajando, comprar rupturas/rebotes falla
+// mucho más seguido — el listón para "accionable hoy" sube (ver
+// isActionableBuyNow). Costo cero de datos: mismo `trend` que ya calcula
+// analyze() para cualquier ticker, aplicado a SPY.
+
+export type MarketRegime = 'alcista' | 'bajista' | 'mixto'
+
+export function computeMarketRegime(
+  spyTrend: { aboveSma200: boolean | null; sma200Rising: boolean | null } | null | undefined,
+): MarketRegime | null {
+  if (!spyTrend || spyTrend.aboveSma200 === null) return null
+  if (spyTrend.aboveSma200 && spyTrend.sma200Rising !== false) return 'alcista'
+  if (!spyTrend.aboveSma200 && spyTrend.sma200Rising === false) return 'bajista'
+  return 'mixto'
 }

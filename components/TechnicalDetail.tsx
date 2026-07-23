@@ -1,15 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Info, RefreshCw, TrendingUp, TrendingDown, Target, Activity, BarChart3, Gauge,
-  Newspaper, ExternalLink, Plus, Minus, DollarSign,
+  Newspaper, ExternalLink, Plus, Minus, DollarSign, CalendarClock,
 } from 'lucide-react'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { NewsResponse } from '@/app/api/stock-news/route'
 import type { SignalBacktestResponse } from '@/app/api/signal-backtest/route'
 import { computeConviction } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
+import { getCachedBacktestStats } from '@/lib/analysis-cache'
+import { detectLeverage } from '@/lib/leveraged-etfs'
+import { getEarnings } from '@/lib/earnings-cache'
+import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip } from '@/components/RiskRail'
 import { relativeDate } from '@/lib/utils'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
@@ -131,11 +135,13 @@ function fmtDateLabel(dateStr: string): string {
 type DetailSection = 'plan' | 'chart' | 'signals' | 'history'
 
 export default function TechnicalDetail({
-  a, ticker, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
+  a, ticker, name, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
   onBuyMore, onSell,
 }: {
   a:         TechnicalAnalysis
   ticker:    string
+  /** Nombre completo del fondo/empresa (de la quote) — D6: respaldo para detectar ETFs apalancados por nombre. */
+  name?:     string | null
   position?: OwnedPosition        // solo si el ticker está en cartera
   /** Fila cruda de stock_positions — para el trailing persistido y el fallback sintético de Movimientos. */
   rawPosition?: StockPosition | null
@@ -155,6 +161,29 @@ export default function TechnicalDetail({
   // U3 (roadmap UX): cabecera fija con score + acción + monto; el resto vive
   // en secciones colapsables — antes eran ~12 bloques apilados en un solo scroll.
   const [openSection, setOpenSection] = useState<DetailSection>('plan')
+  // D6 (roadmap de calidad de decisión): ETFs apalancados (SOXL 3×, etc.)
+  // tienen decay estructural y su volatilidad hace que la regla del 1% de
+  // riesgo por posición se quede corta — con 3× de apalancamiento implícito,
+  // "arriesgar 1%" es en realidad arriesgar ~3%. Se divide el monto sugerido
+  // por el factor para que la sugerencia siga representando el mismo riesgo
+  // económico real.
+  const leverage = detectLeverage(ticker, name)
+
+  // D3 (roadmap de calidad de decisión): el motor técnico es ciego a
+  // resultados trimestrales — podía sugerir comprar la víspera del evento
+  // donde el gráfico menos predice. Fetch on-demand cacheado 24h server-side
+  // (mismo patrón que noticias), por ticker al abrir su detalle.
+  const [earnings, setEarnings] = useState<EarningsInfo | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    setEarnings(null)
+    getEarnings(ticker).then(e => { if (!cancelled) setEarnings(e) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [ticker])
+  const daysToEarnings = businessDaysUntil(earnings?.nextDate ?? null)
+  const earningsSoon  = daysToEarnings !== null && daysToEarnings <= 5   // aviso visible
+  const earningsVeryClose = daysToEarnings !== null && daysToEarnings <= 2   // reduce el monto sugerido
+
   // Monto sugerido por tramo: % del tramo × el máximo por riesgo (regla del
   // 1%, misma que en Acciones). El tramo "ahora" además queda topado al
   // efectivo real disponible — no tiene sentido sugerir comprar más de lo
@@ -165,7 +194,12 @@ export default function TechnicalDetail({
   const cashCap = walletAvailableUsd !== null && walletAvailableUsd !== undefined ? Math.max(0, walletAvailableUsd) : null
   function trancheUsd(pct: number, now: boolean): number | null {
     if (!sizing) return null
-    const raw = sizing.maxUsd * (pct / 100)
+    let cap = leverage ? sizing.maxUsd / leverage.factor : sizing.maxUsd
+    // D3: con resultados a ≤2 días hábiles, solo se sugiere la mitad del
+    // tramo de HOY — el resto del plan (retrocesos/rupturas futuras) no se
+    // toca, es específicamente la entrada de hoy la que pierde certeza.
+    if (now && earningsVeryClose) cap = cap / 2
+    const raw = cap * (pct / 100)
     return now && cashCap !== null ? Math.min(raw, cashCap) : raw
   }
   // Noticias on-demand: la IA solo RESUME titulares (Finnhub), jamás toca el
@@ -221,7 +255,9 @@ export default function TechnicalDetail({
 
   // Cabecera: score de convicción (mismo cálculo que el ranking de favoritos)
   // + la acción concreta de HOY con monto, no solo el rating en abstracto.
-  const conviction = computeConviction(a, null, spyReturn6m)
+  // D1 (roadmap de calidad de decisión): mismo track record cacheado por
+  // Radar al pedir el análisis de este ticker — antes se pasaba null acá.
+  const conviction = computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m)
   const buyNow  = a.buy.find(t => t.now)
   const sellNow = position ? a.sell.find(t => t.now) : undefined
   let headerAction: string
@@ -264,7 +300,10 @@ export default function TechnicalDetail({
   // StockPositionManager (U4 roadmap UX): compras registradas + ventas, más
   // antiguo primero. Si nunca se registró una compra individual (posición
   // legacy), se sintetiza una sola "Compra inicial" desde el agregado.
-  type Movement = { type: 'buy' | 'sell'; date: string; shares: number; pricePerShare: number; amount: number; synthetic?: boolean }
+  // D5 (roadmap de calidad de decisión): score de convicción con el que se
+  // decidió cada compra, cuando está guardado (compras registradas antes de
+  // jul 2026 no lo tienen — queda null, no se inventa).
+  type Movement = { type: 'buy' | 'sell'; date: string; shares: number; pricePerShare: number; amount: number; synthetic?: boolean; convictionScore?: number | null }
   const movements: Movement[] = (() => {
     if (!position) return []
     const purchasesForTicker = (purchases ?? []).filter(p => p.ticker === ticker)
@@ -275,6 +314,7 @@ export default function TechnicalDetail({
         ? purchasesForTicker.map(p => ({
             type: 'buy' as const, date: p.purchase_date, shares: Number(p.shares),
             pricePerShare: Number(p.total_paid_usd) / Number(p.shares), amount: -Number(p.total_paid_usd),
+            convictionScore: p.conviction_score ?? null,
           }))
         : rawPosition
           ? [{
@@ -292,6 +332,41 @@ export default function TechnicalDetail({
 
   return (
     <div className="px-4 lg:px-6 pb-4 lg:pb-6 space-y-3 lg:space-y-4">
+
+      {/* -2. Aviso de apalancamiento (D6, roadmap de calidad de decisión):
+          ETFs 3×/2× no están pensados para mantener meses — pierden valor en
+          lateral aunque el índice termine plano ("decay"). El monto sugerido
+          de las secciones de abajo ya viene dividido por el factor. */}
+      {leverage && (
+        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
+          <p className="text-xs font-bold" style={{ color: 'var(--gold)' }}>
+            Apalancado {leverage.factor}× — pensado para días u horas, no para mantener
+          </p>
+          <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            Se mueve {leverage.factor}× lo que se mueve su índice cada DÍA — mantenerlo semanas en un mercado
+            lateral pierde valor aunque el índice termine plano ("decay"). El monto sugerido de abajo ya está
+            dividido por {leverage.factor} para arriesgar el mismo 1% real de tu portafolio.
+          </p>
+        </div>
+      )}
+
+      {/* -1.5 Aviso de resultados próximos (D3, roadmap de calidad de decisión):
+          el motor es 100% técnico y ciego a eventos — sin esto se podía sugerir
+          comprar la víspera del reporte, justo cuando el gráfico menos predice. */}
+      {earningsSoon && daysToEarnings !== null && (
+        <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
+          <CalendarClock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <div>
+            <p className="text-xs font-bold" style={{ color: 'var(--gold)' }}>
+              Reporta resultados {daysToEarnings === 0 ? 'hoy' : `en ${daysToEarnings} día${daysToEarnings !== 1 ? 's' : ''} hábil${daysToEarnings !== 1 ? 'es' : ''}`}
+            </p>
+            <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+              El gráfico pesa menos hasta entonces — un gap de apertura puede saltarse tu alarma de salida por completo.
+              {earningsVeryClose && ' El monto sugerido de hoy ya está reducido a la mitad por esto.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* -1. Guard intradía: hoy se movió fuerte, el análisis quedó viejo */}
       {bigMove && (
@@ -414,6 +489,12 @@ export default function TechnicalDetail({
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>
                           {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                          {/* D5: score con el que se decidió esta compra, si quedó guardado */}
+                          {m.type === 'buy' && m.convictionScore != null && (
+                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                              score {m.convictionScore}
+                            </span>
+                          )}
                         </p>
                         <p className="text-[9px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
                           {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}

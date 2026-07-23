@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeConviction, isActionableBuyNow } from './conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime } from './conviction'
 import type { TechnicalAnalysis, TechnicalRating } from './technical'
 import type { LabelStat } from './signal-backtest'
 
@@ -115,5 +115,46 @@ describe('isActionableBuyNow', () => {
   it('tramo "now" presente pero tier no es de compra → no es accionable', () => {
     const conviction = { tier: 'neutral' as const }
     expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction)).toBe(false)
+  })
+
+  // D4 (roadmap de calidad de decisión): en régimen bajista el listón sube —
+  // 'compra' ya no basta, exige 'compra_fuerte'.
+  it('régimen bajista + tier "compra" (no fuerte) → NO es accionable', () => {
+    const conviction = { tier: 'compra' as const }
+    expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, 'bajista')).toBe(false)
+  })
+
+  it('régimen bajista + tier "compra_fuerte" → sí es accionable', () => {
+    const conviction = { tier: 'compra_fuerte' as const }
+    expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, 'bajista')).toBe(true)
+  })
+
+  it('régimen alcista o sin régimen → se comporta igual que antes (compra basta)', () => {
+    const conviction = { tier: 'compra' as const }
+    expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, 'alcista')).toBe(true)
+    expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, undefined)).toBe(true)
+  })
+})
+
+describe('computeMarketRegime', () => {
+  it('SPY sobre su SMA200 y subiendo → alcista', () => {
+    expect(computeMarketRegime({ aboveSma200: true, sma200Rising: true })).toBe('alcista')
+  })
+
+  it('SPY sobre su SMA200 con la media plana/sin dato → sigue siendo alcista (no penaliza lo que no se sabe)', () => {
+    expect(computeMarketRegime({ aboveSma200: true, sma200Rising: null })).toBe('alcista')
+  })
+
+  it('SPY bajo su SMA200 y esa media bajando → bajista', () => {
+    expect(computeMarketRegime({ aboveSma200: false, sma200Rising: false })).toBe('bajista')
+  })
+
+  it('SPY bajo su SMA200 pero la media todavía sin girar a la baja → mixto, no bajista de lleno', () => {
+    expect(computeMarketRegime({ aboveSma200: false, sma200Rising: true })).toBe('mixto')
+  })
+
+  it('sin trend (historia insuficiente) → null', () => {
+    expect(computeMarketRegime(null)).toBeNull()
+    expect(computeMarketRegime({ aboveSma200: null, sma200Rising: null })).toBeNull()
   })
 })

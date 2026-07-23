@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowUp, ArrowDown } from 'lucide-react'
-import type { StockSale } from '@/app/(dashboard)/inversiones/page'
+import type { StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 
 // ── "Tu rendimiento": el feedback loop del portafolio (U5 del roadmap UX) ──
@@ -26,9 +26,12 @@ function fmtDate(d: string): string {
 interface Props {
   sales?:        StockSale[]
   spyBenchmark?: SpyBenchmarkResult | null
+  /** D5 (roadmap de calidad de decisión): para cruzar ventas cerradas con el
+   *  score de convicción con el que se decidieron sus compras. */
+  purchases?:    StockPurchase[]
 }
 
-export default function PerformanceSection({ sales = [], spyBenchmark = null }: Props) {
+export default function PerformanceSection({ sales = [], spyBenchmark = null, purchases = [] }: Props) {
   // ── Métricas de calidad sobre ventas cerradas (Fase 2.1 del roadmap) ──────
   const salesStats = (() => {
     if (sales.length === 0) return null
@@ -43,6 +46,38 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null }: 
     const best  = sales.reduce((b, s) => Number(s.realized_pnl_usd) > Number(b.realized_pnl_usd) ? s : b, sales[0])
     const worst = sales.reduce((w, s) => Number(s.realized_pnl_usd) < Number(w.realized_pnl_usd) ? s : w, sales[0])
     return { totalPnl, avgWin, avgLoss, winRate, wlRatio, wins: wins.length, losses: losses.length, count: sales.length, best, worst }
+  })()
+
+  // ── D5 (roadmap de calidad de decisión): ¿te fue mejor comprando con score
+  // alto que con score bajo? Cruza cada venta cerrada con el score PROMEDIO
+  // de las compras de ese ticker hasta la fecha de venta (aproximación: la
+  // contabilidad es a costo promedio ponderado, no por lote, así que no hay
+  // forma exacta de saber CUÁL compra específica se vendió — el promedio de
+  // convicción de entrada es la mejor lectura disponible sin rehacer todo el
+  // modelo de costos a FIFO/lotes).
+  const scoreVsOutcome = (() => {
+    const scoredSales = sales
+      .map(s => {
+        const entryScores = purchases
+          .filter(p => p.ticker === s.ticker && p.purchase_date <= s.sale_date && p.conviction_score != null)
+          .map(p => Number(p.conviction_score))
+        if (entryScores.length === 0) return null
+        const avgScore = entryScores.reduce((a, b) => a + b, 0) / entryScores.length
+        const costBasis = Number(s.cost_basis_usd)
+        const pnlPct = costBasis > 0 ? (Number(s.realized_pnl_usd) / costBasis) * 100 : 0
+        return { avgScore, pnlPct }
+      })
+      .filter((x): x is { avgScore: number; pnlPct: number } => x !== null)
+
+    if (scoredSales.length === 0) return null
+    const highScore = scoredSales.filter(s => s.avgScore >= 70)
+    const lowScore  = scoredSales.filter(s => s.avgScore < 55)
+    const avg = (arr: { pnlPct: number }[]) => arr.length > 0 ? arr.reduce((s, x) => s + x.pnlPct, 0) / arr.length : null
+    return {
+      total: scoredSales.length,
+      highCount: highScore.length, highAvgPct: avg(highScore),
+      lowCount:  lowScore.length,  lowAvgPct:  avg(lowScore),
+    }
   })()
 
   if (!salesStats && !spyBenchmark) return null
@@ -158,6 +193,50 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null }: 
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── D5 (roadmap de calidad de decisión): ¿comprar con más convicción
+          rinde mejor? Solo cuenta con ventas cuyas compras guardaron el score
+          (jul 2026 en adelante) — compras viejas no aportan a este cruce. ── */}
+      {scoreVsOutcome && (scoreVsOutcome.highCount > 0 || scoreVsOutcome.lowCount > 0) && (
+        <div className="card overflow-hidden">
+          <div className="px-4 lg:px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Score de entrada vs. resultado</p>
+            <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+              {scoreVsOutcome.total} venta{scoreVsOutcome.total !== 1 ? 's' : ''} con compra puntuada
+            </p>
+          </div>
+          <div className="grid grid-cols-2 divide-x" style={{ borderColor: 'var(--border)' }}>
+            <div className="p-3.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                Compraste con score ≥70
+              </p>
+              <p className="text-lg font-bold tabular-nums" style={{ color: scoreVsOutcome.highAvgPct !== null && scoreVsOutcome.highAvgPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                {scoreVsOutcome.highAvgPct !== null ? `${scoreVsOutcome.highAvgPct >= 0 ? '+' : ''}${scoreVsOutcome.highAvgPct.toFixed(1)}%` : '—'}
+              </p>
+              <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                {scoreVsOutcome.highCount} venta{scoreVsOutcome.highCount !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="p-3.5 text-center">
+              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                Compraste con score &lt;55
+              </p>
+              <p className="text-lg font-bold tabular-nums" style={{ color: scoreVsOutcome.lowAvgPct !== null && scoreVsOutcome.lowAvgPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                {scoreVsOutcome.lowAvgPct !== null ? `${scoreVsOutcome.lowAvgPct >= 0 ? '+' : ''}${scoreVsOutcome.lowAvgPct.toFixed(1)}%` : '—'}
+              </p>
+              <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                {scoreVsOutcome.lowCount} venta{scoreVsOutcome.lowCount !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          <div className="px-4 lg:px-5 py-2 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+              % retorno promedio sobre el costo, comparado por el score de convicción con el que se compró (promedio si compraste ese ticker más de una vez).
+              {scoreVsOutcome.total < 10 && ' Con pocas ventas puntuadas todavía, esta comparación es referencial — no un patrón confirmado.'}
+            </p>
+          </div>
         </div>
       )}
     </div>

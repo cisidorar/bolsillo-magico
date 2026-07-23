@@ -3,7 +3,8 @@ import { createClient as createAdminClient, type SupabaseClient } from '@supabas
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import { analyze, positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
-import { computeConviction, isActionableBuyNow } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime } from '@/lib/conviction'
+import { backtestSignals, type LabelStat } from '@/lib/signal-backtest'
 import { getNowChile } from '@/lib/utils'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -285,6 +286,15 @@ async function computeDailySignals(supabase: SupabaseClient) {
   // Se reutiliza para la decisión de portafolio (computeDailyDecisions) — evita
   // recalcular analyze() por segunda vez para los mismos tickers.
   const analysesByTicker = new Map<string, TechnicalAnalysis>()
+  // D1 (roadmap de calidad de decisión): track record por ticker, calculado
+  // UNA vez por ticker por día acá (no por usuario) y reutilizado en
+  // computeDailyDecisions — antes ese 20% del score se pasaba en null en
+  // TODO lado porque backtestSignals() es caro y solo corría on-demand.
+  const statsByTicker = new Map<string, LabelStat[]>()
+  const statRows: {
+    ticker: string; label: string; count: number
+    hit_rate_20: number | null; avg_return_20: number | null; avg_return_60: number | null
+  }[] = []
 
   for (const ticker of tickers) {
     try {
@@ -300,6 +310,27 @@ async function computeDailySignals(supabase: SupabaseClient) {
       const { signals, notifiedIds } = buildSignals(analysis, rowsForTicker, ownedByUser, changePct)
       allSignals.push(...signals)
       allNotifiedIds.push(...notifiedIds)
+
+      // Track record: solo tiene sentido con suficiente historia para el
+      // backtest (MIN_HISTORY de lib/signal-backtest.ts, ~260 ruedas) — con
+      // menos, backtestSignals() ya devuelve stats vacíos, así que se salta
+      // el cómputo (CPU) directamente en vez de gastarlo para nada.
+      if (candles.closes.length >= 260) {
+        try {
+          const { stats } = backtestSignals(candles)
+          if (stats.length > 0) {
+            statsByTicker.set(ticker, stats)
+            for (const s of stats) {
+              statRows.push({
+                ticker, label: s.label, count: s.count,
+                hit_rate_20: s.hitRate20, avg_return_20: s.avgReturn20, avg_return_60: s.avgReturn60,
+              })
+            }
+          }
+        } catch (err) {
+          console.error(`[sync-prices] backtestSignals() falló para ${ticker}:`, err)
+        }
+      }
     } catch (err) {
       console.error(`[sync-prices] analyze() falló para ${ticker}:`, err)
     }
@@ -316,10 +347,14 @@ async function computeDailySignals(supabase: SupabaseClient) {
     const { error } = await supabase.from('watchlist').update({ target_notified: true }).in('id', allNotifiedIds)
     if (error) console.error('[sync-prices] target_notified update error:', error.message)
   }
+  if (statRows.length > 0) {
+    const { error } = await supabase.from('signal_stats').upsert(statRows, { onConflict: 'ticker,label' })
+    if (error) console.error('[sync-prices] signal_stats upsert error:', error.message)
+  }
 
-  const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker)
+  const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker, statsByTicker)
 
-  return { signals: allSignals.length, targetsReached: allNotifiedIds.length, decisions: decisions.decisions }
+  return { signals: allSignals.length, targetsReached: allNotifiedIds.length, decisions: decisions.decisions, signalStats: statRows.length }
 }
 
 // ── Decisión diaria de portafolio (Fase 5.4 del roadmap) ─────────────────────
@@ -332,19 +367,25 @@ async function computeDailyDecisions(
   supabase: SupabaseClient,
   wlRows: WatchlistRow[],
   analysesByTicker: Map<string, TechnicalAnalysis>,
+  statsByTicker: Map<string, LabelStat[]>,
 ): Promise<{ decisions: number }> {
   if (wlRows.length === 0) return { decisions: 0 }
 
   // Fuerza relativa vs SPY: se reutiliza si SPY ya se analizó (ahora siempre
   // se sincroniza); si nadie la sigue en watchlist, se calcula aparte — es
   // solo un ticker más y ya está sincronizada por el paso anterior del cron.
-  let spyReturn6m: number | null = analysesByTicker.get('SPY')?.returns.m6 ?? null
-  if (spyReturn6m === null) {
+  // D4: mismo análisis de SPY expone el régimen de mercado (trend), reusado
+  // para exigir compra_fuerte en isActionableBuyNow cuando el mercado en
+  // general va para abajo.
+  let spyAnalysis = analysesByTicker.get('SPY') ?? null
+  if (spyAnalysis === null) {
     try {
       const spyCandles = await readCandles(supabase, 'SPY')
-      if (spyCandles.closes.length >= 30) spyReturn6m = analyze(spyCandles).returns.m6
-    } catch { /* sin SPY el score simplemente pesa sin ese componente */ }
+      if (spyCandles.closes.length >= 30) spyAnalysis = analyze(spyCandles)
+    } catch { /* sin SPY el score simplemente pesa sin ese componente y el régimen queda null */ }
   }
+  const spyReturn6m = spyAnalysis?.returns.m6 ?? null
+  const marketRegime = computeMarketRegime(spyAnalysis?.trend ?? null)
 
   const userIds = [...new Set(wlRows.map(r => r.user_id))]
   const [{ data: posRows }, { data: usdRows }] = await Promise.all([
@@ -380,7 +421,9 @@ async function computeDailyDecisions(
     const candidates = userTickers
       .map(ticker => {
         const a = analysesByTicker.get(ticker)
-        return a ? { ticker, a, conviction: computeConviction(a, null, spyReturn6m) } : null
+        // D1: mismo track record calculado arriba en este cron para daily_signals —
+        // antes esto también pasaba null.
+        return a ? { ticker, a, conviction: computeConviction(a, statsByTicker.get(ticker) ?? null, spyReturn6m) } : null
       })
       .filter((c): c is { ticker: string; a: TechnicalAnalysis; conviction: ReturnType<typeof computeConviction> } => c !== null)
       .sort((x, y) => y.conviction.score - x.conviction.score)
@@ -398,7 +441,7 @@ async function computeDailyDecisions(
     // que tiene el mismo fix). candidates ya viene ordenado por score desc,
     // así que el primer accionable sigue siendo el de mayor convicción entre
     // los que de verdad tienen entrada hoy.
-    const bestActionable = candidates.find(c => isActionableBuyNow(c.a, c.conviction)) ?? null
+    const bestActionable = candidates.find(c => isActionableBuyNow(c.a, c.conviction, marketRegime)) ?? null
     const isBuy = bestActionable !== null
     const picked = bestActionable ?? top
 

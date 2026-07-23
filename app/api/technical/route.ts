@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession, createClient } from '@/lib/supabase/server'
 import { analyze, type TechnicalAnalysis } from '@/lib/technical'
 import { syncTicker, readCandles } from '@/lib/price-providers'
+import type { LabelStat } from '@/lib/signal-backtest'
 
 // ── Análisis técnico desde price_history (BD-first) ──────────────────────────
 // Los precios viven en Supabase (pipeline OHLCV): aquí solo se leen y, si el
@@ -30,8 +31,13 @@ function lastExpectedClose(): string {
 export const maxDuration = 30
 
 export interface TechnicalResponse {
-  ticker:   string
-  analysis: TechnicalAnalysis
+  ticker:        string
+  analysis:      TechnicalAnalysis
+  /** D1 (roadmap de calidad de decisión): track record precomputado por el
+   *  cron nocturno (signal_stats) — null si el ticker aún no tiene historia
+   *  suficiente de señales pasadas. Se cachea junto al análisis en
+   *  lib/analysis-cache.ts para que computeConviction() lo use sin fetch aparte. */
+  backtestStats: LabelStat[] | null
 }
 
 export async function GET(request: Request) {
@@ -90,7 +96,24 @@ export async function GET(request: Request) {
     }
 
     const analysis = analyze(candles)
-    return NextResponse.json({ ticker: symbol, analysis } satisfies TechnicalResponse, {
+
+    // D1: track record precomputado por el cron (una fila por ticker+label) —
+    // lectura liviana, sin recalcular nada acá.
+    const { data: statsRows } = await supabase
+      .from('signal_stats')
+      .select('label, count, hit_rate_20, avg_return_20, avg_return_60')
+      .eq('ticker', symbol)
+    const backtestStats: LabelStat[] | null = statsRows && statsRows.length > 0
+      ? statsRows.map(r => ({
+          label:       r.label as LabelStat['label'],
+          count:       r.count as number,
+          hitRate20:   r.hit_rate_20   !== null ? Number(r.hit_rate_20)   : null,
+          avgReturn20: r.avg_return_20 !== null ? Number(r.avg_return_20) : null,
+          avgReturn60: r.avg_return_60 !== null ? Number(r.avg_return_60) : null,
+        }))
+      : null
+
+    return NextResponse.json({ ticker: symbol, analysis, backtestStats } satisfies TechnicalResponse, {
       headers: { 'Cache-Control': 'private, max-age=3600' },
     })
   } catch (err) {
