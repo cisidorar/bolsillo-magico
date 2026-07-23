@@ -157,12 +157,8 @@ export default function CalendarioPagos({ items }: Props) {
                 )}
 
                 {hasItems && (
-                  <span className="text-[9px] font-semibold text-gray-400 tabular-nums leading-none">
-                    {dayTotal >= 1_000_000
-                      ? `$${(dayTotal / 1_000_000).toFixed(1)}M`
-                      : dayTotal >= 1_000
-                        ? `$${Math.round(dayTotal / 1_000)}k`
-                        : `$${dayTotal}`}
+                  <span className="text-[9px] font-semibold tabular-nums leading-none whitespace-nowrap text-brand-600">
+                    {formatCLP(dayTotal)}
                   </span>
                 )}
               </button>
