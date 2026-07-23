@@ -4,7 +4,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, billingPeriodRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle, X } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -32,9 +32,9 @@ function nextMonthOf(m: number, y: number) {
 export default async function HistorialPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; q?: string; cats?: string; page?: string; view?: string }>
+  searchParams: Promise<{ month?: string; year?: string; q?: string; cats?: string; pm?: string; page?: string; view?: string }>
 }) {
-  const { month: monthStr, year: yearStr, q, cats, page: pageStr, view } = await searchParams
+  const { month: monthStr, year: yearStr, q, cats, pm: pmId, page: pageStr, view } = await searchParams
   const { now, year: chileYear, month: chileMonth, dateStr: chileDate } = getNowChile()
 
   const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
@@ -112,6 +112,7 @@ export default async function HistorialPage({
 
     if (q)              billingQuery = billingQuery.ilike('description', `%${q}%`)
     if (catIds.length > 0) billingQuery = billingQuery.in('category_id', catIds)
+    if (pmId)           billingQuery = billingQuery.eq('payment_method_id', pmId)
 
     const { data } = await billingQuery
     const all = (data ?? []) as ExpenseWithRelations[]
@@ -144,6 +145,7 @@ export default async function HistorialPage({
 
     if (q)              purchaseQuery = purchaseQuery.ilike('description', `%${q}%`)
     if (catIds.length > 0) purchaseQuery = purchaseQuery.in('category_id', catIds)
+    if (pmId)           purchaseQuery = purchaseQuery.eq('payment_method_id', pmId)
 
     const { data, count } = await purchaseQuery
     expenses   = (data ?? []) as ExpenseWithRelations[]
@@ -156,7 +158,16 @@ export default async function HistorialPage({
   ])
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
-  const hasFilters = !!(q || catIds.length > 0)
+  const hasFilters = !!(q || catIds.length > 0 || pmId)
+
+  // Nombre del método de pago filtrado — para el chip "Filtrado por: X" (no
+  // viene en `expenses` si el filtro no arroja resultados ese mes/período).
+  let pmFilterName: string | null = null
+  if (pmId) {
+    const { data: pmRow } = await supabase
+      .from('payment_methods').select('name').eq('id', pmId).eq('user_id', user!.id).maybeSingle()
+    pmFilterName = pmRow?.name ?? null
+  }
 
   // ── vs mes anterior (solo modo compra) ────────────────────────────────────
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
@@ -175,6 +186,7 @@ export default async function HistorialPage({
       .lt('date',  `${prevNextY2}-${String(prevNextM2).padStart(2, '0')}-01`)
     if (catIds.length > 0) prevQ = prevQ.in('category_id', catIds)
     if (q) prevQ = prevQ.ilike('description', `%${q}%`)
+    if (pmId) prevQ = prevQ.eq('payment_method_id', pmId)
     const { data: prevData } = await prevQ
     prevMonthRaw = (prevData ?? []) as { amount: number; date: string }[]
   }
@@ -225,7 +237,7 @@ export default async function HistorialPage({
   }, {})
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
-  const baseParams = { month, year, q, cats: catIds.join(',') || undefined, view: view || undefined }
+  const baseParams = { month, year, q, cats: catIds.join(',') || undefined, pm: pmId || undefined, view: view || undefined }
   const prevHref = (!isBilling && page > 1) ? buildHref({ ...baseParams, page: page - 1 }) : null
   const nextHref = (!isBilling && page < totalPages) ? buildHref({ ...baseParams, page: page + 1 }) : null
 
@@ -249,6 +261,7 @@ export default async function HistorialPage({
             ...(view ? { view } : {}),
             ...(q        ? { q }                : {}),
             ...(catIds.length > 0 ? { cats: catIds.join(',') } : {}),
+            ...(pmId ? { pm: pmId } : {}),
           }}
         />
       </div>
@@ -414,6 +427,21 @@ export default async function HistorialPage({
           )}
         </div>
       )}
+      {pmId && (
+        <div className="flex items-center justify-between gap-2 rounded-2xl px-4 py-2.5 mb-4" style={{ background: 'var(--primary-soft)' }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+            Filtrado por: {pmFilterName ?? 'método de pago'}
+          </p>
+          <Link
+            href={buildHref({ ...baseParams, pm: undefined })}
+            className="flex items-center gap-1 text-xs font-bold hover:opacity-70 transition-opacity"
+            style={{ color: 'var(--primary)' }}
+          >
+            Quitar <X className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
+
       {isBilling && billingHitLimit && (
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4">
           <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />

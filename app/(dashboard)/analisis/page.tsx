@@ -2061,6 +2061,11 @@ export default async function AnalisisPage({
                 {pmSummary.slice(0, 5).map(pm => {
                   const share = pct(pm.total, totalSelected)
                   const isCredit = pm.cardType === 'credit' && pm.id
+                  // Crédito abre su estado de cuenta (/cuenta); débito/digital/otro
+                  // con id abre el historial filtrado por ese método — antes solo
+                  // crédito era clickeable y no había forma de ver, p. ej., los
+                  // gastos con una cuenta de débito específica.
+                  const href = isCredit ? `/cuenta/${pm.id}` : pm.id ? `/historial?pm=${pm.id}` : null
                   const row = (
                     <div className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--surface)' }}>
@@ -2078,11 +2083,11 @@ export default async function AnalisisPage({
                       <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                         {formatCLP(pm.total)}
                       </p>
-                      {isCredit && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                      {href && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
                     </div>
                   )
-                  return isCredit
-                    ? <Link key={pm.id} href={`/cuenta/${pm.id}`} className="block transition-opacity hover:opacity-80">{row}</Link>
+                  return href
+                    ? <Link key={pm.id} href={href} className="block transition-opacity hover:opacity-80">{row}</Link>
                     : <div key={pm.id ?? 'efectivo'}>{row}</div>
                 })}
               </div>
