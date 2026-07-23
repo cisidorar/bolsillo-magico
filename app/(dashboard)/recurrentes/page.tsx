@@ -165,8 +165,10 @@ export default async function RecurrentesPage({
       {activeCount > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
 
-          {/* Carga mensual — azul */}
-          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1" style={{ backgroundColor: 'var(--primary)', boxShadow: '0 8px 18px var(--shadow)' }}>
+          {/* Carga mensual — azul (mismo hero-gradient que Inversiones, para que
+              sea el mismo azul en modo oscuro — var(--primary) sola difiere del
+              tono de .hero-gradient en dark) */}
+          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
               <CircleDollarSign className="w-5 h-5 text-white" />
             </div>
