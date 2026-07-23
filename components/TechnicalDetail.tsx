@@ -509,32 +509,10 @@ export default function TechnicalDetail({
               </div>
             )}
 
-            {/* Comprar más / Vender — abren el modal transaccional (U4 roadmap UX):
-                el detalle ya no es solo informativo. */}
-            {(onBuyMore || onSell) && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                {onBuyMore && (
-                  <button
-                    onClick={() => onBuyMore(ticker)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[.98]"
-                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-                  >
-                    <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                    Comprar más
-                  </button>
-                )}
-                {onSell && (
-                  <button
-                    onClick={() => onSell(ticker)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs border transition-all active:scale-[.98]"
-                    style={{ background: 'transparent', color: 'var(--mint)', borderColor: 'rgba(31,190,141,0.4)' }}
-                  >
-                    <DollarSign className="w-3.5 h-3.5" />
-                    Vender
-                  </button>
-                )}
-              </div>
-            )}
+            {/* V5 (roadmap de vista): "Comprar más"/"Vender" ya NO viven acá —
+                se movieron a una barra de acciones sticky al fondo del popup
+                (Radar.tsx), siempre visible sin tener que scrollear hasta acá
+                en un detalle largo (posición con movimientos + plan). */}
           </div>
         )
       })()}

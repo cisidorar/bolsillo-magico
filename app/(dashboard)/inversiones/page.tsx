@@ -6,7 +6,7 @@ import TermDepositManager from '@/components/TermDepositManager'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { getNowChile } from '@/lib/utils'
-import TodayQueue, { type TodayDecision, type TodaySignal } from '@/components/TodayQueue'
+import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import PerformanceSection from '@/components/PerformanceSection'
 
 export const dynamic = 'force-dynamic'
@@ -258,14 +258,15 @@ export default async function InversionesPage({ searchParams }: Props) {
         />
       ) : (
         <>
-          <TodayQueue
-            decision={(todayDecisionRow ?? null) as TodayDecision | null}
-            signals={(todaySignalRows ?? []) as TodaySignal[]}
-          />
           {/* U4 (roadmap UX): un solo mundo — Radar reemplaza StockPositionManager
               + WatchlistPanel. Un solo fetch de análisis por ticker, un solo
               detalle (TechnicalDetail, el de U3) para cualquiera, el modal
-              transaccional (TransactionModal) queda solo para comprar/vender/editar. */}
+              transaccional (TransactionModal) queda solo para comprar/vender/editar.
+              V1 (roadmap de vista): TodayQueue ya NO se renderiza aparte — su
+              decisión (calculada anoche por el cron, la misma del correo) se
+              le pasa a Radar como prop para que la fusione con el panel
+              "¿Qué comprar hoy?" en una sola tarjeta, en vez de dos que podían
+              contradecirse (detectado por Cas en AMD e INTC/TSM). */}
           <Radar
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
@@ -275,6 +276,8 @@ export default async function InversionesPage({ searchParams }: Props) {
             spyBenchmark={spyBenchmark}
             lastAutoUpdate={lastSignal?.created_at ?? null}
             initialWatchlist={(watchlist ?? []) as WatchlistItem[]}
+            todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
+            todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
           />
           <div className="mt-6">
             <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} purchases={(purchases ?? []) as StockPurchase[]} />

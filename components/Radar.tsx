@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, type TouchEvent } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Plus, ChevronRight, ChevronDown, ChevronUp, Star, Info, RefreshCw, X, Search, Check,
-  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2,
+  Plus, ChevronRight, ChevronDown, ChevronUp, Info, RefreshCw, X, Search, Check,
+  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag,
 } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
@@ -24,6 +24,7 @@ import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
 import { useToast } from '@/components/ToastProvider'
+import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 
 // ── U4 (roadmap UX): "Radar" — un solo mundo para posiciones y favoritos.
 // Reemplaza StockPositionManager.tsx + WatchlistPanel.tsx: antes eran dos
@@ -127,11 +128,17 @@ interface Props {
   spyBenchmark?:     SpyBenchmarkResult | null
   lastAutoUpdate?:   string | null
   initialWatchlist:  WatchlistItem[]
+  /** V1 (roadmap de vista): decisión calculada ANOCHE por el cron (misma que
+   *  el correo) — punto de partida visible del panel "¿Qué comprar hoy?",
+   *  que el recálculo en vivo confirma o corrige explícitamente. */
+  todayDecision?:    TodayDecision | null
+  todaySignals?:     TodaySignal[]
 }
 
 export default function Radar({
   userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
+  todayDecision = null, todaySignals = [],
 }: Props) {
   const supabase = createClient()
   const { showToast } = useToast()
@@ -420,6 +427,18 @@ export default function Radar({
   const [addError,   setAddError]   = useState('')
   const searchSeq = useRef(0)
 
+  // V5 (roadmap de vista): swipe-down para cerrar el popup de detalle en
+  // mobile (gesto estándar de bottom sheet) — se engancha solo en la zona no
+  // scrolleable (handle + header) para no pelear con el scroll del contenido.
+  const detailTouchStartY = useRef<number | null>(null)
+  function onDetailTouchStart(e: TouchEvent) { detailTouchStartY.current = e.touches[0].clientY }
+  function onDetailTouchEnd(e: TouchEvent) {
+    if (detailTouchStartY.current === null) return
+    const dy = e.changedTouches[0].clientY - detailTouchStartY.current
+    detailTouchStartY.current = null
+    if (dy > 80) setExpanded(null)
+  }
+
   useEffect(() => {
     if (!showSearch) return
     const q = query.trim()
@@ -490,15 +509,28 @@ export default function Radar({
     if (!undone) await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
   }
 
-  // I4 (roadmap interacción): leyenda de una sola vez sobre la lista — mismo
-  // patrón de persistencia que otras preferencias de UI en la app (localStorage).
-  const [showLegend, setShowLegend] = useState(true)
+  // V6 (roadmap de vista): la leyenda era una fila PERMANENTE sobre la lista
+  // (antes descartable una vez, I4) — ahora es un ícono "?" junto a los tabs
+  // que muestra el mismo texto en un toast; no ocupa espacio si no se necesita.
+  function showLegendToast() {
+    showToast('● número = convicción de compra (0-100, toca cualquiera para el detalle).')
+  }
+
+  // V4 (roadmap de vista): en mobile, antes de la primera fila de la lista
+  // había ~3 pantallas de resúmenes. El hero colapsa por defecto a valor +
+  // hoy + total en una sola fila; los KPIs secundarios (Invertido, vs SPY,
+  // Billetera, Posiciones, Mejor retorno) se expanden con un tap. Desktop no
+  // cambia — ahí sí sobra espacio (lg:grid/lg:flex fuerzan visible siempre).
+  const [heroExpanded, setHeroExpanded] = useState(false)
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('radarLegendDismissed') === '1') setShowLegend(false)
+    if (typeof window !== 'undefined' && localStorage.getItem('radarHeroExpanded') === '1') setHeroExpanded(true)
   }, [])
-  function dismissLegend() {
-    setShowLegend(false)
-    try { localStorage.setItem('radarLegendDismissed', '1') } catch { /* modo privado */ }
+  function toggleHeroExpanded() {
+    setHeroExpanded(prev => {
+      const next = !prev
+      try { localStorage.setItem('radarHeroExpanded', next ? '1' : '0') } catch { /* modo privado */ }
+      return next
+    })
   }
 
   // ── Precio objetivo ───────────────────────────────────────────────────────
@@ -555,13 +587,47 @@ export default function Radar({
   const tabTickers = tab === 'tengo' ? positionTickers
     : tab === 'sigo' ? watchTickers.filter(t => !owned.has(t))
     : allTickers
+
+  // V3 (roadmap de vista): antes el orden era fijo (solo convicción) — para
+  // responder preguntas del día a día ("¿cuál cayó más hoy?", "¿cuál es mi
+  // mayor posición?") había que leer fila por fila. Recordado en localStorage,
+  // mismo patrón que `radarLegendDismissed`.
+  type SortMode = 'convict' | 'daily' | 'total' | 'value'
+  const [sortMode, setSortMode] = useState<SortMode>('convict')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const saved = localStorage.getItem('radarSortMode')
+    if (saved === 'convict' || saved === 'daily' || saved === 'total' || saved === 'value') setSortMode(saved)
+  }, [])
+  function changeSortMode(m: SortMode) {
+    setSortMode(m)
+    try { localStorage.setItem('radarSortMode', m) } catch { /* modo privado */ }
+  }
+  function rowSortValue(ticker: string): number {
+    if (sortMode === 'convict') return buyRank(ticker)
+    const q = quotes[ticker]
+    const pos = ownedMap[ticker]
+    if (sortMode === 'daily') return q ? q.changePercent : -Infinity
+    if (sortMode === 'total') return pos && q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : -Infinity
+    // 'value'
+    return pos && q ? pos.shares * q.price : -Infinity
+  }
   // I3 (roadmap interacción): mientras la precarga sigue en curso, NO
   // reordenar — las filas saltaban bajo el dedo a medida que llegaba cada
-  // análisis. Se ordena por convicción recién cuando todo terminó de cargar;
-  // antes de eso se respeta el orden natural (posiciones primero, luego
-  // favoritos en el orden en que se siguieron).
-  const rows = allLoaded ? [...tabTickers].sort((x, y) => buyRank(y) - buyRank(x)) : tabTickers
+  // análisis. Se ordena recién cuando todo terminó de cargar; antes de eso se
+  // respeta el orden natural (posiciones primero, luego favoritos en el
+  // orden en que se siguieron).
+  const rows = allLoaded ? [...tabTickers].sort((x, y) => rowSortValue(y) - rowSortValue(x)) : tabTickers
   const loadedCount = allTickers.filter(t => typeof analyses[t] === 'object').length
+
+  // V4 (roadmap de vista): antes esto vivía en su propia línea suelta debajo
+  // del panel de decisión ("Análisis técnico al cierre del X") — mismo tema
+  // que ya cubre el pill del top bar (hora de las quotes, frescura del cron),
+  // solo que en un tercer texto aparte. Ahora se integra ahí.
+  const latestAsOf = (() => {
+    const asOfDates = allTickers.map(t => analyses[t]).filter((a): a is TechnicalAnalysis => typeof a === 'object').map(a => a.asOf)
+    return asOfDates.length > 0 ? asOfDates.reduce((max, d) => d > max ? d : max) : null
+  })()
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -608,6 +674,7 @@ export default function Radar({
             return (
               <span className="flex items-center gap-1 font-medium truncate" style={{ color: au.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
                 · análisis {au.label}{au.stale ? ' — revisa el cron' : ''}
+                {latestAsOf && ` (cierre ${fmtAsOfDay(latestAsOf)})`}
               </span>
             )
           })()}
@@ -615,16 +682,13 @@ export default function Radar({
 
         <div className="flex items-center gap-2 shrink-0">
           <InversionesToggle active="acciones" />
+          {/* V6 (roadmap de vista): antes había DOS botones para "meter un
+              ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
+              dos flujos para lo mismo. Ahora uno solo: Agregar abre la
+              búsqueda, y desde el resultado se elige Seguir o Ya la tengo
+              (el ticker manual sigue como fallback dentro del mismo buscador). */}
           <button
             onClick={openSearch}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs lg:text-sm font-bold rounded-xl border transition-all active:scale-[.97] shrink-0"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
-          >
-            <Star className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />
-            Seguir
-          </button>
-          <button
-            onClick={() => setTxn({ mode: 'new', ticker: null })}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
             style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
           >
@@ -634,6 +698,13 @@ export default function Radar({
         </div>
       </div>
 
+      {/* V2 (roadmap de vista): en lg+ se deja de apilar todo en una sola
+          columna — columna izquierda (ancha) = tabs+lista, columna derecha
+          (angosta, sticky) = decisión+hero+frescura, siempre a la vista sin
+          scrollear. En mobile esto no cambia nada (sin grid, el orden natural
+          del DOM es el mismo de siempre: hero, decisión, tabs, lista). */}
+      <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:items-start">
+      <div className="lg:order-2 lg:sticky lg:top-6 lg:min-w-0">
       {/* ── Hero + 3 KPIs (portafolio) ───────────────────────────────────── */}
       {positions.length > 0 && (
         <div className="flex flex-col lg:flex-row gap-4 lg:items-stretch mb-4">
@@ -650,14 +721,34 @@ export default function Radar({
                   en la fila de KPIs de abajo; separarlos en dos lugares distintos
                   (no ambos "totales") es justo lo que Cas pedía poder ver de un
                   vistazo. */}
-              {hasQ && (
-                <p className="flex items-center gap-1 text-xs lg:text-sm font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
-                  {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
-                  {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
-                </p>
-              )}
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  {hasQ && (
+                    <p className="flex items-center gap-1 text-xs lg:text-sm font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                      {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                      {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
+                    </p>
+                  )}
+                  {/* V4: retorno TOTAL también en la fila compacta — en mobile
+                      colapsado es lo único que se ve además de hoy, sin tener
+                      que expandir para saber si vas ganando en general. */}
+                  {hasQ && (
+                    <p className="lg:hidden text-[11px] font-semibold mt-1" style={{ color: totalReturnUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                      {fmtUSDSigned(totalReturnUsd)} ({fmtPct(totalReturnPct)}) total
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={toggleHeroExpanded}
+                  className="lg:hidden flex items-center gap-1 text-[10px] font-bold px-2 py-1.5 rounded-lg flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
+                >
+                  {heroExpanded ? 'Menos' : 'Más'}
+                  {heroExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              </div>
             </div>
-            <div className="border-t grid grid-cols-4" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+            <div className={`border-t grid-cols-4 ${heroExpanded ? 'grid' : 'hidden'} lg:grid`} style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
                 <p className="text-sm lg:text-lg font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
@@ -683,7 +774,7 @@ export default function Radar({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
+          <div className={`grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0 ${heroExpanded ? 'grid' : 'hidden'} lg:grid`} style={{ flex: '60 1 0', alignContent: 'stretch' }}>
             <a href="/inversiones?view=billetera" className="card p-3 lg:p-5 block min-w-0 transition-colors hover:bg-[var(--surface-2)]">
               <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Billetera</p>
               {walletAvailable !== null ? (
@@ -764,8 +855,40 @@ export default function Radar({
             )}
           </div>
           <div className="px-4 lg:px-5 py-4">
+            {/* V1 (roadmap de vista): la decisión de ANOCHE (cron/correo) como
+                punto de partida — antes vivía en una tarjeta "Hoy" aparte que
+                podía decir algo distinto de este panel (recálculo en vivo) sin
+                que nada lo explicara. Ahora es una sola tarjeta: si el
+                recálculo confirma lo mismo, no se repite nada (evita
+                redundancia); si difiere, se dice explícitamente por qué. */}
+            {todayDecision && allLoaded && (() => {
+              const serverTicker = todayDecision.ticker
+              const serverIsBuy  = serverTicker !== null && (todayDecision.tier === 'compra' || todayDecision.tier === 'compra_fuerte')
+              const liveTicker   = bestActionable?.ticker ?? null
+              if (serverIsBuy && liveTicker === serverTicker) return null
+              if (!serverIsBuy && liveTicker === null) return null
+              return (
+                <p className="text-[11px] leading-relaxed mb-2.5 px-2.5 py-2 rounded-lg" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
+                  Anoche el análisis dijo: {serverIsBuy ? <>compra en <TickerLink t={serverTicker!} onOpen={openDetail} /></> : 'no compres nada'}.{' '}
+                  {liveTicker
+                    ? <>Con el precio de ahora, conviene más <TickerLink t={liveTicker} onOpen={openDetail} bold />.</>
+                    : serverIsBuy
+                      ? 'Con el precio de ahora, esa entrada ya no está — el movimiento de hoy cambió el cuadro.'
+                      : ''}
+                </p>
+              )
+            })()}
             {!allLoaded ? (
               <div>
+                {/* Mientras se recalcula en vivo, mostrar de entrada lo que ya
+                    se sabe de anoche — antes esto era solo un spinner vacío. */}
+                {todayDecision && (
+                  <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--ink-2)' }}>
+                    Anoche: {todayDecision.ticker !== null && (todayDecision.tier === 'compra' || todayDecision.tier === 'compra_fuerte')
+                      ? <>compra en <TickerLink t={todayDecision.ticker} onOpen={openDetail} bold /></>
+                      : 'no comprar nada'}. Recalculando con el precio de ahora…
+                  </p>
+                )}
                 <p className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
                   Comparando… {loadedCount}/{allTickers.length}
@@ -864,143 +987,91 @@ export default function Radar({
               es la mejor lectura con lo que hay hoy.
             </p>
           </div>
+          {/* V1 (roadmap de vista): ventas/toma de ganancias/precio objetivo de
+              TodayQueue viven acá ahora, como filas de la MISMA tarjeta — antes
+              era una card server-side aparte con su propio título, arriba de
+              esta. Es lo mismo accionable-hoy, solo que no es "comprar". */}
+          {todaySignals.length > 0 && (
+            <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
+              {todaySignals.map((s, i) => {
+                const ui = s.kind === 'sell'
+                  ? { label: 'Vender',            color: 'var(--coral)',   bg: 'rgba(255,111,97,0.06)',  Icon: DollarSign }
+                  : s.kind === 'caution'
+                  ? { label: 'Toma de ganancias',  color: 'var(--gold)',    bg: 'rgba(255,194,60,0.07)',  Icon: AlertTriangle }
+                  : { label: 'Precio objetivo',    color: 'var(--primary)', bg: 'rgba(43,124,246,0.06)',  Icon: Flag }
+                return (
+                  <button
+                    key={`${s.ticker}-${s.kind}-${i}`}
+                    onClick={() => openDetail(s.ticker)}
+                    className="w-full px-4 lg:px-5 py-3 flex items-center gap-3 text-left transition-colors hover:bg-black/5"
+                    style={{ background: ui.bg }}
+                  >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface)' }}>
+                      <ui.Icon className="w-3.5 h-3.5" style={{ color: ui.color }} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{ui.label}: {s.ticker}</p>
+                      <p className="text-[11px] leading-snug mt-0.5" style={{ color: 'var(--ink-3)' }}>{s.message}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── Análisis al cierre del ── */}
-      {(() => {
-        const asOfDates = allTickers.map(t => analyses[t]).filter((a): a is TechnicalAnalysis => typeof a === 'object').map(a => a.asOf)
-        if (asOfDates.length === 0) return null
-        const latest = asOfDates.reduce((max, d) => d > max ? d : max)
-        return (
-          <p className="text-[11px] mb-3" style={{ color: 'var(--ink-3)' }}>
-            Análisis técnico al cierre del {fmtAsOfDay(latest)} · el precio de arriba sí es en vivo
-          </p>
-        )
-      })()}
+      </div>{/* /columna derecha (V2) */}
 
+      <div className="lg:order-1 lg:min-w-0">
       {/* ── Tabs Tengo / Sigo / Todo ─────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-3">
-        {([
-          ['tengo', 'Tengo', positionTickers.length],
-          ['sigo',  'Sigo',  watchTickers.filter(t => !owned.has(t)).length],
-          ['todo',  'Todo',  allTickers.length],
-        ] as const).map(([id, label, count]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-            style={tab === id ? { background: 'var(--primary)', color: 'var(--primary-ink)' } : { background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
-          >
-            {label}
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
-              style={tab === id ? { background: 'rgba(255,255,255,0.25)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-              {count}
-            </span>
-          </button>
-        ))}
+      {/* V4: sticky al scrollear en mobile — cambiar de vista sin volver
+          arriba. lg: no sticky (ya está todo a la vista en la columna). */}
+      <div className="sticky top-0 z-10 lg:static flex items-center justify-between gap-2 mb-3 flex-wrap py-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:py-0" style={{ background: 'var(--bg)' }}>
+        <div className="flex items-center gap-2">
+          {([
+            ['tengo', 'Tengo', positionTickers.length],
+            ['sigo',  'Sigo',  watchTickers.filter(t => !owned.has(t)).length],
+            ['todo',  'Todo',  allTickers.length],
+          ] as const).map(([id, label, count]) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+              style={tab === id ? { background: 'var(--primary)', color: 'var(--primary-ink)' } : { background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
+            >
+              {label}
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+                style={tab === id ? { background: 'rgba(255,255,255,0.25)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                {count}
+              </span>
+            </button>
+          ))}
+        </div>
+        {/* V3 (roadmap de vista): selector de orden — antes era fijo (solo
+            convicción); se recuerda en localStorage, mismo patrón que la
+            leyenda descartable. */}
+        <select
+          value={sortMode}
+          onChange={e => changeSortMode(e.target.value as 'convict' | 'daily' | 'total' | 'value')}
+          className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
+          style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
+        >
+          <option value="convict">Ordenar: convicción</option>
+          <option value="daily">Ordenar: % hoy</option>
+          <option value="total">Ordenar: retorno total</option>
+          <option value="value">Ordenar: valor</option>
+        </select>
+        <button
+          onClick={showLegendToast}
+          aria-label="Qué significa el número de cada fila"
+          title="Qué significa el número de cada fila"
+          className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
+          style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+        >
+          <Info className="w-3.5 h-3.5" />
+        </button>
       </div>
-
-      {/* Leyenda descartable — se explica una vez, no en cada fila (I4 roadmap interacción) */}
-      {showLegend && (
-        <div className="flex items-start gap-2.5 rounded-2xl px-3.5 py-2.5 mb-3" style={{ background: 'var(--surface-2)' }}>
-          <p className="flex-1 text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            <span className="font-bold" style={{ color: 'var(--ink)' }}>●&nbsp;número</span> = convicción de compra (0-100, toca cualquiera para el detalle) ·{' '}
-            <span className="font-bold" style={{ color: 'var(--ink)' }}>barra roja/verde</span> = riesgo hasta tu salida vs. aire hasta el próximo techo.
-          </p>
-          <button onClick={dismissLegend} className="flex-shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-black/5" style={{ color: 'var(--ink-3)' }}>
-            Entendido
-          </button>
-        </div>
-      )}
-
-      {/* ── Popup de búsqueda ("Seguir") ─────────────────────────────────── */}
-      {showSearch && (
-        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
-          onClick={e => { if (e.target === e.currentTarget) closeSearch() }}>
-          <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '80dvh' }}>
-            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
-            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Buscar acción o ETF</h2>
-              <button onClick={closeSearch} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
-                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-5 pt-4 pb-2">
-              <div className="flex items-center gap-2.5 border px-4 py-3" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', borderRadius: 12 }}>
-                <Search className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-                <input
-                  type="text" value={query}
-                  onChange={e => { setQuery(e.target.value); setAddError('') }}
-                  placeholder="ej: Apple, Netflix, Vanguard S&P 500…"
-                  maxLength={40} autoFocus
-                  className="flex-1 text-sm bg-transparent outline-none border-0 min-w-0"
-                  style={{ color: 'var(--ink)' }}
-                />
-                {searching && <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
-              </div>
-              {addError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{addError}</p>}
-            </div>
-            <div className="px-5 pb-5 overflow-y-auto flex-1">
-              {query.trim().length < 2 ? (
-                <p className="text-xs text-center py-8" style={{ color: 'var(--ink-3)' }}>
-                  Escribe el nombre de la empresa o del fondo — también funciona con el ticker.
-                </p>
-              ) : !searching && results.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin resultados para “{query.trim()}”</p>
-                  {TICKER_RE.test(query.trim().toUpperCase()) && (
-                    <button
-                      onClick={() => addSymbol(query.trim().toUpperCase())}
-                      disabled={addingSym !== null}
-                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85 disabled:opacity-50"
-                      style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-                    >
-                      Seguir “{query.trim().toUpperCase()}” de todas formas
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2 pt-1">
-                  {results.map(r => {
-                    const followed = items.some(i => i.ticker === r.symbol)
-                    const busy = addingSym === r.symbol
-                    return (
-                      <div key={r.symbol} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-extrabold text-white"
-                          style={{ background: avatarColor(r.symbol) }}>
-                          {r.symbol.slice(0, 2)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
-                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{r.symbol} · {r.type === 'etf' ? 'ETF' : 'Acción'}</p>
-                        </div>
-                        {followed ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
-                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
-                            <Check className="w-3.5 h-3.5" /> Siguiendo
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => addSymbol(r.symbol)}
-                            disabled={busy}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-                          >
-                            {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" strokeWidth={3} />}
-                            Seguir
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Lista ─────────────────────────────────────────────────────────── */}
       {rows.length === 0 ? (
@@ -1041,16 +1112,30 @@ export default function Radar({
             const watchCount = (typeof a === 'object' ? a.watch.length : 0) + (nearTarget(item, q?.price, isOwned) ? 1 : 0)
             const gainUsd = isOwned && pos && q ? pos.shares * (q.price - pos.avgCost) : null
             const gainPct = isOwned && pos && q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : null
+            // V6 (roadmap de vista): resumen de la fila para lectores de
+            // pantalla — antes solo estaba el texto visual repartido en
+            // varios nodos, sin nada que lo uniera para quien navega con
+            // teclado/lector.
+            const rowLabel = [
+              ticker,
+              q ? fmtUSD(q.price) : null,
+              isOwned && gainPct !== null ? `retorno ${fmtPct(gainPct, false)}` : null,
+              c ? `convicción ${c.score} de 100` : null,
+            ].filter(Boolean).join(', ') + '. Toca para ver el detalle.'
 
             return (
               <div
                 key={ticker}
                 role="button"
                 tabIndex={0}
+                aria-label={rowLabel}
                 onClick={() => openDetail(ticker)}
                 onKeyDown={e => e.key === 'Enter' && openDetail(ticker)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group"
-                style={flag ? { borderLeft: `3px solid ${FLAG_UI[flag].color}`, background: FLAG_UI[flag].softBg } : undefined}
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                style={{
+                  ...(flag ? { borderLeft: `3px solid ${FLAG_UI[flag].color}`, background: FLAG_UI[flag].softBg } : {}),
+                  ['--tw-ring-color' as string]: 'var(--primary)',
+                }}
               >
                 <ServiceLogo domain={q?.domain ?? null} name={ticker} size={36} fallbackColor={avatarColor(ticker)} />
                 <div className="flex-1 min-w-0">
@@ -1083,6 +1168,16 @@ export default function Radar({
                     </p>
                   )}
                 </div>
+                {/* V3 (roadmap de vista): valor de la posición como columna
+                    propia en desktop — antes solo se veía el retorno, nunca
+                    cuánto había adentro sin abrir el detalle. Solo lg+ (más
+                    tabla, sin tocar el mobile). */}
+                {isOwned && pos && q && (
+                  <div className="hidden lg:block text-right flex-shrink-0 w-24">
+                    <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(pos.shares * q.price)}</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>valor</p>
+                  </div>
+                )}
                 <div className="text-right flex-shrink-0">
                   {q ? (
                     <>
@@ -1118,6 +1213,123 @@ export default function Radar({
           })}
         </div>
       )}
+      </div>{/* /columna izquierda (V2) */}
+      </div>{/* /grid dos columnas (V2) */}
+
+      {/* ── Popup de búsqueda ("Seguir") ─────────────────────────────────── */}
+      {showSearch && (
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
+          onClick={e => { if (e.target === e.currentTarget) closeSearch() }}>
+          <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '80dvh' }}>
+            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Buscar acción o ETF</h2>
+              <button onClick={closeSearch} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-center gap-2.5 border px-4 py-3" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', borderRadius: 12 }}>
+                <Search className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                <input
+                  type="text" value={query}
+                  onChange={e => { setQuery(e.target.value); setAddError('') }}
+                  placeholder="ej: Apple, Netflix, Vanguard S&P 500…"
+                  maxLength={40} autoFocus
+                  className="flex-1 text-sm bg-transparent outline-none border-0 min-w-0"
+                  style={{ color: 'var(--ink)' }}
+                />
+                {searching && <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+              </div>
+              {addError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{addError}</p>}
+            </div>
+            <div className="px-5 pb-5 overflow-y-auto flex-1">
+              {query.trim().length < 2 ? (
+                <p className="text-xs text-center py-8" style={{ color: 'var(--ink-3)' }}>
+                  Escribe el nombre de la empresa o del fondo — también funciona con el ticker.
+                </p>
+              ) : !searching && results.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin resultados para “{query.trim()}”</p>
+                  {TICKER_RE.test(query.trim().toUpperCase()) && (
+                    <div className="flex items-center justify-center gap-2 mt-3">
+                      <button
+                        onClick={() => addSymbol(query.trim().toUpperCase())}
+                        disabled={addingSym !== null}
+                        className="px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85 disabled:opacity-50"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                      >
+                        Seguir “{query.trim().toUpperCase()}” de todas formas
+                      </button>
+                      <button
+                        onClick={() => { const t = query.trim().toUpperCase(); closeSearch(); setTxn({ mode: 'new', ticker: t }) }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold border transition-colors hover:bg-black/5"
+                        style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}
+                      >
+                        Ya la tengo
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {results.map(r => {
+                    const followed = items.some(i => i.ticker === r.symbol)
+                    const busy = addingSym === r.symbol
+                    return (
+                      <div key={r.symbol} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-extrabold text-white"
+                          style={{ background: avatarColor(r.symbol) }}>
+                          {r.symbol.slice(0, 2)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold leading-tight truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
+                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{r.symbol} · {r.type === 'etf' ? 'ETF' : 'Acción'}</p>
+                        </div>
+                        {owned.has(r.symbol) ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
+                            style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                            <Check className="w-3.5 h-3.5" /> En cartera
+                          </span>
+                        ) : followed ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
+                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                            <Check className="w-3.5 h-3.5" /> Siguiendo
+                          </span>
+                        ) : (
+                          /* V6 (roadmap de vista): un solo botón "Agregar" abre este
+                             buscador; desde acá se elige el destino — Seguir (sin
+                             posición) o Ya la tengo (registrar compra directo) — en
+                             vez de dos flujos de entrada separados en el top bar. */
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button
+                              onClick={() => addSymbol(r.symbol)}
+                              disabled={busy}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 disabled:opacity-50"
+                              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                            >
+                              {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" strokeWidth={3} />}
+                              Seguir
+                            </button>
+                            <button
+                              onClick={() => { closeSearch(); setTxn({ mode: 'new', ticker: r.symbol }) }}
+                              className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-colors hover:bg-black/5"
+                              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}
+                            >
+                              Ya la tengo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Popup de detalle técnico — único para cualquier ticker (U4) ──── */}
       {expanded !== null && (() => {
@@ -1128,24 +1340,35 @@ export default function Radar({
         const pos = ownedMap[ticker]
         const rawPos = positions.find(p => p.ticker === ticker) ?? null
         const isOwned = owned.has(ticker)
+        const c = convictionFor(ticker)
 
         return (
           <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
             onClick={e => { if (e.target === e.currentTarget) setExpanded(null) }}>
             <div className="w-full lg:max-w-3xl rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '88dvh' }}>
-              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+              {/* V5: handle + header no scrollean — el swipe-down para cerrar
+                  (mobile) se engancha acá para no pelear con el scroll del
+                  cuerpo. */}
+              <div onTouchStart={onDetailTouchStart} onTouchEnd={onDetailTouchEnd}>
+                <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
-              <div className="flex items-center gap-3 px-5 lg:px-6 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <ServiceLogo domain={q?.domain ?? null} name={ticker} size={40} fallbackColor={avatarColor(ticker)} />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--ink)' }}>{ticker}</h2>
-                  {q?.name && (
-                    <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
-                      {q.name}{isOwned && ' · en cartera'}
-                    </p>
-                  )}
-                </div>
-                {q && (
+                <div className="flex items-center gap-3 px-5 lg:px-6 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                  <ServiceLogo domain={q?.domain ?? null} name={ticker} size={40} fallbackColor={avatarColor(ticker)} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--ink)' }}>{ticker}</h2>
+                      {/* V5: score de convicción visible en el header FIJO —
+                          antes solo vivía adentro del cuerpo, se perdía al
+                          scrollear. */}
+                      {c && <ConvictionChip score={c.score} tier={c.tier} />}
+                    </div>
+                    {q?.name && (
+                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
+                        {q.name}{isOwned && ' · en cartera'}
+                      </p>
+                    )}
+                  </div>
+                  {q && (
                   <div className="text-right flex-shrink-0 mr-1">
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
                     <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
@@ -1158,6 +1381,7 @@ export default function Radar({
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                   <X className="w-4 h-4" />
                 </button>
+                </div>
               </div>
 
               {/* Precio objetivo — solo si el ticker está en watchlist */}
@@ -1262,7 +1486,7 @@ export default function Radar({
               })()}
 
               {/* Body */}
-              <div className="overflow-y-auto pt-4">
+              <div className="flex-1 min-h-0 overflow-y-auto pt-4">
                 {a === 'loading' || a === undefined ? (
                   <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-2.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
@@ -1301,42 +1525,68 @@ export default function Radar({
                     onSell={isOwned ? (t) => setTxn({ mode: 'sell', ticker: t }) : undefined}
                   />
                 )}
+              </div>
 
-                {/* Acciones del footer: comprar (si no la tienes) / editar / eliminar / dejar de seguir */}
-                <div className="px-4 pb-4 space-y-2">
-                  {!isOwned && (
+              {/* V5 (roadmap de vista): barra de acciones sticky al fondo del
+                  popup — antes el CTA principal quedaba al final del scroll
+                  en un detalle largo (posición con movimientos + plan), justo
+                  el gesto que I1 quiso eliminar. Ahora siempre visible. */}
+              <div className="border-t px-4 py-3 space-y-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                {!isOwned ? (
+                  <button
+                    onClick={() => setTxn({ mode: 'new', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl transition-colors"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                  >
+                    <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                    Registrar compra de {ticker}
+                  </button>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => setTxn({ mode: 'new', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl transition-colors"
+                      onClick={() => setTxn({ mode: 'buyMore', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
+                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[.98]"
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                     >
                       <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                      Registrar compra de {ticker}
+                      Comprar más
                     </button>
-                  )}
-                  {isOwned && (
-                    <div className="flex items-center justify-center gap-4">
-                      <button onClick={() => setTxn({ mode: 'edit', ticker })}
-                        className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                        Editar posición
-                      </button>
-                      <button onClick={() => setTxn({ mode: 'delete', ticker })}
-                        className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                        Eliminar sin registrar venta
-                      </button>
-                    </div>
-                  )}
-                  {item && (
                     <button
-                      onClick={() => { removeTicker(item); setExpanded(null) }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl border transition-colors hover:bg-black/5"
-                      style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'transparent' }}
+                      onClick={() => setTxn({ mode: 'sell', ticker })}
+                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs border transition-all active:scale-[.98]"
+                      style={{ background: 'transparent', color: 'var(--mint)', borderColor: 'rgba(31,190,141,0.4)' }}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Dejar de seguir {ticker}
+                      <DollarSign className="w-3.5 h-3.5" />
+                      Vender
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
+                {(isOwned || item) && (
+                  <div className="flex items-center justify-center gap-4 flex-wrap">
+                    {isOwned && (
+                      <>
+                        <button onClick={() => setTxn({ mode: 'edit', ticker })}
+                          className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                          Editar posición
+                        </button>
+                        <button onClick={() => setTxn({ mode: 'delete', ticker })}
+                          className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                          Eliminar sin registrar venta
+                        </button>
+                      </>
+                    )}
+                    {item && (
+                      <button
+                        onClick={() => { removeTicker(item); setExpanded(null) }}
+                        className="flex items-center gap-1 text-[11px] font-semibold"
+                        style={{ color: 'var(--coral)' }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Dejar de seguir
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
