@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Info, RefreshCw, TrendingUp, TrendingDown, Target, Activity, BarChart3, Gauge,
-  Newspaper, ExternalLink, Plus, Minus, DollarSign, CalendarClock,
+  Newspaper, ExternalLink, Plus, Minus, DollarSign, CalendarClock, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { NewsResponse } from '@/app/api/stock-news/route'
@@ -17,6 +17,7 @@ import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip } from '@/components/RiskRail'
 import { relativeDate } from '@/lib/utils'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
+import { useToast } from '@/components/ToastProvider'
 
 // ── U3/U4 (roadmap UX): detalle decision-first único, para cualquier ticker
 // (posición o favorito). Extraído de WatchlistPanel.tsx durante U4 — antes
@@ -132,7 +133,56 @@ function fmtDateLabel(dateStr: string): string {
   return `${MONTHS_ES[m - 1]} ${String(y).slice(2)}`
 }
 
-type DetailSection = 'plan' | 'chart' | 'signals' | 'history'
+// ── X2 (roadmap de vista, detalle del ticker): escalera de precios ──────────
+// Antes esta misma información (tu costo, la salida, el próximo techo, el
+// precio de ahora) vivía repartida en cuatro frases sueltas — había que
+// armar mentalmente una recta numérica leyendo cuatro párrafos. Ahora es UN
+// dibujo: los mismos números, ya ordenados de menor a mayor, con el precio
+// de ahora resaltado en el medio. Feedback de Cas (jul 2026, screenshot de
+// TSM): "mucho texto, abrumador, no se entiende".
+
+interface LadderPoint { price: number; label: string; sublabel?: string; color: string; emphasis?: boolean }
+
+function PriceLadder({ points }: { points: LadderPoint[] }) {
+  if (points.length < 2) return null
+  const sorted = [...points].sort((a, b) => a.price - b.price)
+  const W = 560, H = 76, padX = 8
+  const min = sorted[0].price
+  const max = sorted[sorted.length - 1].price
+  const range = max - min || 1
+  const x = (p: number) => padX + ((p - min) / range) * (W - padX * 2)
+
+  // Anti-colisión simple: si dos etiquetas quedan muy cerca en X, la de abajo
+  // se corre (mismo patrón que PriceChart con los niveles del gráfico).
+  const minGap = 92
+  let prevX = -Infinity
+  const laid = sorted.map(p => {
+    const rawX = x(p.price)
+    const labelX = Math.max(rawX, prevX + minGap)
+    prevX = labelX
+    return { ...p, dotX: rawX, labelX }
+  })
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
+      <line x1={padX} y1={H / 2} x2={W - padX} y2={H / 2} stroke="var(--border)" strokeWidth="2" />
+      {laid.map((p, i) => (
+        <g key={i}>
+          <line x1={p.dotX} y1={H / 2 - 4} x2={p.dotX} y2={H / 2 + 4} stroke={p.color} strokeWidth="2" />
+          <circle cx={p.dotX} cy={H / 2} r={p.emphasis ? 5 : 3.5} fill={p.color} />
+          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 - 10} fontSize="10" fontWeight="700" fill={p.color} textAnchor="middle">
+            {fmtUSD(p.price)}
+          </text>
+          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 + 22} fontSize="9" fontWeight="600" fill="var(--ink-3)" textAnchor="middle">
+            {p.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+type DetailSection = 'resumen' | 'plan' | 'chart' | 'signals' | 'history'
 
 export default function TechnicalDetail({
   a, ticker, name, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
@@ -160,7 +210,14 @@ export default function TechnicalDetail({
 }) {
   // U3 (roadmap UX): cabecera fija con score + acción + monto; el resto vive
   // en secciones colapsables — antes eran ~12 bloques apilados en un solo scroll.
-  const [openSection, setOpenSection] = useState<DetailSection>('plan')
+  // X1 (roadmap de vista, detalle del ticker): "Resumen" abre por defecto en
+  // vez de "Plan" — antes lo primero que se veía era el plan completo (dos
+  // tarjetas densas, ~15 líneas). Resumen es solo la posición + la escalera
+  // de precios; "Plan" con los tramos completos queda un tap más allá para
+  // quien quiera profundizar (feedback de Cas: "mucho texto, abrumador").
+  const [openSection, setOpenSection] = useState<DetailSection>('resumen')
+  const [showWhy, setShowWhy] = useState(false)
+  const { showToast } = useToast()
   // D6 (roadmap de calidad de decisión): ETFs apalancados (SOXL 3×, etc.)
   // tienen decay estructural y su volatilidad hace que la regla del 1% de
   // riesgo por posición se quede corta — con 3× de apalancamiento implícito,
@@ -285,11 +342,40 @@ export default function TechnicalDetail({
   // reescribe la frase para ese caso puntual en vez de dejar pasar la
   // contradicción textual.
   const buyTierNoTrigger = !sellNow && !buyNow && (conviction.tier === 'compra' || conviction.tier === 'compra_fuerte')
+  // X3 (roadmap de vista, detalle del ticker): antes esto sumaba
+  // conviction.reasons[0], que en la práctica repite el mismo dato del chip
+  // "N a favor · M en contra" de la cabecera ("Lectura técnica a favor:
+  // compra (2 a favor, 1 en contra)") — mismo número, dos veces seguidas en
+  // el mismo bloque (screenshot de Cas). El verdict solo alcanza.
   const rationale = buyTierNoTrigger
     ? `Buena evidencia en general (${conviction.score}/100), pero sin gatillo de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
-    : [conviction.verdict, conviction.reasons[0]].filter(Boolean).join(' ')
+    : conviction.verdict
+
+  // X2 (roadmap de vista, detalle del ticker): escalera de precios — mismos
+  // números que antes vivían en cuatro frases sueltas (tu costo, la salida,
+  // el próximo techo/piso, el precio de ahora), ahora en una sola recta.
+  const effectiveExitPrice = position
+    ? (rawPosition?.trail_stop_usd != null && Number(rawPosition.trail_stop_usd) > (a.alarm ?? -Infinity) + 0.005
+        ? Number(rawPosition.trail_stop_usd)
+        : a.alarm)
+    : null
+  const nextResistance = [...a.resistanceLevels].filter(l => l.price > pxNow).sort((x, y) => x.price - y.price)[0]
+  const nextSupport = [...a.supportLevels].filter(l => l.price < pxNow).sort((x, y) => y.price - x.price)[0]
+  const ladderPoints: LadderPoint[] = [
+    { price: pxNow, label: 'Ahora', color: 'var(--primary)', emphasis: true },
+  ]
+  if (position) ladderPoints.push({ price: position.avgCost, label: 'Tu costo', color: 'var(--ink-3)' })
+  if (position && effectiveExitPrice != null) {
+    ladderPoints.push({
+      price: effectiveExitPrice, color: 'var(--coral)',
+      label: rawPosition?.trail_stop_usd != null && Number(rawPosition.trail_stop_usd) > (a.alarm ?? -Infinity) + 0.005 ? 'Salida móvil' : 'Vende aquí',
+    })
+  }
+  if (nextResistance) ladderPoints.push({ price: nextResistance.price, label: 'Próximo techo', color: 'var(--gold)' })
+  if (!position && nextSupport) ladderPoints.push({ price: nextSupport.price, label: 'Piso cercano', color: 'var(--mint)' })
 
   const SECTIONS: { id: DetailSection; label: string; icon: typeof BarChart3 }[] = [
+    { id: 'resumen', label: 'Resumen',           icon: Gauge },
     { id: 'plan',    label: 'Plan',              icon: Target },
     { id: 'chart',   label: 'Gráfico y niveles', icon: BarChart3 },
     { id: 'signals', label: 'Señales y radar',   icon: Activity },
@@ -424,6 +510,67 @@ export default function TechnicalDetail({
         })}
       </div>
 
+      {/* ── Sección: Resumen (X1, roadmap de vista) ──────────────────────── */}
+      {/* Abre por defecto — es lo único que hace falta ver para entender el
+          estado de hoy sin leer el plan completo (feedback de Cas: el popup
+          abría directo en "Plan" con ~15 líneas de texto, "abrumador"). */}
+      {openSection === 'resumen' && <>
+      {position && (() => {
+        const px = livePrice ?? a.price
+        const valueUsd = position.shares * px
+        const retPct = ((px - position.avgCost) / position.avgCost) * 100
+        const gainUsd = position.shares * (px - position.avgCost)
+        const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
+        return (
+          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-base font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(valueUsd)}</p>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
+                style={{ background: retPct >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: retColor }}>
+                {gainUsd >= 0 ? '+' : '-'}{fmtUSD(gainUsd)} ({retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%)
+              </span>
+            </div>
+            <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+              {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · costo prom. {fmtUSD(position.avgCost)}
+            </p>
+          </div>
+        )
+      })()}
+
+      {/* X2: escalera de precios — reemplaza las frases sueltas de costo,
+          salida, techo/piso por un solo dibujo. */}
+      <div className="rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>Dónde está el precio</p>
+        <PriceLadder points={ladderPoints} />
+      </div>
+
+      {/* El detalle largo (tramos completos, razones) queda un tap más allá,
+          para quien quiera profundizar — no es lo primero que se ve. */}
+      <button
+        onClick={() => setShowWhy(v => !v)}
+        className="flex items-center gap-1.5 text-xs font-bold px-0.5"
+        style={{ color: 'var(--primary)' }}
+      >
+        {showWhy ? 'Ocultar el porqué' : '¿Por qué?'}
+        {showWhy ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+      {showWhy && (
+        <p className="text-xs leading-relaxed rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
+          {position ? a.sellPlan : a.entryPlan}
+        </p>
+      )}
+      {!position && (
+        <button
+          onClick={() => setOpenSection('plan')}
+          className="text-xs font-bold px-0.5"
+          style={{ color: 'var(--primary)' }}
+        >
+          Ver el plan de compra completo →
+        </button>
+      )}
+      </>}
+
       {/* ── Sección: Plan (compra + salida) ─────────────────────────────── */}
       {openSection === 'plan' && <>
       {/* 0.5 Tu posición — retorno vs costo + PLAN DE SALIDA por tramos
@@ -444,18 +591,23 @@ export default function TechnicalDetail({
                 {retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}% vs tu costo
               </span>
             </div>
-            <div className="space-y-0.5">
+            {/* X3: fila estructurada (condición | acción+monto) en vez de
+                oraciones corridas — antes "100% solo si pierde $419 dos
+                cierres seguidos" mezclaba los tres datos en una sola frase. */}
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {a.sell.map((t, i) => {
                 const currentValue = position.shares * (livePrice ?? a.price)
                 const usdAmount = currentValue * (t.pct / 100)
                 return (
-                  <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-                    <span className="font-extrabold" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>
-                      {t.now ? `Vende ${fmtUSD(usdAmount)}` : `${t.pct}%`}
-                    </span>
-                    {' '}{t.cond}
-                    {t.now && <span className="font-semibold" style={{ color: 'var(--ink-3)' }}> ({t.pct}% de la posición)</span>}
-                  </p>
+                  <div key={i} className="flex items-center justify-between gap-3 py-1.5">
+                    <p className="text-xs leading-snug flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>{t.cond}</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>
+                        {t.now ? `Vende ${fmtUSD(usdAmount)}` : `${t.pct}%`}
+                      </p>
+                      {t.now && <p className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>{t.pct}% de la posición</p>}
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -466,49 +618,9 @@ export default function TechnicalDetail({
                 Tu salida móvil quedó en {fmtUSD(Number(rawPosition.trail_stop_usd))}: subió junto al precio y no baja aunque los niveles del día bajen.
               </p>
             )}
-
-            {/* Movimientos — timeline de compras/ventas, extraído del modal
-                transaccional (U4 roadmap UX): valioso, no podía perderse */}
-            {movements.length > 0 && (
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Movimientos</p>
-                  <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                    {movements.length} operación{movements.length !== 1 ? 'es' : ''}
-                  </p>
-                </div>
-                <div className="rounded-xl divide-y overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-                  {movements.map((m, i) => (
-                    <div key={i} className="flex items-center gap-2.5 px-3 py-2">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: m.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
-                        {m.type === 'buy'
-                          ? <Plus className="w-3 h-3" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
-                          : <Minus className="w-3 h-3" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>
-                          {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
-                          {/* D5: score con el que se decidió esta compra, si quedó guardado */}
-                          {m.type === 'buy' && m.convictionScore != null && (
-                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-                              score {m.convictionScore}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-[9px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                          {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}
-                        </p>
-                      </div>
-                      <p className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
-                        {m.amount >= 0 ? '+' : '-'}{fmtUSD(Math.abs(m.amount))}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
+            {/* X4 (roadmap de vista): Movimientos se mudó a la pestaña
+                Historial — no es información de decisión diaria, es
+                consulta ocasional; acá solo queda lo operativo. */}
             {/* V5 (roadmap de vista): "Comprar más"/"Vender" ya NO viven acá —
                 se movieron a una barra de acciones sticky al fondo del popup
                 (Radar.tsx), siempre visible sin tener que scrollear hasta acá
@@ -521,18 +633,22 @@ export default function TechnicalDetail({
       <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
         <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Plan de compra</p>
         {a.buy.length > 0 ? (
-          <div className="space-y-0.5">
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {a.buy.map((t, i) => {
               const usd = trancheUsd(t.pct, t.now)
               const noCash = t.now && cashCap !== null && cashCap < 1
               return (
-                <p key={i} className="text-sm font-bold tabular-nums leading-snug" style={{ color: 'var(--ink)' }}>
-                  <span className="font-extrabold" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>
-                    {noCash ? 'Sin saldo disponible' : usd !== null ? `Compra ${fmtUSD(usd)}` : `${t.pct}%`}
-                  </span>
-                  {' '}{t.cond}
-                  {usd !== null && !noCash && <span className="font-semibold" style={{ color: 'var(--ink-3)' }}> ({t.pct}%)</span>}
-                </p>
+                <div key={i} className="flex items-center justify-between gap-3 py-1.5">
+                  <p className="text-xs leading-snug flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>{t.cond}</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>
+                      {/* X3: el tramo "ahora" no repite el monto de la cabecera
+                          (ya dice "Compra $X ahora" arriba) — solo lo referencia. */}
+                      {t.now ? '↑ el de arriba' : noCash ? 'Sin saldo' : usd !== null ? `Compra ${fmtUSD(usd)}` : `${t.pct}%`}
+                    </p>
+                    {!t.now && usd !== null && !noCash && <p className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>{t.pct}%</p>}
+                  </div>
+                </div>
               )
             })}
           </div>
@@ -543,8 +659,53 @@ export default function TechnicalDetail({
       </div>
       </>}
 
-      {/* ── Sección: Historial (noticias + backtest, ambos on-demand) ──── */}
+      {/* ── Sección: Historial (movimientos + noticias + backtest) ──────── */}
       {openSection === 'history' && <>
+      {/* X4 (roadmap de vista): Movimientos vivía en la tarjeta de posición
+          del Plan, ocupando un tercio del espacio — no es información de
+          decisión diaria, es consulta ocasional. Este es su lugar natural,
+          junto a noticias y evaluación de señales (todas profundización
+          on-demand). */}
+      {movements.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-1.5 px-0.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Movimientos</p>
+            <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+              {movements.length} operación{movements.length !== 1 ? 'es' : ''}
+            </p>
+          </div>
+          <div className="rounded-xl divide-y overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+            {movements.map((m, i) => (
+              <div key={i} className="flex items-center gap-2.5 px-3 py-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: m.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
+                  {m.type === 'buy'
+                    ? <Plus className="w-3 h-3" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+                    : <Minus className="w-3 h-3" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>
+                    {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                    {/* D5: score con el que se decidió esta compra, si quedó guardado */}
+                    {m.type === 'buy' && m.convictionScore != null && (
+                      <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink-3)' }}>
+                        score {m.convictionScore}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[9px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                    {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}
+                  </p>
+                </div>
+                <p className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                  {m.amount >= 0 ? '+' : '-'}{fmtUSD(Math.abs(m.amount))}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 1.7 Noticias on-demand — botón ghost mientras no se pide (una tarjeta
           entera para un link pesaba demasiado en la pila superior) */}
       <div className={news === null ? 'px-1' : 'rounded-2xl px-3.5 py-3'}
@@ -861,14 +1022,18 @@ export default function TechnicalDetail({
       </div>
       </>}
 
-      {/* Disclaimer único al pie — U3 elimina los micro-descargos repetidos
-          por bloque (noticias, backtest) en favor de este, que ya cubre todo. */}
-      <p className="flex items-start gap-1.5 text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-        <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-        Lectura informativa al cierre del {a.asOf}. No es recomendación de compra o venta: estas señales
-        fallan seguido, pueden tardar semanas en confirmarse y un piso roto se convierte en caída.
-        La decisión es siempre tuya.
-      </p>
+      {/* X5 (roadmap de vista): disclaimer de dos líneas → una línea + ícono
+          con el texto completo en toast (patrón I4 ya existente). U3 ya
+          había unificado los micro-descargos por bloque en uno solo; esto
+          termina de comprimirlo. */}
+      <button
+        onClick={() => showToast('Lectura informativa al cierre del ' + a.asOf + '. No es recomendación de compra o venta: estas señales fallan seguido, pueden tardar semanas en confirmarse y un piso roto se convierte en caída. La decisión es siempre tuya.')}
+        className="flex items-center gap-1.5 text-[10px] font-semibold"
+        style={{ color: 'var(--ink-3)' }}
+      >
+        <Info className="w-3 h-3 flex-shrink-0" />
+        Lectura informativa al cierre del {a.asOf} — no es recomendación
+      </button>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plus, ChevronRight, ChevronDown, ChevronUp, Info, RefreshCw, X, Search, Check,
-  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, TrendingUp,
+  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, TrendingUp, Newspaper,
 } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
@@ -266,6 +266,19 @@ export default function Radar({
       return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null }
     })
     .sort((a, b) => b.valueUsd - a.valueUsd)
+
+  // Y1 (a pedido de Cas): historial de operaciones — todas las compras y
+  // ventas registradas, de cualquier ticker, en un solo lugar y ordenadas
+  // (antes solo se veían por ticker, adentro del detalle de cada uno, o
+  // agregadas en PerformanceSection sin el detalle operación por operación).
+  type Operation = { id: string; type: 'buy' | 'sell'; ticker: string; date: string; shares: number; amountUsd: number }
+  const operations: Operation[] = [
+    ...purchases.map(p => ({ id: `buy-${p.id}`, type: 'buy' as const, ticker: p.ticker, date: p.purchase_date, shares: p.shares, amountUsd: -Number(p.total_paid_usd) })),
+    ...sales.map(s => ({ id: `sell-${s.id}`, type: 'sell' as const, ticker: s.ticker, date: s.sale_date, shares: s.shares_sold, amountUsd: Number(s.proceeds_usd) })),
+  ].sort((a, b) => b.date.localeCompare(a.date))
+  const [showOpsHistory, setShowOpsHistory] = useState(false)
+  const OPS_PAGE = 10
+  const [opsShown, setOpsShown] = useState(OPS_PAGE)
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
@@ -1300,6 +1313,66 @@ export default function Radar({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Y1 (a pedido de Cas): historial de operaciones — todas las compras
+          y ventas, de cualquier ticker, ordenadas por fecha (más reciente
+          primero). Colapsado por defecto: es consulta ocasional, no algo
+          que se mire a diario, no debería sumar al primer scroll. */}
+      {operations.length > 0 && (
+        <div className="card overflow-hidden mt-4">
+          <button
+            onClick={() => setShowOpsHistory(v => !v)}
+            className="w-full px-4 lg:px-5 py-3 flex items-center gap-2 text-left transition-colors hover:bg-black/5"
+          >
+            <Newspaper className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            <p className="text-sm font-bold flex-1" style={{ color: 'var(--ink)' }}>Historial de operaciones</p>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+              {operations.length}
+            </span>
+            {showOpsHistory ? <ChevronUp className="w-4 h-4" style={{ color: 'var(--ink-3)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />}
+          </button>
+          {showOpsHistory && (
+            <>
+              <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
+                {operations.slice(0, opsShown).map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => openDetail(op.ticker)}
+                    className="w-full flex items-center gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
+                  >
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: op.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
+                      {op.type === 'buy'
+                        ? <Plus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+                        : <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                        {op.type === 'buy' ? 'Compra' : 'Venta'} · {op.ticker}
+                      </p>
+                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                      </p>
+                    </div>
+                    <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                      {op.amountUsd >= 0 ? '+' : '-'}{fmtUSD(Math.abs(op.amountUsd))}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              {opsShown < operations.length && (
+                <button
+                  onClick={() => setOpsShown(n => n + OPS_PAGE)}
+                  className="w-full px-4 lg:px-5 py-2.5 text-xs font-bold text-center border-t transition-colors hover:bg-black/5"
+                  style={{ color: 'var(--primary)', borderColor: 'var(--border)' }}
+                >
+                  Ver {Math.min(OPS_PAGE, operations.length - opsShown)} más
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
       </div>{/* /columna izquierda (V2) */}
