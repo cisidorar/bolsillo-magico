@@ -1270,37 +1270,19 @@ export default function Radar({
                     </p>
                   )}
                 </div>
-                {/* V3 (roadmap de vista): valor de la posición como columna
-                    propia en desktop — antes solo se veía el retorno, nunca
-                    cuánto había adentro sin abrir el detalle. Solo lg+ (más
-                    tabla, sin tocar el mobile). */}
-                {isOwned && pos && q && (
-                  <div className="hidden lg:block text-right flex-shrink-0 w-24">
-                    <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(pos.shares * q.price)}</p>
-                    <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>valor</p>
-                  </div>
-                )}
+                {/* Z1 (a pedido de Cas): se saca la columna "valor" (V3) y el
+                    retorno $/% de la fila — quedaban inconsistentes entre
+                    filas con posición y sin ella (desorden visual en "Todo"),
+                    y esa misma información ya vive en la card "Mi
+                    rendimiento" (columna derecha) y en el detalle de cada
+                    ticker. Acá solo precio + % de hoy, igual para todas. */}
                 <div className="text-right flex-shrink-0">
                   {q ? (
                     <>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
-                      {isOwned && gainUsd !== null && gainPct !== null ? (
-                        <>
-                          <p className="text-[11px] font-semibold tabular-nums" style={{ color: gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                            {fmtUSDSigned(gainUsd)} ({fmtPct(gainPct, false)})
-                          </p>
-                          {/* Con posición, arriba solo se veía el retorno TOTAL —
-                              el del día quedaba escondido hasta abrir el detalle.
-                              Ahora ambos, uno abajo del otro (jul 2026). */}
-                          <p className="text-[9px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                            {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}%
-                        </p>
-                      )}
+                      <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
+                      </p>
                     </>
                   ) : (
                     <div className="animate-pulse">
