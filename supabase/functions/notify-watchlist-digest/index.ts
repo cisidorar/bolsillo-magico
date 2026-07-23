@@ -330,7 +330,7 @@ function brandWordmark(siteUrl: string) {
 function tickerIcon(ticker: string, domain: string | null, size: number): string {
   if (domain) {
     return `<table cellpadding="0" cellspacing="0" role="presentation" style="width:${size}px;height:${size}px">
-      <tr><td align="center" valign="middle" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;overflow:hidden">
+      <tr><td align="center" valign="middle" bgcolor="#0E2A52" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;overflow:hidden">
         <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=128" width="${Math.round(size * 0.62)}" height="${Math.round(size * 0.62)}" alt="${ticker}"
           style="width:${Math.round(size * 0.62)}px;height:${Math.round(size * 0.62)}px;display:block;border-radius:4px">
       </td></tr>
@@ -338,7 +338,7 @@ function tickerIcon(ticker: string, domain: string | null, size: number): string
   }
   const fontSize = ticker.length > 4 ? 9 : ticker.length > 3 ? 10 : 11
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="width:${size}px;height:${size}px">
-    <tr><td align="center" valign="middle" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:${fontSize}px;font-weight:800;color:#ffffff;letter-spacing:0.2px">
+    <tr><td align="center" valign="middle" bgcolor="#0E2A52" style="width:${size}px;height:${size}px;border-radius:${Math.round(size * 0.28)}px;background:#0E2A52;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:${fontSize}px;font-weight:800;color:#ffffff;letter-spacing:0.2px">
       ${ticker.slice(0, 5)}
     </td></tr>
   </table>`
@@ -360,7 +360,7 @@ function decisionBlockHtml(decision: Decision | null, infoMap: Map<string, Ticke
   if (!isBuy) {
     return `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
-      <tr><td style="background:#F5F7FA;border-radius:16px;padding:16px 18px">
+      <tr><td class="bm-hold-card" bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:16px;padding:16px 18px">
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#3D4C63">
           Hoy no compres nada de tu lista
         </p>
@@ -376,7 +376,7 @@ function decisionBlockHtml(decision: Decision | null, infoMap: Map<string, Ticke
   `).join('')
   return `
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
-    <tr><td style="background:#EAFBF5;border:1.5px solid #1FBE8D;border-radius:16px;padding:18px 20px">
+    <tr><td class="bm-buy-card" bgcolor="#EAFBF5" style="background:#EAFBF5;border:1.5px solid #1FBE8D;border-radius:16px;padding:18px 20px">
       <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
         <tr>
           <td style="width:36px;vertical-align:top">${tickerIcon(decision.ticker!, info.domain, 36)}</td>
@@ -428,7 +428,7 @@ function digestEmailHtml({
     const chgArrow = s.change_pct >= 0 ? '▲' : '▼'
     return `
       <tr><td style="padding-bottom:14px">
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-signal-card"
           style="border:1.5px solid #E4EAF3;border-radius:16px">
           <tr><td style="padding:16px 18px">
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -446,7 +446,7 @@ function digestEmailHtml({
                 </td>
               </tr>
             </table>
-            <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:${color.bg};border-radius:12px;margin-top:12px">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="${color.bg}" style="background:${color.bg};border-radius:12px;margin-top:12px">
               <tr><td style="padding:12px 14px">
                 <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.4px;color:${color.fg}">
                   <span style="color:${color.fg}">●</span> ${KIND_TITLE[s.kind]}
@@ -476,18 +476,37 @@ function digestEmailHtml({
   <meta name="supported-color-schemes" content="light">
   <style>
     :root { color-scheme: light; supported-color-schemes: light; }
+    /* Apple/iOS Mail a veces re-invierte bloques individuales (sobre todo el
+       pie navy) aunque el <meta color-scheme> diga "light" — reafirmamos acá
+       los mismos colores del modo claro, con !important, para los bloques
+       principales, en vez de confiar solo en el meta tag. */
+    @media (prefers-color-scheme: dark) {
+      .bm-page       { background:#E8EFF8 !important; }
+      .bm-card       { background:#ffffff !important; }
+      .bm-header     { background:#2B7CF6 !important; }
+      .bm-stats-td   { border-color:#EEF2F8 !important; }
+      .bm-signal-card{ border-color:#E4EAF3 !important; }
+      .bm-disclaimer { background:#F5F7FA !important; }
+      .bm-disclaimer p { color:#8B9AB0 !important; }
+      .bm-hold-card  { background:#F5F7FA !important; }
+      .bm-buy-card   { background:#EAFBF5 !important; border-color:#1FBE8D !important; }
+      .bm-cta        { background:#2B7CF6 !important; color:#ffffff !important; }
+      .bm-footer     { background:#0E2A52 !important; }
+      .bm-footer p, .bm-footer a { color:#9FB5D4 !important; }
+      .bm-footer-divider { border-color:rgba(255,255,255,0.08) !important; }
+    }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-page" bgcolor="#E8EFF8" style="background:#E8EFF8;padding:40px 16px">
   <tr><td align="center">
 
-    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation" class="bm-card" bgcolor="#ffffff"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
       <!-- ENCABEZADO -->
-      <tr><td style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
+      <tr><td class="bm-header" bgcolor="#2B7CF6" style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
         <div>${brandWordmark(siteUrl)}</div>
         <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7);white-space:nowrap">
           CIERRE WALL ST. · ${closeLabelET().replace(' ET', '&nbsp;ET')}
@@ -505,11 +524,11 @@ function digestEmailHtml({
       <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr>
-            <td width="33%" align="center" style="padding:22px 8px;border-right:1px solid #EEF2F8">
+            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8">
               <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D">${buyCount}</p>
               <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">COMPRAR</p>
             </td>
-            <td width="33%" align="center" style="padding:22px 8px;border-right:1px solid #EEF2F8">
+            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8">
               <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#FF6F61">${sellCount}</p>
               <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">VENDER</p>
             </td>
@@ -534,7 +553,7 @@ function digestEmailHtml({
           ${strongCardsHtml}
         </table>` : ''}
 
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-disclaimer" bgcolor="#F5F7FA"
           style="background:#F5F7FA;border-radius:14px;margin-top:20px">
           <tr><td style="padding:14px 18px">
             <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0;line-height:1.6">
@@ -547,7 +566,7 @@ function digestEmailHtml({
         <!-- CTA -->
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td>
-            <a href="${siteUrl}/inversiones"
+            <a href="${siteUrl}/inversiones" class="bm-cta" bgcolor="#2B7CF6"
               style="display:block;text-align:center;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:15px 32px;border-radius:12px;letter-spacing:0.1px">
               Ver análisis completo en la app →
             </a>
@@ -557,7 +576,7 @@ function digestEmailHtml({
       </td></tr>
 
       <!-- PIE -->
-      <tr><td style="background:#0E2A52;padding:28px 32px">
+      <tr><td class="bm-footer" bgcolor="#0E2A52" style="background:#0E2A52;padding:28px 32px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-bottom:16px">
             ${brandWordmark(siteUrl)}
@@ -567,7 +586,7 @@ function digestEmailHtml({
               Recibes este correo cada día al cierre de Wall Street.
             </p>
           </td></tr>
-          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+          <tr><td class="bm-footer-divider" style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
             <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:600">Ajustar frecuencia</a>
             <span style="color:#3D5476;font-size:11px">&nbsp;·&nbsp;</span>
             <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:600">Cancelar envíos</a>

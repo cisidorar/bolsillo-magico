@@ -398,18 +398,33 @@ function monthlyEmailHtml({
       .kpi-val-sm { font-size: 14px !important; }
       .total-amt  { font-size: 32px !important; }
     }
+    /* Apple/iOS Mail a veces re-invierte bloques individuales (sobre todo el
+       pie navy) aunque el <meta color-scheme> diga "light" — reafirmamos acá
+       los mismos colores del modo claro, con !important. */
+    @media (prefers-color-scheme: dark) {
+      .email-wrap { background:#E8EFF8 !important; }
+      .email-body { background:#ffffff !important; }
+      .bm-header, .bm-total { background:#2B7CF6 !important; }
+      .bm-kpi-border { border-color:#E4EAF1 !important; }
+      .bm-kpi-recur  { background:#E7F7F0 !important; }
+      .bm-cta    { background:#2B7CF6 !important; color:#ffffff !important; }
+      .bm-footer { background:#0E2A52 !important; }
+      .bm-footer-link { color:#9FB5D4 !important; }
+      .bm-footer-muted, .bm-footer-muted a { color:#5E7396 !important; }
+      .bm-footer-divider { border-color:rgba(255,255,255,0.08) !important; }
+    }
   </style>
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-wrap" style="background:#E8EFF8;padding:32px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-wrap" bgcolor="#E8EFF8" style="background:#E8EFF8;padding:32px 16px">
   <tr><td align="center">
 
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-body"
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="email-body" bgcolor="#ffffff"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:600px;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
       <!-- FILA 1 — Encabezado azul -->
-      <tr><td class="hero-pad" style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
+      <tr><td class="hero-pad bm-header" bgcolor="#2B7CF6" style="background:#2B7CF6;padding:32px 32px 28px;text-align:center">
         <div style="margin-bottom:20px">${brandWordmark(siteUrl)}</div>
         <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;line-height:52px;font-size:26px;margin:0 auto 14px">📊</div>
         <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
@@ -418,7 +433,7 @@ function monthlyEmailHtml({
       </td></tr>
 
       <!-- FILA 2 — Total del mes (full-bleed azul) -->
-      <tr><td class="total-pad" style="background:#2B7CF6;padding:24px 32px 32px;text-align:center;border-bottom:4px solid #E8EFF8">
+      <tr><td class="total-pad bm-total" bgcolor="#2B7CF6" style="background:#2B7CF6;padding:24px 32px 32px;text-align:center;border-bottom:4px solid #E8EFF8">
         <p style="margin:0 0 6px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:rgba(255,255,255,0.70);text-transform:uppercase;letter-spacing:1.5px">
           Este mes gastaste
         </p>
@@ -434,15 +449,15 @@ function monthlyEmailHtml({
       <tr><td style="padding:0;border-bottom:4px solid #E8EFF8">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr>
-            <td width="33%" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
+            <td width="33%" class="bm-kpi-border" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
               <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Transacciones</p>
               <p class="kpi-val" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${txCount}</p>
             </td>
-            <td width="34%" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
+            <td width="34%" class="bm-kpi-border" style="padding:16px 8px;text-align:center;border-right:1.5px solid #E4EAF1">
               <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.5px">Promedio diario</p>
               <p class="kpi-val-sm" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:16px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtCLP(dailyAvg)}</p>
             </td>
-            <td width="33%" style="padding:16px 8px;text-align:center;background:#E7F7F0">
+            <td width="33%" class="bm-kpi-recur" bgcolor="#E7F7F0" style="padding:16px 8px;text-align:center;background:#E7F7F0">
               <p class="kpi-label" style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:700;color:#1FBE8D;text-transform:uppercase;letter-spacing:0.5px">Recurrentes</p>
               <p class="kpi-val" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D;font-variant-numeric:tabular-nums">${recurringPct}%</p>
             </td>
@@ -482,7 +497,7 @@ function monthlyEmailHtml({
         <!-- CTA -->
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-top:4px">
-            <a href="${siteUrl}/analisis"
+            <a href="${siteUrl}/analisis" class="bm-cta" bgcolor="#2B7CF6"
               style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 36px;border-radius:12px;letter-spacing:0.1px">
               Ver reporte completo
             </a>
@@ -492,18 +507,18 @@ function monthlyEmailHtml({
       </td></tr>
 
       <!-- PIE navy -->
-      <tr><td class="foot-pad" style="background:#0E2A52;padding:24px 28px">
+      <tr><td class="foot-pad bm-footer" bgcolor="#0E2A52" style="background:#0E2A52;padding:24px 28px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-bottom:14px">
             ${brandWordmark(siteUrl)}
           </td></tr>
           <tr><td style="text-align:center;padding-bottom:14px">
-            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
+            <a href="${siteUrl}" class="bm-footer-link" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
             <span style="color:#3D5476;font-size:12px">·</span>
-            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+            <a href="${siteUrl}/ajustes" class="bm-footer-link" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
           </td></tr>
-          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
-            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
+          <tr><td class="bm-footer-divider" style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px">
+            <p class="bm-footer-muted" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
               Recibes este correo porque tienes activo el resumen mensual.<br>
               <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
             </p>

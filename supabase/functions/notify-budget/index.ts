@@ -216,18 +216,34 @@ function budgetEmailHtml({
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <style>:root { color-scheme: light; supported-color-schemes: light; }</style>
+  <style>
+    :root { color-scheme: light; supported-color-schemes: light; }
+    /* Apple/iOS Mail a veces re-invierte bloques individuales (sobre todo el
+       pie navy) aunque el <meta color-scheme> diga "light" — reafirmamos acá
+       los mismos colores del modo claro, con !important. Los bloques con
+       color dinámico (según ámbar/coral) usan el atributo bgcolor inline en
+       vez de una clase estática. */
+    @media (prefers-color-scheme: dark) {
+      .bm-page   { background:#E8EFF8 !important; }
+      .bm-card   { background:#ffffff !important; }
+      .bm-amount { background:#2B7CF6 !important; }
+      .bm-footer { background:#0E2A52 !important; }
+      .bm-footer-link { color:#9FB5D4 !important; }
+      .bm-footer-muted, .bm-footer-muted a { color:#5E7396 !important; }
+      .bm-footer-divider { border-color:rgba(255,255,255,0.08) !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
 
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:40px 16px">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-page" bgcolor="#E8EFF8" style="background:#E8EFF8;padding:40px 16px">
   <tr><td align="center">
 
-    <table width="600" cellpadding="0" cellspacing="0" role="presentation"
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation" class="bm-card" bgcolor="#ffffff"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
       <!-- ENCABEZADO -->
-      <tr><td style="background:${accent};padding:36px 40px 32px;text-align:center">
+      <tr><td bgcolor="${accent}" style="background:${accent};padding:36px 40px 32px;text-align:center">
         <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
         <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
           <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
@@ -254,7 +270,7 @@ function budgetEmailHtml({
         </p>
 
         <!-- BLOQUE DESTACADO azul — cifras principales -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-amount" bgcolor="#2B7CF6"
           style="background:#2B7CF6;border-radius:20px;margin-bottom:24px">
           <tr>
             <td width="50%" style="padding:24px 24px 20px;text-align:center;border-right:1px solid rgba(255,255,255,0.18)">
@@ -281,7 +297,7 @@ function budgetEmailHtml({
         </table>
 
         <!-- Tarjeta de estado (tinte semántico) -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="${accentBg}"
           style="background:${accentBg};border:1.5px solid ${accentBdr};border-radius:16px;margin-bottom:28px">
           <tr><td style="padding:18px 20px">
             <table cellpadding="0" cellspacing="0" role="presentation">
@@ -300,7 +316,7 @@ function budgetEmailHtml({
         <!-- CTA -->
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center">
-            <a href="${siteUrl}/analisis"
+            <a href="${siteUrl}/analisis" bgcolor="${accent}"
               style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:0.1px">
               Ver análisis de gastos
             </a>
@@ -313,18 +329,18 @@ function budgetEmailHtml({
       </td></tr>
 
       <!-- PIE navy -->
-      <tr><td style="background:#0E2A52;padding:28px 40px">
+      <tr><td class="bm-footer" bgcolor="#0E2A52" style="background:#0E2A52;padding:28px 40px">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-bottom:16px">
             ${brandWordmark(siteUrl)}
           </td></tr>
           <tr><td style="text-align:center;padding-bottom:16px">
-            <a href="${siteUrl}" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
+            <a href="${siteUrl}" class="bm-footer-link" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Abrir app</a>
             <span style="color:#3D5476;font-size:12px">·</span>
-            <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
+            <a href="${siteUrl}/ajustes" class="bm-footer-link" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;margin:0 10px">Preferencias</a>
           </td></tr>
-          <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
-            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
+          <tr><td class="bm-footer-divider" style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
+            <p class="bm-footer-muted" style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#5E7396;line-height:1.6">
               Recibes este correo porque tienes activas las alertas de presupuesto.<br>
               <a href="${siteUrl}/ajustes" style="color:#5E7396;text-decoration:underline">Cancelar suscripción</a>
             </p>
