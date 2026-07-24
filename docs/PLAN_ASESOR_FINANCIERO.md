@@ -98,7 +98,7 @@ En la vista mensual (dentro del hero o del score) solo UNA frase: "A este ritmo,
 
 La card "insight del mes" (rule-based) y las Oportunidades IA compiten por el mismo espacio mental. El insight pasa a ser la primera línea del bloque de Oportunidades (o desaparece cuando hay insights de IA, que son más ricos).
 
-**Orden de implementación de la revisión:** R1 (hero + KPIs fuera) → R2 (pestaña Patrimonio) → R3 (proyección resumida) → R4 (fusión narrativa). Después de esto, continuar con B1/B3/B4 — pero B1 (año en construcción) va en la pestaña Anual y B4 (cierre narrativo) reemplaza al resumen rule-based, así que ya no agregan carga a la vista mensual.
+**Estado (jul 2026): R1–R4 implementados.** Ajuste sobre lo planeado: a pedido de Cas, la vista mensual NO lleva ni la línea resumida de proyección (R3) ni nada de patrimonio neto — proyección y patrimonio viven completos y únicamente en la pestaña Patrimonio. La vista mensual quedó: hero Flujo del mes (con sueldo editable y delta de gasto) → health score (solo señales fuera de verde + resumen de verdes) → oportunidades IA → tendencia + categorías → "Más detalle" colapsable (medios de pago, día de semana). Siguiente: B1 (pestaña Anual) / B3 / B4 — B4 reemplaza al resumen rule-based, no se suma.
 
 ---
 

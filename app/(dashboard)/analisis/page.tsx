@@ -1,7 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
 import { computeAndSnapshotNetWorth, type NetWorthResult } from '@/lib/net-worth'
-import { getExpenseIcon } from '@/lib/expense-icons'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
@@ -25,6 +24,7 @@ export default async function AnalisisPage({
   const { month: monthStr, year: yearStr, view, bm } = await searchParams
   const { now } = getNowChile()
   const isAnual = view === 'anual'
+  const isPatrimonio = view === 'patrimonio'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
 
@@ -623,21 +623,21 @@ export default async function AnalisisPage({
 
   // F4/P1: snapshot del mes actual + histórico, con la deuda ya calculada
   // arriba para que el neto real persistido coincida con el que se muestra.
-  if (!isAnual) {
+  // R2: el patrimonio vive en su propia pestaña — el cálculo (y el upsert del
+  // snapshot, que también corre a diario desde el cron) solo se hace ahí.
+  if (isPatrimonio) {
     netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
   }
 
-  // ── B2: Proyección de patrimonio a interés compuesto ──────────────────────
-  // Aporte mensual a proyectar: la META si está definida (lo que el usuario
-  // SE PROPONE aportar), o lo efectivamente invertido este mes como fallback
-  // (usuario sin meta pero que ya invierte). Punto de partida: patrimonio neto
-  // real (activos − deuda comprometida) si está disponible.
+  // ── B2/R3: Proyección de patrimonio a interés compuesto (solo pestaña
+  // Patrimonio). Aporte mensual a proyectar: la META si está definida, o lo
+  // efectivamente invertido este mes como fallback. Punto de partida:
+  // patrimonio neto real (activos − deuda comprometida) si está disponible.
   const wealthMonthlyContribution = monthlyInvestGoal && monthlyInvestGoal > 0
     ? monthlyInvestGoal
     : investedThisMonth > 0 ? investedThisMonth : 0
-  const wealthPrincipal = netWorth?.current.net_clp ?? netWorth?.current.total_clp ?? 0
-  const wealthTable = !isAnual && wealthMonthlyContribution > 0
-    ? buildWealthProjectionTable(wealthPrincipal, wealthMonthlyContribution)
+  const wealthTable = isPatrimonio && wealthMonthlyContribution > 0
+    ? buildWealthProjectionTable(netWorth?.current.net_clp ?? netWorth?.current.total_clp ?? 0, wealthMonthlyContribution)
     : null
 
   // Tickers de acciones — solo si hace falta para el botón "Actualizar precios
@@ -855,14 +855,17 @@ export default async function AnalisisPage({
                 <span className="hidden lg:inline">Resumen anual</span>
                 <span className="lg:hidden">Análisis</span>
               </>
-            ) : 'Análisis'}
+            ) : isPatrimonio ? 'Patrimonio' : 'Análisis'}
           </h1>
           {isAnual && pastRows.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5 hidden lg:block">
               {pastRows.length} de 12 meses con registros
             </p>
           )}
-          {!isAnual && totalSelected > 0 && (
+          {isPatrimonio && (
+            <p className="text-xs text-gray-400 mt-0.5">Ahorro, respaldo, compromisos y proyección</p>
+          )}
+          {!isAnual && !isPatrimonio && totalSelected > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">{selectedExpenses.length} gasto{selectedExpenses.length !== 1 ? 's' : ''} · {daysElapsed} días registrados</p>
           )}
         </div>
@@ -905,7 +908,7 @@ export default async function AnalisisPage({
               </Link>
             </div>
           </div>
-        ) : (
+        ) : isPatrimonio ? null : (
           <MonthNav month={month} year={year} basePath="/analisis" />
         )}
       </div>
@@ -915,7 +918,7 @@ export default async function AnalisisPage({
         <Link
           href={`/analisis?month=${month}&year=${year}`}
           className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            !isAnual ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+            !isAnual && !isPatrimonio ? 'view-toggle-active-purchase' : 'view-toggle-btn'
           }`}
         >
           <ShoppingCart className="w-3.5 h-3.5" />
@@ -929,6 +932,15 @@ export default async function AnalisisPage({
         >
           <CalendarDays className="w-3.5 h-3.5" />
           Anual
+        </Link>
+        <Link
+          href={`/analisis?view=patrimonio`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isPatrimonio ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+          }`}
+        >
+          <PiggyBank className="w-3.5 h-3.5" />
+          Patrimonio
         </Link>
       </div>
 
@@ -1619,11 +1631,111 @@ export default async function AnalisisPage({
         </div>
       )}
 
+      {/* ── Vista patrimonio (R2): construcción de patrimonio + proyección ────── */}
+      {isPatrimonio && (
+        <>
+          {showPatrimonio ? (
+            <PatrimonioCards
+              ratePoints={trimmedRatePoints}
+              currentRate={surplusPct}
+              currentSaved={surplus}
+              avg6={rateAvg6}
+              avg12={rateAvg12}
+              totalSavings={totalSavings}
+              savingsCount={savingsBalances.length + maturedDepositsLiquid.length}
+              avgMonthlyExpense={avgMonthlyExpense}
+              monthsCovered={monthsCovered}
+              monthLabel={monthName(month)}
+              prevMonthLabel={prevMonthName}
+              projectedRate={projectedRate}
+              dayOfMonth={now.getDate()}
+              isCurrentMonth={isCurrentMonth}
+              commitMonths={commitMonths}
+              commitNext={commitNext}
+              commitRatio={commitRatio}
+              cuotasPendingTotal={cuotasPendingTotal}
+              fixedMonthlyTotal={fixedMonthlyTotal}
+              cardNextTotal={cardNextTotal}
+              freeMonthLabel={freeMonthLabel}
+              netWorth={netWorth}
+              committedDebtTotal={committedDebtTotal}
+              stockTickers={stockTickers}
+            />
+          ) : (
+            <div className="card text-center py-14 flex flex-col items-center gap-3">
+              <div className="w-14 h-14 rounded-3xl bg-brand-50 flex items-center justify-center">
+                <PiggyBank className="w-7 h-7 text-brand-400" />
+              </div>
+              <p className="text-sm font-bold text-gray-600">Aún no hay datos de patrimonio</p>
+              <p className="text-xs text-gray-400">Registra tus ingresos, ahorros o inversiones para empezar</p>
+            </div>
+          )}
+
+          {/* ── B2/R3: Proyección de patrimonio a interés compuesto ───────────── */}
+          {wealthTable && (
+            <div className="card p-4 lg:p-6 mt-5">
+              <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Proyección de patrimonio</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                  Si mantienes el ritmo
+                </span>
+              </div>
+              <p className="text-[11px] mb-4" style={{ color: 'var(--ink-3)' }}>
+                Partiendo de {formatCLP(wealthTable.principal)} de patrimonio neto hoy, aportando {formatCLP(wealthTable.monthlyContribution)} cada mes.
+              </p>
+
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full border-collapse" style={{ minWidth: 420 }}>
+                  <thead>
+                    <tr>
+                      <th className="text-left text-[10px] font-semibold pb-2" style={{ color: 'var(--ink-3)' }}>Retorno anual</th>
+                      {wealthTable.scenarios[0].values.map(v => (
+                        <th key={v.years} className="text-right text-[10px] font-semibold pb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
+                          {v.years} año{v.years > 1 ? 's' : ''}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wealthTable.scenarios.map(s => {
+                      const isMid = s.annualReturnPct === 7
+                      return (
+                        <tr key={s.annualReturnPct} className="rounded-xl" style={isMid ? { background: 'var(--primary-soft)' } : {}}>
+                          <td className="text-xs font-bold py-2 pl-2 rounded-l-xl whitespace-nowrap" style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
+                            {s.annualReturnPct}%{isMid ? ' (referencia)' : ''}
+                          </td>
+                          {s.values.map((v, i) => (
+                            <td key={v.years}
+                              className={`text-right text-xs lg:text-sm font-extrabold tabular-nums py-2 pr-2 whitespace-nowrap ${i === s.values.length - 1 ? 'rounded-r-xl' : ''}`}
+                              style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
+                              {formatCLP(v.futureValue)}
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {(() => {
+                const midScenario = wealthTable.scenarios.find(s => s.annualReturnPct === 7) ?? wealthTable.scenarios[0]
+                const longest = midScenario.values[midScenario.values.length - 1]
+                const compoundInterest = Math.max(0, longest.futureValue - wealthTable.totalContributedAtLongestHorizon)
+                return (
+                  <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                    A {longest.years} años y {midScenario.annualReturnPct}% anual, tu patrimonio proyectado sería{' '}
+                    <span style={{ fontWeight: 700 }}>{formatCLP(longest.futureValue)}</span>: {formatCLP(wealthTable.totalContributedAtLongestHorizon)}{' '}
+                    es lo que tú pones (patrimonio de hoy + aportes) y {formatCLP(compoundInterest)} es interés compuesto. Supuesto simplificado: retorno real constante, sin impuestos ni volatilidad.
+                  </p>
+                )
+              })()}
+            </div>
+          )}
+        </>
+      )}
+
       {/* ── Vista mensual ─────────────────────────────────────────────────────── */}
-      {!isAnual && (() => {
-        const topExpenseData = topExpense
-          ? getExpenseIcon(topExpense.description ?? null, topExpense.category?.name ?? null)
-          : null
+      {!isAnual && !isPatrimonio && (() => {
         // Donut chart helpers
         const donutR    = 68
         const donutC    = 2 * Math.PI * donutR  // ≈ 427
@@ -1631,110 +1743,9 @@ export default async function AnalisisPage({
 
         return (
           <>
-            {/* ── 4 KPI cards ─────────────────────────────────────────────────── */}
-            {totalSelected > 0 && (
-              <>
-                {/* Mobile 2×2 */}
-                <div className="grid grid-cols-2 gap-2.5 mb-5 lg:hidden">
-              {/* Mobile card 1: Ingresos (del mes ANTERIOR — ese financió este mes) */}
-              <div className="card p-3">
-                <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
-                <IncomeEditor
-                  userId={user!.id}
-                  month={prevMonth}
-                  year={prevYear}
-                  amount={prevMonthIncome > 0 ? prevMonthIncome : null}
-                  description={(prevIncomeRow as any)?.description ?? null}
-                  compact
-                />
-              </div>
-              {/* Mobile card 2: Gasto total */}
-              <div className="card p-3">
-                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Gasto total</p>
-                <div className="flex items-baseline gap-1.5">
-                  <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(totalSelected)}</p>
-                  {delta !== null && (
-                    <span className="text-[10px] font-bold" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
-                      {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
-                    </span>
-                  )}
-                </div>
-                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
-              </div>
-              {/* Mobile card 3: Te sobró */}
-              <div className="card p-3" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.10)', border: '1px solid rgba(31,190,141,0.2)' } : {}}>
-                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Saldo de {prevMonthName}</p>
-                {surplus !== null
-                  ? <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
-                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
-                }
-                <p className="text-[9px] mt-0.5" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% del sueldo anterior` : 'Sin ingreso de ' + prevMonthName}</p>
-              </div>
-              {/* Mobile card 4: Mayor gasto */}
-              <div className="card p-3">
-                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Mayor gasto único</p>
-                {topExpense
-                  ? <>
-                      <p className="text-[15px] font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(topExpense.amount)}</p>
-                      <p className="text-[9px] mt-0.5 truncate" style={{ color: 'var(--ink-3)' }}>{topExpense.description ?? topExpense.category?.name ?? 'Gasto'}</p>
-                    </>
-                  : <p className="text-[13px] font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
-                }
-              </div>
-            </div>
-
-            {/* Desktop 4-col KPI cards */}
-            <div className="hidden lg:grid lg:grid-cols-4 gap-4 mb-6">
-              {/* Ingresos (del mes ANTERIOR — ese financió este mes) */}
-              <div className="card p-5 flex flex-col gap-1">
-                <p className="text-xs font-medium mb-1" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
-                <IncomeEditor
-                  userId={user!.id}
-                  month={prevMonth}
-                  year={prevYear}
-                  amount={prevMonthIncome > 0 ? prevMonthIncome : null}
-                  description={(prevIncomeRow as any)?.description ?? null}
-                />
-              </div>
-              {/* Gasto total */}
-              <div className="card p-5 flex flex-col gap-1">
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Gasto total</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(totalSelected)}</p>
-                  {delta !== null && (
-                    <span className="text-[11px] font-bold" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
-                      {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
-              </div>
-              {/* Te sobró */}
-              <div className="card p-5 flex flex-col gap-1" style={surplus !== null && surplus > 0 ? { background: 'rgba(31,190,141,0.08)', border: '1.5px solid rgba(31,190,141,0.25)' } : {}}>
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Saldo de {prevMonthName}</p>
-                {surplus !== null
-                  ? <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: surplus > 0 ? '#1FBE8D' : '#FF6F61' }}>{formatCLP(Math.abs(surplus))}</p>
-                  : <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
-                }
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{surplusPct !== null ? `${surplusPct}% del sueldo de ${prevMonthName}` : `Sin ingreso de ${prevMonthName}`}</p>
-              </div>
-              {/* Mayor gasto único */}
-              <div className="card p-5 flex flex-col gap-1">
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Mayor gasto único</p>
-                {topExpense
-                  ? <>
-                      <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(topExpense.amount)}</p>
-                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{topExpense.description ?? topExpense.category?.name ?? 'Gasto'} · compra única</p>
-                    </>
-                  : <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
-                }
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ── Flujo del mes: gastado / invertido / líquido (A1/A2) ────────────── */}
-        {(totalSelected > 0 || investedThisMonth > 0) && (() => {
+        {/* ── R1: Hero — Flujo del mes absorbe los KPIs ───────────────────────── */}
+        {/* ── Flujo del mes: sueldo → gastado / invertido / líquido (A1/A2) ───── */}
+        {(totalSelected > 0 || investedThisMonth > 0 || prevMonthIncome > 0) && (() => {
           const spent   = totalSelected
           const invest  = investedThisMonth
           const liquidPos = liquidReal !== null ? Math.max(liquidReal, 0) : 0
@@ -1755,12 +1766,32 @@ export default async function AnalisisPage({
                 {liquidPct > 0 && <div style={{ width: `${liquidPct}%`, background: '#4D93FF' }} />}
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* R1: el sueldo que financió el mes vive acá (antes era una KPI card aparte) */}
+                <div>
+                  <p className="text-[10px] font-semibold mb-0.5" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
+                  <IncomeEditor
+                    userId={user!.id}
+                    month={prevMonth}
+                    year={prevYear}
+                    amount={prevMonthIncome > 0 ? prevMonthIncome : null}
+                    description={(prevIncomeRow as any)?.description ?? null}
+                    compact
+                  />
+                </div>
                 <div>
                   <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#FF6F61' }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#FF6F61' }} /> Gastado
                   </p>
-                  <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(spent)}</p>
+                  <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>
+                    {formatCLP(spent)}
+                    {delta !== null && (
+                      <span className="text-[10px] font-bold ml-1.5" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
+                        {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#1FBE8D' }}>
@@ -1841,224 +1872,144 @@ export default async function AnalisisPage({
                 </div>
               </div>
 
-              {/* Signals */}
+              {/* Signals — R1: solo se muestran las señales fuera de verde; las
+                  verdes se resumen en una línea. La señal de aporte ya no tiene
+                  card propia (vive en el hero Flujo del mes). */}
               <div className="flex-1 min-w-0">
                 <div className="hidden lg:block mb-3">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu salud financiera en cuatro señales</p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu salud financiera</p>
                   <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
                     {healthSummary}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Señal 1: tasa de ahorro (30 pts) */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: scoreRate === null ? 'rgba(148,163,184,0.15)' : scoreRate >= 10 ? 'rgba(31,190,141,0.18)' : scoreRate >= 0 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
-                        <PiggyBank className="w-3.5 h-3.5"
-                          style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 10 ? '#1FBE8D' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }} />
-                      </div>
-                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {scoreRate === null ? 'Tasa de ahorro' : scoreRate >= 20 ? 'Ahorro sano' : scoreRate >= 10 ? 'Ahorro moderado' : scoreRate >= 0 ? 'Ahorro bajo' : 'Gastas más de lo que ganas'}
-                      </p>
-                    </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 10 ? '#1FBE8D' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }}>
-                      {scoreRate !== null
-                        ? `${scoreRate}% del sueldo ${isCurrentMonth ? 'proyectado al cierre' : 'quedó guardado'}`
-                        : `Registra tu ingreso de ${prevMonthName} para medirla`}
-                    </p>
-                  </div>
+                {(() => {
+                  const projOver = projection !== null && effectiveBudget !== null && projection > effectiveBudget * 1.1 && !projInflatedByTop
+                  const ahorroGreen     = scoreRate !== null && scoreRate >= 10
+                  const fondoGreen      = monthsCovered !== null && monthsCovered >= 3
+                  const compromisoGreen = commitRatio !== null ? commitRatio < 20 : commitNext === 0
+                  const disciplinaGreen = numExcedidas === 0 && !projOver && !investGoalAtRisk
+                  const greenNames: string[] = []
+                  if (ahorroGreen)     greenNames.push('Tasa de ahorro')
+                  if (fondoGreen)      greenNames.push('Fondo de emergencia')
+                  if (compromisoGreen) greenNames.push('Deuda comprometida')
+                  if (disciplinaGreen) greenNames.push('Presupuestos')
 
-                  {/* Señal 2: fondo de emergencia (25 pts) */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: monthsCovered === null ? 'rgba(148,163,184,0.15)' : monthsCovered >= 3 ? 'rgba(31,190,141,0.18)' : 'rgba(255,193,60,0.18)' }}>
-                        <ShieldCheck className="w-3.5 h-3.5"
-                          style={{ color: monthsCovered === null ? 'var(--ink-3)' : monthsCovered >= 3 ? '#1FBE8D' : '#FFC23C' }} />
-                      </div>
-                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {monthsCovered === null ? 'Fondo de emergencia' : monthsCovered >= 6 ? 'Fondo completo' : monthsCovered >= 3 ? 'Fondo en zona segura' : 'Fondo en construcción'}
-                      </p>
-                    </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: monthsCovered === null ? 'var(--ink-3)' : monthsCovered >= 3 ? '#1FBE8D' : '#FFC23C' }}>
-                      {monthsCovered !== null
-                        ? `Tus ahorros cubren ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} de gasto`
-                        : 'Registra tus ahorros para medirlo'}
-                    </p>
-                  </div>
-
-                  {/* Señal 3: deuda comprometida / ingreso (20 pts) */}
-                  <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: commitRatio === null ? 'rgba(148,163,184,0.15)' : commitRatio > 35 ? 'rgba(255,111,97,0.18)' : commitRatio >= 20 ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
-                        <CalendarClock className="w-3.5 h-3.5"
-                          style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : commitRatio >= 20 ? '#FFC23C' : '#1FBE8D' }} />
-                      </div>
-                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {commitRatio === null ? 'Deuda comprometida' : commitRatio > 35 ? 'Compromiso alto' : commitRatio >= 20 ? 'Compromiso moderado' : 'Compromiso holgado'}
-                      </p>
-                    </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : commitRatio >= 20 ? '#FFC23C' : '#1FBE8D' }}>
-                      {commitRatio !== null
-                        ? `${commitRatio}% del ingreso ya está comprometido (sano: <35%)`
-                        : commitNext > 0 ? 'Registra tu ingreso para medirla' : 'Sin cuotas ni fijos pendientes'}
-                    </p>
-                  </div>
-
-                  {/* Señal 4: disciplina de presupuesto (25 pts) — contra el disponible real (A3) */}
-                  {(() => {
-                    const projOver = projection !== null && effectiveBudget !== null && projection > effectiveBudget * 1.1 && !projInflatedByTop
-                    const bad = numExcedidas > 0 || projOver
-                    const title = numExcedidas > 0
-                      ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`
-                      : investGoalAtRisk ? 'Meta de aporte en riesgo'
-                      : projOver ? 'Proyección sobre presupuesto'
-                      : projInflatedByTop ? 'Al día, salvo una compra única'
-                      : 'Presupuestos en orden'
-                    const subtitle = numExcedidas > 0
-                      ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
-                      : investGoalAtRisk && projection !== null ? `${formatCLP(projection)} estimado — no alcanza para tu meta de aporte`
-                      : projOver && projection !== null ? `${formatCLP(projection)} estimado al cierre`
-                      : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Define límites para afinar esta señal'
-                    return (
-                      <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                            style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : bad ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
-                            {numExcedidas > 0
-                              ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
-                              : bad
-                                ? <Clock className="w-3.5 h-3.5" style={{ color: '#FFC23C' }} />
-                                : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
+                  return (
+                    <>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {/* Tasa de ahorro — solo si no está en verde */}
+                        {!ahorroGreen && (
+                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: scoreRate === null ? 'rgba(148,163,184,0.15)' : scoreRate >= 0 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
+                                <PiggyBank className="w-3.5 h-3.5"
+                                  style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }} />
+                              </div>
+                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
+                                {scoreRate === null ? 'Tasa de ahorro' : scoreRate >= 0 ? 'Ahorro bajo' : 'Gastas más de lo que ganas'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] font-semibold pl-9" style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }}>
+                              {scoreRate !== null
+                                ? `${scoreRate}% del sueldo ${isCurrentMonth ? 'proyectado al cierre' : 'quedó guardado'}`
+                                : `Registra tu ingreso de ${prevMonthName} para medirla`}
+                            </p>
                           </div>
-                          <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>{title}</p>
-                        </div>
-                        <p className="text-[10px] font-semibold pl-9" style={{ color: bad ? (numExcedidas > 0 ? '#FF6F61' : '#FFC23C') : 'var(--ink-3)' }}>
-                          {subtitle}
-                        </p>
-                      </div>
-                    )
-                  })()}
+                        )}
 
-                  {/* Señal 5: cumplimiento de aporte a inversión (15 pts) — full width */}
-                  <div className="rounded-2xl p-3 col-span-2" style={{ background: 'var(--surface)' }}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: aporteRatio === null ? 'rgba(148,163,184,0.15)' : aporteRatio >= 1 ? 'rgba(31,190,141,0.18)' : aporteRatio >= 0.6 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
-                        <Sparkles className="w-3.5 h-3.5"
-                          style={{ color: aporteRatio === null ? 'var(--ink-3)' : aporteRatio >= 1 ? '#1FBE8D' : aporteRatio >= 0.6 ? '#FFC23C' : '#FF6F61' }} />
+                        {/* Fondo de emergencia — solo si no está en verde */}
+                        {!fondoGreen && (
+                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: monthsCovered === null ? 'rgba(148,163,184,0.15)' : 'rgba(255,193,60,0.18)' }}>
+                                <ShieldCheck className="w-3.5 h-3.5"
+                                  style={{ color: monthsCovered === null ? 'var(--ink-3)' : '#FFC23C' }} />
+                              </div>
+                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
+                                {monthsCovered === null ? 'Fondo de emergencia' : 'Fondo en construcción'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] font-semibold pl-9" style={{ color: monthsCovered === null ? 'var(--ink-3)' : '#FFC23C' }}>
+                              {monthsCovered !== null
+                                ? `Tus ahorros cubren ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} de gasto`
+                                : 'Registra tus ahorros para medirlo'}
+                              {' · '}
+                              <Link href="/analisis?view=patrimonio" className="underline" style={{ color: 'var(--primary)' }}>Ver patrimonio</Link>
+                            </p>
+                            {suggestDivertToSavings && (
+                              <p className="text-[10px] mt-1.5 pl-9 leading-relaxed" style={{ color: '#FFC23C' }}>
+                                Ya cumpliste tu aporte: considera destinar el próximo a ahorro líquido antes de seguir invirtiendo.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Deuda comprometida — solo si no está en verde */}
+                        {!compromisoGreen && (
+                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: commitRatio === null ? 'rgba(148,163,184,0.15)' : commitRatio > 35 ? 'rgba(255,111,97,0.18)' : 'rgba(255,193,60,0.18)' }}>
+                                <CalendarClock className="w-3.5 h-3.5"
+                                  style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : '#FFC23C' }} />
+                              </div>
+                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
+                                {commitRatio === null ? 'Deuda comprometida' : commitRatio > 35 ? 'Compromiso alto' : 'Compromiso moderado'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] font-semibold pl-9" style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : '#FFC23C' }}>
+                              {commitRatio !== null
+                                ? `${commitRatio}% del ingreso ya está comprometido (sano: <35%)`
+                                : 'Registra tu ingreso para medirla'}
+                              {' · '}
+                              <Link href="/analisis?view=patrimonio" className="underline" style={{ color: 'var(--primary)' }}>Ver detalle</Link>
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Disciplina de presupuesto — solo si no está en verde (A3: contra el disponible real) */}
+                        {!disciplinaGreen && (
+                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : 'rgba(255,193,60,0.18)' }}>
+                                {numExcedidas > 0
+                                  ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
+                                  : <Clock className="w-3.5 h-3.5" style={{ color: '#FFC23C' }} />}
+                              </div>
+                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
+                                {numExcedidas > 0
+                                  ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`
+                                  : investGoalAtRisk ? 'Meta de aporte en riesgo'
+                                  : 'Proyección sobre presupuesto'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] font-semibold pl-9" style={{ color: numExcedidas > 0 ? '#FF6F61' : '#FFC23C' }}>
+                              {numExcedidas > 0
+                                ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
+                                : investGoalAtRisk && projection !== null ? `${formatCLP(projection)} estimado — no alcanza para tu meta de aporte`
+                                : projection !== null ? `${formatCLP(projection)} estimado al cierre` : ''}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                        {aporteRatio === null ? 'Cumplimiento de aporte' : aporteRatio >= 1 ? 'Aporte al día' : aporteRatio >= 0.6 ? 'Aporte a buen ritmo' : 'Aporte atrasado'}
-                      </p>
-                    </div>
-                    <p className="text-[10px] font-semibold pl-9" style={{ color: aporteRatio === null ? 'var(--ink-3)' : aporteRatio >= 1 ? '#1FBE8D' : aporteRatio >= 0.6 ? '#FFC23C' : '#FF6F61' }}>
-                      {monthlyInvestGoal === null || monthlyInvestGoal === 0
-                        ? 'Define una meta de aporte arriba para sumar esta señal'
-                        : `${formatCLP(investedThisMonth)} de ${formatCLP(monthlyInvestGoal)}${isCurrentMonth ? ' al ritmo de hoy' : ' este mes'}`}
-                    </p>
-                    {suggestDivertToSavings && (
-                      <p className="text-[10px] mt-1.5 pl-9 leading-relaxed" style={{ color: '#FFC23C' }}>
-                        Tu fondo de emergencia aún cubre menos de 3 meses. Considera destinar tu próximo aporte a ahorro líquido antes de seguir invirtiendo.
-                      </p>
-                    )}
-                  </div>
-                </div>
+
+                      {/* Resumen de señales en verde */}
+                      {greenNames.length > 0 && (
+                        <div className={`flex items-center gap-2 ${greenNames.length === 4 ? '' : 'mt-2'} rounded-2xl px-3 py-2.5`} style={{ background: 'rgba(31,190,141,0.10)' }}>
+                          <Check className="w-4 h-4 flex-shrink-0" style={{ color: '#1FBE8D' }} />
+                          <p className="text-[11px] font-semibold leading-relaxed" style={{ color: '#1FBE8D' }}>
+                            {greenNames.length === 4 ? 'Las 4 señales en orden' : `En orden: ${greenNames.join(' · ')}`}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ── Construcción de patrimonio: F1 tasa de ahorro + F2 fondo de emergencia ── */}
-        {showPatrimonio && (
-          <PatrimonioCards
-            ratePoints={trimmedRatePoints}
-            currentRate={surplusPct}
-            currentSaved={surplus}
-            avg6={rateAvg6}
-            avg12={rateAvg12}
-            totalSavings={totalSavings}
-            savingsCount={savingsBalances.length + maturedDepositsLiquid.length}
-            avgMonthlyExpense={avgMonthlyExpense}
-            monthsCovered={monthsCovered}
-            monthLabel={monthName(month)}
-            prevMonthLabel={prevMonthName}
-            projectedRate={projectedRate}
-            dayOfMonth={now.getDate()}
-            isCurrentMonth={isCurrentMonth}
-            commitMonths={commitMonths}
-            commitNext={commitNext}
-            commitRatio={commitRatio}
-            cuotasPendingTotal={cuotasPendingTotal}
-            fixedMonthlyTotal={fixedMonthlyTotal}
-            cardNextTotal={cardNextTotal}
-            freeMonthLabel={freeMonthLabel}
-            netWorth={netWorth}
-            committedDebtTotal={committedDebtTotal}
-            stockTickers={stockTickers}
-          />
-        )}
-
-        {/* ── B2: Proyección de patrimonio a interés compuesto ────────────────── */}
-        {wealthTable && (
-          <div className="card p-4 lg:p-6 mb-5">
-            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Proyección de patrimonio</p>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                Si mantienes el ritmo
-              </span>
-            </div>
-            <p className="text-[11px] mb-4" style={{ color: 'var(--ink-3)' }}>
-              Partiendo de {formatCLP(wealthTable.principal)} de patrimonio neto hoy, aportando {formatCLP(wealthTable.monthlyContribution)} cada mes.
-            </p>
-
-            <div className="overflow-x-auto -mx-1 px-1">
-              <table className="w-full border-collapse" style={{ minWidth: 420 }}>
-                <thead>
-                  <tr>
-                    <th className="text-left text-[10px] font-semibold pb-2" style={{ color: 'var(--ink-3)' }}>Retorno anual</th>
-                    {wealthTable.scenarios[0].values.map(v => (
-                      <th key={v.years} className="text-right text-[10px] font-semibold pb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
-                        {v.years} año{v.years > 1 ? 's' : ''}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {wealthTable.scenarios.map(s => {
-                    const isMid = s.annualReturnPct === 7
-                    return (
-                      <tr key={s.annualReturnPct} className="rounded-xl" style={isMid ? { background: 'var(--primary-soft)' } : {}}>
-                        <td className="text-xs font-bold py-2 pl-2 rounded-l-xl whitespace-nowrap" style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
-                          {s.annualReturnPct}%{isMid ? ' (referencia)' : ''}
-                        </td>
-                        {s.values.map((v, i) => (
-                          <td key={v.years}
-                            className={`text-right text-xs lg:text-sm font-extrabold tabular-nums py-2 pr-2 whitespace-nowrap ${i === s.values.length - 1 ? 'rounded-r-xl' : ''}`}
-                            style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
-                            {formatCLP(v.futureValue)}
-                          </td>
-                        ))}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {(() => {
-              const midScenario = wealthTable.scenarios.find(s => s.annualReturnPct === 7) ?? wealthTable.scenarios[0]
-              const longest = midScenario.values[midScenario.values.length - 1]
-              const compoundInterest = Math.max(0, longest.futureValue - wealthTable.totalContributedAtLongestHorizon)
-              return (
-                <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-                  A {longest.years} años y {midScenario.annualReturnPct}% anual, tu patrimonio proyectado sería{' '}
-                  <span style={{ fontWeight: 700 }}>{formatCLP(longest.futureValue)}</span>: {formatCLP(wealthTable.totalContributedAtLongestHorizon)}{' '}
-                  es lo que tú pones (patrimonio de hoy + aportes) y {formatCLP(compoundInterest)} es interés compuesto. Supuesto simplificado: retorno real constante, sin impuestos ni volatilidad.
-                </p>
-              )
-            })()}
           </div>
         )}
 
@@ -2103,8 +2054,9 @@ export default async function AnalisisPage({
         {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
         {totalSelected > 0 ? (
           <>
-          {/* Resumen narrativo del mes — para leer de un vistazo antes de los gráficos */}
-          {insight && (
+          {/* R4: resumen narrativo rule-based — solo cuando NO hay insights de IA
+              (los de IA son más ricos y compiten por el mismo espacio mental) */}
+          {insight && !hasAiInsights && (
             <div className="card p-4 mb-5 flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'rgba(255,194,60,0.15)' }}>
@@ -2201,6 +2153,18 @@ export default async function AnalisisPage({
               })()}
             </div>
 
+            {/* R1: "Con qué pagaste" y "Cuándo gastas" colapsados en "Más detalle" —
+                se consultan menos que la tendencia y las categorías */}
+            <details className="group">
+              <summary className="card px-4 py-3 flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Más detalle del mes</p>
+                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  Con qué pagaste · Cuándo gastas
+                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                </span>
+              </summary>
+              <div className="space-y-5 mt-5">
+
             {/* Medios de pago */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-3">
@@ -2289,6 +2253,9 @@ export default async function AnalisisPage({
                 </p>
               )}
             </div>
+
+              </div>
+            </details>
 
             </div>
 
