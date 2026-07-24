@@ -65,7 +65,7 @@ function depositAccrued(amount: number, rate: number, startDate: string, maturit
  *   `reconcileClosedMonthDebt` la fija al último día de un mes ya cerrado
  *   para recalcular su deuda sin filtrarse gastos de meses posteriores.
  */
-async function computeCommittedDebt(
+export async function computeCommittedDebt(
   supabase: SupabaseClient,
   userId: string,
   asOf: Date,

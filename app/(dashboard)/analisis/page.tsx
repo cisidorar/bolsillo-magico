@@ -10,7 +10,9 @@ import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, C
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
 import IncomeEditor from '@/components/IncomeEditor'
+import InvestGoalEditor from '@/components/InvestGoalEditor'
 import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
+import { computeHealthScore } from '@/lib/health-score'
 
 export const revalidate = 0
 
@@ -56,7 +58,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }, { data: profileRow }, { data: usdDepositsRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -135,6 +137,18 @@ export default async function AnalisisPage({
       .select('amount, interest_rate, start_date, maturity_date')
       .eq('user_id', user!.id)
       .lt('maturity_date', getNowChile().dateStr),
+    // Meta mensual de aporte a inversión (Fase A1/A2 del asesor financiero)
+    supabase.from('profiles').select('monthly_invest_goal').eq('id', user!.id).maybeSingle(),
+    // Aportes a la billetera USD (kind='deposit') de los últimos ~13 meses,
+    // misma ventana que incomes12/expenses12, para separar "invertido" de
+    // "gastado" en el flujo del mes y medir cumplimiento de la meta.
+    supabase
+      .from('usd_purchases')
+      .select('total_paid_clp, purchase_date')
+      .eq('user_id', user!.id)
+      .eq('kind', 'deposit')
+      .gte('purchase_date', rateStart)
+      .lt('purchase_date', rateEnd),
   ])
 
   // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual).
@@ -390,6 +404,35 @@ export default async function AnalisisPage({
   const prevMonthIncome  = (prevIncomeRow as { amount?: number } | null)?.amount ?? 0
   const surplus          = prevMonthIncome > 0 ? prevMonthIncome - totalSelected : null
   const surplusPct       = surplus !== null && prevMonthIncome > 0 ? Math.round((surplus / prevMonthIncome) * 100) : null
+
+  // ── A1/A2: Flujo del mes — gastado / invertido / líquido ─────────────────
+  // El aporte a la billetera USD sale de la cuenta pero no es "gasto": sin
+  // esto, un mes donde invertiste $1M y un mes donde no invertiste nada se
+  // ven exactamente igual si ambos "sobraron" lo mismo en la cuenta corriente.
+  const monthlyInvestGoal = (profileRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
+  const investedByKey: Record<string, number> = {}
+  for (const d of (usdDepositsRaw ?? []) as { total_paid_clp: number; purchase_date: string }[]) {
+    const k = d.purchase_date.substring(0, 7) // YYYY-MM, mismo formato que selectedKey
+    investedByKey[k] = (investedByKey[k] ?? 0) + d.total_paid_clp
+  }
+  const investedThisMonth = investedByKey[selectedKey] ?? 0
+  const goalMet = monthlyInvestGoal !== null && monthlyInvestGoal > 0 ? investedThisMonth >= monthlyInvestGoal : null
+  // Líquido real = lo que sobró en la cuenta después de gastar E invertir
+  // (antes, "surplus" mezclaba ambos: un aporte a la billetera nunca se
+  // distinguía de un gasto de consumo).
+  const liquidReal = surplus !== null ? surplus - investedThisMonth : null
+  // Racha de meses CERRADOS cumpliendo la meta (no cuenta el mes en curso,
+  // que aún puede completarse antes de fin de mes).
+  let investStreak = 0
+  if (monthlyInvestGoal !== null && monthlyInvestGoal > 0) {
+    for (let i = 1; i <= 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      if ((investedByKey[k] ?? 0) >= monthlyInvestGoal) investStreak++
+      else break
+    }
+  }
+
   type MonthBudgetRow = { amount: number; month: number; year: number }
   const allMonthBudgets  = (monthBudgetRows ?? []) as MonthBudgetRow[]
   const thisMonthBudgetRow = allMonthBudgets.find(b => b.month === month && b.year === year)
@@ -611,41 +654,45 @@ export default async function AnalisisPage({
     ? ratePoints.slice(-6)
     : ratePoints.slice(Math.min(firstDataIdx, ratePoints.length - 6))
 
-  // ── F5: Health score (0–100) — ahora premia construir patrimonio ─────────
-  // Mix: tasa de ahorro (30) · fondo de emergencia (25) · disciplina de presupuesto (25) · deuda comprometida (20)
-  // "Neutral" cuando falta el dato: no castigamos por no haber registrado aún.
+  // ── A3: presupuesto contra el disponible REAL ─────────────────────────────
+  // Si hay una meta de aporte definida, "lo que puedes gastar" no es el
+  // sueldo completo: es el sueldo menos lo que te propusiste invertir. El
+  // presupuesto global puede ser más laxo que eso (o no existir), así que la
+  // disciplina se juzga contra el más estricto de los dos.
+  const disposableIncome = monthlyInvestGoal !== null && monthlyInvestGoal > 0 && prevMonthIncome > 0
+    ? prevMonthIncome - monthlyInvestGoal
+    : null
+  const effectiveBudget = globalBudget !== null && disposableIncome !== null
+    ? Math.min(globalBudget, disposableIncome)
+    : globalBudget ?? disposableIncome
+  // Aviso temprano: el gasto va bien vs el presupuesto, pero al ritmo actual
+  // no alcanzaría a completarse la meta de inversión del mes.
+  const investGoalAtRisk = projection !== null && disposableIncome !== null
+    && projection > disposableIncome
+    && (globalBudget === null || projection <= globalBudget * 1.05)
+
+  // ── F5: Health score (0–100) v2 — ahora también premia CUMPLIR el aporte a
+  // inversión (no solo "sobrar" plata). Ver lib/health-score.ts para el mix
+  // de pesos y las reglas detalladas (con tests).
   const scoreRate = isCurrentMonth ? projectedRate : surplusPct
-  const sAhorro = scoreRate === null ? 18
-    : scoreRate >= 20 ? 30
-    : scoreRate >= 10 ? 23
-    : scoreRate >= 0 ? 14
-    : scoreRate >= -10 ? 6 : 0
-  const sFondo = monthsCovered === null ? 12
-    : monthsCovered >= 6 ? 25
-    : monthsCovered >= 3 ? 20
-    : monthsCovered >= 1 ? 12 : 6
-  const sCompromiso = commitRatio === null ? 10
-    : commitRatio < 20 ? 20
-    : commitRatio <= 35 ? 12 : 4
-  let sDisciplina = numExcedidas === 0 ? 25 : numExcedidas === 1 ? 17 : numExcedidas === 2 ? 10 : 3
-  if (projection !== null && globalBudget !== null && projection > globalBudget * 1.1 && !projInflatedByTop) {
-    sDisciplina = Math.max(0, sDisciplina - 7)
-  }
-  const healthScore = sAhorro + sFondo + sCompromiso + sDisciplina
-  const healthLabel = healthScore >= 80 ? 'Buena salud'
-    : healthScore >= 60 ? 'En camino'
-    : healthScore >= 40 ? 'Atención'
-    : 'Alerta'
-  const healthColor = healthScore >= 80 ? '#1FBE8D'
-    : healthScore >= 60 ? '#4D93FF'
-    : healthScore >= 40 ? '#FFC23C' : '#FF6F61'
-  const healthSummary = healthScore >= 80
-    ? 'Vas muy bien: ahorras, tienes respaldo y tus compromisos están bajo control.'
-    : healthScore >= 60
-    ? 'Vas en buen camino. Revisa las señales en amarillo para subir tu puntaje.'
-    : healthScore >= 40
-    ? 'Atención: hay señales que necesitan cuidado. Parte por la más roja.'
-    : 'Alerta: tus finanzas necesitan un ajuste este mes. Una señal a la vez.'
+  const {
+    sAhorro, sAporte, sFondo, sCompromiso, sDisciplina,
+    total: healthScore, label: healthLabel, color: healthColor, summary: healthSummary,
+    aporteRatio, suggestDivertToSavings,
+  } = computeHealthScore({
+    scoreRate,
+    monthlyInvestGoal,
+    investedThisMonth,
+    isCurrentMonth,
+    dayOfMonth: now.getDate(),
+    daysInMonth,
+    monthsCovered,
+    commitRatio,
+    numExcedidas,
+    projection,
+    effectiveBudget,
+    projInflatedByTop,
+  })
 
   // ── Oportunidades de mejora ───────────────────────────────────────────────
   type Oportunidad = {
@@ -742,11 +789,17 @@ export default async function AnalisisPage({
       : ai.type === 'budget_missing'       ? Target
       : ai.type === 'habit_increase'       ? TrendingUp
       : ai.type === 'frequent_small_expenses' ? ShoppingCart
+      // Fase A5 — patrones de balance gasto/inversión/colchón
+      : ai.type === 'invest_goal_at_risk'     ? CalendarClock
+      : ai.type === 'emergency_fund_priority' ? ShieldCheck
+      : ai.type === 'lifestyle_creep'         ? TrendingUp
+      : ai.type === 'cash_drag'               ? PiggyBank
       : Sparkles
     const actionHref =
       ai.action === 'create_budget' || ai.action === 'adjust_budget' ? '/presupuesto'
       : ai.action === 'view_category' ? '/historial'
       : ai.action === 'review_expenses' ? '/historial'
+      : ai.type === 'invest_goal_at_risk' || ai.type === 'emergency_fund_priority' || ai.type === 'cash_drag' ? '/inversiones'
       : '/historial'
 
     return {
@@ -1666,6 +1719,78 @@ export default async function AnalisisPage({
           </>
         )}
 
+        {/* ── Flujo del mes: gastado / invertido / líquido (A1/A2) ────────────── */}
+        {(totalSelected > 0 || investedThisMonth > 0) && (() => {
+          const spent   = totalSelected
+          const invest  = investedThisMonth
+          const liquidPos = liquidReal !== null ? Math.max(liquidReal, 0) : 0
+          const base    = prevMonthIncome > 0 ? prevMonthIncome : (spent + invest + liquidPos) || 1
+          const spentPct  = Math.min(100, Math.round((spent  / base) * 100))
+          const investPct = Math.min(100 - spentPct, Math.round((invest / base) * 100))
+          const liquidPct = Math.max(0, 100 - spentPct - investPct)
+          return (
+            <div className="card p-4 lg:p-6 mb-5">
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Flujo del mes</p>
+                <InvestGoalEditor userId={user!.id} goal={monthlyInvestGoal} compact />
+              </div>
+
+              <div className="h-3 rounded-full overflow-hidden flex mb-4" style={{ background: 'var(--surface-2)' }}>
+                {spentPct > 0 && <div style={{ width: `${spentPct}%`, background: '#FF6F61' }} />}
+                {investPct > 0 && <div style={{ width: `${investPct}%`, background: '#1FBE8D' }} />}
+                {liquidPct > 0 && <div style={{ width: `${liquidPct}%`, background: '#4D93FF' }} />}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#FF6F61' }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#FF6F61' }} /> Gastado
+                  </p>
+                  <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(spent)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#1FBE8D' }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#1FBE8D' }} /> Invertido
+                  </p>
+                  <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(invest)}</p>
+                  {monthlyInvestGoal !== null && monthlyInvestGoal > 0 ? (
+                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: goalMet ? '#1FBE8D' : 'var(--ink-3)' }}>
+                      {goalMet
+                        ? `Meta cumplida${investStreak > 0 ? ` · ${investStreak + 1} meses seguidos` : ''}`
+                        : `Faltan ${formatCLP(Math.max(0, monthlyInvestGoal - invest))} para tu meta`}
+                    </p>
+                  ) : (
+                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--ink-3)' }}>Define una meta arriba para trackear cumplimiento</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#4D93FF' }}>
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4D93FF' }} /> Líquido
+                  </p>
+                  {liquidReal !== null
+                    ? <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: liquidReal >= 0 ? 'var(--ink)' : '#FF6F61' }}>
+                        {liquidReal < 0 ? '-' : ''}{formatCLP(Math.abs(liquidReal))}
+                      </p>
+                    : <p className="text-sm lg:text-base font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>—</p>
+                  }
+                </div>
+              </div>
+
+              {/* A3: aviso temprano — el gasto va bien vs el presupuesto, pero al ritmo
+                  actual no alcanzaría a completarse la meta de inversión del mes */}
+              {isCurrentMonth && investGoalAtRisk && disposableIncome !== null && (
+                <div className="mt-4 rounded-2xl p-3 flex items-start gap-2.5" style={{ background: 'rgba(255,193,60,0.12)' }}>
+                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FFC23C' }} />
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    A este ritmo proyectas gastar <span style={{ fontWeight: 700 }}>{formatCLP(projection ?? 0)}</span>, por sobre los{' '}
+                    <span style={{ fontWeight: 700 }}>{formatCLP(disposableIncome)}</span> que te dejarían completar tu meta de aporte este mes.
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* ── Health score panel ──────────────────────────────────────────────── */}
         {totalSelected > 0 && (
           <div className="card mb-5 p-5 lg:p-6" style={{ background: 'var(--surface-2)' }}>
@@ -1768,27 +1893,29 @@ export default async function AnalisisPage({
                     </p>
                   </div>
 
-                  {/* Señal 4: disciplina de presupuesto (25 pts) */}
+                  {/* Señal 4: disciplina de presupuesto (25 pts) — contra el disponible real (A3) */}
                   {(() => {
-                    const projOver = projection !== null && globalBudget !== null && projection > globalBudget * 1.1 && !projInflatedByTop
+                    const projOver = projection !== null && effectiveBudget !== null && projection > effectiveBudget * 1.1 && !projInflatedByTop
                     const bad = numExcedidas > 0 || projOver
                     const title = numExcedidas > 0
                       ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`
+                      : investGoalAtRisk ? 'Meta de aporte en riesgo'
                       : projOver ? 'Proyección sobre presupuesto'
                       : projInflatedByTop ? 'Al día, salvo una compra única'
                       : 'Presupuestos en orden'
                     const subtitle = numExcedidas > 0
                       ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
+                      : investGoalAtRisk && projection !== null ? `${formatCLP(projection)} estimado — no alcanza para tu meta de aporte`
                       : projOver && projection !== null ? `${formatCLP(projection)} estimado al cierre`
                       : catBudgetMap.size > 0 ? 'Todos dentro del límite' : 'Define límites para afinar esta señal'
                     return (
                       <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                            style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : projOver ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
+                            style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : bad ? 'rgba(255,193,60,0.18)' : 'rgba(31,190,141,0.18)' }}>
                             {numExcedidas > 0
                               ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
-                              : projOver
+                              : bad
                                 ? <Clock className="w-3.5 h-3.5" style={{ color: '#FFC23C' }} />
                                 : <Check className="w-3.5 h-3.5" style={{ color: '#1FBE8D' }} />}
                           </div>
@@ -1800,6 +1927,30 @@ export default async function AnalisisPage({
                       </div>
                     )
                   })()}
+
+                  {/* Señal 5: cumplimiento de aporte a inversión (15 pts) — full width */}
+                  <div className="rounded-2xl p-3 col-span-2" style={{ background: 'var(--surface)' }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: aporteRatio === null ? 'rgba(148,163,184,0.15)' : aporteRatio >= 1 ? 'rgba(31,190,141,0.18)' : aporteRatio >= 0.6 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
+                        <Sparkles className="w-3.5 h-3.5"
+                          style={{ color: aporteRatio === null ? 'var(--ink-3)' : aporteRatio >= 1 ? '#1FBE8D' : aporteRatio >= 0.6 ? '#FFC23C' : '#FF6F61' }} />
+                      </div>
+                      <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
+                        {aporteRatio === null ? 'Cumplimiento de aporte' : aporteRatio >= 1 ? 'Aporte al día' : aporteRatio >= 0.6 ? 'Aporte a buen ritmo' : 'Aporte atrasado'}
+                      </p>
+                    </div>
+                    <p className="text-[10px] font-semibold pl-9" style={{ color: aporteRatio === null ? 'var(--ink-3)' : aporteRatio >= 1 ? '#1FBE8D' : aporteRatio >= 0.6 ? '#FFC23C' : '#FF6F61' }}>
+                      {monthlyInvestGoal === null || monthlyInvestGoal === 0
+                        ? 'Define una meta de aporte arriba para sumar esta señal'
+                        : `${formatCLP(investedThisMonth)} de ${formatCLP(monthlyInvestGoal)}${isCurrentMonth ? ' al ritmo de hoy' : ' este mes'}`}
+                    </p>
+                    {suggestDivertToSavings && (
+                      <p className="text-[10px] mt-1.5 pl-9 leading-relaxed" style={{ color: '#FFC23C' }}>
+                        Tu fondo de emergencia aún cubre menos de 3 meses. Considera destinar tu próximo aporte a ahorro líquido antes de seguir invirtiendo.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
