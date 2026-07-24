@@ -61,6 +61,47 @@ Ampliar `payload` con: `monthly_invest_goal`, `invested_this_month`, `disposable
 
 ---
 
+## Revisión jul 2026 — Jerarquía de información (PRIORIDAD antes de seguir con B)
+
+**Problema detectado tras implementar Fase A + B2:** la vista mensual quedó sobrecargada. Stack actual: 4 KPIs → Flujo del mes → Health score (5 señales) → Patrimonio (4 cards) → Proyección (tabla 3×3) → Oportunidades IA → Resumen narrativo → Tendencia → Medios de pago → Día de semana → Categorías. Demasiado para leer de un vistazo, con datos repetidos en 2-3 lugares.
+
+**Redundancias concretas:**
+
+| Dato | Aparece en | Debe quedar solo en |
+|---|---|---|
+| Líquido/sobrante del mes | KPI "Saldo de {mes}" + Flujo del mes | Flujo del mes (es el número corregido: descuenta lo invertido) |
+| Cumplimiento de aporte | Chip en Flujo + señal 5 del health score | Flujo del mes (el score lo usa por dentro, sin card propia) |
+| Tasa de ahorro | Señal 1 del score + gráfico 12m de Patrimonio | Score como señal; el gráfico 12m pasa a la subvista Patrimonio |
+| Mayor gasto único | KPI 4 + oportunidad rule-based "compra única" | Solo como insight cuando importa (≥12% del mes), no KPI fijo |
+
+**Principio rector (adelanta C3):** /analisis mensual debe abrir con UNA fila que responda "¿cómo voy?" — *Gastaste $X · Invertiste $Y · Salud N/100* — y todo lo demás cuelga de ahí, colapsado o en subvista.
+
+### R1. Nueva estructura de la vista mensual (de ~11 bloques a 5)
+
+1. **Hero compacto**: Flujo del mes absorbe los KPIs — barra 3 destinos + sueldo que financió el mes (editable inline) + chip de meta/racha + aviso temprano. Se eliminan las 4 KPI cards (gasto total y delta vs mes anterior ya viven dentro de la barra y su subtítulo).
+2. **Health score reducido**: donut + label + SOLO las señales que no están en verde (las verdes se resumen en una línea: "3 señales en orden ✓" expandible). La señal 5 (aporte) deja de tener card propia — ya está en el hero.
+3. **Oportunidades IA** (máx 3, sin cambios).
+4. **Gráficos de comportamiento**: Tendencia 6m + Categorías (lo más consultado). "Con qué pagaste" y "Cuándo gastas" pasan a sección colapsable "Más detalle".
+5. **Link a subvista Patrimonio** (ver R2).
+
+### R2. Patrimonio sale de la vista mensual → tercera pestaña
+
+El toggle actual Mensual/Anual pasa a **Mensual / Anual / Patrimonio**. A la pestaña Patrimonio se mueven: las 4 cards de PatrimonioCards (tasa de ahorro 12m, fondo de emergencia, comprometido 6m, patrimonio neto + histórico) y la tabla de Proyección compuesta (B2) completa. En la vista mensual solo queda, dentro del health score, la señal de fondo de emergencia con link "Ver patrimonio →".
+
+Racional: patrimonio se consulta 1-2 veces al mes, no cada vez que registras un gasto. Está bien que sea una vista propia y profunda; está mal que empuje las categorías del mes 3 pantallas hacia abajo.
+
+### R3. Proyección compuesta: resumen de una línea en mensual
+
+En la vista mensual (dentro del hero o del score) solo UNA frase: "A este ritmo, en 10 años tendrías ~$X" (escenario 7%). La tabla 3×3 completa vive en la pestaña Patrimonio. El wow queda; el espacio se libera.
+
+### R4. Resumen narrativo se fusiona con Oportunidades
+
+La card "insight del mes" (rule-based) y las Oportunidades IA compiten por el mismo espacio mental. El insight pasa a ser la primera línea del bloque de Oportunidades (o desaparece cuando hay insights de IA, que son más ricos).
+
+**Orden de implementación de la revisión:** R1 (hero + KPIs fuera) → R2 (pestaña Patrimonio) → R3 (proyección resumida) → R4 (fusión narrativa). Después de esto, continuar con B1/B3/B4 — pero B1 (año en construcción) va en la pestaña Anual y B4 (cierre narrativo) reemplaza al resumen rule-based, así que ya no agregan carga a la vista mensual.
+
+---
+
 ## Fase B — Mediano plazo, vista mensual+anual (3–6 semanas)
 
 ### B1. Vista anual: de "cuánto gasté" a "cuánto construí"
