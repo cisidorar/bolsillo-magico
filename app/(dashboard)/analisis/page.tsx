@@ -13,6 +13,7 @@ import IncomeEditor from '@/components/IncomeEditor'
 import InvestGoalEditor from '@/components/InvestGoalEditor'
 import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
 import { computeHealthScore } from '@/lib/health-score'
+import { buildWealthProjectionTable } from '@/lib/wealth-projection'
 
 export const revalidate = 0
 
@@ -625,6 +626,19 @@ export default async function AnalisisPage({
   if (!isAnual) {
     netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
   }
+
+  // ── B2: Proyección de patrimonio a interés compuesto ──────────────────────
+  // Aporte mensual a proyectar: la META si está definida (lo que el usuario
+  // SE PROPONE aportar), o lo efectivamente invertido este mes como fallback
+  // (usuario sin meta pero que ya invierte). Punto de partida: patrimonio neto
+  // real (activos − deuda comprometida) si está disponible.
+  const wealthMonthlyContribution = monthlyInvestGoal && monthlyInvestGoal > 0
+    ? monthlyInvestGoal
+    : investedThisMonth > 0 ? investedThisMonth : 0
+  const wealthPrincipal = netWorth?.current.net_clp ?? netWorth?.current.total_clp ?? 0
+  const wealthTable = !isAnual && wealthMonthlyContribution > 0
+    ? buildWealthProjectionTable(wealthPrincipal, wealthMonthlyContribution)
+    : null
 
   // Tickers de acciones — solo si hace falta para el botón "Actualizar precios
   // ahora" del aviso de acciones sin precio en caché (evita la consulta cuando
@@ -1985,6 +1999,67 @@ export default async function AnalisisPage({
             committedDebtTotal={committedDebtTotal}
             stockTickers={stockTickers}
           />
+        )}
+
+        {/* ── B2: Proyección de patrimonio a interés compuesto ────────────────── */}
+        {wealthTable && (
+          <div className="card p-4 lg:p-6 mb-5">
+            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Proyección de patrimonio</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                Si mantienes el ritmo
+              </span>
+            </div>
+            <p className="text-[11px] mb-4" style={{ color: 'var(--ink-3)' }}>
+              Partiendo de {formatCLP(wealthTable.principal)} de patrimonio neto hoy, aportando {formatCLP(wealthTable.monthlyContribution)} cada mes.
+            </p>
+
+            <div className="overflow-x-auto -mx-1 px-1">
+              <table className="w-full border-collapse" style={{ minWidth: 420 }}>
+                <thead>
+                  <tr>
+                    <th className="text-left text-[10px] font-semibold pb-2" style={{ color: 'var(--ink-3)' }}>Retorno anual</th>
+                    {wealthTable.scenarios[0].values.map(v => (
+                      <th key={v.years} className="text-right text-[10px] font-semibold pb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
+                        {v.years} año{v.years > 1 ? 's' : ''}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {wealthTable.scenarios.map(s => {
+                    const isMid = s.annualReturnPct === 7
+                    return (
+                      <tr key={s.annualReturnPct} className="rounded-xl" style={isMid ? { background: 'var(--primary-soft)' } : {}}>
+                        <td className="text-xs font-bold py-2 pl-2 rounded-l-xl whitespace-nowrap" style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
+                          {s.annualReturnPct}%{isMid ? ' (referencia)' : ''}
+                        </td>
+                        {s.values.map((v, i) => (
+                          <td key={v.years}
+                            className={`text-right text-xs lg:text-sm font-extrabold tabular-nums py-2 pr-2 whitespace-nowrap ${i === s.values.length - 1 ? 'rounded-r-xl' : ''}`}
+                            style={{ color: isMid ? 'var(--primary)' : 'var(--ink)' }}>
+                            {formatCLP(v.futureValue)}
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {(() => {
+              const midScenario = wealthTable.scenarios.find(s => s.annualReturnPct === 7) ?? wealthTable.scenarios[0]
+              const longest = midScenario.values[midScenario.values.length - 1]
+              const compoundInterest = Math.max(0, longest.futureValue - wealthTable.totalContributedAtLongestHorizon)
+              return (
+                <p className="text-[10px] mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                  A {longest.years} años y {midScenario.annualReturnPct}% anual, tu patrimonio proyectado sería{' '}
+                  <span style={{ fontWeight: 700 }}>{formatCLP(longest.futureValue)}</span>: {formatCLP(wealthTable.totalContributedAtLongestHorizon)}{' '}
+                  es lo que tú pones (patrimonio de hoy + aportes) y {formatCLP(compoundInterest)} es interés compuesto. Supuesto simplificado: retorno real constante, sin impuestos ni volatilidad.
+                </p>
+              )
+            })()}
+          </div>
         )}
 
         {/* Trigger AI analysis in background when there are expenses */}
