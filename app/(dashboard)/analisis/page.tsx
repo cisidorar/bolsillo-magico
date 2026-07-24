@@ -74,13 +74,11 @@ export default async function AnalisisPage({
           .gte('date', `${year}-01-01`)
           .lte('date', `${year}-12-31`)
       : Promise.resolve({ data: null }),
-    // Año anterior para comparación — con date para poder desglosar por mes
-    // (proyección del resto del año usa el patrón mensual real del año pasado,
-    // no solo el total)
+    // Año anterior para comparación
     isAnual
       ? supabase
           .from('expenses')
-          .select('amount, date')
+          .select('amount')
           .eq('user_id', user!.id)
           .gte('date', `${year - 1}-01-01`)
           .lte('date', `${year - 1}-12-31`)
@@ -362,61 +360,17 @@ export default async function AnalisisPage({
 
   // ── Métricas móvil ───────────────────────────────────────────────────────
   const barMode = bm === 'pct' ? 'pct' : 'amt'
-  const isCurrentYear = year === now.getFullYear()
-  const monthsElapsed = now.getMonth() + 1  // solo aplica si isCurrentYear
-
-  // Año pasado desglosado por mes — para comparar y proyectar con el patrón
-  // REAL del año pasado (estacionalidad: diciembre alto, etc.) en vez de un
-  // promedio plano.
-  const prevYearByMonth: Record<number, number> = {}
-  for (let m = 1; m <= 12; m++) prevYearByMonth[m] = 0
-  for (const e of (prevYearExpensesRaw ?? []) as { amount: number; date: string }[]) {
-    const m = parseInt(e.date.split('-')[1])
-    prevYearByMonth[m] = (prevYearByMonth[m] ?? 0) + e.amount
-  }
-  const prevYearMonthsCovered = Object.values(prevYearByMonth).filter(v => v > 0).length
-  const prevYearTotal = Object.values(prevYearByMonth).reduce((s, v) => s + v, 0)
-  // Mismos meses que ya transcurrieron este año — para no comparar YTD contra
-  // el año pasado COMPLETO (esa comparación siempre sale negativa a menos que
-  // ya sea diciembre).
-  const prevYearSameMonths = isCurrentYear
-    ? Array.from({ length: monthsElapsed }, (_, i) => prevYearByMonth[i + 1] ?? 0).reduce((s, v) => s + v, 0)
-    : 0
-
-  const yearElapsedPct = isCurrentYear
-    ? Math.round((monthsElapsed / 12) * 100)
+  const prevYearTotal = isAnual ? ((prevYearExpensesRaw ?? []) as { amount: number }[]).reduce((s, e) => s + e.amount, 0) : 0
+  const yearElapsedPct = year === now.getFullYear()
+    ? Math.round(((now.getMonth() + 1) / 12) * 100)
     : 100
-
-  // Delta año contra año: para el año en curso, compara mismo tramo de meses;
-  // para un año ya cerrado, compara el total completo contra el anterior.
-  const { raw: yearDeltaRaw, minCoverage } = isCurrentYear
-    ? {
-        raw: prevYearSameMonths > 0 ? Math.round(((anualGrandTotal - prevYearSameMonths) / prevYearSameMonths) * 100) : null,
-        minCoverage: Array.from({ length: monthsElapsed }, (_, i) => prevYearByMonth[i + 1] ?? 0).filter(v => v > 0).length >= Math.max(1, monthsElapsed - 1),
-      }
-    : {
-        raw: prevYearTotal > 0 ? Math.round(((anualGrandTotal - prevYearTotal) / prevYearTotal) * 100) : null,
-        minCoverage: prevYearMonthsCovered >= 10,
-      }
+  const prevYearMonthsWithData = isAnual ? ((prevYearExpensesRaw ?? []) as { amount: number }[]).length : 0
+  const yearDeltaRaw = prevYearTotal > 0 ? Math.round(((anualGrandTotal - prevYearTotal) / prevYearTotal) * 100) : null
   // Solo mostrar comparación si hay datos suficientes del año anterior y el delta es razonable (no primer año)
-  const yearDelta = yearDeltaRaw !== null && minCoverage && Math.abs(yearDeltaRaw) <= 300 ? yearDeltaRaw : null
-
-  // Proyección del resto del año: real acumulado + (mes real del año pasado ×
-  // el mismo cambio % que ya se viene dando este año), mes a mes — respeta la
-  // estacionalidad del año pasado en vez de repartir el promedio plano en los
-  // meses que faltan.
-  const anualProjection = (() => {
-    if (!isCurrentYear || monthsElapsed === 0) return null
-    if (prevYearSameMonths > 0) {
-      // Clamp del factor de cambio para no proyectar disparates con poca historia
-      const growthFactor = Math.min(4, Math.max(0.25, anualGrandTotal / prevYearSameMonths))
-      const remaining = Array.from({ length: 12 - monthsElapsed }, (_, i) => prevYearByMonth[monthsElapsed + 1 + i] ?? 0)
-        .reduce((s, v) => s + v * growthFactor, 0)
-      return Math.round(anualGrandTotal + remaining)
-    }
-    // Sin datos del año pasado para anclar el cambio: fallback al promedio plano
-    return Math.round((anualGrandTotal / monthsElapsed) * 12)
-  })()
+  const yearDelta = yearDeltaRaw !== null && prevYearMonthsWithData >= 10 && Math.abs(yearDeltaRaw) <= 300 ? yearDeltaRaw : null
+  const anualProjection = year === now.getFullYear() && now.getMonth() > 0
+    ? Math.round((anualGrandTotal / (now.getMonth() + 1)) * 12)
+    : null
   const firstPastMonth = pastRows.length > 0 ? anualMonthLabels[pastRows[0].monthNum - 1] : null
   const lastPastMonth  = pastRows.length > 0 ? anualMonthLabels[pastRows[pastRows.length - 1].monthNum - 1] : null
 
