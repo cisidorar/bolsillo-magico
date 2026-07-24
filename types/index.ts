@@ -19,6 +19,7 @@ export type PaymentMethod = {
   icon: string
   card_type: CardType
   billing_day: number | null
+  payment_due_day: number | null
   last_four: string | null
   is_default: boolean
   sort_order: number

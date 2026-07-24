@@ -69,6 +69,7 @@ type FormState = {
   name: string
   card_type: CardType
   billing_day: string
+  payment_due_day: string
   last_four: string
   is_default: boolean
   domain: string
@@ -80,6 +81,7 @@ const DEFAULT_FORM: FormState = {
   name: '',
   card_type: 'debit',
   billing_day: '',
+  payment_due_day: '',
   last_four: '',
   is_default: false,
   domain: '',
@@ -92,6 +94,7 @@ function methodToForm(m: PaymentMethod): FormState {
     name: m.name,
     card_type: m.card_type ?? 'debit',
     billing_day: m.billing_day?.toString() ?? '',
+    payment_due_day: m.payment_due_day?.toString() ?? '',
     last_four: m.last_four ?? '',
     is_default: m.is_default,
     domain: m.domain ?? '',
@@ -131,6 +134,7 @@ function FormPanel({
       onChange('selectedBank', null)
       onChange('last_four', '')
       onChange('billing_day', '')
+      onChange('payment_due_day', '')
       onChange('admin_fee', '')
     } else {
       onChange('name', '')
@@ -138,6 +142,7 @@ function FormPanel({
       onChange('selectedBank', null)
       onChange('last_four', '')
       onChange('billing_day', '')
+      onChange('payment_due_day', '')
       onChange('admin_fee', '')
     }
   }
@@ -269,6 +274,28 @@ function FormPanel({
             style={inputStyle}
           />
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>Entre 1 y 28</p>
+        </div>
+      )}
+
+      {/* Día de pago (vencimiento del estado ya cerrado) */}
+      {form.card_type === 'credit' && (
+        <div>
+          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
+            Día de pago{' '}
+            <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--ink-3)', opacity: 0.55 }}>(opcional)</span>
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={form.payment_due_day}
+            onChange={e => onChange('payment_due_day', e.target.value.replace(/\D/g, '').slice(0, 2))}
+            placeholder="ej: 5"
+            className={inputCls}
+            style={inputStyle}
+          />
+          <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+            Día del mes siguiente en que vence el pago (ej: cierra el 24, vence el 5). Activa la card &quot;Ciclo de sueldo&quot; en Inicio.
+          </p>
         </div>
       )}
 
@@ -422,6 +449,10 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       if (!form.billing_day) return 'El día de cierre es obligatorio para tarjetas de crédito'
       const d = parseInt(form.billing_day)
       if (isNaN(d) || d < 1 || d > 28) return 'Día de cierre debe ser entre 1 y 28'
+      if (form.payment_due_day) {
+        const p = parseInt(form.payment_due_day)
+        if (isNaN(p) || p < 1 || p > 31) return 'Día de pago debe ser entre 1 y 31'
+      }
       if (form.admin_fee === '') return 'El cargo de administración es obligatorio (ingresa 0 si no aplica)'
       const f = parseInt(form.admin_fee)
       if (isNaN(f) || f < 0) return 'El cargo de administración debe ser 0 o un valor positivo'
@@ -439,6 +470,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       name:        form.name.trim(),
       card_type:   form.card_type,
       billing_day: form.card_type === 'credit' && form.billing_day ? parseInt(form.billing_day) : null,
+      payment_due_day: form.card_type === 'credit' && form.payment_due_day ? parseInt(form.payment_due_day) : null,
       last_four:   form.last_four || null,
       is_default:  form.is_default,
       icon:        '💳',
@@ -554,6 +586,9 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                         </span>
                         {m.card_type === 'credit' && m.billing_day && (
                           <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
+                        )}
+                        {m.card_type === 'credit' && m.payment_due_day && (
+                          <span className="text-[11px] text-gray-400">Paga día {m.payment_due_day}</span>
                         )}
                         {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
                           <span className="text-[11px] text-gray-400">Admin {formatCLP(m.admin_fee)}</span>

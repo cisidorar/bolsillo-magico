@@ -51,6 +51,12 @@ SELECT * FROM (
   SELECT 36, 'columna net_worth_snapshots.net_clp (P1 fix — neto real historizado)', EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'net_worth_snapshots' AND column_name = 'net_clp') UNION ALL
+  SELECT 37, 'columna profiles.monthly_invest_goal', EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'monthly_invest_goal') UNION ALL
+  SELECT 38, 'columna payment_methods.payment_due_day (Ciclo de sueldo)', EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'payment_methods' AND column_name = 'payment_due_day') UNION ALL
   -- Índices de integridad
   SELECT 40, 'índice expenses_recurring_once_per_day_idx (AutoRegister idempotente)', EXISTS (
     SELECT 1 FROM pg_indexes

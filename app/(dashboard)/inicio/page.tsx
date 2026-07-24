@@ -1,6 +1,6 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -12,6 +12,7 @@ import EmptyStateCTA from '@/components/EmptyStateCTA'
 import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
+import CicloSueldo from '@/components/CicloSueldo'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
@@ -41,10 +42,11 @@ export default async function DashboardPage() {
   // payday_last_business_day va en un select aparte: si esa columna todavía
   // no existe en la DB, no debe tumbar el fetch de budget_period/period_card_id
   // (Postgrest falla la consulta COMPLETA cuando una sola columna no existe).
-  const [{ data: profile }, { data: paymentMethods }, { data: paydayPrefRow }] = await Promise.all([
+  const [{ data: profile }, { data: paymentMethods }, { data: paydayPrefRow }, { data: investGoalRow }] = await Promise.all([
     supabase.from('profiles').select('display_name, payday, budget_period, period_card_id').eq('id', user!.id).maybeSingle(),
     supabase.from('payment_methods').select('*').eq('user_id', user!.id).order('sort_order'),
     supabase.from('profiles').select('payday_last_business_day').eq('id', user!.id).maybeSingle(),
+    supabase.from('profiles').select('monthly_invest_goal').eq('id', user!.id).maybeSingle(),
   ])
 
   const creditCandidates = ((paymentMethods ?? []) as PaymentMethod[])
@@ -72,6 +74,12 @@ export default async function DashboardPage() {
   const prevStart  = prevRange ? prevRange.start : `${prevY}-${prevMStr}-01`
   const prevEndEx  = prevRange ? addDay(prevRange.end) : `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`
 
+  // Ciclo de sueldo: últimos 3 meses cerrados de gasto no-crédito, para el
+  // promedio de débito estimado; y el último ingreso registrado (estimado
+  // del próximo sueldo).
+  const threeMoAgoStart = `${new Date(year, now.getMonth() - 3, 1).getFullYear()}-${String(new Date(year, now.getMonth() - 3, 1).getMonth() + 1).padStart(2, '0')}-01`
+  const thisMonthStartStr = `${year}-${monthStr}-01`
+
   const [
     { data: expenses },
     { data: budget },
@@ -81,6 +89,8 @@ export default async function DashboardPage() {
     { data: allRecurringExpenses },
     { data: statementExpenses },
     { data: prevMonthExpenses },
+    { data: lastIncome },
+    { data: debitHistory },
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -116,6 +126,20 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .gte('date', prevStart)
       .lt('date',  prevEndEx),
+    supabase
+      .from('incomes')
+      .select('amount, month, year')
+      .eq('user_id', user!.id)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('expenses')
+      .select('amount, date, payment_method:payment_methods(card_type)')
+      .eq('user_id', user!.id)
+      .gte('date', threeMoAgoStart)
+      .lt('date', thisMonthStartStr),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -279,6 +303,43 @@ export default async function DashboardPage() {
       count: inRange.length,
     }
   }).filter(c => c.count > 0)
+
+  // ── Ciclo de sueldo ─────────────────────────────────────────────────────
+  // Tarjeta principal: la del período preferido (billing mode) o la primera
+  // con día de cierre configurado. Se muestra su estado ABIERTO (lo que se
+  // va a deber cuando cierre) junto con su fecha de pago si está configurada.
+  const mainCreditCard = periodCard ?? creditCards[0] ?? null
+  const cicloSueldoCard = mainCreditCard ? (() => {
+    const range   = currentStatementRange(mainCreditCard.billing_day!)
+    const inRange = (statementExpenses ?? []).filter(e => {
+      if (e.payment_method_id !== mainCreditCard.id) return false
+      const bp = billingPeriod(e.date, mainCreditCard.billing_day!)
+      return bp.month === range.month && bp.year === range.year
+    })
+    const statementTotal = inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+    const paymentDueDay = (mainCreditCard as { payment_due_day?: number | null }).payment_due_day ?? null
+    const dueDate   = paymentDueDay ? statementDueDate(range.month, range.year, paymentDueDay) : null
+    const daysToDue = dueDate ? daysBetween(dateStr, dueDate) : null
+    return {
+      id: mainCreditCard.id, name: mainCreditCard.name, domain: mainCreditCard.domain,
+      statementTotal, closesOn: range.end, dueDate, daysToDue,
+    }
+  })() : null
+
+  const monthlyInvestGoal = (investGoalRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
+
+  type IncomeRow = { amount: number; month: number; year: number }
+  const lastIncomeRow = lastIncome as IncomeRow | null
+  const sueldoEstimado = lastIncomeRow?.amount ?? null
+  const sueldoMonthLabel = lastIncomeRow ? `según ${monthName(lastIncomeRow.month).slice(0, 3)}` : null
+
+  type DebitExpenseRow = { amount: number; date: string; payment_method: { card_type: string } | { card_type: string }[] | null }
+  const nonCreditExpenses = ((debitHistory ?? []) as DebitExpenseRow[]).filter(e => {
+    const pm = Array.isArray(e.payment_method) ? e.payment_method[0] : e.payment_method
+    return (pm?.card_type ?? 'debit') !== 'credit'
+  })
+  const debitTotal3m     = nonCreditExpenses.reduce((s, e) => s + e.amount, 0)
+  const debitAvgMonthly  = Math.round(debitTotal3m / 3)
 
   // Recurrentes ya pagados ESTE MES (tienen gasto registrado en expenses del mes actual)
   const paidThisMonthSet = new Set(
@@ -831,6 +892,15 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
+            {/* ── Ciclo de sueldo ── */}
+            <CicloSueldo
+              sueldo={sueldoEstimado}
+              sueldoMonthLabel={sueldoMonthLabel}
+              card={cicloSueldoCard}
+              investGoal={monthlyInvestGoal}
+              debitAvgMonthly={debitAvgMonthly}
+            />
+
             {/* ── Tarjeta(s) de crédito ── */}
             {statementCards.length > 0 && (
               <div className="space-y-3">
@@ -1075,6 +1145,15 @@ export default async function DashboardPage() {
               </>
             )}
           </div>
+
+          {/* Ciclo de sueldo mobile */}
+          <CicloSueldo
+            sueldo={sueldoEstimado}
+            sueldoMonthLabel={sueldoMonthLabel}
+            card={cicloSueldoCard}
+            investGoal={monthlyInvestGoal}
+            debitAvgMonthly={debitAvgMonthly}
+          />
 
           {/* Estado de cuenta mobile */}
           {statementCards.length > 0 && (

@@ -175,3 +175,27 @@ export function currentStatementRange(billingDay: number): {
   const range = billingPeriodRange(statementMonth, statementYear, billingDay)
   return { ...range, month: statementMonth, year: statementYear }
 }
+
+/**
+ * Fecha de vencimiento de pago de un estado de cuenta: siempre cae en el mes
+ * SIGUIENTE al mes del estado, en el día `paymentDueDay` (ej: estado de julio,
+ * paymentDueDay=5 → vence el 5 de agosto). Clampado al último día real del
+ * mes si paymentDueDay lo excede (ej: 31 en un mes de 30 días).
+ * Usado por la card "Ciclo de sueldo" en /inicio.
+ */
+export function statementDueDate(
+  statementMonth: number,
+  statementYear: number,
+  paymentDueDay: number
+): string {
+  const dueMonth = statementMonth === 12 ? 1 : statementMonth + 1
+  const dueYear  = statementMonth === 12 ? statementYear + 1 : statementYear
+  const lastDay  = new Date(dueYear, dueMonth, 0).getDate()
+  const day      = Math.min(paymentDueDay, lastDay)
+  return `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/** Días entre dos fechas YYYY-MM-DD (b − a). Positivo si b es posterior. */
+export function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000)
+}
