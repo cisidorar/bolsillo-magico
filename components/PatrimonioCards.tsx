@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult } from '@/lib/net-worth'
+import RefreshStocksButton from './RefreshStocksButton'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -44,6 +45,10 @@ interface Props {
   // P1: deuda comprometida total (cuotas pendientes + tarjeta por facturar) —
   // se resta del patrimonio bruto para mostrar el neto REAL
   committedDebtTotal: number
+  // Tickers de stock_positions del usuario — para el botón "Actualizar precios
+  // ahora" del aviso de acciones no valorizadas (llama a /api/stock-price
+  // directo, sin mandar a abrir Acciones y volver).
+  stockTickers: string[]
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
@@ -134,7 +139,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal,
+  netWorth, committedDebtTotal, stockTickers,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -278,11 +283,17 @@ export default function PatrimonioCards({
                 <div className="flex items-start gap-2 rounded-2xl px-3 py-2.5 mt-3"
                   style={{ background: 'rgba(255,194,60,0.14)', border: '1px solid rgba(255,194,60,0.35)' }}>
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
-                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    <span className="font-bold">Tus acciones no están sumadas en este total</span> — falta el precio
-                    de mercado en caché. <Link href="/inversiones" className="font-semibold underline hover:opacity-70">Abre Acciones</Link> para
-                    actualizarlo; el patrimonio real es más alto que lo que ves acá.
-                  </p>
+                  <div className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                    <p>
+                      <span className="font-bold">Tus acciones no están sumadas en este total</span> — falta el precio
+                      de mercado en caché; el patrimonio real es más alto que lo que ves acá.
+                    </p>
+                    <div className="mt-1.5" style={{ color: 'var(--gold)' }}>
+                      {stockTickers.length > 0
+                        ? <RefreshStocksButton tickers={stockTickers} />
+                        : <Link href="/inversiones" className="font-semibold underline hover:opacity-70">Abre Acciones</Link>}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

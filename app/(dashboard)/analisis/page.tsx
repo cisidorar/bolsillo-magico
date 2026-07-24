@@ -583,6 +583,16 @@ export default async function AnalisisPage({
     netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
   }
 
+  // Tickers de acciones — solo si hace falta para el botón "Actualizar precios
+  // ahora" del aviso de acciones sin precio en caché (evita la consulta cuando
+  // no hay nada que refrescar).
+  let stockTickers: string[] = []
+  if (netWorth && !netWorth.stocksPriced) {
+    const { data: posRows } = await supabase
+      .from('stock_positions').select('ticker').eq('user_id', user!.id)
+    stockTickers = [...new Set((posRows ?? []).map(r => r.ticker as string))]
+  }
+
   // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
   // Se compara solo la parte fija: la tarjeta varía mes a mes y no es "liberación".
   let freeMonthLabel: string | null = null
@@ -1822,6 +1832,7 @@ export default async function AnalisisPage({
             freeMonthLabel={freeMonthLabel}
             netWorth={netWorth}
             committedDebtTotal={committedDebtTotal}
+            stockTickers={stockTickers}
           />
         )}
 
