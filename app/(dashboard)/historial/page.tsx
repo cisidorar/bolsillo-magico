@@ -3,7 +3,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
-import { billingPeriod, billingPeriodRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
+import { billingPeriod, billingPeriodRange, currentStatementRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
 import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle, X } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
@@ -35,7 +35,7 @@ export default async function HistorialPage({
   searchParams: Promise<{ month?: string; year?: string; q?: string; cats?: string; pm?: string; page?: string; view?: string }>
 }) {
   const { month: monthStr, year: yearStr, q, cats, pm: pmId, page: pageStr, view } = await searchParams
-  const { now, year: chileYear, month: chileMonth, dateStr: chileDate } = getNowChile()
+  const { now, year: chileYear, month: chileMonth } = getNowChile()
 
   const page  = pageStr  ? Math.max(1, parseInt(pageStr)) : 1
   const catIds = cats ? cats.split(',').filter(Boolean) : []
@@ -59,8 +59,10 @@ export default async function HistorialPage({
   const dateFormat = (dateFormatRow?.date_format ?? 'DD/MM/AAAA') as DateFormat
 
   // Cuando se carga billing sin mes explícito, determinar el período de estado ABIERTO.
-  // Un período ya cerrado (billing_day < hoy) corresponde al mes siguiente.
-  // Ejemplo: hoy=25 jun, billing_day=24 → billingPeriod('2026-06-25', 24) = julio → mostrar julio.
+  // currentStatementRange (no billingPeriod) porque ya sabe que el corte el
+  // día EXACTO de cierre pasa a las 14:00 hora Chile, no a medianoche —
+  // billingPeriod solo compara fecha y por eso el día del corte, antes de
+  // que cerrara el estado viejo, mostraba el mes nuevo antes de tiempo.
   let month: number
   let year: number
   if (isBilling && !monthStr) {
@@ -76,9 +78,9 @@ export default async function HistorialPage({
       .limit(5)
     const defaultCard = cards?.find(c => c.is_default) ?? cards?.[0]
     if (defaultCard?.billing_day) {
-      const bp = billingPeriod(chileDate, defaultCard.billing_day as number)
-      month = bp.month
-      year  = bp.year
+      const range = currentStatementRange(defaultCard.billing_day as number)
+      month = range.month
+      year  = range.year
     } else {
       month = chileMonth
       year  = chileYear
@@ -120,6 +122,13 @@ export default async function HistorialPage({
     expenses = all.filter(e => {
       const pm = e.payment_method as { billing_day?: number | null } | null
       const bd = pm?.billing_day ?? null
+      // "Por facturación" es el estado de cuenta de una tarjeta de crédito —
+      // débito/efectivo/digital (bd null) no tienen estado de cuenta y no
+      // deben aparecer acá. Sin este filtro, billingPeriod(e.date, null) cae
+      // al mes calendario de la compra, que a veces coincide por casualidad
+      // con el período de la tarjeta y el gasto aparecía mezclado bajo
+      // "Estado de cuenta · CMR" sin ser de esa tarjeta.
+      if (!bd) return false
       const bp = billingPeriod(e.date, bd)
       return bp.month === month && bp.year === year
     })
