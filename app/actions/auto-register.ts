@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { billingPeriod, billingPeriodRange, getNowChile } from '@/lib/utils'
+import { billingPeriodRange, currentStatementRange, getNowChile } from '@/lib/utils'
 import { cookies } from 'next/headers'
 
 function daysInMonth(year: number, month: number): number {
@@ -54,11 +54,11 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   // Determinar qué cuotas corresponden al período actual
   const cuotaDue = cuotaItems.filter(r => {
-    // El período de facturación actual (el que está abierto hoy)
-    const { month: stmtM, year: stmtY } = billingPeriod(todayStr, r.billing_day)
-    // Empieza el día siguiente al corte del mes anterior
-    const { start } = billingPeriodRange(stmtM, stmtY, r.billing_day)
-    // Fireable si hoy ya llegó el inicio del período
+    // El período de facturación abierto AHORA MISMO — currentStatementRange
+    // ya sabe que el corte pasa a las 14:00 hora Chile el día exacto de
+    // cierre, no a medianoche (a diferencia de billingPeriod, que es puro
+    // por fecha y no debe reinterpretar gastos ya guardados).
+    const { start } = currentStatementRange(r.billing_day)
     return todayStr >= start
   })
 
@@ -103,9 +103,8 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   // ── Registrar cuotas ─────────────────────────────────────────────────────
   for (const r of cuotaDue) {
-    // Período de facturación abierto hoy para esta tarjeta
-    const { month: stmtM, year: stmtY } = billingPeriod(todayStr, r.billing_day)
-    const { start, end } = billingPeriodRange(stmtM, stmtY, r.billing_day)
+    // Período de facturación abierto AHORA MISMO para esta tarjeta
+    const { start, end } = currentStatementRange(r.billing_day)
 
     // Dedup: ¿ya existe una cuota de este ítem dentro del período actual?
     const { data: existing } = await supabase
@@ -238,9 +237,14 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     const eff = effectiveDay(billingDay, currentYear, currentMonth)
     if (todayDay !== eff) continue
 
-    // Período de facturación que cierra hoy
-    const { month: bpM, year: bpY } = billingPeriod(todayStr, billingDay)
-    const { start, end } = billingPeriodRange(bpM, bpY, billingDay)
+    // Período de facturación que cierra hoy: como ya sabemos que hoy ES el
+    // día de corte (línea anterior), el período que cierra es siempre el de
+    // este mes calendario — sin ambigüedad de hora. Nunca calcular esto vía
+    // currentStatementRange aquí: después de las 14:00 esa función ya
+    // apunta al período NUEVO recién abierto, y el cargo de administración
+    // es el cargo de cierre del período que ACABA de terminar, no una
+    // compra nueva sujeta al cutover.
+    const { start, end } = billingPeriodRange(currentMonth, currentYear, billingDay)
 
     const feeDesc = `Cargo administración ${card.name}`
 

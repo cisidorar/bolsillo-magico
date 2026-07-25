@@ -135,11 +135,11 @@ export function billingPeriod(
   }
   const day = d.getDate()
   if (day === billingDay) {
-    const today = getNowChile()
-    if (purchaseDate === today.dateStr && cutoverHourPassed(today.hour)) {
-      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-      return { month: next.getMonth() + 1, year: next.getFullYear() }
-    }
+    // Sin hora: un gasto guardado con fecha (sin hora) siempre pertenece al
+    // estado que cierra ESE día — estable sin importar cuándo se vuelva a
+    // renderizar. La hora de corte (14:00 Chile) solo aplica a preguntas
+    // "cuál es el período abierto ahora mismo" (currentStatementRange), no
+    // a la reclasificación retroactiva de un gasto ya fechado.
     return { month: d.getMonth() + 1, year: d.getFullYear() }
   }
   if (day < billingDay) {

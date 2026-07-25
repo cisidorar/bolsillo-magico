@@ -812,8 +812,13 @@ export default async function AnalisisPage({
   const aiInsights = (aiInsightsRaw ?? []) as AiInsightRow[]
 
   function aiInsightToOportunidad(ai: AiInsightRow): Oportunidad {
-    const severityColor = ai.severity === 'high' ? '#FF6F61' : ai.severity === 'medium' ? '#FFC23C' : '#4D93FF'
-    const severityBg    = ai.severity === 'high' ? 'rgba(255,111,97,0.15)' : ai.severity === 'medium' ? 'rgba(255,194,60,0.15)' : 'rgba(77,147,255,0.15)'
+    // UX5: improvement_confirmed es SIEMPRE confirmación positiva → mint,
+    // nunca coral/gold, sin importar el severity que haya puesto la IA.
+    const isConfirmation = ai.type === 'improvement_confirmed'
+    const severityColor = isConfirmation ? 'var(--mint)'
+      : ai.severity === 'high' ? '#FF6F61' : ai.severity === 'medium' ? '#FFC23C' : '#4D93FF'
+    const severityBg    = isConfirmation ? 'rgba(31,190,141,0.15)'
+      : ai.severity === 'high' ? 'rgba(255,111,97,0.15)' : ai.severity === 'medium' ? 'rgba(255,194,60,0.15)' : 'rgba(77,147,255,0.15)'
     const icon: React.ElementType =
       ai.type === 'one_time_purchase'       ? Package
       : ai.type === 'subscription_review'  ? Clock
@@ -826,6 +831,13 @@ export default async function AnalisisPage({
       : ai.type === 'emergency_fund_priority' ? ShieldCheck
       : ai.type === 'lifestyle_creep'         ? TrendingUp
       : ai.type === 'cash_drag'               ? PiggyBank
+      // I1/I3 — patrones de comportamiento entre meses
+      : ai.type === 'merchant_trend'              ? ArrowUp
+      : ai.type === 'subscription_price_increase' ? ArrowUp
+      : ai.type === 'payday_effect'                ? CalendarDays
+      : ai.type === 'budget_unrealistic'           ? Target
+      : ai.type === 'seasonal_pattern'             ? BarChart2
+      : ai.type === 'improvement_confirmed'        ? Check
       : Sparkles
     const actionHref =
       ai.action === 'create_budget' || ai.action === 'adjust_budget' ? '/presupuesto'
@@ -855,7 +867,8 @@ export default async function AnalisisPage({
 
   // Solo mostrar insights de IA — si no hay, no mostrar nada (no fallback rule-based)
   const aiOportunidades = aiInsights.map(aiInsightToOportunidad)
-  const finalOportunidades: Oportunidad[] = aiOportunidades.slice(0, 3)
+  // I1.4: hasta 5 (antes 3) — el prompt ya prioriza calidad sobre cantidad
+  const finalOportunidades: Oportunidad[] = aiOportunidades.slice(0, 5)
   const hasAiInsights = aiOportunidades.length > 0
 
   const prevMonthName = monthName(month === 1 ? 12 : month - 1)

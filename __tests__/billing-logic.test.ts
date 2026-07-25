@@ -98,34 +98,30 @@ describe('billingPeriod — lógica de asignación de estado de cuenta', () => {
   })
 
   /**
-   * Escenario: corte de HOY antes/después de las 14:00 hora Chile.
-   * Un gasto fechado hoy, el mismo día del corte, solo pasa al mes
-   * siguiente si ya pasaron las 14:00 — igual que currentStatementRange.
-   * Fechas pasadas (no-hoy) nunca activan esta rama: no tienen hora real.
+   * billingPeriod es puro por fecha — sin hora. Un gasto fechado
+   * exactamente el día de corte siempre pertenece al estado que cierra ESE
+   * día, sin importar a qué hora se calcule esto (estable en el tiempo,
+   * a diferencia de currentStatementRange que sí mira la hora para
+   * responder "qué período está abierto ahora mismo").
    */
-  describe('corte de hoy — cutover 14:00 hora Chile', () => {
+  describe('corte de hoy — no depende de la hora de renderizado', () => {
     afterEach(() => {
       vi.useRealTimers()
     })
 
-    it('hoy es el día de corte, antes de las 14:00 → mes actual', () => {
+    it('gasto fechado el día de corte, calculado antes de las 14:00 → mes del cierre', () => {
       vi.setSystemTime(new Date('2026-07-24T13:00:00-04:00'))
       expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 7, year: 2026 })
     })
 
-    it('hoy es el día de corte, después de las 14:00 → mes siguiente', () => {
+    it('el mismo gasto, calculado después de las 14:00 → sigue siendo el mismo mes (estable)', () => {
       vi.setSystemTime(new Date('2026-07-24T15:00:00-04:00'))
-      expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 8, year: 2026 })
+      expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 7, year: 2026 })
     })
 
-    it('cruce de año: hoy 31-dic, corte 31, después de las 14:00 → enero siguiente', () => {
-      vi.setSystemTime(new Date('2026-12-31T16:00:00-03:00'))
-      expect(billingPeriod('2026-12-31', 31)).toEqual({ month: 1, year: 2027 })
-    })
-
-    it('un gasto de una fecha pasada en el día de corte no activa el cutover (no es hoy)', () => {
-      vi.setSystemTime(new Date('2026-07-24T15:00:00-04:00'))
-      expect(billingPeriod('2026-07-10', 24)).toEqual({ month: 7, year: 2026 })
+    it('el mismo gasto, calculado al día siguiente → sigue siendo el mismo mes (estable)', () => {
+      vi.setSystemTime(new Date('2026-07-25T10:00:00-04:00'))
+      expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 7, year: 2026 })
     })
   })
 })
