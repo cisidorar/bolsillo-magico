@@ -590,13 +590,13 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                         {m.card_type === 'credit' && m.payment_due_day && (
                           <span className="text-[11px] text-gray-400">Paga día {m.payment_due_day}</span>
                         )}
+                        {m.card_type === 'credit' && m.billing_day && !m.payment_due_day && (
+                          <span className="text-[11px] font-semibold" style={{ color: 'var(--gold)' }}>
+                            Sin día de pago · toca para configurar
+                          </span>
+                        )}
                         {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
                           <span className="text-[11px] text-gray-400">Admin {formatCLP(m.admin_fee)}</span>
-                        )}
-                        {stmt && (
-                          <span className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--primary)' }}>
-                            {formatCLP(stmt.total)}
-                          </span>
                         )}
                       </div>
                     </div>
