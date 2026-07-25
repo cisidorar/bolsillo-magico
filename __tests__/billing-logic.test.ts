@@ -3,7 +3,7 @@
  * Cubre el caso de uso crítico: asignar un gasto al mes de estado de cuenta correcto
  * según el día de corte de la tarjeta de crédito.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { billingPeriod } from '@/lib/utils'
 
 describe('billingPeriod — lógica de asignación de estado de cuenta', () => {
@@ -94,6 +94,38 @@ describe('billingPeriod — lógica de asignación de estado de cuenta', () => {
       it(`${date} con corte ${corte} → mes ${esperado.month}/${esperado.year}`, () => {
         expect(billingPeriod(date, corte)).toEqual(esperado)
       })
+    })
+  })
+
+  /**
+   * Escenario: corte de HOY antes/después de las 14:00 hora Chile.
+   * Un gasto fechado hoy, el mismo día del corte, solo pasa al mes
+   * siguiente si ya pasaron las 14:00 — igual que currentStatementRange.
+   * Fechas pasadas (no-hoy) nunca activan esta rama: no tienen hora real.
+   */
+  describe('corte de hoy — cutover 14:00 hora Chile', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('hoy es el día de corte, antes de las 14:00 → mes actual', () => {
+      vi.setSystemTime(new Date('2026-07-24T13:00:00-04:00'))
+      expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 7, year: 2026 })
+    })
+
+    it('hoy es el día de corte, después de las 14:00 → mes siguiente', () => {
+      vi.setSystemTime(new Date('2026-07-24T15:00:00-04:00'))
+      expect(billingPeriod('2026-07-24', 24)).toEqual({ month: 8, year: 2026 })
+    })
+
+    it('cruce de año: hoy 31-dic, corte 31, después de las 14:00 → enero siguiente', () => {
+      vi.setSystemTime(new Date('2026-12-31T16:00:00-03:00'))
+      expect(billingPeriod('2026-12-31', 31)).toEqual({ month: 1, year: 2027 })
+    })
+
+    it('un gasto de una fecha pasada en el día de corte no activa el cutover (no es hoy)', () => {
+      vi.setSystemTime(new Date('2026-07-24T15:00:00-04:00'))
+      expect(billingPeriod('2026-07-10', 24)).toEqual({ month: 7, year: 2026 })
     })
   })
 })

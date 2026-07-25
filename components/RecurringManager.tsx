@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles } from 'lucide-react'
-import { cn, formatCLP, isEmoji } from '@/lib/utils'
+import { cn, formatCLP, isEmoji, getNowChile } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { suggestCategory, type CategorySuggestion } from '@/app/actions/suggest-category'
@@ -360,8 +360,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     if (registerState[item.id]) return
     setRegisterState(prev => ({ ...prev, [item.id]: 'loading' }))
 
-    const today     = new Date()
-    const dateStr   = today.toISOString().split('T')[0]
+    // Fecha de hoy en hora Chile — no usar toISOString() (hora UTC del
+    // navegador), que se corre un día en la noche (ver CLAUDE.md, Date Handling).
+    const dateStr = getNowChile().dateStr
 
     await supabase.from('expenses').insert({
       user_id:              userId,

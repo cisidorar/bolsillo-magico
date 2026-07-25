@@ -116,6 +116,14 @@ export function isEmoji(str: string): boolean {
  *
  * Ejemplo corte día 15:
  *   compra el 10 jun → estado junio | compra el 20 jun → estado julio
+ *
+ * `expenses.date` no guarda hora, así que para fechas PASADAS solo se puede
+ * comparar el día (el default de arriba). Pero cuando `purchaseDate` es HOY
+ * y hoy es justo el día de corte, sí sabemos la hora real — se aplica el
+ * mismo corte de las 14:00 que `currentStatementRange`/`lastClosedStatementRange`,
+ * para que un cargo recién registrado hoy después de las 2pm quede en el
+ * estado nuevo y no en el que ya cerró (evita el gasto "fantasma" que no
+ * aparecía en ningún estado de cuenta visible).
  */
 export function billingPeriod(
   purchaseDate: string,
@@ -125,7 +133,16 @@ export function billingPeriod(
   if (!billingDay) {
     return { month: d.getMonth() + 1, year: d.getFullYear() }
   }
-  if (d.getDate() <= billingDay) {
+  const day = d.getDate()
+  if (day === billingDay) {
+    const today = getNowChile()
+    if (purchaseDate === today.dateStr && cutoverHourPassed(today.hour)) {
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      return { month: next.getMonth() + 1, year: next.getFullYear() }
+    }
+    return { month: d.getMonth() + 1, year: d.getFullYear() }
+  }
+  if (day < billingDay) {
     return { month: d.getMonth() + 1, year: d.getFullYear() }
   }
   const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
