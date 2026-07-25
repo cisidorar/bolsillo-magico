@@ -279,6 +279,7 @@ export default async function RecurrentesPage({
             hasPayday={hasPayday}
             hasIncome={sueldoEstimado !== null}
             cardsWithoutDueDay={cardsWithoutDueDay}
+            muteRiskBanner={overdueCount > 0}
           />
           <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
         </div>

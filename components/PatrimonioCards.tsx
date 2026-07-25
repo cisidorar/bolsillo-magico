@@ -281,20 +281,17 @@ export default function PatrimonioCards({
                 ))}
               </div>
               {!nw.stocksPriced && (
-                <div className="flex items-start gap-2 rounded-2xl px-3 py-2.5 mt-3"
-                  style={{ background: 'rgba(255,194,60,0.14)', border: '1px solid rgba(255,194,60,0.35)' }}>
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
-                  <div className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    <p>
-                      <span className="font-bold">Tus acciones no están sumadas en este total</span> — falta el precio
-                      de mercado en caché; el patrimonio real es más alto que lo que ves acá.
-                    </p>
-                    <div className="mt-1.5" style={{ color: 'var(--gold)' }}>
-                      {stockTickers.length > 0
-                        ? <RefreshStocksButton tickers={stockTickers} />
-                        : <Link href="/inversiones" className="font-semibold underline hover:opacity-70">Abre Acciones</Link>}
-                    </div>
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap mt-3">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+                    <AlertTriangle className="w-2.5 h-2.5" /> Acciones no sumadas
+                  </span>
+                  <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                    falta el precio de mercado en caché
+                  </span>
+                  {stockTickers.length > 0
+                    ? <RefreshStocksButton tickers={stockTickers} />
+                    : <Link href="/inversiones" className="text-[11px] font-semibold underline hover:opacity-70" style={{ color: 'var(--gold)' }}>Abre Acciones</Link>}
                 </div>
               )}
             </div>

@@ -873,18 +873,24 @@ export default function Radar({
           ?? (todayDecision?.ticker !== null && (todayDecision?.tier === 'compra' || todayDecision?.tier === 'compra_fuerte')
             ? todayDecision?.ticker : null)
         if (walletAvailable === null || walletAvailable < 50 || !activeBuyTicker) return null
+        // UX5 — jerarquía de alerta única: esto es una oportunidad accionable
+        // pronto, no una confirmación positiva ni una urgencia de hoy → gold,
+        // no mint (mint queda reservado para confirmación pura) y sin caja de
+        // banner completa (borde + fondo grueso), como un chip/fila liviana.
         return (
           <button
             onClick={() => openDetail(activeBuyTicker)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl mb-4 text-left transition-opacity hover:opacity-90"
-            style={{ background: 'rgba(31,190,141,0.10)', border: '1px solid rgba(31,190,141,0.30)' }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl mb-4 text-left transition-opacity hover:opacity-90"
+            style={{ background: 'var(--surface-2)' }}
           >
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(31,190,141,0.16)' }}>
-              <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.16)' }}>
+              <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold" style={{ color: 'var(--mint)' }}>Plata parada</p>
-              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+                Plata parada
+              </span>
+              <p className="text-[11px] leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
                 Tienes {fmtUSD(walletAvailable)} disponibles en tu billetera y una señal de compra activa en {activeBuyTicker}.
               </p>
             </div>

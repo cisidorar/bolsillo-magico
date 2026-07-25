@@ -112,6 +112,15 @@ getCategoryIcon(name)  // returns the Lucide component for a given icon name str
 
 All charts are **hand-coded SVG** or `div`-based bars — no external chart library is used in practice (recharts is installed but not used in the main views). When adding charts, continue this pattern.
 
+### Alert Severity Hierarchy (UX5)
+
+One rule for the whole app — coral, gold and mint each map to exactly one severity, never mixed:
+
+- **Coral + banner** (full block: icon + bg + border, own visual row) = requires action **today** — an overdue payment, a hard over-budget, a negative projected cash flow. **Max ONE coral banner visible per screen.** If two urgent conditions exist at once (e.g. `/recurrentes` overdue payments + negative 30-day flow), only the more urgent renders as a banner; the rest degrades to a small gold chip inline (see `FlujoCaja30d`'s `muteRiskBanner` prop for the pattern: pass it when a more urgent coral banner already renders on the same page).
+- **Gold + chip/badge** (small inline pill, never a full banner) = attention needed soon — statement closes in ≤3 days, 80% of a limit, cash idle 30+ days, an actionable opportunity that isn't urgent. Never give gold its own bordered box the size of a banner — compress it to a pill + short text (see `PatrimonioCards`' "Acciones no sumadas" chip).
+- **Mint** = positive confirmation only. Never used for a banner or for anything actionable/alert-shaped — an actionable-but-not-urgent nudge (e.g. Radar's "Plata parada") is gold, not mint, even if the news itself is "good."
+- Applies transversally: `/inicio`, `/recurrentes`, `/analisis`, `/presupuesto`, `/inversiones` (already followed there: buy=mint, sell=coral, caution=gold).
+
 ### Multi-Category URL Filter
 
 Historial supports filtering by multiple categories simultaneously using a comma-separated `cats` URL param: `?cats=uuid1,uuid2,uuid3`. Parse with `cats.split(',').filter(Boolean)`, query with `.in('category_id', catIds)`.

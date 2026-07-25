@@ -9,6 +9,10 @@ interface Props {
   hasPayday: boolean
   hasIncome: boolean
   cardsWithoutDueDay: string[]
+  /** UX5 — jerarquía de alerta única: máximo un banner coral por pantalla. Si ya
+   *  hay un banner coral más urgente (p. ej. atrasados), este riesgo se degrada
+   *  a un chip gold inline en vez de su propio banner completo. */
+  muteRiskBanner?: boolean
 }
 
 const fmtDay = (dateStr: string, daysUntil: number) => {
@@ -19,14 +23,21 @@ const fmtDay = (dateStr: string, daysUntil: number) => {
 
 const ICONS = { income: Wallet, card: CreditCard, recurring: RefreshCw }
 
-export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithoutDueDay }: Props) {
+export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithoutDueDay, muteRiskBanner }: Props) {
   const minBalance = events.length > 0 ? Math.min(...events.map(e => e.runningBalance)) : 0
   const hasRisk    = minBalance < 0
 
   return (
     <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
+          {hasRisk && muteRiskBanner && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+              Riesgo de saldo negativo
+            </span>
+          )}
+        </div>
         <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>flujo neto proyectado</span>
       </div>
 
@@ -45,7 +56,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
         </div>
       ) : (
         <>
-          {hasRisk && (
+          {hasRisk && !muteRiskBanner && (
             <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'rgba(239,91,82,0.10)', border: '1px solid rgba(239,91,82,0.25)' }}>
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
               <p className="text-xs font-semibold" style={{ color: 'var(--coral)' }}>

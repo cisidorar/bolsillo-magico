@@ -70,13 +70,20 @@ En meses cerrados hay 3 textos seguidos (informe de cierre + oportunidades + res
 
 **Hecho.** El bloque "Oportunidades de mejora" ahora tiene dos variantes según `isClosedMonth && monthReview`: cuando hay informe de cierre visible arriba, se renderiza como `<details>/<summary>` (mismo patrón nativo que "Más detalle del mes" — sin JS extra) colapsado por defecto, con el mismo header (título + badge de conteo + badge IA) más un `ChevronRight` que rota al abrir. Cuando no hay informe (mes en curso o mes cerrado sin insights aún), se mantiene la card expandida tal cual estaba. El contenido interno (grid de sugerencias) no cambió, solo el envoltorio.
 
-### UX5 — Jerarquía de alerta única (transversal)
+### UX5 — Jerarquía de alerta única (transversal) ✅ _Implementado jul 2026_
 
 Una regla para toda la app, documentada en CLAUDE.md:
 - **Coral + banner arriba**: requiere acción hoy (pago atrasado, sobre límite duro, flujo proyectado negativo).
 - **Gold + badge/chip inline**: atención pronto (cierra en ≤3 días, 80% del límite, depósito ocioso 30d).
 - **Mint**: confirmación/positivo. **Nunca** banner para info positiva.
 - Máximo UN banner coral visible por pantalla (el más urgente); el resto degrada a chips.
+
+**Hecho.** Regla documentada en CLAUDE.md (sección "Alert Severity Hierarchy"). Tres violaciones detectadas en auditoría, corregidas:
+1. **`/recurrentes`**: `RecurringOverdueAlert` (atrasados) y el banner de riesgo de `FlujoCaja30d` (flujo negativo) podían mostrarse ambos a la vez. `FlujoCaja30d` ahora recibe `muteRiskBanner={overdueCount > 0}` — cuando ya hay atrasados, el riesgo de flujo se degrada a un chip gold junto al título en vez de su propio banner coral.
+2. **`PatrimonioCards`**: "Tus acciones no están sumadas" era un banner gold completo (caja + borde + párrafo); se comprimió a una fila de chip + texto corto + link, sin caja.
+3. **`Radar`**: "Plata parada" usaba mint en formato banner (caja + borde grueso) para una oportunidad accionable, no una confirmación. Se recoloreó a gold (es "atención pronto", no "positivo confirmado") y se aligeró el estilo a fila simple sin borde grueso.
+
+`/inicio` (hero) y `/presupuesto` se revisaron y ya cumplían la regla (un solo banner por pantalla, sin mint como alerta).
 
 ### UX6 — Estados de carga y vacíos (pulido)
 
