@@ -92,6 +92,8 @@ Credit card statement periods: if purchase day ≤ billing_day → same month st
 
 Mixing these up shows the wrong statement most of the month: `currentStatementRange` only equals the true accrued amount on the exact closing day, and `lastClosedStatementRange` only equals a due obligation once its due date has actually passed.
 
+**The closing-day cutover happens at 14:00 Chile time, not midnight.** On the exact `billing_day`, the old cycle stays open until 2pm — `currentStatementRange` and `lastClosedStatementRange` both check `getNowChile().hour` for this one boundary case (any other day, date comparison alone is enough). `getNowChile()` returns `hour` (0-23, Santiago time) for this purpose.
+
 ### Month-over-Month Comparison
 
 When displaying "vs anterior" for the **current month**, compare only up to today's day number in the previous month (same-date, pro-rata comparison). For past completed months, compare full month to full previous month. This logic is implemented in both `app/(dashboard)/inicio/page.tsx` and `app/(dashboard)/analisis/page.tsx`.

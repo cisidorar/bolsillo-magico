@@ -189,6 +189,22 @@ describe('currentStatementRange', () => {
     // No debe lanzar. El end debe ser una fecha válida.
     expect(range.end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
+
+  // El día EXACTO del corte, la facturación cambia de ciclo a las 14:00 hora
+  // Chile, no a medianoche — antes de esa hora el ciclo viejo sigue abierto.
+  it('el día del corte, antes de las 14:00, el ciclo viejo sigue abierto', () => {
+    vi.setSystemTime(new Date(2026, 6, 24, 10, 0))  // 24 jul 2026, 10:00
+    const range = currentStatementRange(24)
+    expect(range.month).toBe(7)  // sigue cerrando julio (el ciclo que ya estaba abierto)
+    expect(range.end).toBe('2026-07-24')
+  })
+
+  it('el día del corte, después de las 14:00, ya arrancó el ciclo siguiente', () => {
+    vi.setSystemTime(new Date(2026, 6, 24, 15, 0))  // 24 jul 2026, 15:00
+    const range = currentStatementRange(24)
+    expect(range.month).toBe(8)  // el nuevo ciclo ya abrió, cierra en agosto
+    expect(range.start).toBe('2026-07-25')
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -221,8 +237,10 @@ describe('lastClosedStatementRange', () => {
     expect(range.start).toBe('2026-05-16')
   })
 
-  it('el día exacto del corte, el último cerrado es el de hoy', () => {
-    vi.setSystemTime(new Date(2026, 5, 15))  // 15 jun 2026 — día de corte
+  it('el día exacto del corte, después de las 14:00, el último cerrado es el de hoy', () => {
+    // El corte real es a las 14:00 hora Chile (ver tests de cutoverHourPassed
+    // más abajo) — antes de esa hora el ciclo viejo sigue abierto.
+    vi.setSystemTime(new Date(2026, 5, 15, 16, 0))  // 15 jun 2026, 16:00 — después del corte
     const range = lastClosedStatementRange(15)
     expect(range.end).toBe('2026-06-15')
   })
@@ -239,6 +257,20 @@ describe('lastClosedStatementRange', () => {
     const open   = currentStatementRange(24)
     const closed = lastClosedStatementRange(24)
     expect(closed.end).not.toBe(open.end)
+  })
+
+  it('el día del corte, antes de las 14:00, todavía no cuenta como cerrado hoy', () => {
+    vi.setSystemTime(new Date(2026, 6, 24, 10, 0))  // 24 jul 2026, 10:00
+    const range = lastClosedStatementRange(24)
+    expect(range.month).toBe(6)  // el último cerrado sigue siendo el de junio
+    expect(range.end).toBe('2026-06-24')
+  })
+
+  it('el día del corte, después de las 14:00, ya cuenta como cerrado hoy', () => {
+    vi.setSystemTime(new Date(2026, 6, 24, 15, 0))  // 24 jul 2026, 15:00
+    const range = lastClosedStatementRange(24)
+    expect(range.month).toBe(7)  // el que acaba de cerrar es el de hoy (julio)
+    expect(range.end).toBe('2026-07-24')
   })
 })
 

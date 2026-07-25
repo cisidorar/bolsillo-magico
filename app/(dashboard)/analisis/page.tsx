@@ -1235,8 +1235,9 @@ export default async function AnalisisPage({
                 {/* ── Col izquierda: total + Más alto / Más bajo ── */}
                 <div className="flex flex-col gap-3 flex-shrink-0" style={{ width: '320px' }}>
 
-                  {/* Tarjeta azul: total + promedio */}
-                  <div className="rounded-3xl p-5 flex flex-col" style={{ background: 'var(--primary)' }}>
+                  {/* Tarjeta azul: total + promedio — mismo azul que las cards
+                      de /inversiones (.hero-gradient), no var(--primary) */}
+                  <div className="rounded-3xl p-5 flex flex-col hero-gradient">
                     <p className="text-[9px] font-bold uppercase tracking-widest mb-3"
                       style={{ color: 'rgba(255,255,255,0.6)' }}>
                       Total gastado en {year}

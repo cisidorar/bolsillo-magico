@@ -10,11 +10,29 @@ export function cn(...inputs: ClassValue[]) {
  * Evita el desfase UTC que hace que el servidor muestre el día siguiente
  * después de las 20:00-21:00 hora chilena.
  */
-export function getNowChile(): { now: Date; year: number; month: number; todayDate: number; dateStr: string } {
+export function getNowChile(): { now: Date; year: number; month: number; todayDate: number; dateStr: string; hour: number } {
   const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }) // YYYY-MM-DD
   const [year, month, todayDate] = dateStr.split('-').map(Number)
-  const now = new Date(`${dateStr}T12:00:00`)
-  return { now, year, month, todayDate, dateStr }
+  const now  = new Date(`${dateStr}T12:00:00`)
+  // hourCycle 'h23' evita que medianoche se formatee como "24" en vez de "00"
+  const hour = parseInt(
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Santiago', hour: '2-digit', hourCycle: 'h23' }).format(new Date()),
+    10
+  )
+  return { now, year, month, todayDate, dateStr, hour }
+}
+
+/**
+ * Hora (hora Chile) en la que se corta la facturación el día de cierre: los
+ * cargos de ese día antes de esta hora quedan en el estado que cierra hoy;
+ * después, el ciclo ya arrancó para el mes siguiente. Solo importa el día
+ * EXACTO del corte — cualquier otro día, la comparación de fecha ya alcanza.
+ */
+const BILLING_CUTOVER_HOUR = 14 // 14:00 = 2pm
+
+/** true si, siendo hoy el día de corte, ya pasó la hora de corte (2pm Chile). */
+function cutoverHourPassed(hour: number): boolean {
+  return hour >= BILLING_CUTOVER_HOUR
 }
 
 /** Formatea un número como peso chileno: $1.234.567 */
@@ -165,12 +183,17 @@ export function currentStatementRange(billingDay: number): {
   // Hora de Chile, no UTC: cerca de medianoche la fecha UTC ya es "mañana" y
   // el período abierto puede saltar un mes en el borde (mismo bug que tenía
   // auto-register). getNowChile funciona en server y client.
-  const { todayDate: todayDay, month: m, year: y } = getNowChile()
+  const { todayDate: todayDay, month: m, year: y, hour } = getNowChile()
 
-  // Si el corte aún no llegó este mes → el estado cierra este mes
-  // Si el corte ya pasó → el estado cierra el mes que viene
-  const statementMonth = todayDay <= billingDay ? m : (m === 12 ? 1 : m + 1)
-  const statementYear  = todayDay <= billingDay ? y : (m === 12 ? y + 1 : y)
+  // El día EXACTO del corte, la facturación no cambia de ciclo a medianoche
+  // sino a las 14:00 hora Chile — antes de esa hora el ciclo viejo sigue
+  // abierto. Cualquier otro día, alcanza con comparar la fecha.
+  const cutoverPassed = todayDay > billingDay || (todayDay === billingDay && cutoverHourPassed(hour))
+
+  // Si el corte no pasó (fecha o, siendo hoy el día de corte, hora) → cierra este mes.
+  // Si ya pasó → el estado cierra el mes que viene.
+  const statementMonth = !cutoverPassed ? m : (m === 12 ? 1 : m + 1)
+  const statementYear  = !cutoverPassed ? y : (m === 12 ? y + 1 : y)
 
   const range = billingPeriodRange(statementMonth, statementYear, billingDay)
   return { ...range, month: statementMonth, year: statementYear }
@@ -196,13 +219,17 @@ export function lastClosedStatementRange(billingDay: number): {
   month: number
   year:  number
 } {
-  const { todayDate: todayDay, month: m, year: y } = getNowChile()
+  const { todayDate: todayDay, month: m, year: y, hour } = getNowChile()
 
-  // Si el corte de este mes ya llegó (hoy >= día de corte) → lo último que
-  // cerró fue el corte de ESTE mes. Si el corte de este mes aún no llega →
-  // lo último que cerró fue el corte del mes pasado.
-  const statementMonth = todayDay >= billingDay ? m : (m === 1 ? 12 : m - 1)
-  const statementYear  = todayDay >= billingDay ? y : (m === 1 ? y - 1 : y)
+  // Mismo corte de las 14:00 hora Chile que currentStatementRange — el día
+  // exacto del corte, antes de las 2pm el ciclo que "acaba de cerrar" sigue
+  // siendo el del mes pasado.
+  const cutoverPassed = todayDay > billingDay || (todayDay === billingDay && cutoverHourPassed(hour))
+
+  // Si ya pasó el corte (fecha u hora) → lo último que cerró fue ESTE mes.
+  // Si no → lo último que cerró fue el mes pasado.
+  const statementMonth = cutoverPassed ? m : (m === 1 ? 12 : m - 1)
+  const statementYear  = cutoverPassed ? y : (m === 1 ? y - 1 : y)
 
   const range = billingPeriodRange(statementMonth, statementYear, billingDay)
   return { ...range, month: statementMonth, year: statementYear }
