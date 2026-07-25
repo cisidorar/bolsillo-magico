@@ -75,8 +75,14 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
               <div className="min-w-0">
                 <span className="text-sm block truncate" style={{ color: 'var(--ink-2)' }}>{card.name}</span>
                 {card.dueDate ? (
-                  <span className="text-[10px]" style={{ color: card.daysToDue !== null && card.daysToDue <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
-                    Vence {fmtShort(card.dueDate)}{card.daysToDue !== null ? ` · en ${card.daysToDue}d` : ''}
+                  <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                    {/* Este es el ciclo ya vencido (lastDueStatementRange), no uno próximo —
+                        siempre "venció", nunca countdown ("en Xd") ni color de urgencia. */}
+                    {card.daysToDue === 0
+                      ? `Vence hoy · ${fmtShort(card.dueDate)}`
+                      : card.daysToDue === -1
+                        ? `Venció ayer · ${fmtShort(card.dueDate)}`
+                        : `Venció ${fmtShort(card.dueDate)} · hace ${Math.abs(card.daysToDue ?? 0)}d`}
                   </span>
                 ) : (
                   <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>Sin día de pago configurado</span>
