@@ -58,15 +58,17 @@ La pregunta de /inicio es "¿cómo voy este período y qué viene?". Propuesta d
 
 Patrón I4 aplicado a gastos: cada término con definición no obvia se vuelve tocable y muestra un toast/popover de una frase. Prioridad: "Disponible" (presupuesto − gastado), "Proyección" (variable prorrateado + fijos reales), "vs anterior" (mismo día del mes pasado), "Por facturación" (mes del estado de cuenta), "Queda para ahorro" (sueldo − tarjeta − aporte − débito). Un componente único (`InfoTap`), reuso en toda la app. Además: **unificar nomenclatura** — elegir un término por concepto y usarlo igual en /inicio, /analisis y /presupuesto.
 
-### UX3 — /recurrentes: un KPI, no cuatro
+### UX3 — /recurrentes: un KPI, no cuatro ✅ _Implementado jul 2026_
 
-1. Una sola card KPI: **carga mensual** (el número que importa) con subtítulo "≈$X promedio real · $Y al año" (los otros dos conceptos como texto secundario, no cards).
-2. El flujo 30d sube arriba del calendario visual (lo accionable primero); el calendario mensual queda como profundización.
-3. En desktop, la lista de recurrentes agrupada colapsable por tipo (mensuales / cuotas / anuales) con subtotal por grupo — hoy es una lista plana larga.
+1. **Hecho.** Las 4 KPI cards se fusionaron en una sola "Carga mensual": el número grande + una línea secundaria "N gastos activos · ≈$X promedio real (3m) · $Y al año". "Próximo cargo" se eliminó del todo — ya vive (más preciso, porque también cruza tarjetas y sueldo) en Flujo de caja 30 días, justo debajo.
+2. **Ya estaba resuelto** desde la Fase 3: `FlujoCaja30d` se renderiza antes que `CalendarioPagos` en la misma columna.
+3. **Hecho.** `RecurringManager` agrupa por tipo (Mensuales / En cuotas / Anuales) colapsable con subtotal por grupo — solo cuando hay más de un tipo presente (con un solo tipo, el header sería ruido repitiendo la lista completa). El orden y la lógica de cada fila no cambiaron, solo se envolvieron en grupos.
 
-### UX4 — /analisis: un solo bloque narrativo por mes
+### UX4 — /analisis: un solo bloque narrativo por mes ✅ _Implementado jul 2026_
 
 En meses cerrados hay 3 textos seguidos (informe de cierre + oportunidades + resumen de señales del score). Regla: **el informe de cierre es el techo narrativo** del mes cerrado; las oportunidades IA se muestran colapsadas bajo él ("3 oportunidades →" expandible); el health score muestra solo el donut + señales fuera de verde (ya es así). En mes en curso (sin informe), las oportunidades quedan como hoy.
+
+**Hecho.** El bloque "Oportunidades de mejora" ahora tiene dos variantes según `isClosedMonth && monthReview`: cuando hay informe de cierre visible arriba, se renderiza como `<details>/<summary>` (mismo patrón nativo que "Más detalle del mes" — sin JS extra) colapsado por defecto, con el mismo header (título + badge de conteo + badge IA) más un `ChevronRight` que rota al abrir. Cuando no hay informe (mes en curso o mes cerrado sin insights aún), se mantiene la card expandida tal cual estaba. El contenido interno (grid de sugerencias) no cambió, solo el envoltorio.
 
 ### UX5 — Jerarquía de alerta única (transversal)
 

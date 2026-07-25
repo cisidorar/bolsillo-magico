@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, Lock, Info, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles } from 'lucide-react'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -384,6 +384,33 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   const previewAmount = form.cuotas ? (computedMonthly ?? 0) : (parseInt(form.amount) || 0)
   const previewPeriod = form.cuotas ? '/ cuota' : form.anual ? '/ año' : '/ mes'
 
+  // ── UX3: agrupado por tipo, colapsable, con subtotal ─────────────────────
+  // Antes una lista plana larga sin distinguir mensuales de cuotas de
+  // anuales. El orden dentro de cada grupo se mantiene (billing_day, ya
+  // ordenado por el server). Un item nunca cae en dos grupos: cuotas gana
+  // sobre anual si por algún motivo coincidieran ambos campos.
+  type GroupKey = 'cuotas' | 'anuales' | 'mensuales'
+  const GROUP_LABELS: Record<GroupKey, string> = { cuotas: 'En cuotas', anuales: 'Anuales', mensuales: 'Mensuales' }
+  const groups: Record<GroupKey, RecurringExpense[]> = { cuotas: [], anuales: [], mensuales: [] }
+  for (const item of items) {
+    const isCuotas = item.total_installments != null && item.total_installments > 0
+    const isAnual  = item.billing_month != null
+    if (isCuotas) groups.cuotas.push(item)
+    else if (isAnual) groups.anuales.push(item)
+    else groups.mensuales.push(item)
+  }
+  const groupOrder: GroupKey[] = ['mensuales', 'cuotas', 'anuales']
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
+  const toggleGroup = (g: GroupKey) => setCollapsedGroups(prev => {
+    const next = new Set(prev)
+    next.has(g) ? next.delete(g) : next.add(g)
+    return next
+  })
+  // Solo agrupar cuando hay más de un tipo presente — con un solo tipo, el
+  // header sería puro ruido repitiendo lo que ya dice la lista completa.
+  const activeGroupCount = groupOrder.filter(g => groups[g].length > 0).length
+  const showGroups = activeGroupCount > 1
+
   return (
     <>
       {/* ── Lista ── */}
@@ -393,7 +420,28 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             <p className="text-sm text-gray-400 text-center py-10">Sin gastos recurrentes aún</p>
           )}
 
-          {items.map(item => {
+          {(showGroups ? groupOrder : (['all'] as const)).map(groupKey => {
+            const groupItems = showGroups ? groups[groupKey as GroupKey] : items
+            if (groupItems.length === 0) return null
+            const collapsed = showGroups && collapsedGroups.has(groupKey as GroupKey)
+            const subtotal  = groupItems.reduce((s, it) => s + it.amount, 0)
+            return (
+              <React.Fragment key={groupKey}>
+                {showGroups && (
+                  <button
+                    onClick={() => toggleGroup(groupKey as GroupKey)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gray-50/60"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
+                      {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      {GROUP_LABELS[groupKey as GroupKey]}
+                      <span className="font-medium normal-case tracking-normal">({groupItems.length})</span>
+                    </span>
+                    <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
+                  </button>
+                )}
+                {!collapsed && groupItems.map(item => {
             const isCuotas    = item.total_installments != null && item.total_installments > 0
             const isAnual     = item.billing_month != null
             const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
@@ -509,6 +557,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   )
                 })()}
               </div>
+            )
+          })}
+              </React.Fragment>
             )
           })}
         </div>

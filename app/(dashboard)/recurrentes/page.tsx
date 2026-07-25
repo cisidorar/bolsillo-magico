@@ -7,7 +7,7 @@ import CalendarioPagos, { type RecurringWithRelations } from '@/components/Calen
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
 import FlujoCaja30d from '@/components/FlujoCaja30d'
 import ServiceLogo from '@/components/ServiceLogo'
-import { CircleDollarSign, CalendarClock, TrendingUp, Sparkles } from 'lucide-react'
+import { CircleDollarSign } from 'lucide-react'
 import Link from 'next/link'
 import type { RecurringExpense, PaymentMethod } from '@/types'
 
@@ -149,16 +149,6 @@ export default async function RecurrentesPage({
   const overdueCount = overdueItems.length
   const overdueNames = overdueItems.map(r => r.name)
 
-  // Próximo cargo — los anuales van a su próxima ocurrencia real (su mes)
-  const nextPayment = activeItems.length > 0
-    ? activeItems
-        .map(r => ({ ...r, nextDate: nextBillingDate(r.billing_day, now, r.billing_month) }))
-        .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())[0]
-    : null
-  const nextDateLabel = nextPayment
-    ? nextPayment.nextDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-    : null
-
   // Promedio mensual real (últimos 3 meses)
   const monthlyTotals: Record<string, number> = {}
   ;(recentExpenses ?? []).forEach(e => {
@@ -235,64 +225,27 @@ export default async function RecurrentesPage({
         <RecurringOverdueAlert count={overdueCount} names={overdueNames} />
       )}
 
-      {/* ── KPI Cards ── */}
+      {/* ── KPI: un solo número (UX3) — antes 4 cards con variaciones del mismo
+          concepto ("cuánto pesan mis fijos"). "Próximo cargo" ahora vive en
+          Flujo de caja (30 días, más abajo), que ya es más preciso porque
+          también cruza tarjetas y sueldo, no solo recurrentes. */}
       {activeCount > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-
-          {/* Carga mensual — azul (mismo hero-gradient que Inversiones, para que
-              sea el mismo azul en modo oscuro — var(--primary) sola difiere del
-              tono de .hero-gradient en dark) */}
-          <div className="rounded-3xl p-4 text-white col-span-2 lg:col-span-1 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-              <CircleDollarSign className="w-5 h-5 text-white" />
+        <div className="rounded-3xl p-5 text-white mb-6 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                  <CircleDollarSign className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Carga mensual</p>
+              </div>
+              <p className="text-3xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
+              <p className="text-[11px] text-white/60 mt-1.5">
+                {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
+                {' '}· ≈{formatCLP(avgMonthly)} promedio real (3m) · {formatCLP(yearlyEstimate)} al año
+              </p>
             </div>
-            <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-1">Carga mensual</p>
-            <p className="text-2xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
-            <p className="text-[11px] text-white/60 mt-1">
-              {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
-            </p>
           </div>
-
-          {/* Próximo cargo */}
-          <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3">
-              <CalendarClock className="w-5 h-5 text-emerald-600" />
-            </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Próximo cargo</p>
-            {nextPayment ? (
-              <>
-                <p className="text-sm font-bold text-gray-900 leading-tight">
-                  {nextDateLabel} · {nextPayment.name}
-                </p>
-                <p className="text-base font-extrabold tabular-nums mt-0.5 text-brand-600">
-                  {formatCLP(nextPayment.amount)}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-gray-400">Sin próximos cargos</p>
-            )}
-          </div>
-
-          {/* Promedio mensual */}
-          <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center mb-3">
-              <TrendingUp className="w-5 h-5 text-violet-600" />
-            </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Promedio mensual</p>
-            <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(avgMonthly)}</p>
-            <p className="text-[11px] text-gray-400 mt-1">Últimos 3 meses</p>
-          </div>
-
-          {/* Gasto anual estimado */}
-          <div className="card p-4">
-            <div className="w-10 h-10 rounded-2xl bg-orange-50 flex items-center justify-center mb-3">
-              <Sparkles className="w-5 h-5 text-orange-600" />
-            </div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Gasto anual estimado</p>
-            <p className="text-2xl font-extrabold tabular-nums text-gray-900 leading-tight">{formatCLP(yearlyEstimate)}</p>
-            <p className="text-[11px] text-gray-400 mt-1">en base a carga mensual actual</p>
-          </div>
-
         </div>
       )}
 

@@ -2042,39 +2042,74 @@ export default async function AnalisisPage({
           </div>
         )}
 
-        {/* ── Oportunidades de mejora — header dentro de la card, como las demás ── */}
+        {/* ── Oportunidades de mejora ── colapsada bajo el informe de cierre en meses cerrados (UX4) ── */}
         {finalOportunidades.length > 0 && (
-          <div className="card p-4 lg:p-5 mb-5">
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</p>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                {finalOportunidades.length} sugerencia{finalOportunidades.length > 1 ? 's' : ''}
-              </span>
-              {hasAiInsights && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-                  style={{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' }}>
-                  <Sparkles className="w-2.5 h-2.5" /> IA
+          isClosedMonth && monthReview ? (
+            <details className="card p-4 lg:p-5 mb-5 group">
+              <summary className="flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                  {finalOportunidades.length} sugerencia{finalOportunidades.length > 1 ? 's' : ''}
                 </span>
-              )}
-            </div>
-            <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch">
-              {finalOportunidades.map((op, i) => (
-                <div key={i} className="rounded-2xl px-3 py-3 flex flex-col gap-2.5" style={{ background: 'var(--surface-2)' }}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: op.iconBg }}>
-                      <op.icon className="w-4 h-4" style={{ color: op.iconColor }} />
+                {hasAiInsights && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                    style={{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' }}>
+                    <Sparkles className="w-2.5 h-2.5" /> IA
+                  </span>
+                )}
+                <ChevronRight className="w-4 h-4 ml-auto transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} />
+              </summary>
+              <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch mt-3">
+                {finalOportunidades.map((op, i) => (
+                  <div key={i} className="rounded-2xl px-3 py-3 flex flex-col gap-2.5" style={{ background: 'var(--surface-2)' }}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: op.iconBg }}>
+                        <op.icon className="w-4 h-4" style={{ color: op.iconColor }} />
+                      </div>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
                     </div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
+                    <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
+                    <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                      {op.cta} <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
-                  <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
-                  <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
-                    {op.cta} <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-              ))}
+                ))}
+              </div>
+            </details>
+          ) : (
+            <div className="card p-4 lg:p-5 mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                  {finalOportunidades.length} sugerencia{finalOportunidades.length > 1 ? 's' : ''}
+                </span>
+                {hasAiInsights && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                    style={{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' }}>
+                    <Sparkles className="w-2.5 h-2.5" /> IA
+                  </span>
+                )}
+              </div>
+              <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch">
+                {finalOportunidades.map((op, i) => (
+                  <div key={i} className="rounded-2xl px-3 py-3 flex flex-col gap-2.5" style={{ background: 'var(--surface-2)' }}>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: op.iconBg }}>
+                        <op.icon className="w-4 h-4" style={{ color: op.iconColor }} />
+                      </div>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
+                    </div>
+                    <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
+                    <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                      {op.cta} <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
