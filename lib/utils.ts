@@ -177,6 +177,38 @@ export function currentStatementRange(billingDay: number): {
 }
 
 /**
+ * Retorna el rango del estado de cuenta YA CERRADO más reciente — el que
+ * corresponde pagar antes de su fecha de vencimiento. A diferencia de
+ * `currentStatementRange` (que siempre apunta al período que se está
+ * acumulando ahora, todavía sin cerrar), este es el monto real que hay que
+ * pagar cuando llega el sueldo: apenas cierra un estado, este función pasa a
+ * apuntarlo a él en vez de al nuevo ciclo que recién empieza a acumularse.
+ *
+ * Ejemplo corte = 24, hoy = 20 jul (antes del corte) → el último cerrado es
+ * el de junio: 25 jun – 24 jul... no, cierra el 24 jul → todavía no cerró.
+ * El último cerrado en este caso es 25 may – 24 jun (cerró el 24 jun).
+ * Ejemplo corte = 24, hoy = 25 jul (justo después del corte) → el último
+ * cerrado es 25 jun – 24 jul (cerró ayer, 24 jul).
+ */
+export function lastClosedStatementRange(billingDay: number): {
+  start: string
+  end:   string
+  month: number
+  year:  number
+} {
+  const { todayDate: todayDay, month: m, year: y } = getNowChile()
+
+  // Si el corte de este mes ya llegó (hoy >= día de corte) → lo último que
+  // cerró fue el corte de ESTE mes. Si el corte de este mes aún no llega →
+  // lo último que cerró fue el corte del mes pasado.
+  const statementMonth = todayDay >= billingDay ? m : (m === 1 ? 12 : m - 1)
+  const statementYear  = todayDay >= billingDay ? y : (m === 1 ? y - 1 : y)
+
+  const range = billingPeriodRange(statementMonth, statementYear, billingDay)
+  return { ...range, month: statementMonth, year: statementYear }
+}
+
+/**
  * Fecha de vencimiento de pago de un estado de cuenta: siempre cae en el mes
  * SIGUIENTE al mes del estado, en el día `paymentDueDay` (ej: estado de julio,
  * paymentDueDay=5 → vence el 5 de agosto). Clampado al último día real del

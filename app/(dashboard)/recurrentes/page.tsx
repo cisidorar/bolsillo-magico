@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCLP, getNowChile, nextPaydayDate, currentStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
+import { formatCLP, getNowChile, nextPaydayDate, lastClosedStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
@@ -191,7 +191,10 @@ export default async function RecurrentesPage({
   const cardsWithoutDueDay = creditCardsF8.filter(c => !c.payment_due_day).map(c => c.name)
 
   creditCardsF8.filter(c => c.payment_due_day).forEach(card => {
-    const range = currentStatementRange(card.billing_day!)
+    // Estado YA CERRADO más reciente, no el que se está acumulando ahora —
+    // es el monto real que vence pronto (mismo criterio que Ciclo de sueldo
+    // en /inicio, ver lib/utils.ts).
+    const range = lastClosedStatementRange(card.billing_day!)
     const total = (statementExpenses ?? [])
       .filter((e: { payment_method_id: string | null; date: string }) => {
         if (e.payment_method_id !== card.id) return false

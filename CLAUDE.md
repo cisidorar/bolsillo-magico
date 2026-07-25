@@ -85,6 +85,8 @@ Every page with expense data has two views:
 
 Credit card statement periods: if purchase day ≤ billing_day → same month statement; if purchase day > billing_day → next month statement.
 
+**Open vs. closed statement.** `currentStatementRange(billingDay)` returns the period **currently accruing** (still open, not yet closed) — correct for "how much have I charged so far this cycle" (e.g. `/inicio`'s "Tarjeta · Cupo usado" cards). `lastClosedStatementRange(billingDay)` returns the **most recently closed** period — the one with a real, approaching due date, correct for anything answering "how much do I actually owe right now" (Ciclo de sueldo's CMR line, the F8 card event in `/recurrentes`'s Flujo de caja 30 días). Mixing these up shows the wrong statement for most of the month: `currentStatementRange` only happens to equal the true payable amount on the exact closing day itself.
+
 ### Month-over-Month Comparison
 
 When displaying "vs anterior" for the **current month**, compare only up to today's day number in the previous month (same-date, pro-rata comparison). For past completed months, compare full month to full previous month. This logic is implemented in both `app/(dashboard)/inicio/page.tsx` and `app/(dashboard)/analisis/page.tsx`.

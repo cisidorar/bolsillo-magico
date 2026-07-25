@@ -6,6 +6,7 @@ import {
   monthName,
   billingPeriod,
   currentStatementRange,
+  lastClosedStatementRange,
   relativeDate,
 } from '@/lib/utils'
 
@@ -186,6 +187,57 @@ describe('currentStatementRange', () => {
     const range = currentStatementRange(31)
     // No debe lanzar. El end debe ser una fecha válida.
     expect(range.end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// lastClosedStatementRange — el estado YA CERRADO más reciente (lo que hay
+// que pagar), complementario a currentStatementRange (lo que se acumula).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('lastClosedStatementRange', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('si hoy es antes del corte, el último cerrado es el del mes pasado', () => {
+    // Hoy = 10 de junio, corte = 15 → el corte de junio (15 jun) aún no llega.
+    // El último cerrado cerró el 15 de mayo (período 16 abr – 15 may).
+    vi.setSystemTime(new Date(2026, 5, 10))  // 10 jun 2026
+    const range = lastClosedStatementRange(15)
+    expect(range.month).toBe(5)
+    expect(range.year).toBe(2026)
+    expect(range.end).toBe('2026-05-15')
+    expect(range.start).toBe('2026-04-16')
+  })
+
+  it('si hoy es después del corte, el último cerrado cerró este mes', () => {
+    // Hoy = 20 de junio, corte = 15 → el corte de junio (15 jun) ya pasó.
+    vi.setSystemTime(new Date(2026, 5, 20))  // 20 jun 2026
+    const range = lastClosedStatementRange(15)
+    expect(range.month).toBe(6)
+    expect(range.year).toBe(2026)
+    expect(range.end).toBe('2026-06-15')
+    expect(range.start).toBe('2026-05-16')
+  })
+
+  it('el día exacto del corte, el último cerrado es el de hoy', () => {
+    vi.setSystemTime(new Date(2026, 5, 15))  // 15 jun 2026 — día de corte
+    const range = lastClosedStatementRange(15)
+    expect(range.end).toBe('2026-06-15')
+  })
+
+  it('cruce de año: hoy = 5 enero, corte = 15 → el último cerrado cerró en diciembre', () => {
+    vi.setSystemTime(new Date(2027, 0, 5))  // 5 ene 2027
+    const range = lastClosedStatementRange(15)
+    expect(range.month).toBe(12)
+    expect(range.year).toBe(2026)
+  })
+
+  it('es siempre un ciclo anterior a currentStatementRange (nunca coinciden salvo el día de corte)', () => {
+    vi.setSystemTime(new Date(2026, 6, 20))  // 20 jul 2026, corte = 24 (todavía no llega)
+    const open   = currentStatementRange(24)
+    const closed = lastClosedStatementRange(24)
+    expect(closed.end).not.toBe(open.end)
   })
 })
 

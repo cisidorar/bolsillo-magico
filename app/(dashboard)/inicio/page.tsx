@@ -1,6 +1,6 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -313,11 +313,13 @@ export default async function DashboardPage() {
 
   // ── Ciclo de sueldo ─────────────────────────────────────────────────────
   // Tarjeta principal: la del período preferido (billing mode) o la primera
-  // con día de cierre configurado. Se muestra su estado ABIERTO (lo que se
-  // va a deber cuando cierre) junto con su fecha de pago si está configurada.
+  // con día de cierre configurado. Se muestra su estado YA CERRADO más
+  // reciente (lo que realmente hay que pagar con este sueldo, con fecha de
+  // vencimiento concreta) — no el que se está acumulando ahora, que recién
+  // vence el mes subsiguiente y todavía no es una obligación real.
   const mainCreditCard = periodCard ?? creditCards[0] ?? null
   const cicloSueldoCard = mainCreditCard ? (() => {
-    const range   = currentStatementRange(mainCreditCard.billing_day!)
+    const range   = lastClosedStatementRange(mainCreditCard.billing_day!)
     const inRange = (statementExpenses ?? []).filter(e => {
       if (e.payment_method_id !== mainCreditCard.id) return false
       const bp = billingPeriod(e.date, mainCreditCard.billing_day!)
