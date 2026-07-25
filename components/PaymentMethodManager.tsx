@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import {
   Plus, Trash2, Check, X, Star, CreditCard, Landmark, Smartphone,
-  ChevronRight, ChevronDown, ChevronUp
+  ChevronRight
 } from 'lucide-react'
 import { cn, formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
@@ -18,11 +18,15 @@ const CARD_TYPES: { value: CardType; label: string; Icon: React.ElementType; des
   { value: 'digital', label: 'Digital', Icon: Smartphone,  desc: 'Transferencia, Mach, Fintual, etc.' },
 ]
 
-const TYPE_COLORS: Record<CardType, { bg: string; text: string; border: string; bgHex: string; textHex: string }> = {
-  debit:   { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   bgHex: '#EFF6FF', textHex: '#1D4ED8' },
-  credit:  { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200', bgHex: '#EEF2FF', textHex: '#4338CA' },
-  cash:    { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  bgHex: '#F0FDF4', textHex: '#15803D' },
-  digital: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', bgHex: '#FFF7ED', textHex: '#C2410C' },
+// Color de acento por tipo — el pill de la lista usa este hex + alpha (no un
+// bgHex/textHex claros fijos) para que se vea bien tanto en modo claro como
+// oscuro, en vez del bg casi blanco que antes quedaba "en blanco" sobre el
+// fondo oscuro del dark mode.
+const TYPE_COLORS: Record<CardType, { chip: string }> = {
+  debit:   { chip: '#3B82F6' },
+  credit:  { chip: '#6366F1' },
+  cash:    { chip: '#22C55E' },
+  digital: { chip: '#F97316' },
 }
 
 const BANK_OPTIONS: { name: string; domain: string; color: string }[] = [
@@ -417,7 +421,6 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
   const [error, setError]               = useState('')
 
   function openEdit(m: PaymentMethod) {
-    if (expandedId === m.id) { closeAll(); return }
     setForm(methodToForm(m))
     setExpandedId(m.id)
     setError('')
@@ -425,7 +428,6 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
   }
 
   function openNew() {
-    if (expandedId === 'new') { closeAll(); return }
     setForm(DEFAULT_FORM)
     setExpandedId('new')
     setError('')
@@ -524,203 +526,165 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
     new Date(s + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // Editar/crear siempre abre como popup (bottom sheet en mobile, modal
+  // centrado en desktop) — mismo patrón que CategoryManager y
+  // TermDepositManager, en vez del panel lateral sticky que tenía antes.
   return (
-    <div className="lg:grid lg:grid-cols-[1fr_400px] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
-
-      {/* ── Columna izquierda: lista ── */}
-      <div className="flex flex-col gap-3">
-        {methods.length === 0 ? (
-          <div className="card text-center py-14 flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1" style={{ background: 'var(--primary-soft)' }}>
-              <CreditCard className="w-6 h-6" style={{ color: 'var(--primary)' }} />
-            </div>
-            <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Sin métodos de pago</p>
-            <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Agrega tu primera tarjeta o cuenta</p>
+    <div className="flex flex-col gap-3">
+      {methods.length === 0 ? (
+        <div className="card text-center py-14 flex flex-col items-center gap-2">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1" style={{ background: 'var(--primary-soft)' }}>
+            <CreditCard className="w-6 h-6" style={{ color: 'var(--primary)' }} />
           </div>
-        ) : (
-          <div className="card overflow-hidden">
-            {methods.map((m, idx) => {
-              const ct = m.card_type ?? 'debit'
-              const displayCt = ct === 'cash' ? 'digital' : ct
-              const c = TYPE_COLORS[displayCt as CardType] ?? TYPE_COLORS.debit
-              const type = CARD_TYPES.find(t => t.value === displayCt)
-                ?? (ct === 'cash' ? { label: 'Efectivo' } : CARD_TYPES[0])
-              const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
-              const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
-              const isOpen = expandedId === m.id
+          <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Sin métodos de pago</p>
+          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Agrega tu primera tarjeta o cuenta</p>
+        </div>
+      ) : (
+        <div className="card overflow-hidden">
+          {methods.map((m, idx) => {
+            const ct = m.card_type ?? 'debit'
+            const displayCt = ct === 'cash' ? 'digital' : ct
+            const c = TYPE_COLORS[displayCt as CardType] ?? TYPE_COLORS.debit
+            const type = CARD_TYPES.find(t => t.value === displayCt)
+              ?? (ct === 'cash' ? { label: 'Efectivo' } : CARD_TYPES[0])
+            const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
+            const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
 
-              return (
-                <div key={m.id} style={idx > 0 ? { borderTop: '1px solid var(--border)' } : undefined}>
-                  {/* Fila del método — clicable */}
-                  <button
-                    onClick={() => openEdit(m)}
-                    className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors"
-                    style={{ background: isOpen ? 'var(--primary-soft)' : undefined }}
-                    onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-                    onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = '' }}
-                  >
-                    <ServiceLogo
-                      domain={m.domain}
-                      name={m.name}
-                      size={44}
-                      fallbackColor={fallbackColor}
-                      className="flex-shrink-0"
-                    />
+            return (
+              <div key={m.id} style={idx > 0 ? { borderTop: '1px solid var(--border)' } : undefined}>
+                {/* Fila del método — clicable, abre el popup de edición */}
+                <button
+                  onClick={() => openEdit(m)}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors"
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
+                >
+                  <ServiceLogo
+                    domain={m.domain}
+                    name={m.name}
+                    size={44}
+                    fallbackColor={fallbackColor}
+                    className="flex-shrink-0"
+                  />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-semibold text-gray-900 truncate">{m.name}</span>
-                        {m.last_four && (
-                          <span className="text-xs text-gray-400 font-medium tabular-nums">···{m.last_four}</span>
-                        )}
-                        {m.is_default && (
-                          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
-                          style={{ backgroundColor: c.bgHex, color: c.textHex }}
-                        >
-                          {type.label}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{m.name}</span>
+                      {m.last_four && (
+                        <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--ink-3)' }}>···{m.last_four}</span>
+                      )}
+                      {m.is_default && (
+                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span
+                        className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                        style={{ backgroundColor: `${c.chip}26`, color: c.chip }}
+                      >
+                        {type.label}
+                      </span>
+                      {m.card_type === 'credit' && m.billing_day && (
+                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Cierra día {m.billing_day}</span>
+                      )}
+                      {m.card_type === 'credit' && m.payment_due_day && (
+                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Paga día {m.payment_due_day}</span>
+                      )}
+                      {m.card_type === 'credit' && m.billing_day && !m.payment_due_day && (
+                        <span className="text-[11px] font-semibold" style={{ color: 'var(--gold)' }}>
+                          Sin día de pago · toca para configurar
                         </span>
-                        {m.card_type === 'credit' && m.billing_day && (
-                          <span className="text-[11px] text-gray-400">Cierra día {m.billing_day}</span>
-                        )}
-                        {m.card_type === 'credit' && m.payment_due_day && (
-                          <span className="text-[11px] text-gray-400">Paga día {m.payment_due_day}</span>
-                        )}
-                        {m.card_type === 'credit' && m.billing_day && !m.payment_due_day && (
-                          <span className="text-[11px] font-semibold" style={{ color: 'var(--gold)' }}>
-                            Sin día de pago · toca para configurar
-                          </span>
-                        )}
-                        {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
-                          <span className="text-[11px] text-gray-400">Admin {formatCLP(m.admin_fee)}</span>
-                        )}
-                      </div>
+                      )}
+                      {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
+                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Admin {formatCLP(m.admin_fee)}</span>
+                      )}
                     </div>
+                  </div>
 
-                    {isOpen
-                      ? <ChevronUp className="w-4 h-4 text-blue-400 flex-shrink-0" />
-                      : <ChevronDown className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                    }
-                  </button>
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                </button>
 
-                  {/* Estado de cuenta — crédito, solo cuando NO está expandido */}
-                  {!isOpen && stmt && (
-                    <Link
-                      href="/historial?view=billing"
-                      onClick={e => e.stopPropagation()}
-                      className="mx-4 mb-3 flex items-center justify-between rounded-2xl px-3.5 py-2.5 transition-colors"
-                      style={{ background: 'var(--primary-soft)' }}
-                    >
-                      <div>
-                        <p className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>
-                          Período {fmtDate(stmt.start)} – {fmtDate(stmt.end)}
-                        </p>
-                        <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--primary)' }}>
-                          {formatCLP(stmt.total)}
-                        </p>
-                        <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>acumulado hasta hoy</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
-                    </Link>
-                  )}
-
-                  {/* Formulario inline — solo en mobile (lg oculto) */}
-                  {isOpen && (
-                    <div className="lg:hidden px-4 pb-5 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
-                      <FormPanel
-                        form={form}
-                        saving={saving}
-                        deleting={deleting}
-                        deleteConfirm={deleteConfirm}
-                        error={error}
-                        isNew={false}
-                        onChange={setField}
-                        onSave={save}
-                        onCancel={closeAll}
-                        onDelete={() => setDeleteConfirm(true)}
-                        onDeleteConfirm={deleteMethod}
-                        onDeleteCancel={() => setDeleteConfirm(false)}
-                      />
+                {/* Estado de cuenta — crédito */}
+                {stmt && (
+                  <Link
+                    href="/historial?view=billing"
+                    onClick={e => e.stopPropagation()}
+                    className="mx-4 mb-3 flex items-center justify-between rounded-2xl px-3.5 py-2.5 transition-colors"
+                    style={{ background: 'var(--primary-soft)' }}
+                  >
+                    <div>
+                      <p className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>
+                        Período {fmtDate(stmt.start)} – {fmtDate(stmt.end)}
+                      </p>
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--primary)' }}>
+                        {formatCLP(stmt.total)}
+                      </p>
+                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>acumulado hasta hoy</p>
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                  </Link>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
-        {/* Botón agregar */}
-        <button
-          onClick={openNew}
-          className={cn(
-            'flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed rounded-3xl text-sm font-bold transition-colors',
-            expandedId === 'new' ? 'border-blue-400 bg-blue-50/40' : 'hover:bg-blue-50/30'
-          )}
-          style={{ borderColor: expandedId === 'new' ? 'var(--primary)' : 'var(--border)', color: 'var(--primary)' }}
+      {/* Botón agregar */}
+      <button
+        onClick={openNew}
+        className="flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed rounded-3xl text-sm font-bold transition-colors hover:opacity-80"
+        style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}
+      >
+        <Plus className="w-4 h-4" />
+        Agregar método de pago
+      </button>
+
+      {/* ── Popup: nuevo / editar método — bottom sheet en mobile, modal centrado en desktop ── */}
+      {expandedId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.65)' }}
+          onClick={e => { if (e.target === e.currentTarget) closeAll() }}
         >
-          <Plus className="w-4 h-4" />
-          Agregar método de pago
-        </button>
+          <div
+            className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+            style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+          >
+            <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
-        {/* Formulario nuevo — inline mobile */}
-        {expandedId === 'new' && (
-          <div className="lg:hidden card p-5">
-            <p className="text-sm font-bold mb-4" style={{ color: 'var(--ink)' }}>Nuevo método</p>
-            <FormPanel
-              form={form}
-              saving={saving}
-              deleting={deleting}
-              deleteConfirm={deleteConfirm}
-              error={error}
-              isNew={true}
-              onChange={setField}
-              onSave={save}
-              onCancel={closeAll}
-              onDelete={() => {}}
-              onDeleteConfirm={() => {}}
-              onDeleteCancel={() => setDeleteConfirm(false)}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── Columna derecha: panel desktop ── */}
-      <div className="hidden lg:block sticky top-8">
-        {expandedId ? (
-          <div className="card p-5">
-            <p className="text-sm font-bold mb-4" style={{ color: 'var(--ink)' }}>
-              {expandedId === 'new' ? 'Nuevo método de pago' : 'Editar método'}
-            </p>
-            <FormPanel
-              form={form}
-              saving={saving}
-              deleting={deleting}
-              deleteConfirm={deleteConfirm}
-              error={error}
-              isNew={expandedId === 'new'}
-              onChange={setField}
-              onSave={save}
-              onCancel={closeAll}
-              onDelete={() => setDeleteConfirm(true)}
-              onDeleteConfirm={deleteMethod}
-              onDeleteCancel={() => setDeleteConfirm(false)}
-            />
-          </div>
-        ) : (
-          <div className="card flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: 'var(--primary-soft)' }}>
-              <CreditCard className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+            <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
+                {expandedId === 'new' ? 'Nuevo método de pago' : 'Editar método'}
+              </h2>
+              <button
+                onClick={closeAll}
+                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink-2)' }}>Selecciona un método</p>
-            <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Haz clic en una tarjeta para editarla</p>
-          </div>
-        )}
-      </div>
 
+            <div className="px-5 py-5 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 76px)' }}>
+              <FormPanel
+                form={form}
+                saving={saving}
+                deleting={deleting}
+                deleteConfirm={deleteConfirm}
+                error={error}
+                isNew={expandedId === 'new'}
+                onChange={setField}
+                onSave={save}
+                onCancel={closeAll}
+                onDelete={() => setDeleteConfirm(true)}
+                onDeleteConfirm={deleteMethod}
+                onDeleteCancel={() => setDeleteConfirm(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
