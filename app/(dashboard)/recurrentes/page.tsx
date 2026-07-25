@@ -1,13 +1,15 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCLP, getNowChile } from '@/lib/utils'
+import { formatCLP, getNowChile, nextPaydayDate, currentStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
+import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
+import FlujoCaja30d from '@/components/FlujoCaja30d'
 import ServiceLogo from '@/components/ServiceLogo'
 import { CircleDollarSign, CalendarClock, TrendingUp, Sparkles } from 'lucide-react'
 import Link from 'next/link'
-import type { RecurringExpense } from '@/types'
+import type { RecurringExpense, PaymentMethod } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,13 +44,18 @@ export default async function RecurrentesPage({
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const { now, year, month, todayDate } = getNowChile()
+  const { now, year, month, todayDate, dateStr } = getNowChile()
 
   // Últimos 3 meses para promedio
   const threeMonthsAgo = new Date(year, now.getMonth() - 3, 1)
   const threeMonthsStr = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
 
   const thisMonthStr = `${year}-${String(month).padStart(2, '0')}-01`
+
+  // Ventana para totales de estado de cuenta abierto (F8) — 2 meses cubre
+  // cualquier statement en curso incluso si empezó el mes pasado.
+  const twoMonthsAgo        = new Date(year, now.getMonth() - 2, 1)
+  const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
 
   const [
     { data: recurring },
@@ -57,6 +64,10 @@ export default async function RecurrentesPage({
     { data: allExpenses },
     { data: recentExpenses },
     { data: thisMonthExpenses },
+    { data: profile },
+    { data: paydayPrefRow },
+    { data: lastIncome },
+    { data: statementExpenses },
   ] = await Promise.all([
     supabase
       .from('recurring_expenses')
@@ -84,6 +95,23 @@ export default async function RecurrentesPage({
       .eq('user_id', user.id)
       .not('recurring_expense_id', 'is', null)
       .gte('date', thisMonthStr),
+    // F8 — Calendario de flujo de caja: payday, último sueldo, estados abiertos
+    supabase.from('profiles').select('payday').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('payday_last_business_day').eq('id', user.id).maybeSingle(),
+    supabase
+      .from('incomes')
+      .select('amount, month, year')
+      .eq('user_id', user.id)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('expenses')
+      .select('amount, date, payment_method_id')
+      .eq('user_id', user.id)
+      .gte('date', statementFetchStart)
+      .lte('date', now.toISOString().split('T')[0]),
   ])
 
   const paidMap = (allExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
@@ -144,6 +172,52 @@ export default async function RecurrentesPage({
   // Anual estimado: mensuales ×12 + anuales una sola vez (no ×12)
   const yearlyEstimate = monthlyItems.reduce((s, r) => s + r.amount, 0) * 12
     + annualItems.reduce((s, r) => s + r.amount, 0)
+
+  // ── F8 — Calendario de flujo de caja (próximos 30 días) ──────────────────
+  const paydayNum        = (profile as { payday?: number | null } | null)?.payday ?? null
+  const paydayIsLBD       = (paydayPrefRow as { payday_last_business_day?: boolean } | null)?.payday_last_business_day ?? false
+  const nextPayday        = nextPaydayDate(dateStr, paydayNum, paydayIsLBD)
+  const hasPayday         = nextPayday !== null
+  type IncomeRowRec = { amount: number; month: number; year: number }
+  const sueldoEstimado    = (lastIncome as IncomeRowRec | null)?.amount ?? null
+
+  const cashFlowEvents: CashFlowEvent[] = []
+
+  if (nextPayday && sueldoEstimado !== null) {
+    cashFlowEvents.push({ date: nextPayday, type: 'income', label: 'Sueldo', amount: sueldoEstimado })
+  }
+
+  activeItems.forEach(r => {
+    const d = nextBillingDate(r.billing_day, now, r.billing_month)
+    const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    cashFlowEvents.push({
+      date: dStr, type: 'recurring', label: r.name, amount: -r.amount,
+      sublabel: r.category?.name, domain: r.domain ?? null,
+    })
+  })
+
+  const creditCardsF8 = ((paymentMethods ?? []) as PaymentMethod[])
+    .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+  const cardsWithoutDueDay = creditCardsF8.filter(c => !c.payment_due_day).map(c => c.name)
+
+  creditCardsF8.filter(c => c.payment_due_day).forEach(card => {
+    const range = currentStatementRange(card.billing_day!)
+    const total = (statementExpenses ?? [])
+      .filter((e: { payment_method_id: string | null; date: string }) => {
+        if (e.payment_method_id !== card.id) return false
+        const bp = billingPeriod(e.date, card.billing_day!)
+        return bp.month === range.month && bp.year === range.year
+      })
+      .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+    const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
+    cashFlowEvents.push({
+      date: dueDate, type: 'card', label: card.name, amount: -total,
+      sublabel: 'estado de cuenta', domain: card.domain,
+    })
+  })
+
+  const cashFlowTimelineFull = buildCashFlowTimeline(cashFlowEvents, dateStr)
+  const cashFlowTimeline     = withinWindow(cashFlowTimelineFull, 30)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
@@ -245,8 +319,14 @@ export default async function RecurrentesPage({
           />
         </div>
 
-        {/* Calendario */}
-        <div className={!isCalendar ? 'hidden lg:block' : 'block'}>
+        {/* Calendario + Flujo de caja */}
+        <div className={(!isCalendar ? 'hidden lg:block' : 'block') + ' space-y-5'}>
+          <FlujoCaja30d
+            events={cashFlowTimeline}
+            hasPayday={hasPayday}
+            hasIncome={sueldoEstimado !== null}
+            cardsWithoutDueDay={cardsWithoutDueDay}
+          />
           <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
         </div>
       </div>

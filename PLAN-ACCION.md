@@ -27,11 +27,14 @@ _Esfuerzo: bajo-medio. Sin dependencias. Es la mejora #1 porque modela tu plata 
 
 _Esfuerzo: bajo. Depende solo de que registres el saldo inicial de la cuenta._
 
-## Fase 3 — F8: Calendario de flujo de caja (30 días)
+## Fase 3 — F8: Calendario de flujo de caja (30 días) ✅ _Implementado jul 2026_
 
-7. Vista "próximos 30 días" cruzando lo que ya existe: `payday` + `payment_due_day` (Fase 1) + `billing_day` de recurrentes + cierres de tarjeta. Timeline: cuándo entra el sueldo, cuándo vence CMR, cuándo salen los fijos, saldo proyectado entre medio. Encaja en `/recurrentes?view=calendar` extendiendo `CalendarioPagos`.
+7. Vista "próximos 30 días" cruzando lo que ya existe: `payday` + `payment_due_day` (Fase 1) + `billing_day` de recurrentes + cierres de tarjeta. Timeline: cuándo entra el sueldo, cuándo vence CMR, cuándo salen los fijos, saldo proyectado entre medio. Vive en `/recurrentes?view=calendar` (y en desktop siempre visible), junto a `CalendarioPagos`.
+   - `lib/cash-flow.ts` (`buildCashFlowTimeline`, `withinWindow`) + `lib/utils.ts` (`nextPaydayDate`) — con tests.
+   - `components/FlujoCaja30d.tsx`: lista cronológica con saldo neto acumulado (no es el saldo bancario real, es el flujo proyectado de eventos conocidos) y alerta si el flujo proyectado cae en negativo en algún punto de los 30 días.
+   - Nudges cuando falta configurar algo: payday en Ajustes, ingreso en /ingresos, día de pago de una tarjeta en /metodos.
 
-_Esfuerzo: medio. Depende de Fase 1 (payment_due_day). Es el pendiente #1 de las auditorías previas._
+_Esfuerzo: medio. Depende de Fase 1 (payment_due_day). Era el pendiente #1 de las auditorías previas._
 
 ## Fase 4 — Ritual de cierre de mes
 

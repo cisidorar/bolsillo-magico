@@ -199,3 +199,37 @@ export function statementDueDate(
 export function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000)
 }
+
+/**
+ * Próxima fecha de sueldo (YYYY-MM-DD) a partir de hoy, dado el día de sueldo
+ * configurado (`profiles.payday`) o la preferencia "último día hábil"
+ * (`profiles.payday_last_business_day`). null si no hay payday configurado.
+ * Misma lógica que la cuenta regresiva de /inicio, extraída para reusar en
+ * el calendario de flujo de caja (F8) sin duplicar el cálculo día a día.
+ */
+export function nextPaydayDate(
+  todayStr: string,
+  payday: number | null,
+  paydayIsLastBusinessDay: boolean
+): string | null {
+  const [y, m, d] = todayStr.split('-').map(Number)
+  const fmt = (yy: number, mm: number, dd: number) =>
+    `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+
+  if (paydayIsLastBusinessDay) {
+    const effectiveThis = lastBusinessDay(y, m)
+    if (d <= effectiveThis) return fmt(y, m, effectiveThis)
+    const nextM = m === 12 ? 1 : m + 1
+    const nextY = m === 12 ? y + 1 : y
+    return fmt(nextY, nextM, lastBusinessDay(nextY, nextM))
+  }
+
+  if (!payday) return null
+  const dim = new Date(y, m, 0).getDate()
+  const effectivePayday = Math.min(payday, dim)
+  if (d <= effectivePayday) return fmt(y, m, effectivePayday)
+  const nextM = m === 12 ? 1 : m + 1
+  const nextY = m === 12 ? y + 1 : y
+  const nextDim = new Date(nextY, nextM, 0).getDate()
+  return fmt(nextY, nextM, Math.min(payday, nextDim))
+}
