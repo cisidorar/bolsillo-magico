@@ -4,7 +4,6 @@ import { formatCLP, monthName, pct, isEmoji, currentStatementRange, billingPerio
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
-  TrendingUp, TrendingDown, CheckCircle2, XCircle,
   Wallet, BarChart3, ArrowRight, Zap,
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
@@ -221,7 +220,6 @@ export default async function DashboardPage() {
     return (byCat[c.id]?.total ?? 0) > limit
   }).length
   const allCatsWithBudget = allCats  // para el JSX existente
-  const topCat           = catSummary[0]?.name ?? '—'
 
   // Saludo
   const hour           = now.getHours()
@@ -327,6 +325,12 @@ export default async function DashboardPage() {
   })() : null
 
   const monthlyInvestGoal = (investGoalRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
+
+  // UX1 — cuando hay una sola tarjeta de crédito, su monto y vencimiento ya
+  // están completos en Ciclo de sueldo: la card "Tarjeta {name} · Cupo usado"
+  // aparte repetiría el mismo número. Con 2+ tarjetas, la lista se mantiene
+  // (Ciclo de sueldo solo cubre la principal).
+  const showSeparateStatementCards = !(statementCards.length === 1 && cicloSueldoCard !== null)
 
   type IncomeRow = { amount: number; month: number; year: number }
   const lastIncomeRow = lastIncome as IncomeRow | null
@@ -516,8 +520,9 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Hero + KPIs side-by-side ── */}
-        <div className="hidden lg:grid gap-4 mb-5" style={{ gridTemplateColumns: '1fr 420px' }}>
+        {/* ── Hero (UX1: absorbe las 4 KPI cards — una sola fuente de verdad,
+            no dos números distintos para "cuánto te queda") ── */}
+        <div className="hidden lg:block mb-5">
 
           {/* Hero card */}
           <div className="hero-gradient rounded-3xl px-8 py-7 text-white flex flex-col justify-between" style={{ minHeight: '190px' }}>
@@ -602,128 +607,40 @@ export default async function DashboardPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Fila secundaria — por día · proyección · vs mes anterior.
+                    Antes eran 3 de las 4 KPI cards aparte (la 4ª, "Disponible",
+                    repetía el mismo número que "Te quedan" arriba — se elimina
+                    sin pérdida de información, UX1). */}
+                <div className="flex items-center gap-6 mt-5 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Por día</p>
+                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{formatCLP(dailyAvg)}</p>
+                  </div>
+                  <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
+                      Proyección
+                      {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#FCA5A5' }} />}
+                    </p>
+                    <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: projOverBudget ? '#FCA5A5' : 'white' }}>
+                      {formatCLP(projection)}
+                    </p>
+                  </div>
+                  <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Vs. {monthName(prevM).slice(0, 3)}</p>
+                    {deltaVsLast !== null ? (
+                      <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
+                        {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}% <span className="font-medium text-white/45">· {formatCLP(Math.abs(total - prevTotal))}</span>
+                      </p>
+                    ) : (
+                      <p className="text-sm font-bold mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>—</p>
+                    )}
+                  </div>
+                </div>
               </>
             )}
-          </div>
-
-          {/* KPI 2×2 grid */}
-          <div className="grid grid-cols-2 gap-3">
-
-            {/* Por día */}
-            <div className="card flex flex-col justify-between p-4" style={{ background: 'var(--surface)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Por día</p>
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--primary-soft)' }}>
-                  <BarChart3 className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                </div>
-              </div>
-              <p className="text-xl font-extrabold tabular-nums leading-none truncate" style={{ color: 'var(--ink)' }}>
-                {formatCLP(dailyAvg)}
-              </p>
-              <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>promedio diario</p>
-            </div>
-
-            {/* VS. mes anterior */}
-            <div className="card flex flex-col justify-between p-4" style={{ background: 'var(--surface)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
-                  VS. {monthName(prevM).slice(0, 3).toUpperCase()}
-                </p>
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: deltaVsLast !== null && deltaVsLast < 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.10)' }}
-                >
-                  {deltaVsLast !== null && deltaVsLast < 0
-                    ? <TrendingDown className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />
-                    : <TrendingUp   className="w-3.5 h-3.5" style={{ color: 'var(--coral)' }} />
-                  }
-                </div>
-              </div>
-              {deltaVsLast !== null ? (
-                <>
-                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
-                    style={{ color: deltaVsLast < 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
-                  </p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                    {deltaVsLast < 0 ? 'menos gasto' : 'más gasto'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-2xl font-extrabold" style={{ color: 'var(--ink-3)' }}>—</p>
-              )}
-            </div>
-
-            {/* Disponible / gasto vs. anterior — OJO: esto NO es la tasa de ahorro
-                real (ingreso − gasto) que se muestra en /analisis y /ingresos.
-                Antes esta card decía "Ahorro" en ambas ramas y chocaba con esa
-                métrica: podía leerse "Ahorro $300.000" acá mientras /analisis
-                mostraba tasa de ahorro negativa el mismo día. Título dinámico
-                según qué se está mostrando en cada rama para no prestarse a
-                confusión con la métrica real. */}
-            <div className="card flex flex-col justify-between p-4" style={{ background: 'var(--surface)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
-                  {budgetAmount !== null ? 'Disponible' : savings !== null ? 'Gasto vs. anterior' : 'Ahorro'}
-                </p>
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(31,190,141,0.12)' }}>
-                  <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />
-                </div>
-              </div>
-              {budgetAmount !== null ? (
-                <>
-                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
-                    style={{ color: budgetAmount - total >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {budgetAmount - total < 0 ? '−' : ''}{formatCLP(Math.abs(budgetAmount - total))}
-                  </p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                    {budgetAmount - total >= 0 ? 'disponible aún' : 'sobre el límite'}
-                  </p>
-                </>
-              ) : savings !== null ? (
-                <>
-                  <p className="text-xl font-extrabold tabular-nums leading-none truncate"
-                    style={{ color: savings >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {savings >= 0 ? '' : '−'}{formatCLP(Math.abs(savings))}
-                  </p>
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                    {savingsPct !== null ? `${savings >= 0 ? '+' : ''}${savings >= 0 ? savingsPct : -savingsPct}% este mes` : 'vs. mes anterior'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-2xl font-extrabold" style={{ color: 'var(--ink-3)' }}>—</p>
-              )}
-            </div>
-
-            {/* Proyección */}
-            <div
-              className="card flex flex-col justify-between p-4"
-              style={{
-                background: projOverBudget ? 'rgba(239,91,82,0.08)' : 'var(--surface)',
-                borderColor: projOverBudget ? 'rgba(239,91,82,0.30)' : undefined,
-              }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1"
-                  style={{ color: projOverBudget ? 'rgba(239,91,82,0.60)' : 'var(--ink-3)' }}>
-                  Proyección
-                  {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(239,91,82,0.60)' }} />}
-                </p>
-                {!projOverBudget && (
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--primary-soft)' }}>
-                    <Zap className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                  </div>
-                )}
-              </div>
-              <p className="text-xl font-extrabold tabular-nums leading-none truncate"
-                style={{ color: projOverBudget ? 'var(--coral)' : 'var(--ink)' }}>
-                {total > 0 ? formatCLP(projection) : '—'}
-              </p>
-              <p className="text-[10px] mt-1" style={{ color: projOverBudget ? 'rgba(239,91,82,0.60)' : 'var(--ink-3)' }}>
-                {projOverBudget ? `+${formatCLP(projOverBudget)} sobre límite` : 'estimado fin de mes'}
-              </p>
-            </div>
-
           </div>
         </div>
 
@@ -759,8 +676,17 @@ export default async function DashboardPage() {
           ) : (
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
-                <Link href="/analisis" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
+                <div>
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
+                  {catsConLimite.length > 0 && (
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      <span style={{ color: 'var(--mint)' }}>{catsDentro} dentro</span>
+                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral)' }}>{catsExcedidas} excedidas</span></>}
+                      {' '}de {catsConLimite.length} con límite
+                    </p>
+                  )}
+                </div>
+                <Link href="/analisis" className="text-sm font-semibold hover:opacity-70 transition-opacity flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
               <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                 {(() => {
@@ -901,8 +827,8 @@ export default async function DashboardPage() {
               debitAvgMonthly={debitAvgMonthly}
             />
 
-            {/* ── Tarjeta(s) de crédito ── */}
-            {statementCards.length > 0 && (
+            {/* ── Tarjeta(s) de crédito — oculta si Ciclo de sueldo ya la cubre ── */}
+            {showSeparateStatementCards && statementCards.length > 0 && (
               <div className="space-y-3">
                 {statementCards.map(card => {
                   const closeDate = new Date(card.closesOn + 'T12:00:00')
@@ -994,44 +920,12 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* ── Resumen rápido ── */}
-            <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Resumen rápido</h2>
-              {catsConLimite.length > 0 && typedExpenses.length > 0 && (
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(31,190,141,0.10)' }}>
-                    <p className="text-2xl font-extrabold" style={{ color: 'var(--mint)' }}>{catsDentro}</p>
-                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--mint)', opacity: 0.7 }}>de {catsConLimite.length} con límite</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--mint)' }} />
-                      <p className="text-[10px] font-semibold" style={{ color: 'var(--mint)' }}>dentro</p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,111,97,0.10)' }}>
-                    <p className="text-2xl font-extrabold" style={{ color: 'var(--coral)' }}>{catsExcedidas}</p>
-                    <p className="text-[9px] font-semibold tabular-nums mb-0.5" style={{ color: 'var(--coral)', opacity: 0.7 }}>de {catsConLimite.length} con límite</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <XCircle className="w-3 h-3" style={{ color: 'var(--coral)' }} />
-                      <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>excedidas</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="space-y-2" style={{ borderTop: typedExpenses.length > 0 ? '1px solid var(--border)' : undefined, paddingTop: typedExpenses.length > 0 ? '12px' : undefined }}>
-                <div className="flex justify-between">
-                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Gastos del mes</span>
-                  <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>{typedExpenses.length > 0 ? typedExpenses.length : '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Categoría top</span>
-                  <span className="text-xs font-bold truncate ml-2" style={{ color: 'var(--ink)' }}>{topCat}</span>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
         {/* ══ FIN DESKTOP ══ */}
+        {/* UX1: "Resumen rápido" se eliminó — N dentro/M excedidas ahora es el
+            subtítulo de "Por categoría" (col 1); "Gastos del mes" y "Categoría
+            top" ya son visibles de un vistazo en esa misma lista. */}
 
 
         {/* ══════════════════════ MOBILE (< lg) ══════════════════════ */}
@@ -1142,6 +1036,16 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                 </div>
+
+                {/* Vs. mes anterior — antes solo vivía en el KPI grid de desktop */}
+                {deltaVsLast !== null && (
+                  <p className="text-xs text-white/50 mt-3">
+                    <span className="font-bold" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
+                      {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
+                    </span>
+                    {' '}vs. {monthName(prevM).slice(0, 3)} · {formatCLP(Math.abs(total - prevTotal))}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -1155,8 +1059,8 @@ export default async function DashboardPage() {
             debitAvgMonthly={debitAvgMonthly}
           />
 
-          {/* Estado de cuenta mobile */}
-          {statementCards.length > 0 && (
+          {/* Estado de cuenta mobile — oculto si Ciclo de sueldo ya la cubre */}
+          {showSeparateStatementCards && statementCards.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
@@ -1173,8 +1077,17 @@ export default async function DashboardPage() {
           {catSummary.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2.5">
-                <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
-                <Link href="/analisis" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
+                <div>
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
+                  {catsConLimite.length > 0 && (
+                    <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      <span style={{ color: 'var(--mint)' }}>{catsDentro} dentro</span>
+                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral)' }}>{catsExcedidas} excedidas</span></>}
+                      {' '}de {catsConLimite.length} con límite
+                    </p>
+                  )}
+                </div>
+                <Link href="/analisis" className="text-sm font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
               <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                 {(() => {

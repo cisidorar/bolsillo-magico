@@ -87,6 +87,10 @@ Deno.serve(async (req: Request) => {
             { description: 'Supermercado Lider', date: `${monthStr}-12`, amount: 198_000, catName: 'Alimentación', catColor: '#10B981', catBg: '#ECFDF5' },
             { description: 'Bencina',            date: `${monthStr}-18`, amount: 95_000,  catName: 'Transporte',   catColor: '#3B82F6', catBg: '#EFF6FF' },
           ],
+          savingsRatePct: 22,
+          investedThisMonth: 1_000_000,
+          monthlyInvestGoal: 1_000_000,
+          netWorthDeltaClp: 480_000,
           fmtCLP,
           siteUrl: SITE_URL,
         }),
@@ -101,7 +105,7 @@ Deno.serve(async (req: Request) => {
   // Usuarios con notify_monthly = true
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, monthly_invest_goal')
     .eq('notify_monthly', true)
 
   if (!profiles || profiles.length === 0) {
@@ -136,6 +140,43 @@ Deno.serve(async (req: Request) => {
     .select('id, name, color, bg_color, icon')
 
   const catMap = new Map((categories ?? []).map(c => [c.id, c]))
+
+  // ── Construcción de patrimonio (jul 2026) ─────────────────────────────────
+  // Por convención de la app, el sueldo del mes ANTERIOR al resumido financia
+  // los gastos del mes resumido (`prevMonth`/`prevYear` ya calculados arriba).
+  const { data: fundingIncomes } = await supabase
+    .from('incomes')
+    .select('user_id, amount')
+    .in('user_id', userIds)
+    .eq('month', prevMonth)
+    .eq('year', prevYear)
+  const fundingIncomeMap = new Map((fundingIncomes ?? []).map(r => [r.user_id, r.amount]))
+
+  const { data: investedRows } = await supabase
+    .from('usd_purchases')
+    .select('user_id, total_paid_clp')
+    .in('user_id', userIds)
+    .eq('kind', 'deposit')
+    .gte('purchase_date', monthStart)
+    .lte('purchase_date', monthEnd)
+  const investedMap = new Map<string, number>()
+  for (const r of (investedRows ?? [])) {
+    investedMap.set(r.user_id, (investedMap.get(r.user_id) ?? 0) + r.total_paid_clp)
+  }
+
+  const { data: netWorthRows } = await supabase
+    .from('net_worth_snapshots')
+    .select('user_id, month, year, net_clp')
+    .in('user_id', userIds)
+    .or(`and(month.eq.${summaryMonth},year.eq.${summaryYear}),and(month.eq.${prevMonth},year.eq.${prevYear})`)
+  const netWorthDeltaMap = new Map<string, number>()
+  for (const uid of userIds) {
+    const cur  = (netWorthRows ?? []).find(r => r.user_id === uid && r.month === summaryMonth && r.year === summaryYear)
+    const prev = (netWorthRows ?? []).find(r => r.user_id === uid && r.month === prevMonth && r.year === prevYear)
+    if (cur?.net_clp != null && prev?.net_clp != null) {
+      netWorthDeltaMap.set(uid, cur.net_clp - prev.net_clp)
+    }
+  }
 
   let sent = 0; let skipped = 0
 
@@ -194,6 +235,17 @@ Deno.serve(async (req: Request) => {
       }))
 
     const recurringPct = totalCurrent > 0 ? Math.round((totalRecurring / totalCurrent) * 100) : 0
+
+    // Construcción de patrimonio — cada métrica es null si falta el dato
+    // base (usuario que no registra ingreso, o sin meta de aporte, etc.)
+    const fundingIncome     = fundingIncomeMap.get(profile.id) ?? null
+    const investedThisMonth = investedMap.get(profile.id) ?? 0
+    const monthlyInvestGoal = (profile as { monthly_invest_goal?: number | null }).monthly_invest_goal ?? null
+    const savingsRatePct    = fundingIncome && fundingIncome > 0
+      ? Math.round(((fundingIncome - totalCurrent - investedThisMonth) / fundingIncome) * 100)
+      : null
+    const netWorthDeltaClp  = netWorthDeltaMap.get(profile.id) ?? null
+
     const fmtCLP = (n: number) => '$ ' + Math.abs(n).toLocaleString('es-CL', { maximumFractionDigits: 0 })
     const monthLabel = new Date(summaryYear, summaryMonth - 1, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     // Capitalizar primera letra
@@ -221,6 +273,10 @@ Deno.serve(async (req: Request) => {
           recurringPct,
           topCats,
           top3,
+          savingsRatePct,
+          investedThisMonth,
+          monthlyInvestGoal,
+          netWorthDeltaClp,
           fmtCLP,
           siteUrl: SITE_URL,
         }),
@@ -273,6 +329,10 @@ function monthlyEmailHtml({
   recurringPct,
   topCats,
   top3,
+  savingsRatePct,
+  investedThisMonth,
+  monthlyInvestGoal,
+  netWorthDeltaClp,
   fmtCLP,
   siteUrl,
 }: {
@@ -288,6 +348,10 @@ function monthlyEmailHtml({
   recurringPct: number
   topCats: { cat: { name: string; color: string; bg_color: string; icon?: string } | undefined; total: number }[]
   top3: { description: string; date: string; amount: number; catName: string; catColor: string; catBg: string }[]
+  savingsRatePct?: number | null
+  investedThisMonth?: number
+  monthlyInvestGoal?: number | null
+  netWorthDeltaClp?: number | null
   fmtCLP: (n: number) => string
   siteUrl: string
 }) {
@@ -346,6 +410,35 @@ function monthlyEmailHtml({
         </table>
       </td>
     </tr>`).join('')
+
+  // ── Construcción de patrimonio — tasa de ahorro, cumplimiento de aporte y
+  // Δ patrimonio. Cada línea solo aparece si hay dato base (usuario sin
+  // ingreso registrado, sin meta de aporte, o sin snapshot de patrimonio no
+  // ven esa línea — no un $0 engañoso).
+  const investRows: string[] = []
+  if (savingsRatePct !== null && savingsRatePct !== undefined) {
+    investRows.push(`Tasa de ahorro: <strong style="color:#0E2A52">${savingsRatePct}%</strong> del sueldo que financió el mes`)
+  }
+  if (monthlyInvestGoal) {
+    const met = (investedThisMonth ?? 0) >= monthlyInvestGoal
+    investRows.push(
+      met
+        ? `Aporte a inversión: <strong style="color:#1FBE8D">cumplido</strong> (${fmtCLP(investedThisMonth ?? 0)} de ${fmtCLP(monthlyInvestGoal)})`
+        : `Aporte a inversión: <strong style="color:#0E2A52">${fmtCLP(investedThisMonth ?? 0)}</strong> de ${fmtCLP(monthlyInvestGoal)} meta`
+    )
+  }
+  if (netWorthDeltaClp !== null && netWorthDeltaClp !== undefined) {
+    const up = netWorthDeltaClp >= 0
+    investRows.push(`Patrimonio neto: <strong style="color:${up ? '#1FBE8D' : '#EF5B52'}">${up ? '+' : '−'}${fmtCLP(netWorthDeltaClp)}</strong> este mes`)
+  }
+  const wealthHtml = investRows.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+      style="background:#F4F7FB;border-radius:16px;margin-bottom:24px">
+      <tr><td style="padding:16px 20px">
+        <p style="margin:0 0 8px;font-family:Fredoka,system-ui,sans-serif;font-size:14px;font-weight:600;color:#0E2A52">Construcción de patrimonio</p>
+        ${investRows.map(r => `<p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.7">${r}</p>`).join('')}
+      </td></tr>
+    </table>` : ''
 
   const insightHtml = delta !== null ? `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
@@ -471,6 +564,9 @@ function monthlyEmailHtml({
         <!-- Saludo -->
         <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:700;color:#0E2A52">Hola, ${displayName}</p>
         <p style="margin:0 0 24px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.6">Aquí tienes a dónde fue tu dinero este mes.</p>
+
+        <!-- Construcción de patrimonio -->
+        ${wealthHtml}
 
         <!-- Categorías -->
         ${topCats.length > 0 ? `

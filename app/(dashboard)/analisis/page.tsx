@@ -8,6 +8,8 @@ import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank, ShieldCheck, CalendarClock } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
+import MonthReviewTrigger from '@/components/MonthReviewTrigger'
+import MonthReviewCard from '@/components/MonthReviewCard'
 import IncomeEditor from '@/components/IncomeEditor'
 import InvestGoalEditor from '@/components/InvestGoalEditor'
 import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
@@ -59,7 +61,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }, { data: profileRow }, { data: usdDepositsRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }, { data: profileRow }, { data: usdDepositsRaw }, { data: monthReviewRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -96,7 +98,8 @@ export default async function AnalisisPage({
     // verdades distintas entre páginas).
     supabase.from('budgets').select('amount, month, year')
       .eq('user_id', user!.id).order('year', { ascending: false }).order('month', { ascending: false }).limit(12),
-    // AI insights (may be empty — generated async by AnalyzeTrigger)
+    // AI insights (may be empty — generated async by AnalyzeTrigger). Excluye
+    // 'month_review' (B4): esa es una fila narrativa aparte, no una oportunidad.
     supabase
       .from('monthly_insights')
       .select('type, title, description, impact_amount, severity, action_label, action')
@@ -104,6 +107,7 @@ export default async function AnalisisPage({
       .eq('month', month)
       .eq('year', year)
       .eq('status', 'active')
+      .neq('type', 'month_review')
       .order('severity', { ascending: false })
       .limit(3),
     // Ingresos de los últimos ~13 meses (el sueldo de M-1 financia M)
@@ -150,6 +154,16 @@ export default async function AnalisisPage({
       .eq('kind', 'deposit')
       .gte('purchase_date', rateStart)
       .lt('purchase_date', rateEnd),
+    // B4 — Informe de cierre de mes (narrativa IA de meses ya cerrados)
+    supabase
+      .from('monthly_insights')
+      .select('title, description')
+      .eq('user_id', user!.id)
+      .eq('month', month)
+      .eq('year', year)
+      .eq('type', 'month_review')
+      .eq('status', 'active')
+      .maybeSingle(),
   ])
 
   // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual).
@@ -188,6 +202,10 @@ export default async function AnalisisPage({
   const totalSelected    = selectedExpenses.reduce((s, e) => s + e.amount, 0)
 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
+
+  // B4 — solo tiene sentido narrar meses YA CERRADOS (no el mes en curso)
+  const isClosedMonth = year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)
+  const monthReview = (monthReviewRaw as { title: string; description: string } | null) ?? null
 
   const daysElapsed = isCurrentMonth ? now.getDate() : new Date(year, month, 0).getDate()
   const dailyAvg = daysElapsed > 0 && totalSelected > 0 ? Math.round(totalSelected / daysElapsed) : 0
@@ -2015,6 +2033,14 @@ export default async function AnalisisPage({
 
         {/* Trigger AI analysis in background when there are expenses */}
         {totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
+
+        {/* B4 — Informe de cierre de mes: solo meses ya cerrados con gastos */}
+        {totalSelected > 0 && !isAnual && isClosedMonth && <MonthReviewTrigger month={month} year={year} />}
+        {totalSelected > 0 && !isAnual && isClosedMonth && monthReview && (
+          <div className="mb-5">
+            <MonthReviewCard title={monthReview.title} summary={monthReview.description} />
+          </div>
+        )}
 
         {/* ── Oportunidades de mejora — header dentro de la card, como las demás ── */}
         {finalOportunidades.length > 0 && (

@@ -36,17 +36,17 @@ _Esfuerzo: bajo. Depende solo de que registres el saldo inicial de la cuenta._
 
 _Esfuerzo: medio. Depende de Fase 1 (payment_due_day). Era el pendiente #1 de las auditorías previas._
 
-## Fase 4 — Ritual de cierre de mes
+## Fase 4 — Ritual de cierre de mes ✅ _Implementado jul 2026_
 
-8. **B4 — Informe de cierre (IA)**: al cerrar el mes, resumen tipo asesor (gastaste X · invertiste Y · patrimonio Δ Z · una recomendación), cacheado en `monthly_insights`, primera card del mes cerrado. Reutiliza infra de `analyze-month`.
-9. **Email mensual enriquecido**: agregar a `notify-monthly-summary` la tasa de ahorro, cumplimiento del aporte y Δ patrimonio. Reconecta `month_sweeps` por el canal correcto (1 email/mes, no banner).
+8. **B4 — Informe de cierre (IA)**: al abrir un mes YA CERRADO en `/analisis`, `MonthReviewTrigger` llama a `POST /api/month-review` (mismo patrón que `analyze-month`: hash de datos, cooldown 10 min, validación estricta). Genera 3-4 frases tipo asesor — qué pasó, qué cambió vs el patrón, una recomendación — usando gasto, tasa de ahorro, cumplimiento de aporte, fondo de emergencia, deuda comprometida y Δ patrimonio. Se guarda en `monthly_insights` (`type='month_review'`, excluido de la query de "Oportunidades" existente) y se muestra en `MonthReviewCard`, primera card del bloque de análisis del mes cerrado.
+9. **Email mensual enriquecido**: `notify-monthly-summary` ahora incluye un bloque "Construcción de patrimonio" con tasa de ahorro (vs el sueldo que financió el mes), cumplimiento del aporte a inversión (vs `monthly_invest_goal`) y Δ patrimonio neto (vs `net_worth_snapshots` del mes anterior) — cada línea solo aparece si el dato base existe. `month_sweeps` queda igual de desconectado (fuera de alcance de esta fase).
 
 _Esfuerzo: medio. Independiente; ideal después de Fase 2 para que los números ya cuadren._
 
-## Fase 5 — Conexiones de inversión
+## Fase 5 — Conexiones de inversión ✅ _Implementado jul 2026_
 
-10. **P6 — Plata ociosa**: alerta cuando hay USD idle en billetera **y** `daily_decisions` tiene señal de compra activa; y depósito a plazo vencido hace N días sin reinvertir. Ambos datos existen, falta el cruce.
-11. **UI de `target_price`** en watchlist (columna migrada hace meses, sin UI): fijar precio objetivo → badge al alcanzarlo.
+10. **P6 — Plata ociosa**: banner "Plata parada" en `Radar.tsx` cuando hay ≥US$50 disponibles en la billetera **y** una señal de compra activa hoy (server `daily_decisions` o recálculo en vivo) — toca para abrir el detalle del ticker. En `TermDepositManager.tsx`, los depósitos vencidos ahora muestran "Venció hace N días" y el badge pasa a gold ("Reinvierte") a los 30 días sin reinvertir.
+11. **UI de `target_price`** en watchlist — _ya estaba implementada_ (verificado en `components/Radar.tsx`: editor de precio objetivo, dirección según cartera, badges "En tu precio" / "cerca del objetivo"). `docs/WATCHLIST_TECNICO.md` estaba desactualizado en este punto.
 
 _Esfuerzo: bajo. Independientes._
 

@@ -865,6 +865,33 @@ export default function Radar({
         </div>
       )}
 
+      {/* ── P6: plata ociosa — hay saldo disponible en la billetera Y una señal
+          de compra activa hoy (server o recálculo en vivo), pero nada la usa.
+          Umbral US$50 para no molestar por residuos de centavos. */}
+      {(() => {
+        const activeBuyTicker = bestActionable?.ticker
+          ?? (todayDecision?.ticker !== null && (todayDecision?.tier === 'compra' || todayDecision?.tier === 'compra_fuerte')
+            ? todayDecision?.ticker : null)
+        if (walletAvailable === null || walletAvailable < 50 || !activeBuyTicker) return null
+        return (
+          <button
+            onClick={() => openDetail(activeBuyTicker)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl mb-4 text-left transition-opacity hover:opacity-90"
+            style={{ background: 'rgba(31,190,141,0.10)', border: '1px solid rgba(31,190,141,0.30)' }}
+          >
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(31,190,141,0.16)' }}>
+              <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold" style={{ color: 'var(--mint)' }}>Plata parada</p>
+              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                Tienes {fmtUSD(walletAvailable)} disponibles en tu billetera y una señal de compra activa en {activeBuyTicker}.
+              </p>
+            </div>
+          </button>
+        )
+      })()}
+
       {/* ── ¿Qué comprar hoy? ───────────────────────────────────────────── */}
       {allTickers.length > 0 && (
         <div className="card overflow-hidden mb-4">

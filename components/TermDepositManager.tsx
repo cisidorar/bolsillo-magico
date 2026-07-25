@@ -227,10 +227,14 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     const pct      = progressPct(d)
     const days     = daysToMaturity(d)
     const soon     = !isMatured && days <= 7
+    // P6 — plata ociosa: cuánto tiempo lleva vencido sin reinvertir. A los 30
+    // días el tono pasa a gold para que no quede invisible entre los "sanos".
+    const daysIdle = isMatured ? -days : 0
+    const idleLong = isMatured && daysIdle >= 30
 
-    const statusColor = isMatured ? 'var(--mint)' : soon ? 'var(--gold)' : 'var(--primary)'
+    const statusColor = isMatured ? (idleLong ? 'var(--gold)' : 'var(--mint)') : soon ? 'var(--gold)' : 'var(--primary)'
     const statusText  = isMatured
-      ? `Venció el ${fmtDate(d.maturity_date)}`
+      ? daysIdle <= 0 ? `Venció hoy` : `Venció hace ${daysIdle} día${daysIdle !== 1 ? 's' : ''} · ${fmtDate(d.maturity_date)}`
       : days === 0 ? 'Vence hoy'
       : `Vence en ${days} día${days !== 1 ? 's' : ''} · ${fmtDate(d.maturity_date)}`
 
@@ -254,8 +258,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               </span>
               {isMatured && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide inline-flex items-center gap-1"
-                  style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
-                  <CheckCircle2 className="w-2.5 h-2.5" /> Vencido
+                  style={idleLong
+                    ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
+                    : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                  <CheckCircle2 className="w-2.5 h-2.5" /> {idleLong ? 'Reinvierte' : 'Vencido'}
                 </span>
               )}
             </div>
