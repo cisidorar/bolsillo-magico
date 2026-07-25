@@ -74,11 +74,11 @@ export default async function DashboardPage() {
   const prevStart  = prevRange ? prevRange.start : `${prevY}-${prevMStr}-01`
   const prevEndEx  = prevRange ? addDay(prevRange.end) : `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`
 
-  // Ciclo de sueldo: últimos 3 meses cerrados de gasto no-crédito, para el
-  // promedio de débito estimado; y el último ingreso registrado (estimado
-  // del próximo sueldo).
-  const threeMoAgoStart = `${new Date(year, now.getMonth() - 3, 1).getFullYear()}-${String(new Date(year, now.getMonth() - 3, 1).getMonth() + 1).padStart(2, '0')}-01`
+  // Ciclo de sueldo: gasto no-crédito e inversión REALES del mes calendario en
+  // curso hasta hoy (no proyección/promedio — lo que ya pasó en este ciclo);
+  // y el último ingreso registrado (estimado del próximo sueldo).
   const thisMonthStartStr = `${year}-${monthStr}-01`
+  const nextMonthStartStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
   const [
     { data: expenses },
@@ -90,7 +90,8 @@ export default async function DashboardPage() {
     { data: statementExpenses },
     { data: prevMonthExpenses },
     { data: lastIncome },
-    { data: debitHistory },
+    { data: debitThisMonth },
+    { data: usdDepositsThisMonth },
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -138,8 +139,15 @@ export default async function DashboardPage() {
       .from('expenses')
       .select('amount, date, payment_method:payment_methods(card_type)')
       .eq('user_id', user!.id)
-      .gte('date', threeMoAgoStart)
-      .lt('date', thisMonthStartStr),
+      .gte('date', thisMonthStartStr)
+      .lt('date', nextMonthStartStr),
+    supabase
+      .from('usd_purchases')
+      .select('total_paid_clp')
+      .eq('user_id', user!.id)
+      .eq('kind', 'deposit')
+      .gte('purchase_date', thisMonthStartStr)
+      .lt('purchase_date', nextMonthStartStr),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -339,12 +347,13 @@ export default async function DashboardPage() {
   const sueldoMonthLabel = lastIncomeRow ? `según ${monthName(lastIncomeRow.month).slice(0, 3)}` : null
 
   type DebitExpenseRow = { amount: number; date: string; payment_method: { card_type: string } | { card_type: string }[] | null }
-  const nonCreditExpenses = ((debitHistory ?? []) as DebitExpenseRow[]).filter(e => {
+  const nonCreditExpensesThisMonth = ((debitThisMonth ?? []) as DebitExpenseRow[]).filter(e => {
     const pm = Array.isArray(e.payment_method) ? e.payment_method[0] : e.payment_method
     return (pm?.card_type ?? 'debit') !== 'credit'
   })
-  const debitTotal3m     = nonCreditExpenses.reduce((s, e) => s + e.amount, 0)
-  const debitAvgMonthly  = Math.round(debitTotal3m / 3)
+  const debitSpentThisMonth = nonCreditExpensesThisMonth.reduce((s, e) => s + e.amount, 0)
+  const investedThisMonth   = ((usdDepositsThisMonth ?? []) as { total_paid_clp: number }[])
+    .reduce((s, r) => s + r.total_paid_clp, 0)
 
   // Recurrentes ya pagados ESTE MES (tienen gasto registrado en expenses del mes actual)
   const paidThisMonthSet = new Set(
@@ -838,7 +847,8 @@ export default async function DashboardPage() {
               sueldoMonthLabel={sueldoMonthLabel}
               card={cicloSueldoCard}
               investGoal={monthlyInvestGoal}
-              debitAvgMonthly={debitAvgMonthly}
+              investedThisMonth={investedThisMonth}
+              debitSpentThisMonth={debitSpentThisMonth}
             />
 
             {/* ── Tarjeta(s) de crédito — oculta si Ciclo de sueldo ya la cubre ── */}
@@ -1079,7 +1089,8 @@ export default async function DashboardPage() {
             sueldoMonthLabel={sueldoMonthLabel}
             card={cicloSueldoCard}
             investGoal={monthlyInvestGoal}
-            debitAvgMonthly={debitAvgMonthly}
+            investedThisMonth={investedThisMonth}
+            debitSpentThisMonth={debitSpentThisMonth}
           />
 
           {/* Estado de cuenta mobile — oculto si Ciclo de sueldo ya la cubre */}
