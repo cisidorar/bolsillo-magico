@@ -75,10 +75,22 @@ export default async function DashboardPage() {
   const prevEndEx  = prevRange ? addDay(prevRange.end) : `${prevNextY}-${String(prevNextM).padStart(2, '0')}-01`
 
   // Ciclo de sueldo: gasto no-crédito e inversión REALES del mes calendario en
-  // curso hasta hoy (no proyección/promedio — lo que ya pasó en este ciclo);
-  // y el último ingreso registrado (estimado del próximo sueldo).
+  // curso hasta hoy (no proyección/promedio — lo que ya pasó en este ciclo).
   const thisMonthStartStr = `${year}-${monthStr}-01`
   const nextMonthStartStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+
+  // Sueldo que financia el estado ya cerrado de la tarjeta principal — NO el
+  // último ingreso registrado a secas (eso puede ser de un mes viejo cuyo
+  // sueldo ya se usó para pagar el estado ANTERIOR, y mostrarlo de nuevo acá
+  // duplicaría plata que ya no existe). El sueldo correcto es el del mismo
+  // mes en que cerró el estado que se muestra como deuda (mainCreditCard se
+  // calcula acá, antes del fetch grande, solo con paymentMethods).
+  const creditCardsEarly  = ((paymentMethods ?? []) as PaymentMethod[])
+    .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+  const mainCreditCard    = periodCard ?? creditCardsEarly[0] ?? null
+  const fundingRange      = mainCreditCard ? lastClosedStatementRange(mainCreditCard.billing_day!) : null
+  const fundingMonth      = fundingRange?.month ?? month
+  const fundingYear       = fundingRange?.year  ?? year
 
   const [
     { data: expenses },
@@ -131,9 +143,8 @@ export default async function DashboardPage() {
       .from('incomes')
       .select('amount, month, year')
       .eq('user_id', user!.id)
-      .order('year', { ascending: false })
-      .order('month', { ascending: false })
-      .limit(1)
+      .eq('month', fundingMonth)
+      .eq('year',  fundingYear)
       .maybeSingle(),
     supabase
       .from('expenses')
@@ -286,8 +297,7 @@ export default async function DashboardPage() {
   const periodRangeLabel = stmt ? `${fmtShort(stmt.start)} – ${fmtShort(stmt.end)} · ${periodCard!.name}` : null
 
   // Estados de cuenta
-  const creditCards = ((paymentMethods ?? []) as PaymentMethod[])
-    .filter(pm => pm.card_type === 'credit' && pm.billing_day)
+  const creditCards = creditCardsEarly
 
   type StatementCard = {
     id: string; name: string; domain: string | null; billingDay: number
@@ -312,14 +322,12 @@ export default async function DashboardPage() {
   }).filter(c => c.count > 0)
 
   // ── Ciclo de sueldo ─────────────────────────────────────────────────────
-  // Tarjeta principal: la del período preferido (billing mode) o la primera
-  // con día de cierre configurado. Se muestra su estado YA CERRADO más
-  // reciente (lo que realmente hay que pagar con este sueldo, con fecha de
-  // vencimiento concreta) — no el que se está acumulando ahora, que recién
-  // vence el mes subsiguiente y todavía no es una obligación real.
-  const mainCreditCard = periodCard ?? creditCards[0] ?? null
+  // mainCreditCard y su estado YA CERRADO (lo que realmente hay que pagar,
+  // con fecha de vencimiento concreta) ya se calcularon arriba como
+  // fundingRange, antes del fetch grande, para poder pedir el sueldo del mes
+  // correcto — se reutilizan acá en vez de recalcularlos.
   const cicloSueldoCard = mainCreditCard ? (() => {
-    const range   = lastClosedStatementRange(mainCreditCard.billing_day!)
+    const range   = fundingRange!
     const inRange = (statementExpenses ?? []).filter(e => {
       if (e.payment_method_id !== mainCreditCard.id) return false
       const bp = billingPeriod(e.date, mainCreditCard.billing_day!)
@@ -344,10 +352,16 @@ export default async function DashboardPage() {
   // (Ciclo de sueldo solo cubre la principal).
   const showSeparateStatementCards = !(statementCards.length === 1 && cicloSueldoCard !== null)
 
+  // Sueldo que financia el ciclo mostrado: el ingreso registrado para
+  // fundingMonth/fundingYear específicamente (no "el último que se haya
+  // registrado alguna vez" — ese podría ser de un mes anterior cuyo sueldo ya
+  // se gastó pagando el estado ANTERIOR, y reusarlo acá duplicaría plata que
+  // ya no existe). Si todavía no registras el ingreso de ese mes, sueldo
+  // queda en null y la card pide registrarlo en vez de mostrar un monto viejo.
   type IncomeRow = { amount: number; month: number; year: number }
-  const lastIncomeRow = lastIncome as IncomeRow | null
-  const sueldoEstimado = lastIncomeRow?.amount ?? null
-  const sueldoMonthLabel = lastIncomeRow ? `según ${monthName(lastIncomeRow.month).slice(0, 3)}` : null
+  const fundingIncomeRow = lastIncome as IncomeRow | null
+  const sueldoEstimado = fundingIncomeRow?.amount ?? null
+  const sueldoMonthLabel = `de ${monthName(fundingMonth).slice(0, 3)}`
 
   type DebitExpenseRow = { amount: number; date: string; payment_method: { card_type: string } | { card_type: string }[] | null }
   const nonCreditExpensesThisMonth = ((debitThisMonth ?? []) as DebitExpenseRow[]).filter(e => {

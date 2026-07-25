@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Wallet, CreditCard, TrendingUp, PiggyBank, ArrowRight } from 'lucide-react'
+import { Wallet, CreditCard, TrendingUp, PiggyBank } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
 import InfoTap from './InfoTap'
@@ -17,8 +17,8 @@ export type CicloSueldoCard = {
 }
 
 interface Props {
-  sueldo: number | null          // último ingreso registrado (estimado del próximo)
-  sueldoMonthLabel: string | null // ej. "según jul" — de qué mes es el dato
+  sueldo: number | null          // ingreso registrado del mes que financia este ciclo — null si aún no lo registras
+  sueldoMonthLabel: string       // ej. "de jul" — de qué mes es el sueldo que corresponde a este ciclo
   card: CicloSueldoCard | null
   investGoal: number | null      // meta mensual definida (solo referencia, no entra en el cálculo)
   investedThisMonth: number      // real: depósitos a la billetera USD este mes calendario
@@ -29,23 +29,11 @@ const fmtShort = (d: string) =>
   new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }).replace('.', '')
 
 export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal, investedThisMonth, debitSpentThisMonth }: Props) {
-  if (sueldo === null) {
-    return (
-      <div className="card p-4 flex items-center gap-3" style={{ borderColor: 'var(--border)' }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-          <Wallet className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Ciclo de sueldo</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Registra tu ingreso del mes para ver cuánto te queda libre cuando llegue tu sueldo.</p>
-        </div>
-        <Link href="/ingresos" className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>Registrar</Link>
-      </div>
-    )
-  }
-
-  const deuda   = card?.statementTotal ?? 0
-  const queda   = sueldo - deuda - investedThisMonth - debitSpentThisMonth
+  const deuda = card?.statementTotal ?? 0
+  // "Queda para ahorro" no se puede calcular sin saber el sueldo real de este
+  // ciclo — mostrar un número igual sería inventar un saldo. queda = null
+  // hasta que el sueldo esté registrado (UX5/real-hasta-hoy: no proyectar).
+  const queda = sueldo !== null ? sueldo - deuda - investedThisMonth - debitSpentThisMonth : null
 
   return (
     <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -54,9 +42,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
           <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Ciclo de sueldo</h2>
         </div>
-        {sueldoMonthLabel && (
-          <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>{sueldoMonthLabel}</span>
-        )}
+        <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>{sueldoMonthLabel}</span>
       </div>
 
       <div className="px-4 pb-3 space-y-2.5">
@@ -64,9 +50,18 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <Wallet className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--mint)' }} />
-            <span className="text-sm" style={{ color: 'var(--ink-2)' }}>Sueldo</span>
+            <div className="min-w-0">
+              <span className="text-sm block" style={{ color: 'var(--ink-2)' }}>Sueldo</span>
+              {sueldo === null && (
+                <Link href="/ingresos" className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
+                  Aún no lo registras →
+                </Link>
+              )}
+            </div>
           </div>
-          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(sueldo)}</span>
+          <span className="text-sm font-bold tabular-nums" style={{ color: sueldo !== null ? 'var(--mint)' : 'var(--ink-3)' }}>
+            {sueldo !== null ? `+${formatCLP(sueldo)}` : '—'}
+          </span>
         </div>
 
         {/* Tarjeta de crédito — toca para ver la factura con el detalle de gastos */}
@@ -130,12 +125,12 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
       {/* Queda para ahorro */}
       <div className="flex items-center justify-between px-4 py-3.5" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2">
-          <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda >= 0 ? 'var(--mint)' : 'var(--coral)' }} />
+          <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint)' : 'var(--coral)' }} />
           <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Queda para ahorro</span>
-          <InfoTap explanation="Sueldo menos la tarjeta por pagar, menos lo que ya invertiste este mes, menos lo que ya gastaste en débito/efectivo este mes. Es tu saldo real hasta hoy, no una proyección." />
+          <InfoTap explanation="Sueldo menos la tarjeta por pagar, menos lo que ya invertiste este mes, menos lo que ya gastaste en débito/efectivo este mes. Es tu saldo real hasta hoy, no una proyección — por eso necesita que registres tu sueldo primero." />
         </div>
-        <span className="text-base font-extrabold tabular-nums" style={{ color: queda >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-          {queda < 0 ? '−' : ''}{formatCLP(Math.abs(queda))}
+        <span className="text-base font-extrabold tabular-nums" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+          {queda === null ? '—' : `${queda < 0 ? '−' : ''}${formatCLP(Math.abs(queda))}`}
         </span>
       </div>
     </div>
