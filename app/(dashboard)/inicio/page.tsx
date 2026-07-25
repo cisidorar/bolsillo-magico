@@ -1,6 +1,6 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
-import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
+import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, lastDueStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -34,8 +34,11 @@ export default async function DashboardPage() {
   const prevNextM = prevM === 12 ? 1 : prevM + 1
   const prevNextY = prevM === 12 ? prevY + 1 : prevY
 
-  const twoMonthsAgo        = new Date(year, now.getMonth() - 2, 1)
-  const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
+  // 3 meses (no 2): Ciclo de sueldo puede retroceder un ciclo extra más allá
+  // del último cerrado (lastDueStatementRange, cuando su vencimiento todavía
+  // no llega), así que el rango a buscar puede empezar casi 3 meses atrás.
+  const threeMonthsAgoStmt  = new Date(year, now.getMonth() - 3, 1)
+  const statementFetchStart = threeMonthsAgoStmt.toISOString().split('T')[0]
 
   // ── Preferencia budget_period: mes calendario o período de facturación ────
   // Se resuelve ANTES del fetch principal porque define el rango de gastos.
@@ -79,16 +82,18 @@ export default async function DashboardPage() {
   const thisMonthStartStr = `${year}-${monthStr}-01`
   const nextMonthStartStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
-  // Sueldo que financia el estado ya cerrado de la tarjeta principal — NO el
-  // último ingreso registrado a secas (eso puede ser de un mes viejo cuyo
-  // sueldo ya se usó para pagar el estado ANTERIOR, y mostrarlo de nuevo acá
-  // duplicaría plata que ya no existe). El sueldo correcto es el del mismo
-  // mes en que cerró el estado que se muestra como deuda (mainCreditCard se
-  // calcula acá, antes del fetch grande, solo con paymentMethods).
+  // Ciclo de sueldo muestra el ciclo salario↔tarjeta ya COMPLETO y resuelto
+  // (lastDueStatementRange: la factura cuyo vencimiento ya pasó), no el que
+  // acaba de cerrar pero cuyo vencimiento sigue semanas en el futuro y cuyo
+  // sueldo todavía no se registra. mainCreditCard se calcula acá, antes del
+  // fetch grande, solo con paymentMethods, para saber qué mes de sueldo pedir.
   const creditCardsEarly  = ((paymentMethods ?? []) as PaymentMethod[])
     .filter(pm => pm.card_type === 'credit' && pm.billing_day)
   const mainCreditCard    = periodCard ?? creditCardsEarly[0] ?? null
-  const fundingRange      = mainCreditCard ? lastClosedStatementRange(mainCreditCard.billing_day!) : null
+  const mainCardDueDay    = (mainCreditCard as { payment_due_day?: number | null } | null)?.payment_due_day ?? null
+  const fundingRange      = mainCreditCard
+    ? (mainCardDueDay ? lastDueStatementRange(mainCreditCard.billing_day!, mainCardDueDay) : lastClosedStatementRange(mainCreditCard.billing_day!))
+    : null
   const fundingMonth      = fundingRange?.month ?? month
   const fundingYear       = fundingRange?.year  ?? year
 
@@ -334,8 +339,7 @@ export default async function DashboardPage() {
       return bp.month === range.month && bp.year === range.year
     })
     const statementTotal = inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
-    const paymentDueDay = (mainCreditCard as { payment_due_day?: number | null }).payment_due_day ?? null
-    const dueDate   = paymentDueDay ? statementDueDate(range.month, range.year, paymentDueDay) : null
+    const dueDate   = mainCardDueDay ? statementDueDate(range.month, range.year, mainCardDueDay) : null
     const daysToDue = dueDate ? daysBetween(dateStr, dueDate) : null
     return {
       id: mainCreditCard.id, name: mainCreditCard.name, domain: mainCreditCard.domain,

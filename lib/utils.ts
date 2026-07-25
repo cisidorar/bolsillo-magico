@@ -227,6 +227,41 @@ export function statementDueDate(
   return `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
+/**
+ * Ciclo salario↔tarjeta ya completo y resuelto: el estado de cuenta más
+ * reciente cuya fecha de vencimiento YA PASÓ (o es hoy) — no el que acaba de
+ * cerrar pero cuyo vencimiento sigue semanas en el futuro. Retrocede un ciclo
+ * extra respecto a `lastClosedStatementRange` cuando ese vencimiento todavía
+ * no llega, porque el sueldo que lo paga (el de fin de mes que se acerca)
+ * todavía no se ha registrado — mostrar ese par sería mezclar un sueldo
+ * futuro sin confirmar con una deuda que recién se generó.
+ *
+ * Usado por "Ciclo de sueldo" en /inicio para emparejar sueldo + factura del
+ * MISMO ciclo ya cerrado, en vez de la factura más nueva (que depende de un
+ * sueldo aún no recibido). Para el calendario de flujo de caja de 30 días
+ * (que sí es forward-looking) se sigue usando `lastClosedStatementRange`.
+ *
+ * Ejemplo corte 24, vencimiento 5: hoy 24 jul → el que acaba de cerrar (25
+ * jun–24 jul) vence 5 ago, todavía no llega → retrocede a 25 may–24 jun
+ * (venció 5 jul, ya pasado).
+ */
+export function lastDueStatementRange(billingDay: number, paymentDueDay: number): {
+  start: string
+  end:   string
+  month: number
+  year:  number
+} {
+  const { dateStr: today } = getNowChile()
+  const closed = lastClosedStatementRange(billingDay)
+  const due    = statementDueDate(closed.month, closed.year, paymentDueDay)
+  if (due <= today) return closed
+
+  const prevMonth = closed.month === 1 ? 12 : closed.month - 1
+  const prevYear  = closed.month === 1 ? closed.year - 1 : closed.year
+  const range     = billingPeriodRange(prevMonth, prevYear, billingDay)
+  return { ...range, month: prevMonth, year: prevYear }
+}
+
 /** Días entre dos fechas YYYY-MM-DD (b − a). Positivo si b es posterior. */
 export function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000)

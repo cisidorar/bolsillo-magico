@@ -85,7 +85,12 @@ Every page with expense data has two views:
 
 Credit card statement periods: if purchase day ≤ billing_day → same month statement; if purchase day > billing_day → next month statement.
 
-**Open vs. closed statement.** `currentStatementRange(billingDay)` returns the period **currently accruing** (still open, not yet closed) — correct for "how much have I charged so far this cycle" (e.g. `/inicio`'s "Tarjeta · Cupo usado" cards). `lastClosedStatementRange(billingDay)` returns the **most recently closed** period — the one with a real, approaching due date, correct for anything answering "how much do I actually owe right now" (Ciclo de sueldo's CMR line, the F8 card event in `/recurrentes`'s Flujo de caja 30 días). Mixing these up shows the wrong statement for most of the month: `currentStatementRange` only happens to equal the true payable amount on the exact closing day itself.
+**Open vs. closed vs. due statement — three different questions, three functions:**
+- `currentStatementRange(billingDay)` — the period **currently accruing** (still open, not yet closed). Answers "how much have I charged so far this cycle" (e.g. `/inicio`'s "Tarjeta · Cupo usado" cards).
+- `lastClosedStatementRange(billingDay)` — the **most recently closed** period, even if its due date is still weeks away. Answers "what's the next payment obligation coming up" — forward-looking, used by the F8 card event in `/recurrentes`'s Flujo de caja 30 días (a 30-day calendar, so a due date 12 days out is exactly what belongs there).
+- `lastDueStatementRange(billingDay, paymentDueDay)` — the most recent statement whose **due date has already passed** (steps back one extra cycle past `lastClosedStatementRange` if that one's due date hasn't arrived yet). Answers "what's the last fully-resolved salary↔card cycle" — used by Ciclo de sueldo in `/inicio`, which pairs a specific month's registered income with the statement it was meant to pay; pairing it with a statement that isn't due yet would mean showing a bill next to a salary that hasn't arrived (and hasn't been registered) yet.
+
+Mixing these up shows the wrong statement most of the month: `currentStatementRange` only equals the true accrued amount on the exact closing day, and `lastClosedStatementRange` only equals a due obligation once its due date has actually passed.
 
 ### Month-over-Month Comparison
 

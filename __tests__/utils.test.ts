@@ -7,6 +7,7 @@ import {
   billingPeriod,
   currentStatementRange,
   lastClosedStatementRange,
+  lastDueStatementRange,
   relativeDate,
 } from '@/lib/utils'
 
@@ -238,6 +239,54 @@ describe('lastClosedStatementRange', () => {
     const open   = currentStatementRange(24)
     const closed = lastClosedStatementRange(24)
     expect(closed.end).not.toBe(open.end)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// lastDueStatementRange — el ciclo salario↔tarjeta ya COMPLETO (vencimiento
+// ya pasado), para "Ciclo de sueldo": retrocede un ciclo extra respecto a
+// lastClosedStatementRange cuando el vencimiento de ese estado todavía no
+// llega (el sueldo que lo paga aún no se recibe/registra).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('lastDueStatementRange', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('si el vencimiento del último cerrado todavía no llega, retrocede un ciclo más', () => {
+    // Corte 24, vence día 5. Hoy = 24 jul → el que acaba de cerrar (25 jun–24
+    // jul) vence 5 ago, todavía no llega → debe mostrar el anterior: 25 may–24 jun.
+    vi.setSystemTime(new Date(2026, 6, 24))  // 24 jul 2026
+    const range = lastDueStatementRange(24, 5)
+    expect(range.month).toBe(6)
+    expect(range.year).toBe(2026)
+    expect(range.end).toBe('2026-06-24')
+    expect(range.start).toBe('2026-05-25')
+  })
+
+  it('si el vencimiento del último cerrado ya pasó, lo muestra sin retroceder', () => {
+    // Hoy = 10 ago → el que cerró el 24 jul vence 5 ago, ya pasado → se queda ahí.
+    vi.setSystemTime(new Date(2026, 7, 10))  // 10 ago 2026
+    const range = lastDueStatementRange(24, 5)
+    expect(range.month).toBe(7)
+    expect(range.year).toBe(2026)
+    expect(range.end).toBe('2026-07-24')
+  })
+
+  it('el día exacto del vencimiento cuenta como ya vencido (no retrocede)', () => {
+    vi.setSystemTime(new Date(2026, 7, 5))  // 5 ago 2026 — día de vencimiento
+    const range = lastDueStatementRange(24, 5)
+    expect(range.end).toBe('2026-07-24')
+  })
+
+  it('cruce de año: retrocede correctamente de enero a diciembre', () => {
+    // Corte 24, vence 5. Hoy = 24 ene 2027 → el que acaba de cerrar (25 dic–24
+    // ene) vence 5 feb, no llega → retrocede a 25 nov–24 dic 2026.
+    vi.setSystemTime(new Date(2027, 0, 24))  // 24 ene 2027
+    const range = lastDueStatementRange(24, 5)
+    expect(range.month).toBe(12)
+    expect(range.year).toBe(2026)
+    expect(range.end).toBe('2026-12-24')
   })
 })
 
