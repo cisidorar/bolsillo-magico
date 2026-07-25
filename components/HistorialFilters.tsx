@@ -6,6 +6,9 @@ import { Search, X, ShoppingCart, CreditCard, SlidersHorizontal, ChevronDown } f
 import { cn, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import type { Category } from '@/types'
+import InfoTap from './InfoTap'
+
+const VIEW_EXPLANATION = '"Por compra" agrupa el gasto en el mes en que lo hiciste. "Por facturación" lo agrupa en el mes del estado de cuenta de tu tarjeta de crédito.'
 
 interface Props {
   categories: Category[]
@@ -112,7 +115,8 @@ export default function HistorialFilters({ categories, month, year, defaultView 
       {/* ── Mobile layout ─────────────────────────────────── */}
       <div className="lg:hidden p-3 space-y-2">
         {/* View toggle */}
-        <div className="view-toggle-wrap flex rounded-xl p-1">
+        <div className="flex items-center gap-1.5">
+        <div className="view-toggle-wrap flex rounded-xl p-1 flex-1">
           <button
             onClick={() => handleView('purchase')}
             className={cn(
@@ -133,6 +137,8 @@ export default function HistorialFilters({ categories, month, year, defaultView 
             <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Por facturación</span>
           </button>
+        </div>
+        <InfoTap explanation={VIEW_EXPLANATION} />
         </div>
         {/* Search + filter button */}
         <div className="flex items-center gap-2">
@@ -231,6 +237,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
             <span>Facturación</span>
           </button>
         </div>
+        <InfoTap explanation={VIEW_EXPLANATION} />
 
         {/* Search */}
         <div className="relative flex-1">

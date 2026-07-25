@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Wallet, CreditCard, TrendingUp, PiggyBank, ArrowRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
+import InfoTap from './InfoTap'
 
 export type CicloSueldoCard = {
   id: string
@@ -126,6 +127,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
         <div className="flex items-center gap-2">
           <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda >= 0 ? 'var(--mint)' : 'var(--coral)' }} />
           <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Queda para ahorro</span>
+          <InfoTap explanation="Sueldo menos la tarjeta por pagar, menos tu meta de aporte, menos el débito estimado del mes." />
         </div>
         <span className="text-base font-extrabold tabular-nums" style={{ color: queda >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
           {queda < 0 ? '−' : ''}{formatCLP(Math.abs(queda))}

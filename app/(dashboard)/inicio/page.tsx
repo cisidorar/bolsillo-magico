@@ -12,6 +12,7 @@ import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
+import InfoTap from '@/components/InfoTap'
 import { getExpenseIcon } from '@/lib/expense-icons'
 import Link from 'next/link'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
@@ -570,8 +571,14 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">
+                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2 flex items-center justify-end gap-1">
                       {budgetAmount ? (isOver ? 'Sobre el límite' : 'Te quedan') : 'Por día'}
+                      {budgetAmount && (
+                        <InfoTap
+                          explanation="Te quedan = tu presupuesto del período menos lo que ya gastaste."
+                          color="rgba(255,255,255,0.5)"
+                        />
+                      )}
                     </p>
                     <p className="text-5xl font-extrabold leading-none"
                       style={{ color: budgetAmount ? (isOver ? '#f87171' : '#34D6A2') : 'rgba(255,255,255,0.90)' }}>
@@ -622,6 +629,10 @@ export default async function DashboardPage() {
                     <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
                       Proyección
                       {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#FCA5A5' }} />}
+                      <InfoTap
+                        explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
+                        color="rgba(255,255,255,0.5)"
+                      />
                     </p>
                     <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: projOverBudget ? '#FCA5A5' : 'white' }}>
                       {formatCLP(projection)}
@@ -629,7 +640,10 @@ export default async function DashboardPage() {
                   </div>
                   <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Vs. {monthName(prevM).slice(0, 3)}</p>
+                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
+                      Vs. {monthName(prevM).slice(0, 3)}
+                      <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
+                    </p>
                     {deltaVsLast !== null ? (
                       <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
                         {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}% <span className="font-medium text-white/45">· {formatCLP(Math.abs(total - prevTotal))}</span>
@@ -990,8 +1004,12 @@ export default async function DashboardPage() {
                   </div>
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">
+                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1 flex items-center justify-end gap-1">
                         {isOver ? 'Sobre el límite' : 'Te quedan'}
+                        <InfoTap
+                          explanation="Te quedan = tu presupuesto del período menos lo que ya gastaste."
+                          color="rgba(255,255,255,0.5)"
+                        />
                       </p>
                       <p className="text-2xl font-extrabold leading-none tabular-nums"
                         style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
@@ -1029,6 +1047,10 @@ export default async function DashboardPage() {
                       style={{ color: projOverBudget ? 'var(--coral)' : 'rgba(255,255,255,0.60)' }}>
                       Proyección
                       {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--coral)' }} />}
+                      <InfoTap
+                        explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
+                        color="rgba(255,255,255,0.5)"
+                      />
                     </p>
                     <p className="text-base font-extrabold tabular-nums"
                       style={{ color: projOverBudget ? 'var(--coral)' : 'white' }}>
@@ -1039,11 +1061,12 @@ export default async function DashboardPage() {
 
                 {/* Vs. mes anterior — antes solo vivía en el KPI grid de desktop */}
                 {deltaVsLast !== null && (
-                  <p className="text-xs text-white/50 mt-3">
+                  <p className="text-xs text-white/50 mt-3 flex items-center gap-1">
                     <span className="font-bold" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
                       {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
                     </span>
                     {' '}vs. {monthName(prevM).slice(0, 3)} · {formatCLP(Math.abs(total - prevTotal))}
+                    <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
                   </p>
                 )}
               </>

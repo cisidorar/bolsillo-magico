@@ -3,6 +3,7 @@ import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Tim
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult } from '@/lib/net-worth'
 import RefreshStocksButton from './RefreshStocksButton'
+import InfoTap from './InfoTap'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -346,10 +347,13 @@ export default function PatrimonioCards({
                   {displayRate !== null ? `${displayRate}%` : '—'}
                 </p>
                 {displayRate !== null && (
-                  <span className="text-[11px] font-bold" style={{ color: rateColor }}>
+                  <span className="text-[11px] font-bold inline-flex items-center gap-1" style={{ color: rateColor }}>
                     {isCurrentMonth
                       ? 'proyectado al cierre'
                       : `${displayRate >= 0 ? 'ahorrado' : 'déficit'} en ${monthLabel.toLowerCase()}`}
+                    {isCurrentMonth && (
+                      <InfoTap explanation="Con el mes en curso, estimamos cómo cerraría tu tasa de ahorro si el ritmo de gasto se mantiene igual." />
+                    )}
                   </span>
                 )}
               </div>
