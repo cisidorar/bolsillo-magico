@@ -332,6 +332,7 @@ export default async function DashboardPage() {
     return {
       id: mainCreditCard.id, name: mainCreditCard.name, domain: mainCreditCard.domain,
       statementTotal, closesOn: range.end, dueDate, daysToDue,
+      statementMonth: range.month, statementYear: range.year,
     }
   })() : null
 

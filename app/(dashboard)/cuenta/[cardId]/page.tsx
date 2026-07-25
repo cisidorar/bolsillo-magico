@@ -9,8 +9,15 @@ import type { ExpenseWithRelations, PaymentMethod } from '@/types'
 
 export const revalidate = 0
 
-export default async function CuentaPage({ params }: { params: Promise<{ cardId: string }> }) {
+export default async function CuentaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ cardId: string }>
+  searchParams: Promise<{ month?: string; year?: string }>
+}) {
   const { cardId } = await params
+  const { month: monthParam, year: yearParam } = await searchParams
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
@@ -32,8 +39,16 @@ export default async function CuentaPage({ params }: { params: Promise<{ cardId:
   const billingDay = card.billing_day!
   const now        = new Date()
 
-  // Período actual
-  const current = currentStatementRange(billingDay)
+  // Período: el pedido por query (?month=&year=, ej. desde "Ciclo de sueldo"
+  // en /inicio, que enlaza al estado ya cerrado) o el actualmente abierto por
+  // defecto si no se especifica ninguno.
+  const requestedMonth = monthParam ? parseInt(monthParam, 10) : null
+  const requestedYear  = yearParam ? parseInt(yearParam, 10) : null
+  const hasValidRequest = !!requestedMonth && !!requestedYear && requestedMonth >= 1 && requestedMonth <= 12
+  const current = hasValidRequest
+    ? { ...billingPeriodRange(requestedMonth!, requestedYear!, billingDay), month: requestedMonth!, year: requestedYear! }
+    : currentStatementRange(billingDay)
+  const isSpecificStatement = hasValidRequest
 
   // Período anterior
   const prevStatementMonth = current.month === 1 ? 12 : current.month - 1
@@ -147,7 +162,7 @@ export default async function CuentaPage({ params }: { params: Promise<{ cardId:
           {/* Monto + período */}
           <div className="mt-5">
             <p className="text-white/55 text-[10px] font-bold uppercase tracking-widest mb-1">
-              Acumulado período actual
+              {isSpecificStatement ? 'Total del estado' : 'Acumulado período actual'}
             </p>
             <p className="text-white font-extrabold leading-none" style={{ fontSize: 'clamp(32px, 8vw, 48px)' }}>
               {formatCLP(currentTotal)}

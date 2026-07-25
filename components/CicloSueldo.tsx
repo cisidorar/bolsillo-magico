@@ -12,6 +12,8 @@ export type CicloSueldoCard = {
   closesOn: string          // YYYY-MM-DD
   dueDate: string | null    // null si la tarjeta no tiene payment_due_day configurado
   daysToDue: number | null
+  statementMonth: number    // mes del estado mostrado — para enlazar a /cuenta/[id]
+  statementYear: number
 }
 
 interface Props {
@@ -67,9 +69,12 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
           <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(sueldo)}</span>
         </div>
 
-        {/* Tarjeta de crédito */}
+        {/* Tarjeta de crédito — toca para ver la factura con el detalle de gastos */}
         {card && (
-          <div className="flex items-center justify-between">
+          <Link
+            href={`/cuenta/${card.id}?month=${card.statementMonth}&year=${card.statementYear}`}
+            className="flex items-center justify-between -mx-1 px-1 py-0.5 rounded-lg transition-opacity hover:opacity-70"
+          >
             <div className="flex items-center gap-2 min-w-0">
               <ServiceLogo domain={card.domain} name={card.name} size={20} className="flex-shrink-0" />
               <div className="min-w-0">
@@ -79,14 +84,12 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
                     Vence {fmtShort(card.dueDate)}{card.daysToDue !== null ? ` · en ${card.daysToDue}d` : ''}
                   </span>
                 ) : (
-                  <Link href="/metodos" className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
-                    Configura el día de pago →
-                  </Link>
+                  <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>Sin día de pago configurado</span>
                 )}
               </div>
             </div>
             <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>−{formatCLP(deuda)}</span>
-          </div>
+          </Link>
         )}
 
         {/* Invertido este mes (real, no meta) */}
