@@ -59,16 +59,18 @@ El resto del plan asume **N2**.
 
 ---
 
-## Fase S1 — Capa macro (lo que hoy es cero)
+## Fase S1 — Capa macro (lo que hoy es cero) ✅ implementada (v0, jul 2026)
 
-Nueva tabla `macro_snapshots` (fecha + serie + valor) y un cron semanal que la llena.
+~~Nueva tabla `macro_snapshots`~~ — en la práctica se reutilizó `price_cache` con clave sintética `MACRO_<seriesId>` (mismo patrón que earnings/news), cache 24h, sin cron dedicado: se calcula en vivo al abrir `/inversiones?view=semanal`, igual que el resto del informe (S5 v0).
 
-- **Tasas Fed / expectativas:** la probabilidad tipo FedWatch sale de futuros de fondos federales (CME). Alternativa sin costo: **FRED API** (gratis, key inmediata) para la tasa efectiva + treasury 10Y/2Y, y derivar "curva invertida sí/no" — que es la señal que de verdad importa para un portafolio de acciones.
-- **Series FRED útiles:** `DFF` (tasa efectiva), `DGS10`/`DGS2` (bonos), `CPIAUCSL` (inflación EEUU), `DCOILWTICO` (petróleo WTI).
-- **Dólar CLP:** ya existe `usd_clp` en `net_worth_snapshots` — reutilizar, no duplicar.
-- **Regla de oro:** cada serie se guarda con su fecha de publicación; nada se muestra sin `asOf` (ya hay `lib/format-freshness.ts` para esto).
+- **FRED API** (gratis, key inmediata) para tasa efectiva + treasury 10Y/2Y → `lib/yield-curve.ts` deriva "curva invertida sí/no".
+- **Series FRED usadas:** `DFF` (tasa efectiva), `DGS10`/`DGS2` (bonos, curva), `CPIAUCSL` (inflación EEUU, variación interanual vía `lib/yoy-change.ts`), `DCOILWTICO` (petróleo WTI, variación semanal).
+- **Dólar CLP:** no se duplicó — sigue en `usd_clp` de `net_worth_snapshots`, fuera de este bloque.
+- Todo en `lib/macro-fetch.ts` (fetch+cache) + `lib/yield-curve.ts` / `lib/yoy-change.ts` (fórmulas puras, con test). Si falta `FRED_API_KEY` (ver `.env.local.example`), `fetchMacroSeries` devuelve `null` y la sección "Contexto de mercado" simplemente no aparece — nunca rompe el resto del informe.
 
-Entrega: bloque "Contexto de mercado" con 4-5 números y su variación semanal. Determinista, sin IA.
+Entrega: bloque "Contexto de mercado" en `WeeklyReport.tsx` con tasa Fed, curva 10Y-2Y, petróleo (+ variación semanal) e inflación YoY. Determinista, sin IA.
+
+**Pendiente real:** todo esto depende de que Cas configure `FRED_API_KEY` — sin key, el bloque no se muestra (comportamiento esperado, no un bug).
 
 ## Fase S2 — Calendario de la semana que viene
 
@@ -114,7 +116,7 @@ La IA solo escribe los 2-3 párrafos de unión entre bloques ya calculados, con 
 | **S5 (v0, sin macro)** | Informe semanal con lo que YA existe — 80% del valor | 1 sesión | — |
 | **S3** | Targets con % y POC (lo más "video" del video) | 1 sesión | — |
 | **S2** | Calendario cruzado con tu portafolio | 1 sesión | key Finnhub (ya la tienes) |
-| **S1** | Capa macro completa | 1-2 sesiones | key FRED (gratis) |
+| **S1** ✅ | Capa macro completa | 1-2 sesiones | key FRED (gratis, aún no configurada) |
 | **S4** | Cripto | 1-2 sesiones | decisión de producto |
 
 **Recomendación:** partir por **S5 v0** — armar el informe semanal solo con lo que ya está calculado. Vas a ver el formato funcionando en una sesión, y recién ahí decidir qué bloque falta más (probablemente S3, que es el que más se parece al video). S1 es el más caro y el menos accionable: saber la probabilidad de suba de tasas no cambia tu aporte mensual.

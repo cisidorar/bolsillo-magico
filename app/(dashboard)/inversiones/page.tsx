@@ -15,6 +15,7 @@ import { analyze } from '@/lib/technical'
 import { computeFibonacci } from '@/lib/fibonacci'
 import { computeVolumeProfile } from '@/lib/volume-profile'
 import { fetchEarnings } from '@/lib/earnings-fetch'
+import { fetchAllMacroSeries, type MacroSeriesData, type MacroSeriesId } from '@/lib/macro-fetch'
 import type { LabelStat } from '@/lib/signal-backtest'
 
 export const dynamic = 'force-dynamic'
@@ -287,6 +288,13 @@ export default async function InversionesPage({ searchParams }: Props) {
     weeklySkipped = tickers.filter(t => !weeklyItems.some(w => w.ticker === t))
   }
 
+  // Contexto macro (S1): null en cada serie si falta FRED_API_KEY — WeeklyReport
+  // se degrada solo (la sección completa no se muestra) sin romper el resto.
+  let weeklyMacro: Partial<Record<MacroSeriesId, MacroSeriesData | null>> | null = null
+  if (isSemanal) {
+    weeklyMacro = await fetchAllMacroSeries(supabase)
+  }
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
@@ -338,6 +346,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
           generatedAt={weeklyGeneratedAt}
           skippedTickers={weeklySkipped}
+          macro={weeklyMacro}
         />
       ) : (
         <>

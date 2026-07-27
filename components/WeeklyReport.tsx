@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { TrendingUp, TrendingDown, Minus, Newspaper, Calendar, Activity } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, Newspaper, Calendar, Activity, Globe } from 'lucide-react'
 import InversionesToggle from './InversionesToggle'
 import ServiceLogo from './ServiceLogo'
 import TodayQueue, { type TodayDecision, type TodaySignal } from './TodayQueue'
@@ -9,6 +9,9 @@ import type { FibRetracement } from '@/lib/fibonacci'
 import type { VolumeProfile } from '@/lib/volume-profile'
 import type { LabelStat } from '@/lib/signal-backtest'
 import { businessDaysUntil } from '@/lib/earnings'
+import type { MacroSeriesData, MacroSeriesId } from '@/lib/macro-fetch'
+import { computeYieldCurve } from '@/lib/yield-curve'
+import { computeYoyChange, type Observation } from '@/lib/yoy-change'
 
 // ── Informe semanal (S5 v0 del plan docs/PLAN_INFORME_SEMANAL.md) ────────────
 // Junta en un solo lugar lo que el motor técnico YA calcula por ticker
@@ -50,6 +53,30 @@ const RATING_COLOR: Record<RatingLabel, string> = {
   venta_fuerte:  'var(--coral)',
 }
 
+function latestObs(series: MacroSeriesData | null | undefined): Observation | null {
+  if (!series || series.observations.length === 0) return null
+  return series.observations[series.observations.length - 1]
+}
+
+/** Delta contra la observación de ~7 días antes de la más reciente. Es un
+ *  detalle visual (variación semanal del petróleo), no una decisión financiera
+ *  — por eso vive acá y no en lib/ con test propio, a diferencia de
+ *  computeYieldCurve/computeYoyChange que sí son la lógica central. */
+function weekAgoDelta(series: MacroSeriesData | null | undefined): number | null {
+  const latest = latestObs(series)
+  if (!latest || !series) return null
+  const d = new Date(latest.date + 'T12:00:00')
+  d.setDate(d.getDate() - 7)
+  const target = d.toISOString().slice(0, 10)
+  let prev: Observation | null = null
+  for (const o of series.observations) {
+    if (o.date > target) break
+    prev = o
+  }
+  if (!prev || prev.date === latest.date) return null
+  return latest.value - prev.value
+}
+
 export default function WeeklyReport({
   items,
   spyBenchmark,
@@ -57,6 +84,7 @@ export default function WeeklyReport({
   todaySignals,
   generatedAt,
   skippedTickers,
+  macro,
 }: {
   items:          WeeklyTickerData[]
   spyBenchmark:   SpyBenchmarkResult | null
@@ -65,8 +93,21 @@ export default function WeeklyReport({
   generatedAt:    string
   /** Tickers en watchlist/posiciones sin historia suficiente todavía (recién agregados) */
   skippedTickers: string[]
+  /** Contexto macro (FRED) — null o series en null si no hay FRED_API_KEY configurada;
+   *  la sección simplemente no se muestra en ese caso. */
+  macro: Partial<Record<MacroSeriesId, MacroSeriesData | null>> | null
 }) {
   const genLabel = new Date(generatedAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+
+  const dffLatest   = latestObs(macro?.DFF)
+  const dgs10Latest = latestObs(macro?.DGS10)
+  const dgs2Latest  = latestObs(macro?.DGS2)
+  const oilLatest   = latestObs(macro?.DCOILWTICO)
+  const oilDelta    = weekAgoDelta(macro?.DCOILWTICO)
+  const cpiSeries   = macro?.CPIAUCSL ?? null
+  const cpiYoy      = cpiSeries ? computeYoyChange(cpiSeries.observations, cpiSeries.observations[cpiSeries.observations.length - 1]?.date ?? '') : null
+  const yieldCurve  = (dgs10Latest && dgs2Latest) ? computeYieldCurve(dgs10Latest.value, dgs2Latest.value) : null
+  const hasMacro    = !!(dffLatest || yieldCurve || oilLatest || cpiYoy)
 
   return (
     <div>
@@ -100,6 +141,52 @@ export default function WeeklyReport({
                 vs. haber puesto la misma plata, en las mismas fechas, en SPY — al cierre del {fmtDate(spyBenchmark.asOfDate)}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Contexto de mercado: tasas, curva, petróleo, inflación (FRED) ───── */}
+      {hasMacro && (
+        <div className="card p-4 lg:p-5 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
+            <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Contexto de mercado</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {dffLatest && (
+              <div>
+                <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Tasa Fed</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{dffLatest.value.toFixed(2)}%</p>
+              </div>
+            )}
+            {yieldCurve && (
+              <div>
+                <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Curva 10Y–2Y</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: yieldCurve.inverted ? 'var(--coral)' : 'var(--ink)' }}>
+                  {yieldCurve.spread >= 0 ? '+' : ''}{yieldCurve.spread.toFixed(2)}pp
+                  {yieldCurve.inverted && <span className="block text-[9px] font-semibold">invertida</span>}
+                </p>
+              </div>
+            )}
+            {oilLatest && (
+              <div>
+                <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Petróleo WTI</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                  US${oilLatest.value.toFixed(2)}
+                  {oilDelta !== null && (
+                    <span className="block text-[9px] font-semibold" style={{ color: oilDelta >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {oilDelta >= 0 ? '+' : ''}{oilDelta.toFixed(2)}/sem
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+            {cpiYoy && (
+              <div>
+                <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Inflación EEUU (YoY)</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{cpiYoy.pctChange >= 0 ? '+' : ''}{cpiYoy.pctChange.toFixed(1)}%</p>
+              </div>
+            )}
           </div>
         </div>
       )}
