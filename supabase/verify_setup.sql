@@ -57,6 +57,9 @@ SELECT * FROM (
   SELECT 38, 'columna payment_methods.payment_due_day (Ciclo de sueldo)', EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'payment_methods' AND column_name = 'payment_due_day') UNION ALL
+  SELECT 39, 'columna expenses.excluded_from_analysis (Marcar como único)', EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'expenses' AND column_name = 'excluded_from_analysis') UNION ALL
   -- Índices de integridad
   SELECT 40, 'índice expenses_recurring_once_per_day_idx (AutoRegister idempotente)', EXISTS (
     SELECT 1 FROM pg_indexes

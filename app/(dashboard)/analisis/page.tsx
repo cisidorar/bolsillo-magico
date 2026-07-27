@@ -8,6 +8,8 @@ import type { ExpenseWithRelations, CategoryBudget } from '@/types'
 import { TrendingUp, TrendingDown, Minus, CreditCard, BarChart2, ChevronRight, ChevronLeft, ShoppingCart, Wallet, CalendarDays, Trophy, Zap, ArrowUp, ArrowDown, Sparkles, AlertTriangle, Check, Clock, Package, ArrowRight, Target, PiggyBank, ShieldCheck, CalendarClock } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import AnalyzeTrigger from '@/components/AnalyzeTrigger'
+import RegenerateInsightsButton from '@/components/RegenerateInsightsButton'
+import MarkExceptionalButton from '@/components/MarkExceptionalButton'
 import MonthReviewTrigger from '@/components/MonthReviewTrigger'
 import MonthReviewCard from '@/components/MonthReviewCard'
 import IncomeEditor from '@/components/IncomeEditor'
@@ -102,14 +104,14 @@ export default async function AnalisisPage({
     // 'month_review' (B4): esa es una fila narrativa aparte, no una oportunidad.
     supabase
       .from('monthly_insights')
-      .select('type, title, description, impact_amount, severity, action_label, action')
+      .select('id, type, title, description, impact_amount, severity, action_label, action, expense_ids')
       .eq('user_id', user!.id)
       .eq('month', month)
       .eq('year', year)
       .eq('status', 'active')
       .neq('type', 'month_review')
       .order('severity', { ascending: false })
-      .limit(3),
+      .limit(5),
     // Ingresos de los últimos ~13 meses (el sueldo de M-1 financia M)
     supabase
       .from('incomes')
@@ -736,6 +738,9 @@ export default async function AnalisisPage({
     cta: string
     href: string
     isAi?: boolean
+    // "Marcar como único" (mark_as_one_time): en vez de un Link, renderiza un
+    // botón que excluye estos gastos del análisis IA de ahora en más.
+    markExceptional?: { insightId: string; expenseIds: string[] }
   }
   const oportunidades: Oportunidad[] = []
 
@@ -805,9 +810,10 @@ export default async function AnalisisPage({
 
   // ── Map AI insights → Oportunidad ────────────────────────────────────────
   type AiInsightRow = {
-    type: string; title: string; description: string
+    id: string; type: string; title: string; description: string
     impact_amount: number | null; severity: string
     action_label: string | null; action: string | null
+    expense_ids: string[] | null
   }
   const aiInsights = (aiInsightsRaw ?? []) as AiInsightRow[]
 
@@ -846,6 +852,9 @@ export default async function AnalisisPage({
       : ai.type === 'invest_goal_at_risk' || ai.type === 'emergency_fund_priority' || ai.type === 'cash_drag' ? '/inversiones'
       : '/historial'
 
+    // "Marcar como único" solo tiene sentido si la IA vinculó gastos concretos
+    const hasExpenseEvidence = ai.action === 'mark_as_one_time' && (ai.expense_ids?.length ?? 0) > 0
+
     return {
       icon,
       iconBg: severityBg,
@@ -862,6 +871,7 @@ export default async function AnalisisPage({
       cta: ai.action_label ?? 'Ver detalle',
       href: actionHref,
       isAi: true,
+      markExceptional: hasExpenseEvidence ? { insightId: ai.id, expenseIds: ai.expense_ids as string[] } : undefined,
     }
   }
 
@@ -2071,6 +2081,7 @@ export default async function AnalisisPage({
                     <Sparkles className="w-2.5 h-2.5" /> IA
                   </span>
                 )}
+                <RegenerateInsightsButton month={month} year={year} />
                 <ChevronRight className="w-4 h-4 ml-auto transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} />
               </summary>
               <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch mt-3">
@@ -2084,9 +2095,17 @@ export default async function AnalisisPage({
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
                     </div>
                     <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
-                    <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
-                      {op.cta} <ArrowRight className="w-3 h-3" />
-                    </Link>
+                    {op.markExceptional ? (
+                      <MarkExceptionalButton
+                        insightId={op.markExceptional.insightId}
+                        expenseIds={op.markExceptional.expenseIds}
+                        label={op.cta}
+                      />
+                    ) : (
+                      <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                        {op.cta} <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2104,6 +2123,7 @@ export default async function AnalisisPage({
                     <Sparkles className="w-2.5 h-2.5" /> IA
                   </span>
                 )}
+                <RegenerateInsightsButton month={month} year={year} />
               </div>
               <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch">
                 {finalOportunidades.map((op, i) => (
@@ -2116,9 +2136,17 @@ export default async function AnalisisPage({
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{op.title}</p>
                     </div>
                     <p className="text-xs leading-relaxed flex-1" style={{ color: 'var(--ink-2)' }}>{op.body}</p>
-                    <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
-                      {op.cta} <ArrowRight className="w-3 h-3" />
-                    </Link>
+                    {op.markExceptional ? (
+                      <MarkExceptionalButton
+                        insightId={op.markExceptional.insightId}
+                        expenseIds={op.markExceptional.expenseIds}
+                        label={op.cta}
+                      />
+                    ) : (
+                      <Link href={op.href} className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--primary)' }}>
+                        {op.cta} <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    )}
                   </div>
                 ))}
               </div>

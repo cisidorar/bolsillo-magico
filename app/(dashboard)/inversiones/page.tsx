@@ -9,6 +9,13 @@ import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-hi
 import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import PerformanceSection from '@/components/PerformanceSection'
+import WeeklyReport, { type WeeklyTickerData } from '@/components/WeeklyReport'
+import { readCandles } from '@/lib/price-providers'
+import { analyze } from '@/lib/technical'
+import { computeFibonacci } from '@/lib/fibonacci'
+import { computeVolumeProfile } from '@/lib/volume-profile'
+import { fetchEarnings } from '@/lib/earnings-fetch'
+import type { LabelStat } from '@/lib/signal-backtest'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,6 +98,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isAhorro    = sp.view === 'ahorro'
   const isDepositos = sp.view === 'depositos'
   const isBilletera = sp.view === 'billetera'
+  const isSemanal   = sp.view === 'semanal'
 
   const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }] = await Promise.all([
     supabase
@@ -226,6 +234,59 @@ export default async function InversionesPage({ searchParams }: Props) {
     )
   }
 
+  // ── Informe semanal (S5 v0) — solo se calcula si el usuario abre esa vista,
+  // para no cargarle una lectura de candles + earnings por ticker al resto de
+  // las pestañas de /inversiones que no lo necesitan.
+  let weeklyItems: WeeklyTickerData[] = []
+  let weeklySkipped: string[] = []
+  const weeklyGeneratedAt = new Date().toISOString()
+  if (isSemanal) {
+    const ownedTickers = new Set((stocks ?? []).map(s => s.ticker))
+    const tickers = [...new Set([...ownedTickers, ...(watchlist ?? []).map(w => w.ticker)])]
+
+    const results = await Promise.all(tickers.map(async (ticker): Promise<WeeklyTickerData | null> => {
+      const candles = await readCandles(supabase, ticker)
+      if (candles.closes.length < 30) return null
+
+      const analysis = analyze(candles)
+      const fib = computeFibonacci(candles.highs, candles.lows, candles.dates)
+      const volProfile = computeVolumeProfile(candles.closes, candles.volumes)
+      const earnings = await fetchEarnings(supabase, ticker)
+
+      const { data: statsRows } = await supabase
+        .from('signal_stats')
+        .select('label, count, hit_rate_20, avg_return_20, avg_return_60')
+        .eq('ticker', ticker)
+      const backtestStats: LabelStat[] | null = statsRows && statsRows.length > 0
+        ? statsRows.map(r => ({
+            label:       r.label as LabelStat['label'],
+            count:       r.count as number,
+            hitRate20:   r.hit_rate_20   !== null ? Number(r.hit_rate_20)   : null,
+            avgReturn20: r.avg_return_20 !== null ? Number(r.avg_return_20) : null,
+            avgReturn60: r.avg_return_60 !== null ? Number(r.avg_return_60) : null,
+          }))
+        : null
+
+      return {
+        ticker,
+        owned:            ownedTickers.has(ticker),
+        price:            analysis.price,
+        asOf:             analysis.asOf,
+        ratingLabel:      analysis.rating.label,
+        ratingAction:     analysis.rating.action,
+        verdict:          analysis.verdict,
+        weekSignals:      analysis.signals.filter(s => s.trigger),
+        fib,
+        volProfile,
+        nextEarningsDate: earnings.nextDate,
+        backtestStats,
+      }
+    }))
+
+    weeklyItems  = results.filter((r): r is WeeklyTickerData => r !== null)
+    weeklySkipped = tickers.filter(t => !weeklyItems.some(w => w.ticker === t))
+  }
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
@@ -244,6 +305,8 @@ export default async function InversionesPage({ searchParams }: Props) {
             ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · a plazo`
             : isBilletera
             ? 'el fondo desde el que compras acciones'
+            : isSemanal
+            ? 'señales, niveles y calendario de tu watchlist'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
@@ -266,6 +329,15 @@ export default async function InversionesPage({ searchParams }: Props) {
         <TermDepositManager
           userId={user.id}
           initialDeposits={(deposits ?? []) as TermDeposit[]}
+        />
+      ) : isSemanal ? (
+        <WeeklyReport
+          items={weeklyItems}
+          spyBenchmark={spyBenchmark}
+          todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
+          todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
+          generatedAt={weeklyGeneratedAt}
+          skippedTickers={weeklySkipped}
         />
       ) : (
         <>

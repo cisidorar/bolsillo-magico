@@ -90,6 +90,9 @@ Reglas estrictas:
 IMPORTANTE — qué NO reportar:
 - La app YA muestra de forma automática y visible qué categorías están sobre presupuesto este mes ("Categorías vs. presupuesto"). NO generes oportunidades que solo digan "categoría X está sobre presupuesto" — eso es redundante. Solo menciona presupuesto si descubres algo que la comparación simple NO muestra: p.ej. que lleva varios meses seguidos excedida (el presupuesto es irreal → budget_unrealistic, sugiere el monto según el promedio histórico), o que el exceso viene de UN comportamiento específico identificable.
 - Si "previous_insights" trae lo que reportaste el mes pasado, NO repitas el mismo hallazgo con otras palabras. Solo vuelve a mencionarlo si escaló (más meses seguidos, monto mayor) — y en ese caso di explícitamente que es una tendencia que persiste. Si el usuario MEJORÓ en algo que reportaste, puedes reconocerlo con improvement_confirmed (máximo 1, severity low).
+- Materialidad: ignora excesos o hallazgos cuyo impact_amount sea menor al 3% de total_expense (o un monto pequeño en términos absolutos) — un presupuesto pasado por unos pocos miles de pesos no es un hallazgo, es ruido. Prefiere SIEMPRE el patrón con mayor impacto en pesos o mayor persistencia en el tiempo sobre uno trivial, aunque tengas que devolver menos de 3 oportunidades.
+- Un gasto grande que parezca excepcional (viaje, evento puntual, compra única — sobre todo si distorsiona el % de una categoría o aparece partido entre dos medios de pago) NO debe usarse como evidencia de que "la categoría está sobre presupuesto" ni de un patrón de comportamiento — repórtalo aparte como one_time_purchase (acción mark_as_one_time) y, si al excluirlo la categoría SÍ vuelve a estar dentro de presupuesto, dilo explícitamente en la descripción.
+- "excluded_this_month" trae los gastos que el usuario YA marcó como únicos este mes (ya están fuera de categories/top_expenses/merchants). Nunca los reportes de nuevo ni los cuentes como evidencia — si es útil, puedes mencionar de pasada que ya quedaron excluidos del análisis.
 
 PRIORIZA patrones de COMPORTAMIENTO que solo se ven cruzando meses — para eso recibes categories[].history_6m (serie mensual por categoría), merchants (gasto por comercio con promedio histórico) e intra_month (distribución del gasto dentro del mes):
 1. merchant_trend: un comercio/servicio específico que crece sostenido vs su promedio (ej. "Uber subió 41% vs tus 3 meses previos: 14 viajes por $86.000").
@@ -151,14 +154,14 @@ function sanitize(str: string | null | undefined, maxLen = 80): string {
 }
 
 // ── A04: Strict input validation ──────────────────────────────────────────────
-function validateMonthYear(body: unknown): { month: number; year: number } | null {
+function validateMonthYear(body: unknown): { month: number; year: number; force: boolean } | null {
   if (typeof body !== 'object' || body === null) return null
-  const { month, year } = body as Record<string, unknown>
+  const { month, year, force } = body as Record<string, unknown>
   if (
     typeof month !== 'number' || !Number.isInteger(month) || month < 1 || month > 12 ||
     typeof year  !== 'number' || !Number.isInteger(year)  || year  < 2020 || year > 2099
   ) return null
-  return { month, year }
+  return { month, year, force: force === true }
 }
 
 export async function POST(request: Request) {
@@ -178,7 +181,7 @@ export async function POST(request: Request) {
     // ── A04: Validate inputs ──────────────────────────────────────────────────
     const parsed = validateMonthYear(body)
     if (!parsed) return NextResponse.json({ error: 'Invalid month or year' }, { status: 400 })
-    const { month, year } = parsed
+    const { month, year, force } = parsed
 
     const supabase = await createClient()
 
@@ -212,7 +215,7 @@ export async function POST(request: Request) {
     ] = await Promise.all([
       supabase
         .from('expenses')
-        .select('id, amount, description, date, category:categories(id, name), recurring_expense_id')
+        .select('id, amount, description, date, category:categories(id, name), recurring_expense_id, excluded_from_analysis')
         .eq('user_id', user.id)
         .gte('date', startDate)
         .lt('date', endDate)
@@ -222,7 +225,7 @@ export async function POST(request: Request) {
       // series por categoría ni agrupar por comercio).
       supabase
         .from('expenses')
-        .select('amount, date, description, category_id')
+        .select('amount, date, description, category_id, excluded_from_analysis')
         .eq('user_id', user.id)
         .gte('date', sixBackStart)
         .lt('date', startDate),
@@ -252,15 +255,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'no_expenses' }, { status: 200 })
     }
 
+    // ── "Marcar como único" (migración 20260725) ──────────────────────────────
+    // Un gasto excluido sigue siendo real y sigue contando en TODOS los totales
+    // visibles de la app (historial, presupuesto vs categoría) — acá solo deja
+    // de alimentar el análisis de la IA: no debe seguir evidenciando "categoría
+    // sobre presupuesto" ni un patrón de comportamiento mes tras mes por algo
+    // que el usuario ya identificó como excepcional. historyExpenses se filtra
+    // igual, para que tampoco distorsione history_6m ni el promedio de comercio.
+    const activeExpenses   = (expenses as any[]).filter(e => !e.excluded_from_analysis)
+    const excludedThisMonth = (expenses as any[]).filter(e => e.excluded_from_analysis)
+    const activeHistoryExpenses = ((historyExpenses ?? []) as any[]).filter(e => !e.excluded_from_analysis)
+
     // ── 2. Señales y payload ──────────────────────────────────────────────────
-    const totalMonth   = expenses.reduce((s: number, e: any) => s + e.amount, 0)
+    // totalMonth = total de ANÁLISIS (excluye lo marcado como único, alimenta
+    // categorías/top_expenses/tendencias). totalMonthReal = TODO lo gastado de
+    // verdad este mes — el que debe usarse para cualquier razonamiento de
+    // flujo de caja real (liquidThisMonth), donde excluir la plata que de
+    // verdad salió de la cuenta produciría un "sobrante" falso.
+    const totalMonth     = activeExpenses.reduce((s: number, e: any) => s + e.amount, 0)
+    const totalMonthReal = (expenses as any[]).reduce((s: number, e: any) => s + e.amount, 0)
     const income       = (incomeRow as any)?.amount ?? null
     const globalBudget = (monthBudget as any)?.amount ?? null
     const catBudgetMap = new Map(((categoryBudgets ?? []) as any[]).map((b: any) => [b.category_id, b.amount]))
 
     // ── Bucket de 6 meses previos → totalPrev, promedio (fondo de emergencia) y tendencia 3m ──
     const monthTotals: Record<string, number> = {}
-    for (const e of (historyExpenses ?? []) as any[]) {
+    for (const e of activeHistoryExpenses) {
       const k = String(e.date).slice(0, 7)
       monthTotals[k] = (monthTotals[k] ?? 0) + e.amount
     }
@@ -286,7 +306,7 @@ export async function POST(request: Request) {
       monthKeys6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
     }
     const byCatHistory: Record<string, Record<string, number>> = {}
-    for (const e of (historyExpenses ?? []) as any[]) {
+    for (const e of activeHistoryExpenses) {
       const catId = e.category_id ?? 'sin-categoria'
       const k = String(e.date).slice(0, 7)
       if (!byCatHistory[catId]) byCatHistory[catId] = {}
@@ -298,7 +318,7 @@ export async function POST(request: Request) {
     // total de la categoría, no el comercio específico que la mueve.
     const prev3Keys = new Set(monthKeys6.slice(2, 5))
     const merchantHistoryTotal: Record<string, number> = {}
-    for (const e of (historyExpenses ?? []) as any[]) {
+    for (const e of activeHistoryExpenses) {
       const k = String(e.date).slice(0, 7)
       if (!prev3Keys.has(k)) continue
       const mk = normalizeMerchant(e.description)
@@ -306,7 +326,7 @@ export async function POST(request: Request) {
       merchantHistoryTotal[mk] = (merchantHistoryTotal[mk] ?? 0) + e.amount
     }
     const merchantNow: Record<string, { count: number; total: number; label: string }> = {}
-    for (const e of (expenses ?? []) as any[]) {
+    for (const e of activeExpenses) {
       const mk = normalizeMerchant(e.description)
       if (!mk) continue
       if (!merchantNow[mk]) merchantNow[mk] = { count: 0, total: 0, label: sanitize(e.description, 40) }
@@ -334,7 +354,7 @@ export async function POST(request: Request) {
     const byWeek: number[] = [0, 0, 0, 0] // semana 1-4+
     let postPaydayDiscretionary = 0
     let totalDiscretionary = 0
-    for (const e of (expenses ?? []) as any[]) {
+    for (const e of activeExpenses) {
       const day = Number(String(e.date).slice(8, 10))
       const weekIdx = Math.min(3, Math.floor((day - 1) / 7))
       byWeek[weekIdx] += e.amount
@@ -349,7 +369,7 @@ export async function POST(request: Request) {
     const investedThisMonth = ((usdDeposits ?? []) as any[]).reduce((s, r) => s + r.total_paid_clp, 0)
     const fundingIncome     = (prevIncomeRow as any)?.amount ?? null
     const disposableIncome  = monthlyInvestGoal && fundingIncome ? fundingIncome - monthlyInvestGoal : null
-    const liquidThisMonth   = fundingIncome !== null ? fundingIncome - totalMonth - investedThisMonth : null
+    const liquidThisMonth   = fundingIncome !== null ? fundingIncome - totalMonthReal - investedThisMonth : null
     const savingsTotal      = ((savingsRows ?? []) as any[]).reduce((s, r) => s + r.balance, 0)
     const maturedLiquid     = ((maturedDeposits ?? []) as any[]).reduce((s, d) => s + d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)), 0)
     const liquidFund        = savingsTotal + maturedLiquid
@@ -357,11 +377,12 @@ export async function POST(request: Request) {
       ? Math.round((liquidFund / avgMonthlyExpense) * 10) / 10
       : null
 
-    // Collect valid expense IDs for later validation (A08)
-    const validExpenseIds = new Set((expenses as any[]).map((e: any) => e.id as string))
+    // Collect valid expense IDs for later validation (A08) — solo los que
+    // realmente se le mostraron a la IA (activeExpenses)
+    const validExpenseIds = new Set(activeExpenses.map((e: any) => e.id as string))
 
     const byCat: Record<string, { name: string; total: number; count: number; recurring: number; budget: number | null }> = {}
-    for (const e of (expenses ?? []) as any[]) {
+    for (const e of activeExpenses) {
       const catId   = e.category?.id ?? 'sin-categoria'
       const catName = e.category?.name ?? 'Sin categoría'
       if (!byCat[catId]) byCat[catId] = { name: catName, total: 0, count: 0, recurring: 0, budget: catBudgetMap.get(catId) ?? null }
@@ -374,7 +395,7 @@ export async function POST(request: Request) {
     // I1.4: 20 → 40 gastos visibles + resumen agregado de la cola larga, para
     // que "gastos pequeños frecuentes" tenga evidencia real en vez de quedar
     // ciego a más de la mitad del mes.
-    const sortedExpenses = (expenses ?? []) as any[]
+    const sortedExpenses = activeExpenses
     const topExpenses = sortedExpenses.slice(0, 40).map((e: any) => ({
       id:                  e.id,
       description:         sanitize(e.description, 80),  // sanitized, max 80 chars
@@ -398,7 +419,7 @@ export async function POST(request: Request) {
       }
     })() : null
 
-    const allAmounts = [...(historyExpenses ?? []) as any[], ...(expenses ?? []) as any[]].map((e: any) => e.amount).sort((a: number, b: number) => a - b)
+    const allAmounts = [...activeHistoryExpenses, ...activeExpenses].map((e: any) => e.amount).sort((a: number, b: number) => a - b)
     const p90Idx     = Math.floor(allAmounts.length * 0.9)
     const p90Amount  = allAmounts[p90Idx] ?? totalMonth
 
@@ -410,7 +431,7 @@ export async function POST(request: Request) {
       previous_month_expense:  totalPrev > 0 ? totalPrev : null,
       global_budget:           globalBudget,
       delta_vs_prev_pct:       totalPrev > 0 ? Math.round(((totalMonth - totalPrev) / totalPrev) * 100) : null,
-      expense_count:           (expenses ?? []).length,
+      expense_count:           activeExpenses.length,
       categories: Object.entries(byCat).sort((a, b) => b[1].total - a[1].total).map(([catId, c]) => ({
         name:                 sanitize(c.name, 40),
         total:                c.total,
@@ -439,6 +460,17 @@ export async function POST(request: Request) {
       previous_insights: ((previousInsightsRaw ?? []) as any[]).map(i => ({
         type: i.type, title: sanitize(i.title, 120), impact_amount: i.impact_amount,
       })),
+      // "Marcar como único": gastos que el usuario YA marcó como excepcionales
+      // este mes — quedaron fuera de categories/top_expenses/merchants a
+      // propósito. Se informan aparte solo para que la IA pueda explicar el
+      // contraste si hace falta (ej. "sin el viaje, Pareja quedó dentro de
+      // presupuesto"), nunca para volver a tratarlos como evidencia de patrón.
+      excluded_this_month: excludedThisMonth.map((e: any) => ({
+        description: sanitize(e.description, 80),
+        amount:      e.amount,
+        category:    sanitize(e.category?.name, 40),
+        date:        e.date,
+      })),
       historical_context: {
         p90_single_expense: p90Amount,
         note: 'Un gasto individual muy superior a este percentil sugiere compra atípica.',
@@ -463,7 +495,10 @@ export async function POST(request: Request) {
       .map((b: any) => `${b.category_id}:${b.amount}`)
       .sort()
       .join('|')
-    const expensesHash = `${totalMonth}::${(expenses ?? []).length}::${budgetFingerprint}::${monthlyInvestGoal ?? 'x'}::${investedThisMonth}`
+    // Incluye activeExpenses.length (no el total crudo): así, marcar un gasto
+    // como único cambia el hash y dispara una regeneración natural la
+    // próxima vez, sin depender del botón "Regenerar".
+    const expensesHash = `${totalMonth}::${activeExpenses.length}::${budgetFingerprint}::${monthlyInvestGoal ?? 'x'}::${investedThisMonth}`
 
     // ── 4. Verificar cache + rate limit ───────────────────────────────────────
     // A04: rate limit hard — max 1 AI call each 10 minutes per (user, month, year)
@@ -482,12 +517,20 @@ export async function POST(request: Request) {
       const stale    = ageMs > 6 * 3600 * 1000   // 6 horas
       const cooldown = ageMs < 10 * 60 * 1000    // 10 minutos
       const same     = existing.expenses_hash === expensesHash
-      // Return cached if data hasn't changed (same hash, not stale)
-      // Cooldown only applies when data is the same (prevents hammering without blocking budget changes)
-      if (!stale && same) {
-        return NextResponse.json({ message: 'cached' }, { status: 200 })
-      }
-      if (cooldown && same) {
+      // force=true (botón "Regenerar" del usuario): ignora el hash-match (el
+      // mismo mes con el mismo total puede querer un análisis nuevo si cambió
+      // la lógica/prompt del motor) pero el cooldown de 10 min se respeta
+      // siempre — evita que un doble-click dispare dos llamadas a la IA.
+      if (!force) {
+        // Return cached if data hasn't changed (same hash, not stale)
+        // Cooldown only applies when data is the same (prevents hammering without blocking budget changes)
+        if (!stale && same) {
+          return NextResponse.json({ message: 'cached' }, { status: 200 })
+        }
+        if (cooldown && same) {
+          return NextResponse.json({ message: 'cached' }, { status: 200 })
+        }
+      } else if (cooldown) {
         return NextResponse.json({ message: 'cached' }, { status: 200 })
       }
     }
