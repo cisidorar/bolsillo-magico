@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/sync-prices",
       "schedule": "30 22 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-report",
+      "schedule": "0 12 * * 1"
     }
   ]
 }

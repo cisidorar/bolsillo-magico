@@ -94,18 +94,21 @@ Entrega: bloque "Contexto de mercado" en `WeeklyReport.tsx` con tasa Fed, curva 
 
 ## Fase S5 — El informe semanal (la costura)
 
-Cron domingo/lunes → tabla `weekly_reports` → página `/inversiones/semanal` + email (reusa el layout de `notify-watchlist-digest`).
+**v0 (vista en vivo) ✅** — `/inversiones?view=semanal`, calculado on-demand al abrir la página (jul 2026).
 
-Estructura, en el orden del video:
+**Persistencia (cron + email) ✅ implementada (jul 2026)** — `app/api/cron/weekly-report` (Vercel, lunes 12:00 UTC) calcula el informe para TODOS los usuarios reusando `lib/weekly-report.ts` (extraído del v0 para no duplicar lógica) y lo guarda en `weekly_reports` (una fila por usuario por semana, `payload` jsonb autocontenido). La Edge Function `notify-weekly-report` (pg_cron, lunes 12:30 UTC) solo lee esa tabla y manda el correo — no recalcula nada, mismo patrón que `sync-prices` → `daily_decisions` → `notify-watchlist-digest`. Opt-out vía `profiles.notify_weekly_report`.
 
-1. **Tu semana** — variación del portafolio, aporte del mes, vs SPY *(ya existe todo)*.
-2. **Contexto de mercado** — macro S1, con variación semanal.
-3. **Qué viene** — calendario S2, cruzado con tus posiciones.
-4. **Tus activos** — por ticker: qué señal se activó ESTA semana, nivel más cercano, escenario condicional (S3), y su fiabilidad histórica del backtest.
-5. **Radar** — watchlist cerca de su target, más 1-2 movimientos de alta convicción.
-6. **Decisión** — reusa `computeDailyDecisions` en versión semanal.
+Estructura del correo/página, en el orden del video:
 
-La IA solo escribe los 2-3 párrafos de unión entre bloques ya calculados, con la misma validación estricta que `analyze-month` (schema, whitelist, cache por hash). Nunca inventa un número.
+1. **Tu semana** — variación del portafolio vs SPY *(ya existía)*.
+2. **Contexto de mercado** — macro S1 ✅.
+3. **Qué viene** — calendario S2: solo balances de resultados (Finnhub) por ahora; falta el calendario económico general (Fed/CPI/PIB/empleo) — sigue pendiente.
+4. **Tus activos** — por ticker: señal de la semana, niveles (Fibonacci/POC, S3 ✅), fiabilidad histórica del backtest. En el correo se muestra compacto (sin niveles detallados, con link a la app).
+5. **Decisión** — reusa `daily_decisions` (última disponible, no exige "hoy" exacto — el cron semanal tolera mejor un dato de unos días que dejar el bloque vacío).
+
+No se sumó redacción de IA (el plan original consideraba "2-3 párrafos de unión") — con la estructura de tarjetas/números ya es legible sin texto generado, y evita el costo/riesgo de validación de otro endpoint tipo `analyze-month`. Se puede agregar después si hace falta.
+
+**Pendiente real:** correr la migración `20260727_weekly_reports.sql`, configurar `RESEND_API_KEY`/`SITE_URL`/`DB_SERVICE_KEY` en la Edge Function (ya usados por las otras notificaciones) y agregar el `cron.schedule` de `supabase/setup_cron.sql` en el SQL Editor de Supabase (manual, una vez).
 
 ---
 
@@ -113,10 +116,11 @@ La IA solo escribe los 2-3 párrafos de unión entre bloques ya calculados, con 
 
 | Fase | Gana | Esfuerzo | Depende |
 |---|---|---|---|
-| **S5 (v0, sin macro)** | Informe semanal con lo que YA existe — 80% del valor | 1 sesión | — |
-| **S3** | Targets con % y POC (lo más "video" del video) | 1 sesión | — |
-| **S2** | Calendario cruzado con tu portafolio | 1 sesión | key Finnhub (ya la tienes) |
+| **S5 (v0)** ✅ | Informe semanal con lo que YA existe — 80% del valor | 1 sesión | — |
+| **S3** ✅ | Targets con % y POC (lo más "video" del video) | 1 sesión | — |
+| **S2** (parcial) | Balances de watchlist ✅ · calendario económico general (Fed/CPI/PIB/empleo) pendiente | 1 sesión | key Finnhub (ya la tienes) |
 | **S1** ✅ | Capa macro completa | 1-2 sesiones | key FRED (gratis, aún no configurada) |
+| **S5 (persistencia)** ✅ | Cron semanal + email, historia navegable | 1 sesión | `weekly_reports`, RESEND_API_KEY (ya la tienes) |
 | **S4** | Cripto | 1-2 sesiones | decisión de producto |
 
 **Recomendación:** partir por **S5 v0** — armar el informe semanal solo con lo que ya está calculado. Vas a ver el formato funcionando en una sesión, y recién ahí decidir qué bloque falta más (probablemente S3, que es el que más se parece al video). S1 es el más caro y el menos accionable: saber la probabilidad de suba de tasas no cambia tu aporte mensual.

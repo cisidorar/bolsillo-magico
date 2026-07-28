@@ -102,6 +102,26 @@ select cron.schedule(
   $$
 );
 
+-- 6. Informe semanal (S5) — todos los lunes a las 12:30 UTC (09:30 CLT en
+--    horario normal), 30 min después de que corra /api/cron/weekly-report de
+--    Vercel (lunes 12:00 UTC, ver vercel.json) — ese cron calcula y deja en
+--    weekly_reports; esta función solo lee esa tabla y arma el correo, no
+--    recalcula nada (mismo patrón que notify-watchlist-digest/daily_signals).
+select cron.schedule(
+  'notify-weekly-report-monday',
+  '30 12 * * 1',   -- 12:30 UTC, lunes = 09:30 CLT (horario normal)
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-weekly-report',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;
 
@@ -111,3 +131,4 @@ select cron.schedule(
 -- select cron.unschedule('notify-monthly-summary');
 -- select cron.unschedule('notify-recurring-reminder');
 -- select cron.unschedule('notify-watchlist-digest-daily');
+-- select cron.unschedule('notify-weekly-report-monday');

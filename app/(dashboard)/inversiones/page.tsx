@@ -9,14 +9,9 @@ import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-hi
 import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import PerformanceSection from '@/components/PerformanceSection'
-import WeeklyReport, { type WeeklyTickerData } from '@/components/WeeklyReport'
-import { readCandles } from '@/lib/price-providers'
-import { analyze } from '@/lib/technical'
-import { computeFibonacci } from '@/lib/fibonacci'
-import { computeVolumeProfile } from '@/lib/volume-profile'
-import { fetchEarnings } from '@/lib/earnings-fetch'
+import WeeklyReport from '@/components/WeeklyReport'
+import { computeWeeklyItems, type WeeklyTickerData } from '@/lib/weekly-report'
 import { fetchAllMacroSeries, type MacroSeriesData, type MacroSeriesId } from '@/lib/macro-fetch'
-import type { LabelStat } from '@/lib/signal-backtest'
 
 export const dynamic = 'force-dynamic'
 
@@ -235,57 +230,20 @@ export default async function InversionesPage({ searchParams }: Props) {
     )
   }
 
-  // ── Informe semanal (S5 v0) — solo se calcula si el usuario abre esa vista,
+  // ── Informe semanal (S5) — solo se calcula si el usuario abre esa vista,
   // para no cargarle una lectura de candles + earnings por ticker al resto de
-  // las pestañas de /inversiones que no lo necesitan.
+  // las pestañas de /inversiones que no lo necesitan. En vivo, siempre fresco
+  // (no lee el snapshot de weekly_reports que arma el cron para el correo —
+  // ver lib/weekly-report.ts, reusado acá y en app/api/cron/weekly-report).
   let weeklyItems: WeeklyTickerData[] = []
   let weeklySkipped: string[] = []
   const weeklyGeneratedAt = new Date().toISOString()
   if (isSemanal) {
     const ownedTickers = new Set((stocks ?? []).map(s => s.ticker))
     const tickers = [...new Set([...ownedTickers, ...(watchlist ?? []).map(w => w.ticker)])]
-
-    const results = await Promise.all(tickers.map(async (ticker): Promise<WeeklyTickerData | null> => {
-      const candles = await readCandles(supabase, ticker)
-      if (candles.closes.length < 30) return null
-
-      const analysis = analyze(candles)
-      const fib = computeFibonacci(candles.highs, candles.lows, candles.dates)
-      const volProfile = computeVolumeProfile(candles.closes, candles.volumes)
-      const earnings = await fetchEarnings(supabase, ticker)
-
-      const { data: statsRows } = await supabase
-        .from('signal_stats')
-        .select('label, count, hit_rate_20, avg_return_20, avg_return_60')
-        .eq('ticker', ticker)
-      const backtestStats: LabelStat[] | null = statsRows && statsRows.length > 0
-        ? statsRows.map(r => ({
-            label:       r.label as LabelStat['label'],
-            count:       r.count as number,
-            hitRate20:   r.hit_rate_20   !== null ? Number(r.hit_rate_20)   : null,
-            avgReturn20: r.avg_return_20 !== null ? Number(r.avg_return_20) : null,
-            avgReturn60: r.avg_return_60 !== null ? Number(r.avg_return_60) : null,
-          }))
-        : null
-
-      return {
-        ticker,
-        owned:            ownedTickers.has(ticker),
-        price:            analysis.price,
-        asOf:             analysis.asOf,
-        ratingLabel:      analysis.rating.label,
-        ratingAction:     analysis.rating.action,
-        verdict:          analysis.verdict,
-        weekSignals:      analysis.signals.filter(s => s.trigger),
-        fib,
-        volProfile,
-        nextEarningsDate: earnings.nextDate,
-        backtestStats,
-      }
-    }))
-
-    weeklyItems  = results.filter((r): r is WeeklyTickerData => r !== null)
-    weeklySkipped = tickers.filter(t => !weeklyItems.some(w => w.ticker === t))
+    const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers)
+    weeklyItems   = items
+    weeklySkipped = skipped
   }
 
   // Contexto macro (S1): null en cada serie si falta FRED_API_KEY — WeeklyReport

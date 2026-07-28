@@ -4,14 +4,13 @@ import InversionesToggle from './InversionesToggle'
 import ServiceLogo from './ServiceLogo'
 import TodayQueue, { type TodayDecision, type TodaySignal } from './TodayQueue'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
-import type { TechnicalSignal, RatingLabel } from '@/lib/technical'
-import type { FibRetracement } from '@/lib/fibonacci'
-import type { VolumeProfile } from '@/lib/volume-profile'
+import type { RatingLabel } from '@/lib/technical'
 import type { LabelStat } from '@/lib/signal-backtest'
 import { businessDaysUntil } from '@/lib/earnings'
 import type { MacroSeriesData, MacroSeriesId } from '@/lib/macro-fetch'
 import { computeYieldCurve } from '@/lib/yield-curve'
 import { computeYoyChange, type Observation } from '@/lib/yoy-change'
+import { type WeeklyTickerData } from '@/lib/weekly-report'
 
 // ── Informe semanal (S5 v0 del plan docs/PLAN_INFORME_SEMANAL.md) ────────────
 // Junta en un solo lugar lo que el motor técnico YA calcula por ticker
@@ -21,21 +20,6 @@ import { computeYoyChange, type Observation } from '@/lib/yoy-change'
 // no participa acá, cada número sale de una función pura y testeada.
 // v0: se calcula en vivo al abrir la vista (no hay cron ni snapshot semanal
 // persistido todavía) — mismo patrón que el resto de /inversiones.
-
-export interface WeeklyTickerData {
-  ticker:               string
-  owned:                boolean
-  price:                number
-  asOf:                 string
-  ratingLabel:          RatingLabel
-  ratingAction:         string
-  verdict:              string
-  weekSignals:          TechnicalSignal[]   // señales con trigger:true (eventos recientes)
-  fib:                  FibRetracement | null
-  volProfile:           VolumeProfile | null
-  nextEarningsDate:     string | null
-  backtestStats:        LabelStat[] | null
-}
 
 function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
