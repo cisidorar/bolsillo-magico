@@ -11,12 +11,17 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '
 export const metadata: Metadata = {
   metadataBase: new URL('https://bolsillomagico.com'),
   title: {
-    default: 'Bolsillo Mágico — Control de gastos personales',
+    default: 'Bolsillo Mágico',
     template: '%s · Bolsillo Mágico',
   },
-  description: 'Registra y analiza tus gastos personales',
+  description: 'Uso personal.',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Bolsillo Mágico' },
+  // A2 (roadmap uso personal, jul 2026): la app dejó de ser pública — que
+  // desaparezca de buscadores. robots.ts ya bloquea todo el rastreo; esto
+  // además marca cada página con el meta noindex para navegadores/crawlers
+  // que no respeten robots.txt.
+  robots: { index: false, follow: false },
 }
 
 export const viewport: Viewport = {
