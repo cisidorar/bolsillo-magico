@@ -1,6 +1,7 @@
 'use client'
 
 import type { ConvictionTier } from '@/lib/conviction'
+import type { PriceZone } from '@/lib/technical'
 import { useToast } from '@/components/ToastProvider'
 
 // ── Risk rail: cuánto arriesgas vs. cuánto puedes ganar, de un vistazo ───────
@@ -120,6 +121,45 @@ export function ConvictionChip({ score, tier }: { score: number; tier: Convictio
       style={{ background: c.bg, color: c.fg }}
     >
       {score}
+    </button>
+  )
+}
+
+const ZONE_UI: Record<PriceZone, { label: string; fg: string; bg: string; explain: string }> = {
+  conveniente: {
+    label:   'Conveniente',
+    fg:      'var(--mint)',
+    bg:      'rgba(31,190,141,0.14)',
+    explain: 'Está en la zona de un piso que ya la frenó antes — de las entradas con más base dentro de la tendencia.',
+  },
+  justo: {
+    label:   'Justo',
+    fg:      'var(--ink-3)',
+    bg:      'var(--surface-2)',
+    explain: 'Ni estirada ni en zona de piso — un precio razonable, sin ventaja ni desventaja especial hoy.',
+  },
+  caro: {
+    label:   'Caro',
+    fg:      'var(--gold)',
+    bg:      'rgba(255,194,60,0.14)',
+    explain: 'Está estirada o cerca de máximos — comprar aquí suele salir más caro que esperar un respiro.',
+  },
+}
+
+/** P1 (roadmap largo plazo): "¿es buen precio hoy?" en una palabra, para quien
+ *  compra pensando en tendencia de largo plazo y no quiere leer 4 frases para
+ *  saberlo. Mismo patrón tap→toast que ConvictionChip: número = convicción,
+ *  palabra = precio, rail = riesgo — un solo lenguaje en toda la app. */
+export function PriceZoneChip({ zone }: { zone: PriceZone }) {
+  const z = ZONE_UI[zone]
+  const { showToast } = useToast()
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); showToast(z.explain) }}
+      className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+      style={{ background: z.bg, color: z.fg }}
+    >
+      {z.label}
     </button>
   )
 }

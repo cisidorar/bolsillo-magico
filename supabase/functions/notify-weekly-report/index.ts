@@ -319,9 +319,13 @@ function weeklyReportEmailHtml({
 
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td>
-            <a href="${siteUrl}/inversiones?view=semanal" bgcolor="#2B7CF6"
+            <!-- P3 (roadmap largo plazo, jul 2026): la vista Semanal de la app
+                 se eliminó — este correo pasa a ser el informe completo por
+                 ticker. El link ahora manda a Acciones, donde vive la card
+                 compacta "Tu semana" (vs. SPY + Fed + calendario). -->
+            <a href="${siteUrl}/inversiones" bgcolor="#2B7CF6"
               style="display:block;text-align:center;background:#2B7CF6;color:#ffffff;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;padding:15px 32px;border-radius:12px;letter-spacing:0.1px">
-              Ver informe completo en la app →
+              Ver tus acciones en la app →
             </a>
           </td></tr>
         </table>

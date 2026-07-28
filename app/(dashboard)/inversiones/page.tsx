@@ -9,9 +9,12 @@ import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-hi
 import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import PerformanceSection from '@/components/PerformanceSection'
-import WeeklyReport from '@/components/WeeklyReport'
-import { computeWeeklyItems, type WeeklyTickerData } from '@/lib/weekly-report'
-import { fetchAllMacroSeries, type MacroSeriesData, type MacroSeriesId } from '@/lib/macro-fetch'
+import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
+import { fetchAllMacroSeries } from '@/lib/macro-fetch'
+import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
+import { computeYieldCurve } from '@/lib/yield-curve'
+import { fetchEarnings } from '@/lib/earnings-fetch'
+import { businessDaysUntil } from '@/lib/earnings'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,7 +97,6 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isAhorro    = sp.view === 'ahorro'
   const isDepositos = sp.view === 'depositos'
   const isBilletera = sp.view === 'billetera'
-  const isSemanal   = sp.view === 'semanal'
 
   const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }] = await Promise.all([
     supabase
@@ -176,6 +178,24 @@ export default async function InversionesPage({ searchParams }: Props) {
   const investedUsd   = (stocks ?? [])
     .reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
 
+  // ── P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal,
+  // ya vive en /inicio y /analisis) — Acciones la ignoraba por completo. Mismo
+  // criterio que inicio/page.tsx: "invertido este mes" = depósitos a la
+  // billetera USD del mes (kind='deposit'), en CLP — el aporte real desde el
+  // mundo CLP, no lo que ya compraste con saldo de meses anteriores.
+  const { data: profileRow } = await supabase
+    .from('profiles')
+    .select('monthly_invest_goal')
+    .eq('id', user.id)
+    .maybeSingle()
+  const monthlyInvestGoal = (profileRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
+  const [goalYear, goalMonth] = todayCL.split('-').map(Number)
+  const thisMonthStartStr = `${goalYear}-${String(goalMonth).padStart(2, '0')}-01`
+  const nextMonthStartStr = new Date(goalYear, goalMonth, 1).toISOString().slice(0, 10)
+  const investedThisMonthClp = (usdPurchases ?? [])
+    .filter(r => r.kind === 'deposit' && r.purchase_date >= thisMonthStartStr && r.purchase_date < nextMonthStartStr)
+    .reduce((s, r) => s + Number(r.total_paid_clp ?? 0), 0)
+
   const stockCount   = stocks?.length   ?? 0
   const savingCount  = savings?.length  ?? 0
   const depositCount = deposits?.length ?? 0
@@ -230,28 +250,39 @@ export default async function InversionesPage({ searchParams }: Props) {
     )
   }
 
-  // ── Informe semanal (S5) — solo se calcula si el usuario abre esa vista,
-  // para no cargarle una lectura de candles + earnings por ticker al resto de
-  // las pestañas de /inversiones que no lo necesitan. En vivo, siempre fresco
-  // (no lee el snapshot de weekly_reports que arma el cron para el correo —
-  // ver lib/weekly-report.ts, reusado acá y en app/api/cron/weekly-report).
-  let weeklyItems: WeeklyTickerData[] = []
-  let weeklySkipped: string[] = []
-  const weeklyGeneratedAt = new Date().toISOString()
-  if (isSemanal) {
-    const ownedTickers = new Set((stocks ?? []).map(s => s.ticker))
-    const tickers = [...new Set([...ownedTickers, ...(watchlist ?? []).map(w => w.ticker)])]
-    const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers)
-    weeklyItems   = items
-    weeklySkipped = skipped
-  }
+  // ── "Tu semana" (P3, roadmap largo plazo) — reemplaza la pestaña Semanal
+  // completa: esa vista duplicaba el Radar ticker por ticker con más jerga
+  // (Fibonacci, POC). Lo único que aportaba y que Acciones no tenía — vs. el
+  // mercado, la Fed en cotidiano, el calendario — cabe en una card chica.
+  // Contexto macro: cache 24h (barato), se calcula siempre; null en cada
+  // serie si falta FRED_API_KEY, la card se degrada sola sin romper el resto.
+  const macro = await fetchAllMacroSeries(supabase)
+  const dffObs   = macro.DFF?.observations ?? []
+  const cpiObs   = macro.CPIAUCSL?.observations ?? []
+  const dgs10Obs = macro.DGS10?.observations ?? []
+  const dgs2Obs  = macro.DGS2?.observations ?? []
+  const fedSentence  = dffObs.length > 0 ? fedRateSentence(dffObs) : null
+  const inflSentence = cpiObs.length > 0 ? inflationSentence(cpiObs) : null
+  const yieldCurveInverted = dgs10Obs.length > 0 && dgs2Obs.length > 0
+    ? computeYieldCurve(dgs10Obs[dgs10Obs.length - 1].value, dgs2Obs[dgs2Obs.length - 1].value).inverted
+    : false
 
-  // Contexto macro (S1): null en cada serie si falta FRED_API_KEY — WeeklyReport
-  // se degrada solo (la sección completa no se muestra) sin romper el resto.
-  let weeklyMacro: Partial<Record<MacroSeriesId, MacroSeriesData | null>> | null = null
-  if (isSemanal) {
-    weeklyMacro = await fetchAllMacroSeries(supabase)
+  // "Lo que viene": reunión de la Fed en ≤7 días + earnings de tickers en
+  // cartera en ≤5 días hábiles (mismo umbral que D3 ya usa para earnings) —
+  // ambos son avisos de "no es buen día para ejecutar compras", no solo trivia.
+  const upcoming: UpcomingEvent[] = []
+  const fomcDate = nextFomcMeeting(todayCL)
+  if (fomcDate) upcoming.push({ label: 'Decisión de tasas de la Fed', date: fomcDate })
+  const ownedTickersForEarnings = [...new Set((stocks ?? []).map(s => s.ticker))]
+  if (ownedTickersForEarnings.length > 0) {
+    const earningsResults = await Promise.all(ownedTickersForEarnings.map(t => fetchEarnings(supabase, t)))
+    for (const e of earningsResults) {
+      if (!e.nextDate) continue
+      const days = businessDaysUntil(e.nextDate, todayCL)
+      if (days !== null && days <= 5) upcoming.push({ label: `${e.symbol} reporta resultados`, date: e.nextDate })
+    }
   }
+  upcoming.sort((a, b) => a.date.localeCompare(b.date))
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
@@ -271,8 +302,6 @@ export default async function InversionesPage({ searchParams }: Props) {
             ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · a plazo`
             : isBilletera
             ? 'el fondo desde el que compras acciones'
-            : isSemanal
-            ? 'señales, niveles y calendario de tu watchlist'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
@@ -295,16 +324,6 @@ export default async function InversionesPage({ searchParams }: Props) {
         <TermDepositManager
           userId={user.id}
           initialDeposits={(deposits ?? []) as TermDeposit[]}
-        />
-      ) : isSemanal ? (
-        <WeeklyReport
-          items={weeklyItems}
-          spyBenchmark={spyBenchmark}
-          todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
-          todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
-          generatedAt={weeklyGeneratedAt}
-          skippedTickers={weeklySkipped}
-          macro={weeklyMacro}
         />
       ) : (
         <>
@@ -329,9 +348,20 @@ export default async function InversionesPage({ searchParams }: Props) {
             todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
             todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
             portfolioHistory={portfolioHistory}
+            monthlyInvestGoal={monthlyInvestGoal}
+            investedThisMonthClp={investedThisMonthClp}
           />
           <div className="mt-6">
             <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} purchases={(purchases ?? []) as StockPurchase[]} />
+          </div>
+          <div className="mt-4">
+            <WeekSnapshotCard
+              spyBenchmark={spyBenchmark}
+              fedSentence={fedSentence}
+              inflationSentence={inflSentence}
+              yieldCurveInverted={yieldCurveInverted}
+              upcoming={upcoming}
+            />
           </div>
         </>
       )}

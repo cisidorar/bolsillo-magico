@@ -15,6 +15,7 @@ import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip } from '@/components/RiskRail'
+import InfoTap from '@/components/InfoTap'
 import { relativeDate } from '@/lib/utils'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { useToast } from '@/components/ToastProvider'
@@ -186,7 +187,7 @@ type DetailSection = 'resumen' | 'plan' | 'chart' | 'signals' | 'history'
 
 export default function TechnicalDetail({
   a, ticker, name, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
-  onBuyMore, onSell,
+  onBuyMore, onSell, buyZoneAlert, onSetBuyZoneAlert,
 }: {
   a:         TechnicalAnalysis
   ticker:    string
@@ -207,6 +208,13 @@ export default function TechnicalDetail({
   /** U4 roadmap UX: el modal transaccional ahora se invoca desde acá, no al revés. */
   onBuyMore?: (ticker: string) => void
   onSell?:    (ticker: string) => void
+  /** P2 (roadmap largo plazo): precio objetivo YA guardado en la watchlist con
+   *  dirección 'below' — si coincide con `a.buyZone`, la alerta ya está puesta. */
+  buyZoneAlert?: { price: number; direction: 'above' | 'below' } | null
+  /** Guarda target_price = a.buyZone (dirección 'below') en la watchlist —
+   *  conecta el plan de compra con el aviso por correo que ya existe, en vez
+   *  de obligar a copiar el precio a mano al editor de objetivo. */
+  onSetBuyZoneAlert?: (ticker: string, price: number) => void
 }) {
   // U3 (roadmap UX): cabecera fija con score + acción + monto; el resto vive
   // en secciones colapsables — antes eran ~12 bloques apilados en un solo scroll.
@@ -541,7 +549,10 @@ export default function TechnicalDetail({
       {/* X2: escalera de precios — reemplaza las frases sueltas de costo,
           salida, techo/piso por un solo dibujo. */}
       <div className="rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>Dónde está el precio</p>
+        <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>
+          Dónde está el precio
+          <InfoTap explanation="Tu costo (si tienes la posición), la salida (el precio donde el plan dice vender — sube con el trailing si viene ganando, nunca baja) y el próximo techo, todos en una misma recta." />
+        </p>
         <PriceLadder points={ladderPoints} />
       </div>
 
@@ -656,6 +667,25 @@ export default function TechnicalDetail({
           <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--ink-3)' }}>Nada por ahora</p>
         )}
         <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
+        {/* P2 (roadmap largo plazo): comprar barato en tendencia ES esperar el
+            retroceso — antes había que copiar este precio a mano al editor de
+            objetivo, o entrar todos los días a mirar. Un toque conecta el
+            plan con el aviso por correo que ya existe. */}
+        {a.buyZone !== null && onSetBuyZoneAlert && (
+          buyZoneAlert && buyZoneAlert.direction === 'below' && Math.abs(buyZoneAlert.price - a.buyZone) < 0.01 ? (
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold mt-2" style={{ color: 'var(--primary)' }}>
+              <Target className="w-3 h-3 flex-shrink-0" /> Ya te avisamos por correo si llega a {fmtUSD(a.buyZone)}
+            </p>
+          ) : (
+            <button
+              onClick={() => onSetBuyZoneAlert(ticker, a.buyZone!)}
+              className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 hover:opacity-90"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+            >
+              <Target className="w-3 h-3" /> Avísame en la zona de compra ({fmtUSD(a.buyZone)})
+            </button>
+          )
+        )}
       </div>
       </>}
 
@@ -785,6 +815,7 @@ export default function TechnicalDetail({
                   ? <TrendingDown className="w-3 h-3" style={{ color: trendColor }} />
                   : <TrendingUp className="w-3 h-3" style={{ color: trendColor }} />}
                 Tendencia larga
+                <InfoTap explanation="Compara el precio contra su promedio de los últimos 200 días — la forma más simple de saber si viene subiendo o cayendo de fondo, sin que un mal día lo cambie." />
               </p>
               {a.trend.aboveSma200 !== null ? (
                 <>

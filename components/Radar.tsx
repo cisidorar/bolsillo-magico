@@ -17,12 +17,13 @@ import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
-import { ConvictionChip } from '@/components/RiskRail'
+import { ConvictionChip, PriceZoneChip } from '@/components/RiskRail'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
+import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import type { PortfolioPoint } from '@/lib/portfolio-history'
@@ -138,12 +139,18 @@ interface Props {
   /** W3 (roadmap de vista, fase 2): evolución del valor de la cartera —
    *  computado server-side con price_history + shares actuales. */
   portfolioHistory?: PortfolioPoint[]
+  /** P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal)
+   *  y lo ya depositado en la billetera USD este mes (CLP) — cierra el
+   *  círculo sueldo → meta → compra que antes solo vivía en /inicio. */
+  monthlyInvestGoal?:    number | null
+  investedThisMonthClp?: number
 }
 
 export default function Radar({
   userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
   todayDecision = null, todaySignals = [], portfolioHistory = [],
+  monthlyInvestGoal = null, investedThisMonthClp = 0,
 }: Props) {
   const supabase = createClient()
   const { showToast } = useToast()
@@ -597,6 +604,31 @@ export default function Radar({
     }
   }
 
+  /**
+   * P2 (roadmap largo plazo): conecta el plan de compra ("40% si baja a ~$X")
+   * con el aviso por correo que ya existe para precio objetivo — sin esto,
+   * comprar barato en tendencia obligaba a copiar el número a mano al editor
+   * de objetivo, o entrar todos los días a mirar. Si el ticker todavía no se
+   * sigue (posición sin "Seguir"), lo agrega a la watchlist con el objetivo
+   * ya puesto en el mismo paso.
+   */
+  async function setBuyZoneAlert(ticker: string, price: number) {
+    const rounded = Math.round(price * 100) / 100
+    const existing = items.find(i => i.ticker === ticker)
+    if (existing) {
+      await saveTarget(existing, rounded, 'below')
+      return
+    }
+    const { data, error } = await supabase
+      .from('watchlist')
+      .insert({ user_id: userId, ticker, target_price: rounded, target_direction: 'below' })
+      .select('id, ticker, target_price, target_direction')
+      .single()
+    if (error) return
+    setItems(prev => [...prev, data as WatchlistItem])
+    showToast(`Objetivo guardado: te avisamos si ${ticker} baja a ${fmtUSD(rounded)}`)
+  }
+
   // ── Fila: orden por atractivo real de compra (mismo criterio que el
   // ranking de arriba — commit 18cee34, jul 2026: convicción, no rating crudo) ──
   function buyRank(ticker: string): number {
@@ -1045,6 +1077,34 @@ export default function Radar({
                 )}
               </>
             )}
+            {/* P4 (roadmap largo plazo): cierra el círculo sueldo → meta →
+                compra — antes la meta mensual de aporte (profiles.monthly_invest_goal)
+                vivía solo en /inicio y /analisis, Acciones la ignoraba. */}
+            {monthlyInvestGoal !== null && monthlyInvestGoal > 0 && (
+              <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between mb-1 gap-2">
+                  <p className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>Meta de aporte de este mes</p>
+                  <p className="text-[11px] font-bold tabular-nums text-right" style={{ color: 'var(--ink-2)' }}>
+                    {formatCLP(investedThisMonthClp)} de {formatCLP(monthlyInvestGoal)}
+                  </p>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                  <div className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (investedThisMonthClp / monthlyInvestGoal) * 100)}%`,
+                      background: investedThisMonthClp >= monthlyInvestGoal ? 'var(--mint)' : 'var(--primary)',
+                    }} />
+                </div>
+                {/* La paciencia es parte del método, no un fallo: si no hay
+                    nada Conveniente/accionable hoy, decirlo sin culpa en vez
+                    de presionar a forzar una compra solo por cumplir la meta. */}
+                {allLoaded && bestActionable === null && investedThisMonthClp < monthlyInvestGoal && (
+                  <p className="text-[11px] leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>
+                    Este mes no hay precio conveniente en tu radar — la meta puede esperar en la billetera, sin apuro por forzar una compra.
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-[9px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
               Score de convicción: técnico + riesgo/recompensa + fuerza vs. el mercado (SPY). No es garantía —
               es la mejor lectura con lo que hay hoy.
@@ -1278,6 +1338,7 @@ export default function Radar({
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{ticker}</p>
                     {c ? <ConvictionChip score={c.score} tier={c.tier} />
                       : <span className="inline-block w-6 h-3.5 rounded-full animate-pulse" style={{ background: 'var(--surface-2)' }} />}
+                    {typeof a === 'object' && a.priceZone && <PriceZoneChip zone={a.priceZone} />}
                     {flag === 'caution' && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                         style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.color }}>
@@ -1538,6 +1599,7 @@ export default function Radar({
                           antes solo vivía adentro del cuerpo, se perdía al
                           scrollear. */}
                       {c && <ConvictionChip score={c.score} tier={c.tier} />}
+                      {typeof a === 'object' && a.priceZone && <PriceZoneChip zone={a.priceZone} />}
                     </div>
                     {q?.name && (
                       <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
@@ -1636,7 +1698,15 @@ export default function Radar({
                           </button>
                         </>
                       ) : (
-                        <button onClick={() => setTargetInput('')}
+                        <button onClick={() => {
+                          // P2 (roadmap largo plazo): pre-llenar con la zona de
+                          // compra sugerida (editable) en vez de un campo vacío
+                          // — el número ya lo calculó el motor, no hay por qué
+                          // hacer que Cas lo vaya a copiar del plan de compra.
+                          const suggested = !isOwned && typeof a === 'object' ? a.buyZone : null
+                          setTargetInput(suggested !== null ? String(suggested) : '')
+                          if (suggested !== null) setTargetDirOverride('below')
+                        }}
                           className="flex-1 text-left text-xs font-semibold transition-opacity hover:opacity-75"
                           style={{ color: 'var(--ink-3)' }}>
                           Definir precio objetivo de {isOwned ? 'salida' : 'entrada'} — te avisamos por correo cuando llegue
@@ -1700,6 +1770,8 @@ export default function Radar({
                     spyReturn6m={spyReturn6m}
                     onBuyMore={isOwned ? (t) => setTxn({ mode: 'buyMore', ticker: t, prefillUsd: suggestedUsdFor(t) ?? undefined }) : undefined}
                     onSell={isOwned ? (t) => setTxn({ mode: 'sell', ticker: t }) : undefined}
+                    buyZoneAlert={item && item.target_price !== null ? { price: item.target_price, direction: item.target_direction ?? 'below' } : null}
+                    onSetBuyZoneAlert={setBuyZoneAlert}
                   />
                 )}
               </div>

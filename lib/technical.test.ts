@@ -153,6 +153,14 @@ describe('uptrend sano', () => {
       expect(a.buy.reduce((s, t) => s + t.pct, 0)).toBe(100)
     }
   })
+
+  it('P1: con tendencia a favor siempre hay semáforo de precio', () => {
+    expect(['conveniente', 'justo', 'caro']).toContain(a.priceZone)
+  })
+
+  it('P2: la zona de compra, si existe, queda siempre bajo el precio actual', () => {
+    if (a.buyZone !== null) expect(a.buyZone).toBeLessThan(a.price)
+  })
 })
 
 // ── Escenario 2: euforia (caso SNDK +145% sobre SMA200) ──────────────────────
@@ -183,6 +191,10 @@ describe('euforia parabólica', () => {
 
   it('la euforia castiga el score de tendencia (−2)', () => {
     expect(a.rating.trendScore).toBeLessThanOrEqual(0)
+  })
+
+  it('P1: euforia se lee "Caro" — nunca "Conveniente"', () => {
+    expect(a.priceZone).toBe('caro')
   })
 })
 
@@ -220,6 +232,10 @@ describe('tendencia bajista', () => {
     // "No compres" / "Vende" al frente, no "ten en cuenta que" o "es posible que"
     expect(a.entryPlan).toMatch(/^No compres/)
     expect(a.sellPlan).toMatch(/^Vende/)
+  })
+
+  it('P1: sin tendencia a favor no hay semáforo de precio ("barata" no es lo mismo que "conveniente")', () => {
+    expect(a.priceZone).toBeNull()
   })
 })
 

@@ -49,6 +49,12 @@ export interface ChartPoint {
 /** Lectura técnica agregada — regla automática y explícita, NO asesoría financiera. */
 export type RatingLabel = 'compra_fuerte' | 'compra' | 'neutral' | 'venta' | 'venta_fuerte'
 
+/** P1 (roadmap largo plazo, jul 2026): "¿es buen precio hoy?" en una palabra —
+ *  deriva de los mismos flags que ya arman entryPlan/buy (onSupport, stretched,
+ *  inMax), no un indicador nuevo. Solo con tendencia a favor: no hay "precio
+ *  conveniente" de algo que cae (ahí no hay chip — ver `analyze()`). */
+export type PriceZone = 'conveniente' | 'justo' | 'caro'
+
 export interface TechnicalRating {
   label: RatingLabel
   action: string          // etiqueta legible: "Compra fuerte", "Venta", etc.
@@ -86,6 +92,8 @@ export interface TechnicalAnalysis {
   sell:         SellTranche[]          // plan de salida por tramos si tienes la posición
   sellPlan:     string                 // el porqué del plan de salida, en una frase
   alarm:        number | null          // precio de alarma de salida (estructurado, para mostrar distancia)
+  priceZone:    PriceZone | null       // P1: "¿es buen precio hoy?" en una palabra — null si la tendencia no está a favor
+  buyZone:      number | null          // P2: precio de la zona de retroceso razonable (mismo que arma buy[]/entryPlan), para fijar una alerta sin parsear texto
   rating:       TechnicalRating
   // Tendencia de fondo
   trend: {
@@ -892,6 +900,13 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     return cands.length > 0 ? Math.max(...cands) : null
   })()
 
+  // ── P1 (roadmap largo plazo): semáforo de precio — mismos flags de arriba,
+  // sin recalcular nada. 'conveniente' = está en la zona de un piso probado;
+  // 'caro' = estirada o en máximos; 'justo' = ni una cosa ni la otra.
+  const priceZone: PriceZone | null = aboveSma200 === true
+    ? (onSupport ? 'conveniente' : (stretched || inMax) ? 'caro' : 'justo')
+    : null
+
   let entryPlan: string
   if (aboveSma200 === false) {
     entryPlan = 'No compres. Sin base mientras siga bajo su promedio largo: espera un cruce alcista de MACD o una divergencia alcista antes de considerar entrar — hasta entonces, fuera del radar de compra.'
@@ -1052,7 +1067,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, entryPlan, buy, sell, sellPlan, alarm, rating,
+    price, asOf, verdict, entryPlan, buy, sell, sellPlan, alarm, priceZone, buyZone: pullbackRef, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, atr14, atrPct, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,
