@@ -11,6 +11,8 @@ import BudgetPeriodSelect from '@/components/BudgetPeriodSelect'
 import NotificationPrefs from '@/components/NotificationPrefs'
 import ImportCSV from '@/components/ImportCSV'
 import ExportForm from '@/components/ExportForm'
+import { summarizeNotificationStatus } from '@/lib/notification-status'
+import { getNowChile } from '@/lib/utils'
 import {
   ChevronRight, Tag, CreditCard, Target, Wallet, TrendingUp, RefreshCw,
   Palette, Sparkles, Bell, Coins, Database, Download,
@@ -47,11 +49,30 @@ export default async function AjustesPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: categories }, { data: paymentMethods }] = await Promise.all([
+  const { year, month } = getNowChile()
+  const monthStr = `${year}-${String(month).padStart(2, '0')}`
+
+  const [{ data: profile }, { data: categories }, { data: paymentMethods }, { data: notifLogs }, { data: monthBudget }, { data: monthExpenses }] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
+    // E1: monitor de avisos — últimos 6 meses alcanzan para ver el último envío de cada tipo
+    supabase.from('notification_log').select('type, sent_at').eq('user_id', user.id)
+      .gte('sent_at', new Date(Date.now() - 180 * 86_400_000).toISOString()),
+    supabase.from('budgets').select('amount').eq('user_id', user.id).eq('month', month).eq('year', year).maybeSingle(),
+    supabase.from('expenses').select('amount').eq('user_id', user.id)
+      .gte('date', `${monthStr}-01`).lte('date', `${monthStr}-31`),
   ])
+
+  const budgetPct = monthBudget?.amount
+    ? Math.round((((monthExpenses ?? []).reduce((s, e) => s + e.amount, 0)) / monthBudget.amount) * 100)
+    : null
+  const notifStatus = summarizeNotificationStatus({
+    logs: notifLogs ?? [],
+    monthStr,
+    budgetPct,
+    budgetThreshold: profile?.budget_alert_pct ?? 80,
+  })
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-10">
@@ -121,6 +142,7 @@ export default async function AjustesPage() {
               notifyRecurring={profile?.notify_recurring ?? true}
               budgetAlertPct={profile?.budget_alert_pct ?? 80}
               billingAlertDays={profile?.billing_alert_days ?? 2}
+              status={notifStatus}
             />
           </section>
 

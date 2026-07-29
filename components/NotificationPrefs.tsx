@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, CreditCard, Target, RefreshCw } from 'lucide-react'
+import { Bell, CreditCard, Target, RefreshCw, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import type { NotificationStatusSummary } from '@/lib/notification-status'
 
 interface Props {
   userId: string
@@ -12,6 +13,19 @@ interface Props {
   notifyRecurring: boolean
   budgetAlertPct:  number   // umbral de la primera alerta (50–95)
   billingAlertDays: number  // días de anticipación del aviso de cierre (1–7)
+  /** E1: último envío real de cada canal, para notar si un aviso quedó silenciosamente roto. */
+  status?: NotificationStatusSummary
+}
+
+// "hace 3 días", "hoy", "nunca" — sin librería de fechas, alcance chico.
+function relativeSince(iso: string | null): string {
+  if (!iso) return 'nunca'
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  if (days < 30) return `hace ${days} días`
+  const months = Math.floor(days / 30)
+  return `hace ${months} mes${months !== 1 ? 'es' : ''}`
 }
 
 const PCT_OPTIONS  = [60, 70, 80, 90]
@@ -19,6 +33,7 @@ const DAYS_OPTIONS = [1, 2, 3, 5]
 
 interface ToggleItem {
   key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring'
+  statusKey: 'billing' | 'budget' | 'monthly' | 'recurring'
   dbCol: string
   icon: React.ReactNode
   title: string
@@ -33,6 +48,7 @@ export default function NotificationPrefs({
   notifyRecurring: initRecurring,
   budgetAlertPct:  initPct,
   billingAlertDays: initDays,
+  status,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -74,6 +90,7 @@ export default function NotificationPrefs({
   const items: ToggleItem[] = [
     {
       key:      'notifyBilling',
+      statusKey: 'billing',
       dbCol:    'notify_billing',
       icon:     <CreditCard className="w-5 h-5" style={{ color: '#7C3AED' }} />,
       title:    'Cierre de tarjeta',
@@ -81,6 +98,7 @@ export default function NotificationPrefs({
     },
     {
       key:      'notifyBudget',
+      statusKey: 'budget',
       dbCol:    'notify_budget',
       icon:     <Target className="w-5 h-5" style={{ color: '#EA580C' }} />,
       title:    'Alertas de presupuesto',
@@ -88,6 +106,7 @@ export default function NotificationPrefs({
     },
     {
       key:      'notifyMonthly',
+      statusKey: 'monthly',
       dbCol:    'notify_monthly',
       icon:     <Bell className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Resumen mensual',
@@ -95,6 +114,7 @@ export default function NotificationPrefs({
     },
     {
       key:      'notifyRecurring',
+      statusKey: 'recurring',
       dbCol:    'notify_recurring',
       icon:     <RefreshCw className="w-5 h-5" style={{ color: '#059669' }} />,
       title:    'Gastos recurrentes',
@@ -122,6 +142,22 @@ export default function NotificationPrefs({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
             <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{item.subtitle}</p>
+            {state[item.key] && status && (
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <span className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>
+                  Último aviso: {relativeSince(status[item.statusKey].lastSentAt)}
+                </span>
+                {status[item.statusKey].lagging && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--gold, #B45309)' }}
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    revisa si te llegó
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Toggle */}
