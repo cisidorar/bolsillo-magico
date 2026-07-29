@@ -202,10 +202,10 @@ Deno.serve(async (req: Request) => {
     // - due: una vez por día por usuario
     // - overdue: una vez por MES por usuario (así captura pagos atrasados aunque el cron
     //   haya fallado días anteriores — la clave cambia en cuanto empieza el nuevo mes)
+    const refKey = type === 'due'
+      ? `${targetDate}:recurring-due:${userId}`
+      : `${monthStr}:recurring-overdue:${userId}`
     if (!force) {
-      const refKey = type === 'due'
-        ? `${targetDate}:recurring-due:${userId}`
-        : `${monthStr}:recurring-overdue:${userId}`
       const { error: logErr } = await supabase
         .from('notification_log')
         .insert({ user_id: userId, type: `recurring_${type}`, ref_key: refKey })
@@ -239,7 +239,12 @@ Deno.serve(async (req: Request) => {
     })
 
     if (res.ok) sent++
-    else console.error(`Resend error for ${email}:`, await res.text())
+    else {
+      // Ver notify-budget: si el envío falla hay que borrar el log recién
+      // insertado, si no ref_key queda "quemado" y bloquea reintentos.
+      console.error(`Resend error for ${email}:`, await res.text())
+      if (!force) await supabase.from('notification_log').delete().eq('ref_key', refKey)
+    }
   }
 
   return new Response(JSON.stringify({ type, sent, skipped }), {

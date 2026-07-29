@@ -420,7 +420,12 @@ Deno.serve(async (req: Request) => {
     })
 
     if (res.ok) sent++
-    else console.error(`Resend error for ${email}:`, await res.text())
+    else {
+      // Ver notify-budget: si el envío falla hay que borrar el log recién
+      // insertado, si no ref_key queda "quemado" y bloquea reintentos.
+      console.error(`Resend error for ${email}:`, await res.text())
+      await supabase.from('notification_log').delete().eq('ref_key', refKey)
+    }
   }
 
   return new Response(JSON.stringify({ sent, users: rows.length, skipped }), {

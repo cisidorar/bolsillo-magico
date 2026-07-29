@@ -143,7 +143,16 @@ Deno.serve(async (req: Request) => {
     })
 
     if (res.ok) sent++
-    else console.error(`Resend error for ${email}:`, await res.text())
+    else {
+      // El insert de notification_log ya se hizo arriba (para el chequeo de
+      // duplicados) — si el envío falla, hay que borrar esa fila. Si no,
+      // ref_key queda "quemado" y todos los reintentos futuros de este mes
+      // se saltan silenciosamente (skipped) aunque el correo nunca haya
+      // llegado. Nos pasó con notify-budget: usuario llegó al 91% sin haber
+      // recibido nunca el aviso de 80% porque el primer intento falló.
+      console.error(`Resend error for ${email}:`, await res.text())
+      await supabase.from('notification_log').delete().eq('ref_key', refKey)
+    }
   }
 
   return new Response(JSON.stringify({ sent, skipped }), {

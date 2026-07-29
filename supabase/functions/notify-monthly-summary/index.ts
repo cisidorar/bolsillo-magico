@@ -185,8 +185,8 @@ Deno.serve(async (req: Request) => {
     if (!email) { skipped++; continue }
 
     // Idempotencia: una por mes (omitir en modo force/test)
+    const refKey = `${monthStr}:monthly:${profile.id}`
     if (!force) {
-      const refKey = `${monthStr}:monthly:${profile.id}`
       const { error: logErr } = await supabase
         .from('notification_log')
         .insert({ user_id: profile.id, type: 'monthly', ref_key: refKey })
@@ -284,7 +284,12 @@ Deno.serve(async (req: Request) => {
     })
 
     if (res.ok) sent++
-    else console.error(`Resend error for ${email}:`, await res.text())
+    else {
+      // Ver notify-budget: si el envío falla hay que borrar el log recién
+      // insertado, si no ref_key queda "quemado" y bloquea reintentos.
+      console.error(`Resend error for ${email}:`, await res.text())
+      if (!force) await supabase.from('notification_log').delete().eq('ref_key', refKey)
+    }
   }
 
   return new Response(JSON.stringify({ sent, skipped }), {
