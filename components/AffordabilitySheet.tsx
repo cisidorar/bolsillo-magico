@@ -111,11 +111,11 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
       const inc = incomeRow?.amount ?? null
       setIncome(inc)
 
-      // Compromiso del próximo mes (sin esta compra) — mismo cálculo que
       // Estados de cuenta con vencimiento conocido — se calculan una vez y
-      // alimentan tanto el flujo de caja como el compromiso del próximo mes
-      // (mismo criterio que /recurrentes: sin esto, "compromiso" quedaba
-      // artificialmente bajo frente al vencimiento real de tarjeta).
+      // alimentan el flujo de caja (más abajo). NO se suman al compromiso
+      // del próximo mes: el monto de tarjeta cambia cada mes según lo que se
+      // gaste, no es "comprometido" de antemano como una cuota o un fijo —
+      // ver misma decisión en /recurrentes (buildCommittedTimeline).
       const cardStatements = ((pms ?? []) as PaymentMethod[])
         .filter(c => c.card_type === 'credit' && c.billing_day && c.payment_due_day)
         .map(card => {
@@ -131,12 +131,13 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
           return { label: card.name, amount: total, dueDate }
         })
 
+      // Compromiso del próximo mes (sin esta compra) — mismo cálculo que
       // CommittedTimeline en /recurrentes.
       const committedItems: CommittedTimelineItem[] = ((recurring ?? []) as RecurringRow[]).map(r => ({
         name: r.name, amount: r.amount, billing_month: r.billing_month,
         totalInstallments: r.total_installments, paidInstallments: r.paid_installments ?? 0, isActive: r.is_active,
       }))
-      const committedMonths = buildCommittedTimeline(committedItems, month, year, 12, cardStatements)
+      const committedMonths = buildCommittedTimeline(committedItems, month, year)
       setMonthlyCommitted(committedMonths[0]?.total ?? 0)
 
       // Flujo de caja 30 días (recurrentes + sueldo + estados de cuenta con

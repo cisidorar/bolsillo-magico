@@ -235,7 +235,11 @@ export default async function RecurrentesPage({
   const cashFlowTimelineFull = buildCashFlowTimeline(cashFlowEvents, dateStr)
   const cashFlowTimeline     = withinWindow(cashFlowTimelineFull, 30)
 
-  // ── E2 — Línea de tiempo de compromiso (próximos 12 meses) ───────────────
+  // ── E2 — Línea de tiempo de compromiso (próximos 6 meses) ────────────────
+  // Sin estados de cuenta de tarjeta a propósito: el monto de la tarjeta
+  // cambia cada mes según lo que se gaste, así que no es algo "comprometido"
+  // de antemano como una cuota o un fijo — mezclarlo distorsionaba la
+  // proyección. Ese vencimiento puntual ya vive en Flujo de caja 30 días.
   const committedItems = activeItems.map(r => ({
     name: r.name,
     amount: r.amount,
@@ -244,8 +248,7 @@ export default async function RecurrentesPage({
     paidInstallments: r.paid_installments ?? 0,
     isActive: r.is_active,
   }))
-  const committedStatements = cardStatements.map(st => ({ label: st.label, amount: st.amount, dueDate: st.dueDate }))
-  const committedMonths = buildCommittedTimeline(committedItems, month, year, 6, committedStatements)
+  const committedMonths = buildCommittedTimeline(committedItems, month, year, 6)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
