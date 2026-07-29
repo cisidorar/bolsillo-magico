@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Wallet, CreditCard, RefreshCw, AlertTriangle, Info } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
+import InfoTap from './InfoTap'
 import type { CashFlowEventWithBalance } from '@/lib/cash-flow'
 
 interface Props {
@@ -32,6 +33,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
+          <InfoTap explanation="Este saldo NO es tu cuenta bancaria real — parte de $0 hoy y solo suma/resta lo que sabes que va a entrar y salir. Si un evento cae en negativo, es que ese cargo llegaría antes que el ingreso que lo cubre, aunque hoy tengas plata guardada." />
           {hasRisk && muteRiskBanner && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
               Riesgo de saldo negativo

@@ -10,6 +10,7 @@ import {
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
 import { buildCommittedTimeline, type CommittedTimelineItem } from '@/lib/committed-timeline'
 import { evaluateAffordability, type Verdict } from '@/lib/affordability'
+import InfoTap from './InfoTap'
 import type { PaymentMethod } from '@/types'
 
 interface Props {
@@ -304,6 +305,15 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
                     ) : (
                       <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
                         Tienes margen de sobra en presupuesto y flujo de caja este mes.
+                      </p>
+                    )}
+                    {result.reasons.some(r => r.text.includes('flujo de 30 días')) && (
+                      <p className="text-[11px] mt-2.5 pt-2.5 flex items-start gap-1.5" style={{ color: 'var(--ink-3)', borderTop: `1px solid ${copy.border}` }}>
+                        <InfoTap
+                          explanation="El flujo de 30 días NO es tu cuenta bancaria real — parte de $0 hoy y solo suma/resta lo que sabes que va a entrar y salir. Si queda negativo es que ese cargo caería antes que el ingreso que lo cubre, aunque hoy tengas plata guardada."
+                          color="var(--ink-3)"
+                        />
+                        Sobre el flujo de 30 días
                       </p>
                     )}
                   </div>
