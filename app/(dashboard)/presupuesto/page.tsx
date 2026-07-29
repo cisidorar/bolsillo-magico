@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import CategoryBudgetManager from '@/components/CategoryBudgetManager'
 import MonthlyBudgetInput from '@/components/MonthlyBudgetInput'
 import SavingsGoalHelper from '@/components/SavingsGoalHelper'
+import SavingsGoalsManager from '@/components/SavingsGoalsManager'
 import { formatCLP, billingPeriod, billingPeriodRange, getNowChile, monthName } from '@/lib/utils'
 import { PiggyBank, Target, RefreshCw } from 'lucide-react'
 import type { CategoryBudget } from '@/types'
@@ -58,7 +59,7 @@ export default async function PresupuestoPage() {
   // Ventana de 6 meses para el ingreso promedio (P4: presupuesto derivado de meta de ahorro)
   const incomeWindowStart = new Date(year, month - 1 - 6, 1)
 
-  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }, { data: recentIncomes }] = await Promise.all([
+  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }, { data: recentIncomes }, { data: savingsGoals }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
@@ -81,6 +82,8 @@ export default async function PresupuestoPage() {
       .select('amount, month, year')
       .eq('user_id', user.id)
       .gte('year', incomeWindowStart.getFullYear()),
+    // E3: metas de ahorro con nombre y fecha
+    supabase.from('savings_goals').select('*').eq('user_id', user.id).eq('is_active', true).order('created_at'),
   ])
 
   // Mapa de gasto por categoría del período anterior
@@ -169,6 +172,9 @@ export default async function PresupuestoPage() {
         currentAmount={defaultBudgetAmount}
         monthLabel={monthLabelCap}
       />
+
+      {/* E3: metas de ahorro con nombre y fecha */}
+      <SavingsGoalsManager userId={user.id} goals={savingsGoals ?? []} />
 
       {/* P4: calculadora "pay yourself first" — deriva el límite de una meta de ahorro */}
       <SavingsGoalHelper
