@@ -88,13 +88,19 @@ export function evaluateAffordability(input: AffordabilityInput): AffordabilityR
     }
   }
 
-  // 2) Flujo de caja 30 días
+  // 2) Flujo de caja 30 días — riesgo de TIMING (un cargo cae antes que el
+  // ingreso que lo cubre), no de solvencia: parte de $0 hoy, no es tu saldo
+  // real. Por eso nunca pasa de gold por sí solo, aunque quede negativo —
+  // subirlo a coral bloqueaba compras perfectamente pagables (ver #3) solo
+  // porque un cargo puntual cae unos días antes del sueldo. El chequeo #3
+  // (disponible tras meta de ahorro) es el que de verdad determina si esto
+  // se puede pagar; este es un aviso de "ojo con la fecha", no un veto.
   if (input.cashFlowMin !== null) {
     const projectedMin = input.cashFlowMin - immediateImpact
     const dateSuffix = input.cashFlowMinLabel ? ` el ${input.cashFlowMinLabel}` : ''
     if (projectedMin < 0) {
-      bump('coral')
-      reasons.push({ severity: 'coral', text: `Tu flujo de 30 días queda en negativo (${formatCLP(projectedMin)})${dateSuffix}` })
+      bump('gold')
+      reasons.push({ severity: 'gold', text: `Tu flujo de 30 días queda en negativo (${formatCLP(projectedMin)})${dateSuffix} — revisa que tengas colchón esos días` })
     } else if (projectedMin < CASH_FLOW_TIGHT_THRESHOLD) {
       bump('gold')
       reasons.push({ severity: 'gold', text: `Tu flujo de 30 días queda justo en ${formatCLP(projectedMin)}${dateSuffix}` })

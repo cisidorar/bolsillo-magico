@@ -35,10 +35,10 @@ describe('evaluateAffordability', () => {
     expect(r.reasons.some(x => x.severity === 'gold')).toBe(true)
   })
 
-  it('verdict "no" cuando el flujo de 30 días queda negativo — coral', () => {
+  it('verdict "tight" cuando el flujo de 30 días queda negativo — gold, no bloquea (riesgo de timing, no de solvencia)', () => {
     const r = evaluateAffordability(base({ amount: 50000, cashFlowMin: 30000 }))
-    expect(r.verdict).toBe('no')
-    expect(r.reasons.some(x => x.text.includes('negativo'))).toBe(true)
+    expect(r.verdict).toBe('tight')
+    expect(r.reasons.find(x => x.text.includes('negativo'))?.severity).toBe('gold')
   })
 
   it('verdict "tight" cuando el flujo de 30 días queda justo pero no negativo — gold', () => {
