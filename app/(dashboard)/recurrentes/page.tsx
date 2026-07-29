@@ -2,6 +2,8 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile, nextPaydayDate, lastClosedStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
+import { buildCommittedTimeline } from '@/lib/committed-timeline'
+import CommittedTimeline from '@/components/CommittedTimeline'
 import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
@@ -223,6 +225,17 @@ export default async function RecurrentesPage({
   const cashFlowTimelineFull = buildCashFlowTimeline(cashFlowEvents, dateStr)
   const cashFlowTimeline     = withinWindow(cashFlowTimelineFull, 30)
 
+  // ── E2 — Línea de tiempo de compromiso (próximos 12 meses) ───────────────
+  const committedItems = activeItems.map(r => ({
+    name: r.name,
+    amount: r.amount,
+    billing_month: r.billing_month,
+    totalInstallments: r.total_installments,
+    paidInstallments: r.paid_installments ?? 0,
+    isActive: r.is_active,
+  }))
+  const committedMonths = buildCommittedTimeline(committedItems, month, year)
+
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
 
@@ -289,6 +302,7 @@ export default async function RecurrentesPage({
 
         {/* Calendario + Flujo de caja */}
         <div className={(!isCalendar ? 'hidden lg:block' : 'block') + ' space-y-5'}>
+          <CommittedTimeline months={committedMonths} income={sueldoEstimado} />
           <FlujoCaja30d
             events={cashFlowTimeline}
             hasPayday={hasPayday}
