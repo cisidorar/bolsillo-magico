@@ -70,6 +70,7 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
   const [cashFlowMinLabel, setCashFlowMinLabel] = useState<string | null>(null)
   const [income, setIncome] = useState<number | null>(null)
   const [monthlyCommitted, setMonthlyCommitted] = useState(0)
+  const [monthlyInvestGoal, setMonthlyInvestGoal] = useState<number | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
           .eq('is_active', true),
         supabase.from('payment_methods').select('*').order('sort_order'),
         supabase.from('incomes').select('amount').order('year', { ascending: false }).order('month', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('profiles').select('payday, payday_last_business_day').maybeSingle(),
+        supabase.from('profiles').select('payday, payday_last_business_day, monthly_invest_goal').maybeSingle(),
         supabase.from('expenses').select('amount, date, payment_method_id').gte('date', twoMonthsAgo).lte('date', now.toISOString().split('T')[0]),
       ])
 
@@ -111,6 +112,7 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
 
       const inc = incomeRow?.amount ?? null
       setIncome(inc)
+      setMonthlyInvestGoal(profileRow?.monthly_invest_goal ?? null)
 
       // Estados de cuenta con vencimiento conocido — se calculan una vez y
       // alimentan el flujo de caja (más abajo). NO se suman al compromiso
@@ -192,9 +194,9 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
     return evaluateAffordability({
       amount: amountNum,
       installments: isCredit ? installments : 1,
-      budgetRemaining, cashFlowMin, cashFlowMinLabel, income, monthlyCommitted, releaseLabel,
+      budgetRemaining, cashFlowMin, cashFlowMinLabel, income, monthlyCommitted, monthlyInvestGoal, releaseLabel,
     })
-  }, [amountNum, installments, isCredit, budgetRemaining, cashFlowMin, cashFlowMinLabel, income, monthlyCommitted, releaseLabel])
+  }, [amountNum, installments, isCredit, budgetRemaining, cashFlowMin, cashFlowMinLabel, income, monthlyCommitted, monthlyInvestGoal, releaseLabel])
 
   function reset() {
     setAmount(''); setInstallments(1)
@@ -324,7 +326,7 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
                 <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                   <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--ink-3)' }} />
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-                    Ingresa el monto para ver el impacto en tu presupuesto, tu flujo de caja de 30 días y — si eliges cuotas — tu compromiso futuro.
+                    Ingresa el monto para ver el impacto en tu presupuesto, tu flujo de caja de 30 días y lo que te queda disponible tras tu meta de ahorro.
                   </p>
                 </div>
               )}

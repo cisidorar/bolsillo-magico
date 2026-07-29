@@ -30,10 +30,15 @@ export interface AffordabilityInput {
   cashFlowMin: number | null
   /** Fecha (ya formateada para mostrar, ej. "14 de agosto") de ese punto mínimo. */
   cashFlowMinLabel: string | null
-  /** Ingreso de referencia (último registrado), para el % de compromiso. null = sin ingreso registrado. */
+  /** Ingreso de referencia (último registrado). null = sin ingreso registrado. */
   income: number | null
   /** Compromiso fijo YA existente para el próximo mes (sin esta compra) — CommittedMonth[0].total. */
   monthlyCommitted: number
+  /** Meta mensual de ahorro/aporte (profiles.monthly_invest_goal) — lo que el
+   *  usuario ya planea apartar ANTES de gastar. null o 0 = sin meta definida
+   *  (no resta nada; el chequeo de disponible sigue corriendo, solo que sin
+   *  reservar ahorro). */
+  monthlyInvestGoal: number | null
   /** Mes en que termina de pagarse esta compra en cuotas (ya formateado, ej. "marzo"). null si installments ≤ 1. */
   releaseLabel: string | null
 }
@@ -49,8 +54,6 @@ export interface AffordabilityResult {
 // Saldo proyectado por debajo de este monto ya se siente "justo", aunque no
 // llegue a negativo — evita el falso "sí" cuando el margen es de $3.000.
 const CASH_FLOW_TIGHT_THRESHOLD = 20_000
-// % de ingreso comprometido a partir del cual sumar una cuota más ya pesa.
-const COMMIT_TIGHT_PCT = 40
 const BUDGET_TIGHT_PCT = 70
 
 export function evaluateAffordability(input: AffordabilityInput): AffordabilityResult {
@@ -98,20 +101,33 @@ export function evaluateAffordability(input: AffordabilityInput): AffordabilityR
     }
   }
 
-  // 3) Compromiso futuro — solo aplica si hay cuotas
-  if (installments > 1) {
-    const newMonthlyCommitted = input.monthlyCommitted + immediateImpact
-    const commitPct = input.income && input.income > 0
-      ? Math.round((newMonthlyCommitted / input.income) * 100)
-      : null
-    const tight = commitPct !== null && commitPct >= COMMIT_TIGHT_PCT
-    if (tight) bump('gold')
-    reasons.push({
-      severity: tight ? 'gold' : 'mint',
-      text: input.releaseLabel
-        ? `Suma ${formatCLP(immediateImpact)}/mes de compromiso hasta ${input.releaseLabel}`
-        : `Suma ${formatCLP(immediateImpact)}/mes de compromiso`,
-    })
+  // 3) Disponible tras tu meta de ahorro — el chequeo más realista: no
+  // cuánto presupuesto de categorías queda, sino si esto compromete la plata
+  // que ya planeabas ahorrar. income − meta de ahorro − fijos YA
+  // comprometidos (sin esta compra) = lo que de verdad sobra para vivir y
+  // para compras como esta ("pay yourself first", mismo principio que
+  // SavingsGoalHelper en /presupuesto).
+  if (input.income !== null) {
+    const disposable = input.income - (input.monthlyInvestGoal ?? 0) - input.monthlyCommitted
+    const remaining  = disposable - immediateImpact
+    const goalSuffix  = input.monthlyInvestGoal ? ` (después de ahorrar ${formatCLP(input.monthlyInvestGoal)}/mes)` : ''
+    const untilSuffix = installments > 1 && input.releaseLabel ? ` hasta ${input.releaseLabel}` : ''
+
+    if (remaining < 0) {
+      bump('coral')
+      reasons.push({
+        severity: 'coral',
+        text: `Se pasa por ${formatCLP(Math.abs(remaining))} de lo que te queda disponible${goalSuffix}${untilSuffix}`,
+      })
+    } else if (installments > 1) {
+      // De contado y le alcanza: no hace falta confirmarlo con una razón
+      // aparte (ya lo dice el veredicto). En cuotas sí vale mostrar la
+      // aritmética, porque es información nueva sobre varios meses.
+      reasons.push({
+        severity: 'mint',
+        text: `Cabe en tu disponible${goalSuffix} — suma ${formatCLP(immediateImpact)}/mes${untilSuffix}`,
+      })
+    }
   }
 
   const verdict: Verdict = worstRank === RANK.coral ? 'no' : worstRank === RANK.gold ? 'tight' : 'yes'

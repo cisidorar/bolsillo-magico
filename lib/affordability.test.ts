@@ -9,6 +9,7 @@ const base = (over: Partial<AffordabilityInput> = {}): AffordabilityInput => ({
   cashFlowMinLabel: '14 de agosto',
   income: 800000,
   monthlyCommitted: 100000,
+  monthlyInvestGoal: null,
   releaseLabel: null,
   ...over,
 })
@@ -52,34 +53,56 @@ describe('evaluateAffordability', () => {
     expect(r.verdict).toBe('yes')
   })
 
-  it('cuotas: agrega razón de compromiso mensual con el mes de término', () => {
+  it('cuotas: agrega razón de disponible con el mes de término', () => {
     const r = evaluateAffordability(base({
       amount: 300000, installments: 6, releaseLabel: 'marzo',
       budgetRemaining: 200000, cashFlowMin: 150000,
     }))
     expect(r.immediateImpact).toBe(50000)  // 300000/6
-    const commitReason = r.reasons.find(x => x.text.includes('compromiso'))
-    expect(commitReason?.text).toContain('marzo')
-    expect(commitReason?.text).toContain('50.000')
+    const reason = r.reasons.find(x => x.text.includes('disponible'))
+    expect(reason?.text).toContain('marzo')
+    expect(reason?.text).toContain('50.000')
   })
 
-  it('cuotas que empujan el compromiso a ≥40% del ingreso quedan gold', () => {
+  it('disponible tras meta de ahorro: si la cuota no cabe, coral con el monto que se pasa', () => {
+    // income 2.300.000 - meta ahorro 1.000.000 - comprometido 200.000 = disponible 1.100.000
+    // cuota de 559.990/3 ≈ 186.663 → cabe holgado; forzamos un caso que SÍ se pase.
     const r = evaluateAffordability(base({
-      amount: 240000, installments: 6, releaseLabel: 'marzo',
-      income: 500000, monthlyCommitted: 150000,  // 150000+40000=190000 → 38%... ajustar
+      amount: 3600000, installments: 3, releaseLabel: 'octubre',
+      income: 2300000, monthlyCommitted: 200000, monthlyInvestGoal: 1000000,
     }))
-    // 240000/6 = 40000; (150000+40000)/500000 = 38% → no llega a 40, probamos el borde real:
-    const r2 = evaluateAffordability(base({
-      amount: 240000, installments: 6, releaseLabel: 'marzo',
-      income: 475000, monthlyCommitted: 150000,  // (150000+40000)/475000 = 40%
-    }))
-    expect(r2.reasons.find(x => x.text.includes('compromiso'))?.severity).toBe('gold')
-    expect(r.reasons.find(x => x.text.includes('compromiso'))?.severity).toBe('mint')
+    // immediateImpact = 1.200.000; disponible = 2.300.000-1.000.000-200.000 = 1.100.000 → se pasa por 100.000
+    const reason = r.reasons.find(x => x.text.includes('disponible'))
+    expect(reason?.severity).toBe('coral')
+    expect(reason?.text).toContain('100.000')
+    expect(r.verdict).toBe('no')
   })
 
-  it('cuotas sin ingreso registrado: razón mint, no penaliza por falta de dato', () => {
+  it('disponible tras meta de ahorro: caso real del usuario (2.3M sueldo, 1M ahorro, 200k fijos, cuota 186.663) cabe — mint', () => {
+    const r = evaluateAffordability(base({
+      amount: 559990, installments: 3, releaseLabel: 'octubre',
+      income: 2300000, monthlyCommitted: 200000, monthlyInvestGoal: 1000000,
+      budgetRemaining: null, cashFlowMin: null,
+    }))
+    const reason = r.reasons.find(x => x.text.includes('disponible'))
+    expect(reason?.severity).toBe('mint')
+    expect(reason?.text).toContain('ahorrar $1.000.000')
+    expect(r.verdict).toBe('yes')
+  })
+
+  it('cuotas sin ingreso registrado: no arroja razón de disponible, no penaliza por falta de dato', () => {
     const r = evaluateAffordability(base({ amount: 120000, installments: 4, income: null, releaseLabel: 'octubre' }))
-    expect(r.reasons.find(x => x.text.includes('compromiso'))?.severity).toBe('mint')
+    expect(r.reasons.find(x => x.text.includes('disponible'))).toBeUndefined()
+  })
+
+  it('sin meta de ahorro definida (null), el chequeo de disponible corre igual sin el sufijo de meta', () => {
+    const r = evaluateAffordability(base({
+      amount: 300000, installments: 6, releaseLabel: 'marzo',
+      income: 800000, monthlyCommitted: 100000, monthlyInvestGoal: null,
+    }))
+    const reason = r.reasons.find(x => x.text.includes('disponible'))
+    expect(reason?.severity).toBe('mint')
+    expect(reason?.text).not.toContain('ahorrar')
   })
 
   it('la peor severidad entre varias razones manda el veredicto (coral gana sobre gold)', () => {
