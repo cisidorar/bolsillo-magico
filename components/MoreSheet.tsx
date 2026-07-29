@@ -2,13 +2,15 @@
 
 import Link from 'next/link'
 import {
-  X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings,
+  X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings, Calculator,
   type LucideIcon,
 } from 'lucide-react'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
+  /** E4 — abre el simulador "¿me lo puedo comprar?" (vive fuera de este sheet, en BottomNav). */
+  onOpenAfford?: () => void
 }
 
 interface Row {
@@ -57,7 +59,7 @@ function SheetRow({ row, onClose }: { row: Row; onClose: () => void }) {
   )
 }
 
-export default function MoreSheet({ isOpen, onClose }: Props) {
+export default function MoreSheet({ isOpen, onClose, onOpenAfford }: Props) {
   if (!isOpen) return null
 
   return (
@@ -91,6 +93,21 @@ export default function MoreSheet({ isOpen, onClose }: Props) {
             Finanzas
           </p>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {onOpenAfford && (
+              <button
+                onClick={() => { onClose(); onOpenAfford() }}
+                className="w-full flex items-center gap-4 px-4 py-3.5 transition-colors active:bg-black/5 text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+                  <Calculator className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>¿Me lo puedo comprar?</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Un vistazo rápido antes de decidir</p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+              </button>
+            )}
             {financeRows.map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
           </div>
 

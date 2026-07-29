@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings } from 'lucide-react'
+import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Calculator } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
+import AffordabilitySheet from './AffordabilitySheet'
 import UserMenu from './UserMenu'
 
 const navItems = [
@@ -26,6 +27,7 @@ interface Props {
 export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
   const pathname   = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [affordOpen, setAffordOpen] = useState(false)
 
   return (
     <>
@@ -115,6 +117,19 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
           <Plus className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />
           Nuevo gasto
         </button>
+
+        {/* E4 — "¿me lo puedo comprar?" antes de decidir, sin competir con el
+            botón principal de agregar gasto. */}
+        <button
+          onClick={() => setAffordOpen(true)}
+          className="flex items-center justify-center gap-1.5 w-full py-2 mt-1.5 rounded-xl text-xs font-semibold transition-colors"
+          style={{ color: 'var(--ink-3)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+          onMouseLeave={e => (e.currentTarget.style.background = '')}
+        >
+          <Calculator className="w-3.5 h-3.5 flex-shrink-0" />
+          ¿Me lo puedo comprar?
+        </button>
       </aside>
 
       {sheetOpen && (
@@ -124,6 +139,8 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
           fetchData
         />
       )}
+
+      <AffordabilitySheet isOpen={affordOpen} onClose={() => setAffordOpen(false)} />
     </>
   )
 }
