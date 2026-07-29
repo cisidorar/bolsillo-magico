@@ -76,9 +76,12 @@ export default async function RecurrentesPage({
       .order('billing_day'),
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
+    // E6: también trae amount/date — sirve para paidMap (conteo) Y para la
+    // auditoría de recurrentes (costo total pagado, detección de alza de
+    // precio) sin una query aparte.
     supabase
       .from('expenses')
-      .select('recurring_expense_id')
+      .select('recurring_expense_id, amount, date')
       .eq('user_id', user.id)
       .not('recurring_expense_id', 'is', null),
     // Gastos recurrentes últimos 3 meses para calcular promedio real
@@ -116,6 +119,14 @@ export default async function RecurrentesPage({
 
   const paidMap = (allExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
     if (e.recurring_expense_id) acc[e.recurring_expense_id] = (acc[e.recurring_expense_id] ?? 0) + 1
+    return acc
+  }, {})
+
+  // E6: historial completo por recurrente (para costo anualizado, total
+  // pagado y detección de alza de precio en RecurringManager).
+  const expensesByRecurring = (allExpenses ?? []).reduce<Record<string, { amount: number; date: string }[]>>((acc, e) => {
+    if (!e.recurring_expense_id) return acc
+    ;(acc[e.recurring_expense_id] ??= []).push({ amount: e.amount, date: e.date })
     return acc
   }, {})
 
@@ -272,6 +283,7 @@ export default async function RecurrentesPage({
             categories={categories ?? []}
             paymentMethods={paymentMethods ?? []}
             userId={user.id}
+            expensesByItem={expensesByRecurring}
           />
         </div>
 

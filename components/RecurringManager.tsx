@@ -3,11 +3,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn, formatCLP, isEmoji, getNowChile } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { suggestCategory, type CategorySuggestion } from '@/app/actions/suggest-category'
+import { annualizedCost, totalPaid, detectPriceChange, type AuditExpense } from '@/lib/recurring-audit'
 import ServiceLogo from './ServiceLogo'
 import type { RecurringExpense, Category, PaymentMethod } from '@/types'
 
@@ -23,6 +24,8 @@ interface Props {
   categories: Category[]
   paymentMethods: PaymentMethod[]
   userId: string
+  /** E6: historial de gastos por recurrente (id → gastos), para costo anualizado / total pagado / alza de precio. */
+  expensesByItem?: Record<string, AuditExpense[]>
 }
 
 type Form = {
@@ -71,7 +74,7 @@ function nextBillingDate(billingDay: number, billingMonth?: number | null): Date
   return new Date(ny, nm - 1, Math.min(billingDay, nLast))
 }
 
-export default function RecurringManager({ items: init, categories, paymentMethods, userId }: Props) {
+export default function RecurringManager({ items: init, categories, paymentMethods, userId, expensesByItem = {} }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -456,6 +459,15 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             const regState    = registerState[item.id] ?? null
             const canRegister = item.is_active && !isCompleted && !item.auto_register
 
+            // E6 — auditoría determinista: costo anualizado, total pagado histórico
+            // y detección de alza/baja de precio. Solo para mensuales/anuales — las
+            // cuotas ya muestran su propio progreso (barra + "termina en") y el
+            // monto ahí es fijo por definición, así que no aporta detectar cambios.
+            const auditExpenses = expensesByItem[item.id] ?? []
+            const priceChange   = !isCuotas ? detectPriceChange(auditExpenses) : null
+            const annualized    = annualizedCost(item)
+            const paidSoFar     = totalPaid(auditExpenses)
+
             return (
               <div
                 key={item.id}
@@ -487,7 +499,23 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                           style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>anual</span>
                       )}
+                      {priceChange?.changed && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                          style={priceChange.delta > 0
+                            ? { background: 'rgba(245,158,11,0.14)', color: 'var(--gold, #B45309)' }
+                            : { background: 'rgba(31,190,141,0.14)', color: 'var(--mint, #0F9D74)' }}
+                        >
+                          {priceChange.delta > 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                          {priceChange.delta > 0 ? 'subió' : 'bajó'} {formatCLP(Math.abs(priceChange.delta))}
+                        </span>
+                      )}
                     </div>
+                    {!isCuotas && auditExpenses.length > 0 && (
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                        ≈ {formatCLP(annualized)}/año · {formatCLP(paidSoFar)} pagado en total
+                      </p>
+                    )}
                   </div>
 
                   <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
