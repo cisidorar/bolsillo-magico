@@ -15,6 +15,7 @@ import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/marke
 import { computeYieldCurve } from '@/lib/yield-curve'
 import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
+import { fetchClIpcSeries, trailingAnnualInflation } from '@/lib/cl-indicators'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,7 +99,17 @@ export default async function InversionesPage({ searchParams }: Props) {
   const isDepositos = sp.view === 'depositos'
   const isBilletera = sp.view === 'billetera'
 
-  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }] = await Promise.all([
+  // E5 (roadmap economía): rentabilidad real (F7 de FEATURES.md) — un
+  // depósito al 12% con IPC 4% rinde ~7,7% real, no 8%. Solo se pide en la
+  // pestaña Ahorro, que es la única que la usa.
+  const trailingInflationPct = isAhorro
+    ? (() => {
+        const { dateStr } = getNowChile()
+        return fetchClIpcSeries(supabase).then(series => series ? trailingAnnualInflation(series, dateStr) : null)
+      })()
+    : Promise.resolve(null)
+
+  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }, trailingInflationPctResolved] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
@@ -129,6 +140,7 @@ export default async function InversionesPage({ searchParams }: Props) {
       .select('*')
       .eq('user_id', user.id)
       .order('purchase_date', { ascending: false }),
+    trailingInflationPct,
   ])
 
   // Última vez que corrió el análisis técnico automático (cron sync-prices →
@@ -311,6 +323,7 @@ export default async function InversionesPage({ searchParams }: Props) {
         <DepositManager
           userId={user.id}
           initialSavings={(savings ?? []) as SavingsAccount[]}
+          trailingInflationPct={trailingInflationPctResolved}
         />
       ) : isBilletera ? (
         <UsdWalletManager

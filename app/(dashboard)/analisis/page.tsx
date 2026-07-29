@@ -17,6 +17,8 @@ import InvestGoalEditor from '@/components/InvestGoalEditor'
 import PatrimonioCards, { type RatePoint } from '@/components/PatrimonioCards'
 import { computeHealthScore } from '@/lib/health-score'
 import { buildWealthProjectionTable } from '@/lib/wealth-projection'
+import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
+import RealPesosToggle from '@/components/RealPesosToggle'
 
 export const revalidate = 0
 
@@ -31,6 +33,10 @@ export default async function AnalisisPage({
   const isPatrimonio = view === 'patrimonio'
 
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+
+  // E5 (roadmap economía): IPC Chile — solo se pide en la vista anual, que es
+  // la única que compara años entre sí (donde "en pesos de hoy" tiene sentido).
+  const ipcSeries = isAnual ? await fetchClIpcSeries(supabase) : null
 
   const month = monthStr ? parseInt(monthStr) : now.getMonth() + 1
   const year  = yearStr  ? parseInt(yearStr)  : now.getFullYear()
@@ -361,6 +367,14 @@ export default async function AnalisisPage({
 
   // Insights anuales
   const pastRows = isAnual ? anualRows.filter(r => r.total > 0) : []
+
+  // E5: total del año en pesos de hoy — cada mes se ajusta desde SU propia
+  // fecha (no el año completo desde enero), así un mes reciente casi no se
+  // ajusta y uno de hace años sí refleja la inflación acumulada real.
+  const anualGrandTotalReal = ipcSeries
+    ? pastRows.reduce((s, r) => s + toTodayPesos(r.total, `${year}-${String(r.monthNum).padStart(2, '0')}-01`, getNowChile().dateStr, ipcSeries), 0)
+    : null
+
   const peakRow  = pastRows.length > 0 ? pastRows.reduce((a, b) => b.total > a.total ? b : a, pastRows[0]) : null
   const lowRow   = pastRows.length > 1 ? pastRows.reduce((a, b) => b.total < a.total ? b : a, pastRows[0]) : null
   const anualMonthLabels = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -1005,7 +1019,16 @@ export default async function AnalisisPage({
                 <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3">Total gastado en {year}</p>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[clamp(28px,8vw,40px)] font-extrabold tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
+                    {anualGrandTotalReal !== null ? (
+                      <RealPesosToggle
+                        nominalFormatted={formatCLP(anualGrandTotal)}
+                        realFormatted={formatCLP(anualGrandTotalReal)}
+                        source="IPC Chile"
+                        textClassName="text-[clamp(28px,8vw,40px)] font-extrabold tabular-nums leading-none tracking-tight"
+                      />
+                    ) : (
+                      <p className="text-[clamp(28px,8vw,40px)] font-extrabold tabular-nums leading-none tracking-tight">{formatCLP(anualGrandTotal)}</p>
+                    )}
                     {yearDelta !== null && (
                       <div className={`mt-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
                         {yearDelta < 0
@@ -1265,9 +1288,17 @@ export default async function AnalisisPage({
                       style={{ color: 'rgba(255,255,255,0.6)' }}>
                       Total gastado en {year}
                     </p>
-                    <p className="text-[clamp(22px,2.2vw,34px)] font-extrabold text-white tabular-nums leading-none tracking-tight break-all">
-                      {formatCLP(anualGrandTotal)}
-                    </p>
+                    {anualGrandTotalReal !== null ? (
+                      <RealPesosToggle
+                        nominalFormatted={formatCLP(anualGrandTotal)}
+                        realFormatted={formatCLP(anualGrandTotalReal)}
+                        source="IPC Chile"
+                      />
+                    ) : (
+                      <p className="text-[clamp(22px,2.2vw,34px)] font-extrabold text-white tabular-nums leading-none tracking-tight break-all">
+                        {formatCLP(anualGrandTotal)}
+                      </p>
+                    )}
                     {yearDelta !== null && (
                       <div className={`mt-2.5 inline-flex items-center gap-1 self-start px-2 py-1 rounded-lg text-[10px] font-bold ${yearDelta < 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
                         {yearDelta < 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}

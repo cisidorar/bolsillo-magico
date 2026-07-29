@@ -7,6 +7,7 @@ import {
   ArrowUp, CalendarDays,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
+import { realReturnPct } from '@/lib/cl-indicators'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { SavingsAccount } from '@/app/(dashboard)/inversiones/page'
@@ -157,6 +158,8 @@ function ProjectionBar({ balance, annualRate }: { balance: number; annualRate: n
 interface Props {
   userId:         string
   initialSavings: SavingsAccount[]
+  /** E5 (roadmap economía) / F7: inflación anualizada trailing (IPC Chile, mindicador.cl) — null si no se pudo obtener. */
+  trailingInflationPct?: number | null
 }
 interface FormState {
   name:       string
@@ -173,7 +176,7 @@ const emptyForm: FormState = {
   notes:      '',
 }
 
-export default function DepositManager({ userId, initialSavings }: Props) {
+export default function DepositManager({ userId, initialSavings, trailingInflationPct = null }: Props) {
   const supabase = createClient()
 
   const [savings,       setSavings]       = useState<SavingsAccount[]>(initialSavings)
@@ -554,6 +557,9 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               </div>
               <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
                 {fmtPct(avgRate)} TAE promedio ponderado
+                {trailingInflationPct !== null && (
+                  <> · ≈{fmtPct(realReturnPct(avgRate, trailingInflationPct))} real (IPC {fmtPct(trailingInflationPct)} 12m)</>
+                )}
               </p>
             </div>
 
@@ -705,7 +711,11 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                       <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
                         {fmtPct(acc.annual_rate)}
                       </p>
-                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>anual</p>
+                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                        {trailingInflationPct !== null
+                          ? `≈${fmtPct(realReturnPct(acc.annual_rate, trailingInflationPct))} real`
+                          : 'anual'}
+                      </p>
                     </div>
 
                     {/* Ganado hoy */}
