@@ -8,7 +8,6 @@ import ServiceLogo from '@/components/ServiceLogo'
 import ThemeToggle from '@/components/ThemeToggle'
 import PaydaySelect from '@/components/PaydaySelect'
 import BudgetPeriodSelect from '@/components/BudgetPeriodSelect'
-import LanguageRegionSelect from '@/components/LanguageRegionSelect'
 import NotificationPrefs from '@/components/NotificationPrefs'
 import ImportCSV from '@/components/ImportCSV'
 import ExportForm from '@/components/ExportForm'
@@ -95,7 +94,11 @@ export default async function AjustesPage() {
               />
               <div className="card overflow-hidden">
                 <div className="flex items-center gap-4 px-4 pt-4 pb-3.5">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5F3FF' }}>
+                  {/* cat-icon-bg (no un bg hardcodeado): el fondo lavanda fijo
+                      no se adaptaba a modo oscuro y quedaba blanco/desentonado
+                      junto a los demás íconos, que sí usan este patrón. */}
+                  <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
                     <Palette className="w-5 h-5" style={{ color: '#7C3AED' }} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -105,11 +108,6 @@ export default async function AjustesPage() {
                 </div>
                 <ThemeToggle />
               </div>
-              <LanguageRegionSelect
-                userId={user.id}
-                language={profile?.language ?? 'es-CL'}
-                dateFormat={profile?.date_format ?? 'DD/MM/AAAA'}
-              />
             </div>
           </section>
 
@@ -205,7 +203,8 @@ export default async function AjustesPage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#F5F3FF' }}>
+                        <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
+                          style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
                           <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
                         </div>
                       )}
