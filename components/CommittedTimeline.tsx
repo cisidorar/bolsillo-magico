@@ -7,7 +7,7 @@ import { CalendarClock, PartyPopper } from 'lucide-react'
 const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 
 interface Props {
-  months: CommittedMonth[]  // 12 meses, empezando por el actual
+  months: CommittedMonth[]  // N meses consecutivos, empezando por el actual
   income: number | null     // último ingreso registrado, para el % comprometido
 }
 

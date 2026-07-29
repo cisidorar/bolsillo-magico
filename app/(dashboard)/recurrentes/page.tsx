@@ -245,7 +245,7 @@ export default async function RecurrentesPage({
     isActive: r.is_active,
   }))
   const committedStatements = cardStatements.map(st => ({ label: st.label, amount: st.amount, dueDate: st.dueDate }))
-  const committedMonths = buildCommittedTimeline(committedItems, month, year, 12, committedStatements)
+  const committedMonths = buildCommittedTimeline(committedItems, month, year, 6, committedStatements)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">
