@@ -72,6 +72,38 @@ describe('buildCommittedTimeline', () => {
   })
 })
 
+describe('buildCommittedTimeline con estados de cuenta', () => {
+  it('suma un estado de cuenta al mes de su fecha de vencimiento', () => {
+    const months = buildCommittedTimeline(
+      [item({ amount: 60000 })], 7, 2026, 12,
+      [{ label: 'CMR', amount: 803157, dueDate: '2026-08-05' }],
+    )
+    expect(months[0].total).toBe(60000)               // julio: sin estado de cuenta
+    expect(months[1].total).toBe(60000 + 803157)       // agosto: fijo + estado de cuenta
+    expect(months[1].month).toBe(8)
+  })
+
+  it('un estado de cuenta fuera del horizonte no se suma a ningún mes', () => {
+    const months = buildCommittedTimeline([], 7, 2026, 3, [
+      { label: 'CMR', amount: 100000, dueDate: '2027-01-05' },
+    ])
+    expect(months.every(m => m.total === 0)).toBe(true)
+  })
+
+  it('un estado de cuenta no marca freesUp (no es una cuota terminando)', () => {
+    const months = buildCommittedTimeline([], 7, 2026, 12, [
+      { label: 'CMR', amount: 100000, dueDate: '2026-08-05' },
+    ])
+    expect(months[1].freesUp).toBe(false)
+    expect(months[1].releasing).toEqual([])
+  })
+
+  it('sin statements, el comportamiento es idéntico al de antes (retrocompatible)', () => {
+    const months = buildCommittedTimeline([item({ amount: 60000 })], 7, 2026)
+    expect(months[0].total).toBe(60000)
+  })
+})
+
 describe('committedPct', () => {
   it('calcula el % redondeado', () => {
     expect(committedPct(312000, 820000)).toBe(38)

@@ -112,12 +112,31 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
       setIncome(inc)
 
       // Compromiso del próximo mes (sin esta compra) — mismo cálculo que
+      // Estados de cuenta con vencimiento conocido — se calculan una vez y
+      // alimentan tanto el flujo de caja como el compromiso del próximo mes
+      // (mismo criterio que /recurrentes: sin esto, "compromiso" quedaba
+      // artificialmente bajo frente al vencimiento real de tarjeta).
+      const cardStatements = ((pms ?? []) as PaymentMethod[])
+        .filter(c => c.card_type === 'credit' && c.billing_day && c.payment_due_day)
+        .map(card => {
+          const range = lastClosedStatementRange(card.billing_day!)
+          const total = (expensesWindow ?? [])
+            .filter((e: { payment_method_id: string | null; date: string }) => {
+              if (e.payment_method_id !== card.id) return false
+              const bp = billingPeriod(e.date, card.billing_day!)
+              return bp.month === range.month && bp.year === range.year
+            })
+            .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+          const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
+          return { label: card.name, amount: total, dueDate }
+        })
+
       // CommittedTimeline en /recurrentes.
       const committedItems: CommittedTimelineItem[] = ((recurring ?? []) as RecurringRow[]).map(r => ({
         name: r.name, amount: r.amount, billing_month: r.billing_month,
         totalInstallments: r.total_installments, paidInstallments: r.paid_installments ?? 0, isActive: r.is_active,
       }))
-      const committedMonths = buildCommittedTimeline(committedItems, month, year)
+      const committedMonths = buildCommittedTimeline(committedItems, month, year, 12, cardStatements)
       setMonthlyCommitted(committedMonths[0]?.total ?? 0)
 
       // Flujo de caja 30 días (recurrentes + sueldo + estados de cuenta con
@@ -135,20 +154,9 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
         events.push({ date: dStr, type: 'recurring', label: r.name, amount: -r.amount })
       })
 
-      ;((pms ?? []) as PaymentMethod[])
-        .filter(c => c.card_type === 'credit' && c.billing_day && c.payment_due_day)
-        .forEach(card => {
-          const range = lastClosedStatementRange(card.billing_day!)
-          const total = (expensesWindow ?? [])
-            .filter((e: { payment_method_id: string | null; date: string }) => {
-              if (e.payment_method_id !== card.id) return false
-              const bp = billingPeriod(e.date, card.billing_day!)
-              return bp.month === range.month && bp.year === range.year
-            })
-            .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
-          const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
-          events.push({ date: dueDate, type: 'card', label: card.name, amount: -total })
-        })
+      cardStatements.forEach(st => {
+        events.push({ date: st.dueDate, type: 'card', label: st.label, amount: -st.amount })
+      })
 
       const timeline = withinWindow(buildCashFlowTimeline(events, dateStr), 30)
       if (timeline.length > 0) {

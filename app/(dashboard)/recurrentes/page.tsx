@@ -203,7 +203,13 @@ export default async function RecurrentesPage({
     .filter(pm => pm.card_type === 'credit' && pm.billing_day)
   const cardsWithoutDueDay = creditCardsF8.filter(c => !c.payment_due_day).map(c => c.name)
 
-  creditCardsF8.filter(c => c.payment_due_day).forEach(card => {
+  // Estados de cuenta con vencimiento conocido — se calculan una sola vez y
+  // alimentan tanto el Flujo de caja 30 días como "Ya comprometido" (E2). Solo
+  // se conoce con certeza el estado YA CERRADO más próximo a vencer; no se
+  // proyectan estados futuros (el gasto con tarjeta de meses venideros no
+  // existe todavía), a diferencia de las cuotas y fijos, que sí son conocidos
+  // de antemano.
+  const cardStatements = creditCardsF8.filter(c => c.payment_due_day).map(card => {
     // Estado YA CERRADO más reciente, no el que se está acumulando ahora —
     // es el monto real que vence pronto (mismo criterio que Ciclo de sueldo
     // en /inicio, ver lib/utils.ts).
@@ -216,9 +222,13 @@ export default async function RecurrentesPage({
       })
       .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
     const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
+    return { label: card.name, amount: total, dueDate, domain: card.domain }
+  })
+
+  cardStatements.forEach(st => {
     cashFlowEvents.push({
-      date: dueDate, type: 'card', label: card.name, amount: -total,
-      sublabel: 'estado de cuenta', domain: card.domain,
+      date: st.dueDate, type: 'card', label: st.label, amount: -st.amount,
+      sublabel: 'estado de cuenta', domain: st.domain,
     })
   })
 
@@ -234,7 +244,8 @@ export default async function RecurrentesPage({
     paidInstallments: r.paid_installments ?? 0,
     isActive: r.is_active,
   }))
-  const committedMonths = buildCommittedTimeline(committedItems, month, year)
+  const committedStatements = cardStatements.map(st => ({ label: st.label, amount: st.amount, dueDate: st.dueDate }))
+  const committedMonths = buildCommittedTimeline(committedItems, month, year, 12, committedStatements)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">

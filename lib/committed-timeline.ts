@@ -24,6 +24,13 @@ export interface ReleasingItem {
   amount: number
 }
 
+export interface CommittedStatement {
+  label: string
+  amount: number
+  /** YYYY-MM-DD — se suma al mes/año de esta fecha si cae dentro del horizonte. */
+  dueDate: string
+}
+
 export interface CommittedMonth {
   month: number  // 1-12
   year: number
@@ -36,12 +43,23 @@ export interface CommittedMonth {
 /**
  * Proyecta el compromiso mensual desde (startMonth, startYear) hacia
  * adelante, `horizonMonths` meses (default 12, empezando por el mes actual).
+ *
+ * `statements` — estados de cuenta de tarjeta con vencimiento YA CONOCIDO
+ * (el más próximo a vencer de cada tarjeta, calculado en la página). A
+ * diferencia de cuotas/fijos/anuales, el gasto con tarjeta de meses futuros
+ * todavía no existe — no se puede proyectar, así que solo se suma el
+ * vencimiento conocido más cercano, en su mes correspondiente. Sin esto, "Ya
+ * comprometido" podía verse artificialmente bajo frente al vencimiento real
+ * más grande del usuario (el estado de cuenta), que ya se mostraba al lado
+ * en Flujo de caja 30 días — una discrepancia confusa entre dos cards
+ * vecinas.
  */
 export function buildCommittedTimeline(
   items: CommittedTimelineItem[],
   startMonth: number,
   startYear: number,
   horizonMonths = 12,
+  statements: CommittedStatement[] = [],
 ): CommittedMonth[] {
   const months: CommittedMonth[] = []
   for (let i = 0; i < horizonMonths; i++) {
@@ -78,6 +96,12 @@ export function buildCommittedTimeline(
 
     // Fijo indefinido: se paga todos los meses del horizonte.
     for (const mo of months) mo.total += item.amount
+  }
+
+  for (const st of statements) {
+    const [y, m] = st.dueDate.split('-').map(Number)
+    const idx = months.findIndex(mo => mo.month === m && mo.year === y)
+    if (idx >= 0) months[idx].total += st.amount
   }
 
   return months
