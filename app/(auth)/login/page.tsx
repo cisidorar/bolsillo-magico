@@ -3,8 +3,7 @@
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff } from 'lucide-react'
-import Image from 'next/image'
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 
 // A1/A4 (roadmap uso personal, jul 2026): la app dejó de tener registro
 // abierto — Cas decidió que es de uso personal. El modo signup se quita del
@@ -13,6 +12,13 @@ import Image from 'next/image'
 // Sin ese toggle, supabase.auth.signUp() sigue siendo llamable por cualquiera
 // con la anon key (que es pública en el bundle) — este archivo por sí solo
 // no cierra la puerta.
+//
+// Rediseño (jul 2026, sobre mockup de referencia de Cas): layout de una sola
+// columna centrada, tema oscuro con los tokens de la app (no hardcode — así
+// queda consistente si algún día cambian --primary/--surface). Se dejó
+// explícitamente afuera el login social (Google/Apple) del mockup — a
+// pedido de Cas: no está configurado en Supabase, y no vale la pena abrir
+// esa puerta justo después de cerrar el registro.
 
 const MAX_ATTEMPTS  = 5
 const LOCKOUT_SECS  = 60
@@ -20,13 +26,6 @@ const LOCKOUT_SECS  = 60
 const SPINNER = (
   <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
 )
-
-const BTN_STYLE = (disabled: boolean) => ({
-  height: 52,
-  background: disabled ? '#A9C4EE' : '#2B7CF6',
-  boxShadow: disabled ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
-  border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-})
 
 function LoginForm() {
   const router       = useRouter()
@@ -38,6 +37,11 @@ function LoginForm() {
   const [showPw,    setShowPw]    = useState(false)
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState('')
+
+  // "¿Olvidaste?" — el mockup lo pedía; no existía ningún trigger para el
+  // flujo de reset (solo /update-password, que recibe el link del correo).
+  const [resetSent, setResetSent] = useState(false)
+  const [resetBusy, setResetBusy] = useState(false)
 
   // Rate limiting
   const [attempts,    setAttempts]    = useState(0)
@@ -60,8 +64,10 @@ function LoginForm() {
   }, [lockedUntil])
 
   useEffect(() => {
-    // Login page is always light mode — remove dark class if present from prior navigation
-    document.documentElement.classList.remove('dark')
+    // Login page is always dark mode — el resto de la app respeta la
+    // preferencia guardada, pero acá siempre coincide con el mockup.
+    document.documentElement.classList.add('dark')
+    return () => { document.documentElement.classList.remove('dark') }
   }, [])
 
   useEffect(() => {
@@ -84,7 +90,7 @@ function LoginForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError('')
+    setError(''); setResetSent(false)
 
     if (lockedUntil && Date.now() < lockedUntil) {
       setError(`Demasiados intentos. Esperá ${countdown} segundos.`)
@@ -104,103 +110,116 @@ function LoginForm() {
     router.push('/inicio'); router.refresh()
   }
 
+  async function handleForgotPassword() {
+    setError(''); setResetSent(false)
+    if (!email) { setError('Escribe tu correo arriba y toca "¿Olvidaste?" de nuevo.'); return }
+    setResetBusy(true)
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    })
+    setResetBusy(false)
+    // Mensaje genérico a propósito: no confirma si el correo existe o no.
+    setResetSent(true)
+  }
+
   const isLocked    = !!lockedUntil && Date.now() < lockedUntil
   const btnDisabled = loading || isLocked
 
   return (
-    <div className="min-h-svh" style={{ background: '#2B7CF6' }}>
-      <div className="min-h-svh lg:flex">
+    <div className="min-h-svh flex flex-col items-center justify-center px-5 py-12" style={{ background: 'var(--bg)' }}>
 
-        {/* Panel izquierdo — solo desktop */}
-        <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center px-14 py-16 relative overflow-hidden">
-          <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full opacity-10" style={{ background: '#fff' }} />
-          <div className="absolute -bottom-16 -right-16 w-64 h-64 rounded-full opacity-10" style={{ background: '#fff' }} />
-          <div className="absolute top-1/2 left-1/4 w-40 h-40 rounded-full opacity-5" style={{ background: '#fff' }} />
-          <div className="relative w-20 h-20 mb-5">
-            <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
-          </div>
-          <h1 className="text-3xl font-semibold text-white tracking-tight text-center mb-2">Bolsillo Mágico</h1>
-          <p className="text-base text-white/70 font-medium text-center">Tu dinero bajo control, siempre.</p>
-        </div>
-
-        {/* Panel derecho — formulario */}
-        <div className="flex-1 flex flex-col items-center justify-center min-h-svh lg:min-h-screen px-5 py-10 lg:px-16 lg:py-16 lg:bg-white">
-
-          {/* Logo — solo mobile */}
-          <div className="flex flex-col items-center mb-8 lg:hidden">
-            <div className="w-16 h-16 relative mb-3">
-              <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
-            </div>
-            <h1 className="text-2xl font-semibold text-white tracking-tight">Bolsillo Mágico</h1>
-            <p className="text-sm text-white/60 font-medium mt-1">Hola de nuevo 👋</p>
-          </div>
-
-          <div className="w-full max-w-sm">
-
-            {/* Header — solo desktop */}
-            <div className="hidden lg:block mb-8">
-              <h2 className="text-[26px] font-semibold" style={{ color: '#0E2A52' }}>Hola de nuevo 👋</h2>
-              <p className="text-sm mt-1" style={{ color: '#94A3B8' }}>Inicia sesión para continuar</p>
-            </div>
-
-            <div className="bg-white lg:bg-transparent rounded-3xl p-6 lg:p-0 shadow-2xl lg:shadow-none">
-              <style>{`
-                @keyframes spin { to { transform: rotate(360deg); } }
-                .field {
-                  display:flex; align-items:center; gap:10px;
-                  background:#F4F7FB; border:1.5px solid #E4EAF1;
-                  border-radius:14px; padding:0 14px; height:52px;
-                }
-                .field:focus-within { border-color:#4D93FF; box-shadow:0 0 0 3px rgba(77,147,255,.15); }
-                .field input {
-                  flex:1; background:transparent; border:none; outline:none;
-                  font-size:15px; color:#0E2A52; font-family:inherit; min-width:0;
-                }
-                .field input::placeholder { color:#94A3B8; }
-              `}</style>
-
-              <div className="flex flex-col gap-3">
-
-                <div className="field">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-                  </svg>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="Correo electrónico" autoComplete="email" disabled={isLocked} />
-                </div>
-
-                <div className="field">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
-                    placeholder="Contraseña"
-                    autoComplete="current-password"
-                    disabled={isLocked} />
-                  <button type="button" onClick={() => setShowPw(!showPw)}
-                    style={{ color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
-                    {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
-
-                {error && (
-                  <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
-                )}
-
-                <button onClick={handleSubmit as any} disabled={btnDisabled}
-                  className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all"
-                  style={BTN_STYLE(btnDisabled)}>
-                  {loading ? SPINNER
-                    : isLocked ? `Bloqueado · ${countdown}s`
-                    : 'Iniciar sesión →'}
-                </button>
-
-              </div>
-            </div>
-          </div>
-        </div>
-
+      {/* Logo + wordmark — <img> plano (no next/image): mismo patrón que
+          SideNav.tsx para este SVG, que si no requiere dangerouslyAllowSVG
+          en next.config. */}
+      <div className="flex flex-col items-center mb-8">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/bolsillo-magico-icono.svg" alt="Bolsillo Mágico" width={64} height={64} className="mb-4 rounded-2xl" />
+        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
+          Bolsillo <span style={{ color: 'var(--primary)' }}>Mágico</span>
+        </h1>
       </div>
+
+      {/* Card */}
+      <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          .field {
+            display:flex; align-items:center; gap:10px;
+            background: var(--bg); border:1.5px solid var(--border);
+            border-radius:14px; padding:0 14px; height:52px;
+          }
+          .field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+          .field input {
+            flex:1; background:transparent; border:none; outline:none;
+            font-size:15px; color: var(--ink); font-family:inherit; min-width:0;
+          }
+          .field input::placeholder { color: var(--ink-3); }
+        `}</style>
+
+        <h2 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>Inicia sesión</h2>
+        <p className="text-sm mt-1 mb-6" style={{ color: 'var(--ink-3)' }}>Bienvenida de vuelta a tu bolsillo.</p>
+
+        <div className="flex flex-col gap-4">
+
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-3)' }}>Correo electrónico</label>
+            <div className="field">
+              <Mail className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="tucorreo@gmail.com" autoComplete="email" disabled={isLocked} />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Contraseña</label>
+              <button type="button" onClick={handleForgotPassword} disabled={resetBusy}
+                className="text-xs font-bold disabled:opacity-60" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+                {resetBusy ? 'Enviando…' : '¿Olvidaste?'}
+              </button>
+            </div>
+            <div className="field">
+              <Lock className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+              <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
+                placeholder="Contraseña"
+                autoComplete="current-password"
+                disabled={isLocked} />
+              <button type="button" onClick={() => setShowPw(!showPw)}
+                style={{ color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
+                {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+          </div>
+
+          {resetSent && (
+            <p className="text-xs font-semibold rounded-xl px-4 py-2.5" style={{ color: 'var(--mint)', background: 'var(--primary-soft)' }}>
+              Si ese correo tiene una cuenta, te enviamos un enlace para restablecer la contraseña.
+            </p>
+          )}
+
+          {error && (
+            <p className="text-xs font-bold rounded-xl px-4 py-2.5" style={{ color: 'var(--coral)', background: 'rgba(255,111,97,0.1)', border: '1px solid rgba(255,111,97,0.25)' }}>
+              {error}
+            </p>
+          )}
+
+          <button onClick={handleSubmit as any} disabled={btnDisabled}
+            className="w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all"
+            style={{
+              height: 52,
+              background: btnDisabled ? 'var(--border)' : 'var(--primary)',
+              color: 'var(--primary-ink)',
+              boxShadow: btnDisabled ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
+              border: 'none', cursor: btnDisabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+            }}>
+            {loading ? SPINNER
+              : isLocked ? `Bloqueado · ${countdown}s`
+              : 'Iniciar sesión'}
+          </button>
+
+        </div>
+      </div>
+
     </div>
   )
 }
