@@ -516,10 +516,10 @@ function digestEmailHtml({
         <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7);white-space:nowrap">
           CIERRE WALL ST. · ${closeLabelET().replace(' ET', '&nbsp;ET')}
         </p>
-        <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px;text-align:left">
+        <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
           Tu análisis técnico de hoy
         </p>
-        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6;text-align:left">
+        <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
           Hola ${displayName} — revisé tus ${signals.length} acción${signals.length !== 1 ? 'es' : ''} al cierre.
           ${strongRows.length > 0 ? `<strong style="color:#ffffff">${strongRows.length} señal${strongRows.length !== 1 ? 'es' : ''}</strong> merece${strongRows.length !== 1 ? 'n' : ''} tu atención.` : 'Nada urgente hoy — todo dentro de lo esperado.'}
         </p>
