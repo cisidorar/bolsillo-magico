@@ -12,6 +12,7 @@ import PerformanceSection from '@/components/PerformanceSection'
 import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
+import { computeRatePath } from '@/lib/rate-path'
 import { computeYieldCurve } from '@/lib/yield-curve'
 import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
@@ -273,7 +274,15 @@ export default async function InversionesPage({ searchParams }: Props) {
   const cpiObs   = macro.CPIAUCSL?.observations ?? []
   const dgs10Obs = macro.DGS10?.observations ?? []
   const dgs2Obs  = macro.DGS2?.observations ?? []
-  const fedSentence  = dffObs.length > 0 ? fedRateSentence(dffObs) : null
+  // M1 (roadmap macro/tasas, jul 2026): DFF es la tasa YA realizada — nunca
+  // se mueve antes de una decisión. El spread DGS2-DFF (lib/rate-path.ts) es
+  // el proxy de hacia dónde el mercado espera que se mueva, sin lo cual
+  // fedRateSentence podía decir "sin presión nueva" el mismo día en que la
+  // expectativa cambió mucho (caso real: FOMC 29 jul 2026).
+  const ratePath = dffObs.length > 0 && dgs2Obs.length > 0
+    ? computeRatePath(dgs2Obs[dgs2Obs.length - 1].value, dffObs[dffObs.length - 1].value)
+    : null
+  const fedSentence  = dffObs.length > 0 ? fedRateSentence(dffObs, ratePath) : null
   const inflSentence = cpiObs.length > 0 ? inflationSentence(cpiObs) : null
   const yieldCurveInverted = dgs10Obs.length > 0 && dgs2Obs.length > 0
     ? computeYieldCurve(dgs10Obs[dgs10Obs.length - 1].value, dgs2Obs[dgs2Obs.length - 1].value).inverted

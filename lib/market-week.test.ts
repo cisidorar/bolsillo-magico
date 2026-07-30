@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { nextFomcMeeting, fedRateSentence, inflationSentence, FOMC_DECISION_DATES_2026 } from './market-week'
+import { computeRatePath } from './rate-path'
 
 describe('nextFomcMeeting', () => {
   it('encuentra una reunión dentro de la ventana', () => {
@@ -16,6 +17,19 @@ describe('nextFomcMeeting', () => {
 
   it('el día exacto de la reunión cuenta como "dentro de la ventana"', () => {
     expect(nextFomcMeeting('2026-07-29', 0, FOMC_DECISION_DATES_2026)).toBe('2026-07-29')
+  })
+
+  // M5 (roadmap macro/tasas, jul 2026): la lista se había quedado solo con
+  // 2026 — desde el 9 de diciembre nextFomcMeeting() devolvía null para
+  // siempre, en silencio. Este test exige que SIEMPRE haya cobertura de al
+  // menos 6 meses hacia adelante desde "hoy", para que la próxima vez que se
+  // venza lo diga la suite y no el silencio de la UI.
+  it('la lista cubre al menos 6 meses hacia adelante desde hoy', () => {
+    const today = new Date()
+    const sixMonthsOut = new Date(today)
+    sixMonthsOut.setMonth(sixMonthsOut.getMonth() + 6)
+    const hasCoverage = FOMC_DECISION_DATES_2026.some(d => new Date(d + 'T12:00:00') >= sixMonthsOut)
+    expect(hasCoverage).toBe(true)
   })
 })
 
@@ -40,6 +54,37 @@ describe('fedRateSentence', () => {
     const s = fedRateSentence(obs)
     expect(s).toContain('movió')
     expect(s).toContain('4.25%')
+  })
+
+  // M1 (roadmap macro/tasas, jul 2026): caso real que motivó el cambio — la
+  // Fed mantiene (nivel estable) pero el mercado ya tiene precio para alzas.
+  // Antes esto daba "sin presión nueva sobre las acciones", que era falso.
+  const stableObs = Array.from({ length: 20 }, (_, i) => ({ date: `2026-07-${String(i + 1).padStart(2, '0')}`, value: 3.63 }))
+
+  it('tasa estable pero el mercado espera alzas: la frase lo dice, ya no "sin presión nueva"', () => {
+    const ratePath = computeRatePath(4.13, 3.63)   // +50pb
+    const s = fedRateSentence(stableObs, ratePath)
+    expect(s).toContain('mantiene')
+    expect(s).not.toContain('sin presión nueva')
+    expect(s).toContain('alza')
+  })
+
+  it('tasa estable y mercado espera bajas: viento a favor para crecimiento', () => {
+    const ratePath = computeRatePath(3.13, 3.63)   // -50pb
+    const s = fedRateSentence(stableObs, ratePath)
+    expect(s).toContain('baja')
+    expect(s).toContain('viento a favor')
+  })
+
+  it('tasa estable y ratePath también estable: mensaje sin cambios (compatibilidad)', () => {
+    const ratePath = computeRatePath(3.68, 3.63)   // +5pb, ruido
+    const s = fedRateSentence(stableObs, ratePath)
+    expect(s).toContain('sin presión nueva')
+  })
+
+  it('sin ratePath (undefined): se comporta igual que antes', () => {
+    const s = fedRateSentence(stableObs)
+    expect(s).toContain('sin presión nueva')
   })
 })
 
