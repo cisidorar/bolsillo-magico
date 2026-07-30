@@ -10,7 +10,7 @@ import type { NewsResponse } from '@/app/api/stock-news/route'
 import type { SignalBacktestResponse } from '@/app/api/signal-backtest/route'
 import { computeConviction } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
-import { getCachedBacktestStats, getCachedRateSensitivity } from '@/lib/analysis-cache'
+import { getCachedBacktestStats, getCachedRateSensitivity, getCachedRateContext } from '@/lib/analysis-cache'
 import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
@@ -322,10 +322,10 @@ export default function TechnicalDetail({
   // + la acción concreta de HOY con monto, no solo el rating en abstracto.
   // D1 (roadmap de calidad de decisión): mismo track record cacheado por
   // Radar al pedir el análisis de este ticker — antes se pasaba null acá.
-  const conviction = computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m)
   // M2 (roadmap macro/tasas): sensibilidad empírica a las tasas, ya
   // precalculada por /api/technical y cacheada junto al resto del análisis.
   const rateSensitivity = getCachedRateSensitivity(ticker)
+  const conviction = computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m, getCachedRateContext(ticker))
   const buyNow  = a.buy.find(t => t.now)
   const sellNow = position ? a.sell.find(t => t.now) : undefined
   let headerAction: string

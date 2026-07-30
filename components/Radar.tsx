@@ -11,7 +11,7 @@ import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
-import { getAnalysis, getCachedBacktestStats, AnalysisError } from '@/lib/analysis-cache'
+import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisError } from '@/lib/analysis-cache'
 import { computeConviction, isActionableBuyNow, computeMarketRegime, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
@@ -377,7 +377,7 @@ export default function Radar({
   // para este ticker (misma respuesta de /api/technical), sin fetch aparte.
   const convictionFor = useCallback((ticker: string): ConvictionResult | null => {
     const a = analyses[ticker]
-    return typeof a === 'object' ? computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m) : null
+    return typeof a === 'object' ? computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m, getCachedRateContext(ticker)) : null
   }, [analyses, spyReturn6m])
 
   /** I1 (roadmap interacción): mismo cálculo de "monto sugerido" que ya vive

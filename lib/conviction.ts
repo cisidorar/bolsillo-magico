@@ -1,5 +1,7 @@
 import type { TechnicalAnalysis } from './technical'
 import type { LabelStat } from './signal-backtest'
+import type { RateDirection } from './rate-path'
+import type { RateSensitivityResult } from './rate-sensitivity'
 
 // ── Score de convicción de compra (0-100) ─────────────────────────────────────
 // Objetivo explícito (jul 2026, a pedido de Cas): dejar de hablar en avisos
@@ -32,6 +34,15 @@ export interface ConvictionResult {
 
 const WEIGHTS = { technical: 0.40, riskReward: 0.25, trackRecord: 0.20, relative: 0.15 }
 
+// M4 (roadmap macro/tasas, jul 2026): a partir de qué |beta| se considera
+// "sensible a tasas" para la razón contextual de abajo. El roadmap original
+// hablaba de "el cuartil más sensible de tu cartera" — se simplifica a un
+// umbral absoluto porque un cuartil exige comparar contra el resto de la
+// cartera del usuario, y computeConviction() analiza UN ticker a la vez, sin
+// ese contexto. 1.0%/10pb es un movimiento claramente por encima de ruido
+// (una acción "normal" ronda 0.2-0.5%/10pb en este tipo de regresión).
+const RATE_SENSITIVE_THRESHOLD = 1.0
+
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
 }
@@ -40,6 +51,12 @@ export function computeConviction(
   analysis:       TechnicalAnalysis,
   backtestStats?: LabelStat[] | null,
   spyReturn6m?:   number | null,
+  /** M4: contexto de tasas — dirección esperada (lib/rate-path.ts) y
+   *  sensibilidad empírica de ESTE ticker (lib/rate-sensitivity.ts). Ninguno
+   *  de los dos entra al score (rompería la comparabilidad con el backtest
+   *  de lib/signal-backtest.ts, que mide señales pasadas sin este factor) —
+   *  solo agrega una razón informativa cuando ambos apuntan en contra. */
+  rateContext?: { direction: RateDirection; sensitivity: RateSensitivityResult | null } | null,
 ): ConvictionResult {
   const reasons: string[] = []
   const parts: { key: keyof typeof WEIGHTS; value: number }[] = []
@@ -95,6 +112,21 @@ export function computeConviction(
     parts.push({ key: 'relative', value: relScore })
     if (diff >= 5) reasons.push(`Le va ${diff.toFixed(0)}pp mejor que el mercado (SPY) en 6 meses — fuerza relativa a favor.`)
     else if (diff <= -10) reasons.push(`Le va ${Math.abs(diff).toFixed(0)}pp peor que el mercado (SPY) en 6 meses — una compra de menor calidad que indexarse.`)
+  }
+
+  // 5. Contexto de tasas (M4): solo como razón, nunca como peso del score.
+  // Se muestra cuando el mercado espera alzas Y este ticker históricamente
+  // se mueve en contra de eso — no invalida la compra, sugiere entrar por
+  // tramos en vez de todo de una (encaja con el plan escalonado que ya
+  // calcula analysis.buy[]).
+  if (isBuyLabel && rateContext?.direction === 'alzas' && rateContext.sensitivity) {
+    const { betaPer10bp } = rateContext.sensitivity
+    if (Math.abs(betaPer10bp) >= RATE_SENSITIVE_THRESHOLD && betaPer10bp < 0) {
+      reasons.push(
+        `Sensible a tasas: el mercado espera alzas y este ticker se movió históricamente ${betaPer10bp.toFixed(1)}% por cada +10pb. ` +
+        `No invalida la compra; sí sugiere entrar por tramos en vez de todo de una.`,
+      )
+    }
   }
 
   const totalWeight = parts.reduce((s, p) => s + WEIGHTS[p.key], 0)

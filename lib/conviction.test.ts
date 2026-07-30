@@ -95,6 +95,69 @@ describe('computeConviction', () => {
     expect(r.score).toBeGreaterThanOrEqual(0)
     expect(r.score).toBeLessThanOrEqual(100)
   })
+
+  // M4 (roadmap macro/tasas, jul 2026): razón contextual de tasas — nunca
+  // debe mover el score, solo agregar una razón cuando corresponde.
+  describe('contexto de tasas (M4)', () => {
+    it('mercado espera alzas + ticker sensible en contra: agrega la razón sin tocar el score', () => {
+      const a = baseAnalysis()
+      const withoutContext = computeConviction(a)
+      const withContext = computeConviction(a, null, null, {
+        direction: 'alzas',
+        sensitivity: { betaPer10bp: -1.8, r2: 0.25, n: 150 },
+      })
+      expect(withContext.score).toBe(withoutContext.score)
+      expect(withContext.reasons.some(r => r.includes('Sensible a tasas'))).toBe(true)
+      expect(withoutContext.reasons.some(r => r.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('sensibilidad bajo el umbral: no agrega la razón', () => {
+      const a = baseAnalysis()
+      const r = computeConviction(a, null, null, {
+        direction: 'alzas',
+        sensitivity: { betaPer10bp: -0.3, r2: 0.15, n: 150 },
+      })
+      expect(r.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('mercado espera alzas pero el ticker se mueve A FAVOR (beta positivo): no agrega la razón', () => {
+      const a = baseAnalysis()
+      const r = computeConviction(a, null, null, {
+        direction: 'alzas',
+        sensitivity: { betaPer10bp: 1.8, r2: 0.25, n: 150 },
+      })
+      expect(r.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('mercado estable o a la baja: no agrega la razón aunque el ticker sea sensible', () => {
+      const a = baseAnalysis()
+      const r1 = computeConviction(a, null, null, { direction: 'estable', sensitivity: { betaPer10bp: -1.8, r2: 0.25, n: 150 } })
+      const r2 = computeConviction(a, null, null, { direction: 'bajas',   sensitivity: { betaPer10bp: -1.8, r2: 0.25, n: 150 } })
+      expect(r1.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+      expect(r2.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('rating de venta: no agrega la razón (el contexto de tasas solo aplica a decisiones de COMPRA)', () => {
+      const a = baseAnalysis({ rating: rating({ label: 'venta_fuerte', action: 'Venta fuerte', score: -6, pros: 0, cons: 3 }) })
+      const r = computeConviction(a, null, null, {
+        direction: 'alzas',
+        sensitivity: { betaPer10bp: -1.8, r2: 0.25, n: 150 },
+      })
+      expect(r.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('sin sensitivity (null, evidencia insuficiente): no agrega la razón ni revienta', () => {
+      const a = baseAnalysis()
+      const r = computeConviction(a, null, null, { direction: 'alzas', sensitivity: null })
+      expect(r.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+
+    it('sin rateContext (undefined, compatibilidad hacia atrás): se comporta igual que antes', () => {
+      const a = baseAnalysis()
+      const r = computeConviction(a)
+      expect(r.reasons.some(rr => rr.includes('Sensible a tasas'))).toBe(false)
+    })
+  })
 })
 
 describe('isActionableBuyNow', () => {

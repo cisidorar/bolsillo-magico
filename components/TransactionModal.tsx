@@ -7,7 +7,7 @@ import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/
 import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
 import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
-import { getCachedBacktestStats } from '@/lib/analysis-cache'
+import { getCachedBacktestStats, getCachedRateContext } from '@/lib/analysis-cache'
 import { useToast } from '@/components/ToastProvider'
 
 // ── U4 (roadmap UX): modal SOLO transaccional — extraído de
@@ -90,7 +90,7 @@ export default function TransactionModal({
   function convictionSnapshotFor(tk: string): { score: number; tier: string; hadTrigger: boolean } | null {
     const a = posAnalyses[tk]
     if (typeof a !== 'object') return null
-    const conviction = computeConviction(a, getCachedBacktestStats(tk), spyReturn6m ?? null)
+    const conviction = computeConviction(a, getCachedBacktestStats(tk), spyReturn6m ?? null, getCachedRateContext(tk))
     return {
       score: conviction.score,
       tier:  conviction.tier,

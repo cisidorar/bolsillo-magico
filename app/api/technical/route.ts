@@ -5,6 +5,7 @@ import { syncTicker, readCandles } from '@/lib/price-providers'
 import type { LabelStat } from '@/lib/signal-backtest'
 import { fetchMacroSeries } from '@/lib/macro-fetch'
 import { computeRateSensitivity, type RateSensitivityResult } from '@/lib/rate-sensitivity'
+import { computeRatePath, type RateDirection } from '@/lib/rate-path'
 
 // ── Análisis técnico desde price_history (BD-first) ──────────────────────────
 // Los precios viven en Supabase (pipeline OHLCV): aquí solo se leen y, si el
@@ -45,6 +46,11 @@ export interface TechnicalResponse {
    *  relación no es estadísticamente clara (r² < 0.10). Sin FRED_API_KEY
    *  también es null (ver lib/macro-fetch.ts) — se degrada sola. */
   rateSensitivity: RateSensitivityResult | null
+  /** M4: dirección esperada de la tasa (lib/rate-path.ts), la misma que ya ve
+   *  /inversiones en "Tu semana" — es un dato de mercado global, no de este
+   *  ticker, pero viaja junto a la respuesta porque computeConviction() la
+   *  necesita para la razón contextual y este endpoint ya trae DGS2/DFF. */
+  rateDirection: RateDirection | null
 }
 
 export async function GET(request: Request) {
@@ -123,15 +129,24 @@ export async function GET(request: Request) {
     // M2: sensibilidad a tasas — reusa la serie DGS2 (cache 24h en
     // price_cache, la misma que ya alimenta "Tu semana"/rate-path), no pega
     // a FRED en cada visita. null sin key configurada o sin historia común.
-    const dgs2 = await fetchMacroSeries(supabase, 'DGS2')
+    const [dgs2, dff] = await Promise.all([
+      fetchMacroSeries(supabase, 'DGS2'),
+      fetchMacroSeries(supabase, 'DFF'),
+    ])
     const rateSensitivity = dgs2
       ? computeRateSensitivity(
           candles.dates.map((d, i) => ({ date: d, value: candles.closes[i] })),
           dgs2.observations,
         )
       : null
+    const rateDirection = dgs2 && dff && dgs2.observations.length > 0 && dff.observations.length > 0
+      ? computeRatePath(
+          dgs2.observations[dgs2.observations.length - 1].value,
+          dff.observations[dff.observations.length - 1].value,
+        ).direction
+      : null
 
-    return NextResponse.json({ ticker: symbol, analysis, backtestStats, rateSensitivity } satisfies TechnicalResponse, {
+    return NextResponse.json({ ticker: symbol, analysis, backtestStats, rateSensitivity, rateDirection } satisfies TechnicalResponse, {
       headers: { 'Cache-Control': 'private, max-age=3600' },
     })
   } catch (err) {

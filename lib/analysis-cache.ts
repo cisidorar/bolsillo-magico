@@ -1,6 +1,7 @@
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { LabelStat } from '@/lib/signal-backtest'
 import type { RateSensitivityResult } from '@/lib/rate-sensitivity'
+import type { RateDirection } from '@/lib/rate-path'
 
 // ── Cache de análisis técnico compartida entre componentes cliente ───────────
 // StockPositionManager (posiciones) y WatchlistPanel (favoritos) pedían
@@ -26,6 +27,9 @@ interface CacheEntry {
    *  calculada por /api/technical — mismo criterio que backtestStats, se
    *  cachea junto al análisis para no pedirla aparte. */
   rateSensitivity: RateSensitivityResult | null
+  /** M4: dirección esperada de la tasa — dato global de mercado, viaja junto
+   *  a la respuesta de /api/technical (ver ese archivo para el porqué). */
+  rateDirection: RateDirection | null
   at: number
 }
 
@@ -47,11 +51,17 @@ async function fetchEntry(key: string, force: boolean): Promise<CacheEntry> {
     const body = await r.json().catch(() => null) as { detail?: string } | null
     throw new AnalysisError(body?.detail ?? null)
   }
-  const d = await r.json() as { analysis: TechnicalAnalysis; backtestStats?: LabelStat[] | null; rateSensitivity?: RateSensitivityResult | null }
+  const d = await r.json() as {
+    analysis: TechnicalAnalysis
+    backtestStats?: LabelStat[] | null
+    rateSensitivity?: RateSensitivityResult | null
+    rateDirection?: RateDirection | null
+  }
   const entry: CacheEntry = {
     analysis: d.analysis,
     backtestStats: d.backtestStats ?? null,
     rateSensitivity: d.rateSensitivity ?? null,
+    rateDirection: d.rateDirection ?? null,
     at: Date.now(),
   }
   cache.set(key, entry)
@@ -91,4 +101,14 @@ export function getCachedBacktestStats(ticker: string): LabelStat[] | null {
  *  suficiente evidencia estadística (ver lib/rate-sensitivity.ts). */
 export function getCachedRateSensitivity(ticker: string): RateSensitivityResult | null {
   return cache.get(ticker.toUpperCase())?.rateSensitivity ?? null
+}
+
+/** Listo para pasar directo como 4to argumento de computeConviction() — null
+ *  si todavía no se pidió el análisis o no hay dirección de tasa disponible
+ *  (sin FRED_API_KEY, por ejemplo). La sensibilidad puede ser null adentro
+ *  (evidencia insuficiente) sin que eso invalide el resto del contexto. */
+export function getCachedRateContext(ticker: string): { direction: RateDirection; sensitivity: RateSensitivityResult | null } | null {
+  const entry = cache.get(ticker.toUpperCase())
+  if (!entry || entry.rateDirection === null) return null
+  return { direction: entry.rateDirection, sensitivity: entry.rateSensitivity }
 }
