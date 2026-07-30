@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { saveThemeAction } from '@/app/actions/theme'
+import { useToast } from '@/components/ToastProvider'
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
@@ -16,6 +18,19 @@ export default function ThemeToggle() {
     observer.observe(document.documentElement, { attributeFilter: ['class'] })
     return () => observer.disconnect()
   }, [])
+
+  async function persist(next: 'light' | 'dark') {
+    const { ok } = await saveThemeAction(next)
+    if (!ok) {
+      // Antes esto fallaba en silencio: se veía "guardado" en este
+      // dispositivo pero profiles.theme nunca se actualizaba, así que otro
+      // dispositivo (ej. el celular) seguía mostrando la preferencia vieja
+      // sin ningún aviso. Ahora se avisa y se puede reintentar al toque.
+      showToast('No se pudo sincronizar el modo oscuro con tu cuenta', {
+        action: { label: 'Reintentar', onClick: () => persist(next) },
+      })
+    }
+  }
 
   function toggle() {
     const html = document.documentElement
@@ -30,8 +45,8 @@ export default function ThemeToggle() {
     localStorage.setItem('theme', next)
     setDark(next === 'dark')
 
-    // Persist to Supabase so preference syncs across devices (fire-and-forget)
-    saveThemeAction(next)
+    // Persist to Supabase so preference syncs across devices
+    persist(next)
   }
 
   return (

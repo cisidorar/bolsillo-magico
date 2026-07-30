@@ -45,8 +45,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         .maybeSingle()
       if (data?.theme === 'dark') serverTheme = 'dark'
     }
-  } catch {
-    // Graceful fallback — ThemeProvider will use localStorage
+  } catch (err) {
+    // Graceful fallback — ThemeProvider will use localStorage. Loggeado (antes
+    // era 100% silencioso) para poder diagnosticar reportes de "el modo
+    // oscuro no sincronizó" sin tener que reproducirlos a ciegas.
+    console.error('[theme] no se pudo leer profiles.theme para SSR', err)
   }
 
   return (
