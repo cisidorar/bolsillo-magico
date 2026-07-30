@@ -10,11 +10,11 @@ import type { NewsResponse } from '@/app/api/stock-news/route'
 import type { SignalBacktestResponse } from '@/app/api/signal-backtest/route'
 import { computeConviction } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
-import { getCachedBacktestStats } from '@/lib/analysis-cache'
+import { getCachedBacktestStats, getCachedRateSensitivity } from '@/lib/analysis-cache'
 import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
-import { ConvictionChip } from '@/components/RiskRail'
+import { ConvictionChip, RateSensitivityChip } from '@/components/RiskRail'
 import InfoTap from '@/components/InfoTap'
 import { relativeDate } from '@/lib/utils'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
@@ -323,6 +323,9 @@ export default function TechnicalDetail({
   // D1 (roadmap de calidad de decisión): mismo track record cacheado por
   // Radar al pedir el análisis de este ticker — antes se pasaba null acá.
   const conviction = computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m)
+  // M2 (roadmap macro/tasas): sensibilidad empírica a las tasas, ya
+  // precalculada por /api/technical y cacheada junto al resto del análisis.
+  const rateSensitivity = getCachedRateSensitivity(ticker)
   const buyNow  = a.buy.find(t => t.now)
   const sellNow = position ? a.sell.find(t => t.now) : undefined
   let headerAction: string
@@ -482,6 +485,7 @@ export default function TechnicalDetail({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <ConvictionChip score={conviction.score} tier={conviction.tier} />
+            {rateSensitivity && <RateSensitivityChip result={rateSensitivity} />}
             <p className="text-sm font-extrabold truncate" style={{ color: headerColor }}>{headerAction}</p>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"

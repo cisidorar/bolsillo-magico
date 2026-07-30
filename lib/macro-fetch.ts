@@ -12,7 +12,11 @@ import type { Observation } from '@/lib/yoy-change'
 export const MACRO_SERIES = [
   { id: 'DFF',        label: 'Tasa de fondos federales', unit: '%',          days: 30  },
   { id: 'DGS10',      label: 'Bono del Tesoro 10 años',  unit: '%',          days: 30  },
-  { id: 'DGS2',       label: 'Bono del Tesoro 2 años',   unit: '%',          days: 30  },
+  // M2 (roadmap macro/tasas, jul 2026): 30 días alcanzaba para el nivel actual
+  // (yield curve, rate-path) pero no para lib/rate-sensitivity.ts, que
+  // necesita ≥120 observaciones diarias en común con cada ticker — 200 días
+  // calendario da margen de sobra tras descontar fines de semana/feriados.
+  { id: 'DGS2',       label: 'Bono del Tesoro 2 años',   unit: '%',          days: 200 },
   { id: 'DCOILWTICO', label: 'Petróleo WTI',             unit: 'USD/barril', days: 30  },
   { id: 'CPIAUCSL',   label: 'Inflación EEUU (IPC)',     unit: 'índice',     days: 450 },   // mensual: necesita >12 meses para YoY
 ] as const

@@ -1,5 +1,6 @@
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { LabelStat } from '@/lib/signal-backtest'
+import type { RateSensitivityResult } from '@/lib/rate-sensitivity'
 
 // ── Cache de análisis técnico compartida entre componentes cliente ───────────
 // StockPositionManager (posiciones) y WatchlistPanel (favoritos) pedían
@@ -18,7 +19,15 @@ import type { LabelStat } from '@/lib/signal-backtest'
 
 const TTL_MS = 10 * 60_000
 
-interface CacheEntry { analysis: TechnicalAnalysis; backtestStats: LabelStat[] | null; at: number }
+interface CacheEntry {
+  analysis: TechnicalAnalysis
+  backtestStats: LabelStat[] | null
+  /** M2 (roadmap macro/tasas): sensibilidad empírica a las tasas, ya
+   *  calculada por /api/technical — mismo criterio que backtestStats, se
+   *  cachea junto al análisis para no pedirla aparte. */
+  rateSensitivity: RateSensitivityResult | null
+  at: number
+}
 
 const cache    = new Map<string, CacheEntry>()
 const inFlight = new Map<string, Promise<CacheEntry>>()
@@ -38,8 +47,13 @@ async function fetchEntry(key: string, force: boolean): Promise<CacheEntry> {
     const body = await r.json().catch(() => null) as { detail?: string } | null
     throw new AnalysisError(body?.detail ?? null)
   }
-  const d = await r.json() as { analysis: TechnicalAnalysis; backtestStats?: LabelStat[] | null }
-  const entry: CacheEntry = { analysis: d.analysis, backtestStats: d.backtestStats ?? null, at: Date.now() }
+  const d = await r.json() as { analysis: TechnicalAnalysis; backtestStats?: LabelStat[] | null; rateSensitivity?: RateSensitivityResult | null }
+  const entry: CacheEntry = {
+    analysis: d.analysis,
+    backtestStats: d.backtestStats ?? null,
+    rateSensitivity: d.rateSensitivity ?? null,
+    at: Date.now(),
+  }
   cache.set(key, entry)
   return entry
 }
@@ -69,4 +83,12 @@ export async function getAnalysis(ticker: string, force = false): Promise<Techni
  *  suficientes para opinar. */
 export function getCachedBacktestStats(ticker: string): LabelStat[] | null {
   return cache.get(ticker.toUpperCase())?.backtestStats ?? null
+}
+
+/** Lectura síncrona de la sensibilidad a tasas ya cacheada para `ticker` —
+ *  mismo criterio que getCachedBacktestStats: llamar después de que
+ *  getAnalysis(ticker) haya resuelto. null si aún no se pidió, o si no hay
+ *  suficiente evidencia estadística (ver lib/rate-sensitivity.ts). */
+export function getCachedRateSensitivity(ticker: string): RateSensitivityResult | null {
+  return cache.get(ticker.toUpperCase())?.rateSensitivity ?? null
 }

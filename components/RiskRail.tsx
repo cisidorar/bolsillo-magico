@@ -2,6 +2,7 @@
 
 import type { ConvictionTier } from '@/lib/conviction'
 import type { PriceZone } from '@/lib/technical'
+import type { RateSensitivityResult } from '@/lib/rate-sensitivity'
 import { useToast } from '@/components/ToastProvider'
 
 // ── Risk rail: cuánto arriesgas vs. cuánto puedes ganar, de un vistazo ───────
@@ -160,6 +161,33 @@ export function PriceZoneChip({ zone }: { zone: PriceZone }) {
       style={{ background: z.bg, color: z.fg }}
     >
       {z.label}
+    </button>
+  )
+}
+
+// ── M2 (roadmap macro/tasas, jul 2026): sensibilidad empírica a las tasas ────
+// Correlación pasada entre el retorno diario del ticker y el bono a 2 años
+// (lib/rate-sensitivity.ts) — no una alerta ni una predicción, por eso usa el
+// mismo estilo neutro que el chip de "pros/contras" en vez de los colores de
+// severidad UX5. Solo se renderiza cuando hay suficiente evidencia (el propio
+// resultado ya viene filtrado por n≥120 y r²≥0.10; sin eso es null y no se
+// muestra nada — "sin relación clara" también es una respuesta legítima).
+export function RateSensitivityChip({ result }: { result: RateSensitivityResult }) {
+  const { showToast } = useToast()
+  const sign = result.betaPer10bp >= 0 ? '+' : ''
+  return (
+    <button
+      onClick={e => {
+        e.stopPropagation()
+        showToast(
+          `Sensible a tasas: se movió históricamente ${sign}${result.betaPer10bp.toFixed(1)}% por cada +10pb en el bono a 2 años ` +
+          `(${result.n} días de historia, r²=${result.r2.toFixed(2)}). Es correlación pasada, no una predicción ni una causa garantizada.`,
+        )
+      }}
+      className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+      style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+    >
+      {sign}{result.betaPer10bp.toFixed(1)}%/10pb
     </button>
   )
 }

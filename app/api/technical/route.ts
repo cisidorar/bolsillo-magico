@@ -3,6 +3,8 @@ import { getServerSession, createClient } from '@/lib/supabase/server'
 import { analyze, type TechnicalAnalysis } from '@/lib/technical'
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import type { LabelStat } from '@/lib/signal-backtest'
+import { fetchMacroSeries } from '@/lib/macro-fetch'
+import { computeRateSensitivity, type RateSensitivityResult } from '@/lib/rate-sensitivity'
 
 // ── Análisis técnico desde price_history (BD-first) ──────────────────────────
 // Los precios viven en Supabase (pipeline OHLCV): aquí solo se leen y, si el
@@ -38,6 +40,11 @@ export interface TechnicalResponse {
    *  suficiente de señales pasadas. Se cachea junto al análisis en
    *  lib/analysis-cache.ts para que computeConviction() lo use sin fetch aparte. */
   backtestStats: LabelStat[] | null
+  /** M2 (roadmap macro/tasas): sensibilidad empírica a las tasas — null si
+   *  no hay ≥120 días de historia en común con la serie DGS2, o si la
+   *  relación no es estadísticamente clara (r² < 0.10). Sin FRED_API_KEY
+   *  también es null (ver lib/macro-fetch.ts) — se degrada sola. */
+  rateSensitivity: RateSensitivityResult | null
 }
 
 export async function GET(request: Request) {
@@ -113,7 +120,18 @@ export async function GET(request: Request) {
         }))
       : null
 
-    return NextResponse.json({ ticker: symbol, analysis, backtestStats } satisfies TechnicalResponse, {
+    // M2: sensibilidad a tasas — reusa la serie DGS2 (cache 24h en
+    // price_cache, la misma que ya alimenta "Tu semana"/rate-path), no pega
+    // a FRED en cada visita. null sin key configurada o sin historia común.
+    const dgs2 = await fetchMacroSeries(supabase, 'DGS2')
+    const rateSensitivity = dgs2
+      ? computeRateSensitivity(
+          candles.dates.map((d, i) => ({ date: d, value: candles.closes[i] })),
+          dgs2.observations,
+        )
+      : null
+
+    return NextResponse.json({ ticker: symbol, analysis, backtestStats, rateSensitivity } satisfies TechnicalResponse, {
       headers: { 'Cache-Control': 'private, max-age=3600' },
     })
   } catch (err) {
