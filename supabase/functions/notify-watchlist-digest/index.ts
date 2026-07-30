@@ -529,24 +529,29 @@ function digestEmailHtml({
       <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr>
-            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D">${buyCount}</p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">COMPRAR</p>
+            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8;text-align:center">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D;text-align:center">${buyCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0;text-align:center">COMPRAR</p>
             </td>
-            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#FF6F61">${sellCount}</p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">VENDER</p>
+            <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8;text-align:center">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#FF6F61;text-align:center">${sellCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0;text-align:center">VENDER</p>
             </td>
-            <td width="33%" align="center" style="padding:22px 8px">
-              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#5B6B82">${holdCount}</p>
-              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0">MANTENER</p>
+            <td width="33%" align="center" style="padding:22px 8px;text-align:center">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#5B6B82;text-align:center">${holdCount}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.5px;color:#8B9AB0;text-align:center">MANTENER</p>
             </td>
           </tr>
         </table>
       </td></tr>
 
       <!-- CUERPO -->
-      <tr><td style="padding:8px 32px 28px">
+      <!-- Padding lateral reducido de 32px a 20px (jul 2026, a pedido de Cas):
+           la fila de stats de arriba solo tiene 8px de padding y usa casi todo
+           el ancho de la tarjeta — con 32px acá, las tarjetas de WMT/NVDA de
+           abajo quedaban visiblemente más angostas que esa fila, en la misma
+           pantalla. 20px sigue dejando margen legible sin ese salto. -->
+      <tr><td style="padding:8px 20px 28px">
 
         ${decisionBlockHtml(decision, infoMap)}
 
