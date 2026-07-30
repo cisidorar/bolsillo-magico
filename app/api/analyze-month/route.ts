@@ -490,7 +490,7 @@ export async function POST(request: Request) {
       } : null,
     }
 
-    // ── 3. Hash para cache (total::count::budgets::meta::invertido) ──────────
+    // ── 3. Hash para cache (total::count::budgets::meta::invertido::categorías) ──
     const budgetFingerprint = ((categoryBudgets ?? []) as any[])
       .map((b: any) => `${b.category_id}:${b.amount}`)
       .sort()
@@ -498,7 +498,15 @@ export async function POST(request: Request) {
     // Incluye activeExpenses.length (no el total crudo): así, marcar un gasto
     // como único cambia el hash y dispara una regeneración natural la
     // próxima vez, sin depender del botón "Regenerar".
-    const expensesHash = `${totalMonth}::${activeExpenses.length}::${budgetFingerprint}::${monthlyInvestGoal ?? 'x'}::${investedThisMonth}`
+    // categoryFingerprint: reasignar un gasto a otra categoría NO cambia el
+    // total ni el count del mes, así que sin esto el hash queda idéntico y la
+    // regeneración nunca detecta el cambio (bug reportado por Cas: recategorizó
+    // un gasto de viaje y "Regenerar" siguió mostrando el insight viejo).
+    const categoryFingerprint = activeExpenses
+      .map((e: any) => `${e.id}:${e.category?.id ?? 'none'}`)
+      .sort()
+      .join('|')
+    const expensesHash = `${totalMonth}::${activeExpenses.length}::${budgetFingerprint}::${monthlyInvestGoal ?? 'x'}::${investedThisMonth}::${categoryFingerprint}`
 
     // ── 4. Verificar cache + rate limit ───────────────────────────────────────
     // A04: rate limit hard — max 1 AI call each 10 minutes per (user, month, year)
@@ -517,10 +525,13 @@ export async function POST(request: Request) {
       const stale    = ageMs > 6 * 3600 * 1000   // 6 horas
       const cooldown = ageMs < 10 * 60 * 1000    // 10 minutos
       const same     = existing.expenses_hash === expensesHash
-      // force=true (botón "Regenerar" del usuario): ignora el hash-match (el
-      // mismo mes con el mismo total puede querer un análisis nuevo si cambió
-      // la lógica/prompt del motor) pero el cooldown de 10 min se respeta
-      // siempre — evita que un doble-click dispare dos llamadas a la IA.
+      // force=true (botón "Regenerar" del usuario): el cooldown de 10 min solo
+      // protege contra doble-click sobre los MISMOS datos (same=true) — si el
+      // hash cambió (ej. el usuario recategorizó un gasto) el usuario pidió
+      // explícitamente un análisis nuevo y merece verlo de inmediato, no un
+      // "cached" silencioso. Antes esto bloqueaba cualquier click dentro de
+      // los 10 min sin mirar `same`, dejando "Regenerar" sin efecto real tras
+      // recategorizar (bug reportado por Cas).
       if (!force) {
         // Return cached if data hasn't changed (same hash, not stale)
         // Cooldown only applies when data is the same (prevents hammering without blocking budget changes)
@@ -530,7 +541,7 @@ export async function POST(request: Request) {
         if (cooldown && same) {
           return NextResponse.json({ message: 'cached' }, { status: 200 })
         }
-      } else if (cooldown) {
+      } else if (cooldown && same) {
         return NextResponse.json({ message: 'cached' }, { status: 200 })
       }
     }
