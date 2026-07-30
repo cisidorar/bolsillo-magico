@@ -107,10 +107,15 @@ function holdLabel(analysis: TechnicalAnalysis): string {
 }
 
 /** Descripción larga (título + detalle, ya en lenguaje cotidiano) del gatillo
- *  técnico más relevante para una señal fuerte — para la tarjeta destacada
- *  del digest. Cae a la etiqueta corta del rating si no hay un gatillo con el
- *  tono esperado. */
-function strongDetail(analysis: TechnicalAnalysis, tone: 'mint' | 'coral'): string {
+ *  técnico más relevante detrás de una señal de compra/venta — para que el
+ *  digest y "Para revisar hoy" digan POR QUÉ, no solo repitan la palabra
+ *  "Compra"/"Venta" que ya está en el badge. Antes esto solo se llamaba para
+ *  señales "fuertes"; una señal normal (compra/venta sin "fuerte") mostraba
+ *  literalmente `analysis.rating.action` — el mismo texto del badge de
+ *  arriba, cero información nueva (detectado por Cas con un correo real:
+ *  "SEÑAL DE VENTA" seguido de "Venta" abajo). Cae a la etiqueta corta del
+ *  rating solo si de verdad no hay ningún gatillo con el tono esperado. */
+function signalDetail(analysis: TechnicalAnalysis, tone: 'mint' | 'coral'): string {
   const sig = analysis.signals.find(s => s.trigger && s.tone === tone) ?? analysis.signals.find(s => s.tone === tone)
   return sig ? `${sig.title}. ${sig.detail}` : analysis.rating.action
 }
@@ -139,10 +144,10 @@ function buildSignals(
     const l = analysis.rating.label
     if (l === 'compra' || l === 'compra_fuerte') {
       const strong = l === 'compra_fuerte'
-      signals.push({ ...base, kind: 'buy', strong, watch: false, message: strong ? strongDetail(analysis, 'mint') : analysis.rating.action })
+      signals.push({ ...base, kind: 'buy', strong, watch: false, message: signalDetail(analysis, 'mint') })
     } else if (owned && (l === 'venta' || l === 'venta_fuerte')) {
       const strong = l === 'venta_fuerte'
-      signals.push({ ...base, kind: 'sell', strong, watch: false, message: strong ? strongDetail(analysis, 'coral') : analysis.rating.action })
+      signals.push({ ...base, kind: 'sell', strong, watch: false, message: signalDetail(analysis, 'coral') })
     } else if (owned && analysis.rating.caution) {
       signals.push({ ...base, kind: 'caution', strong: false, watch: true, message: `Débil · ${holdLabel(analysis)}` })
     } else {
