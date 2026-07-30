@@ -526,8 +526,14 @@ function digestEmailHtml({
       </td></tr>
 
       <!-- STATS -->
+      <!-- table-layout:fixed (jul 2026, a pedido de Cas): sin esto, Gmail app
+           en Android ignora el width="33%" de cada <td> y las columnas se
+           auto-ajustan al ancho de su contenido — como "20 MANTENER" es más
+           angosto que el resto, las tres columnas quedaban apretadas a la
+           izquierda con un hueco muerto a la derecha en vez de repartirse
+           parejo en todo el ancho de la tarjeta. -->
       <tr><td>
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="table-layout:fixed">
           <tr>
             <td width="33%" align="center" class="bm-stats-td" style="padding:22px 8px;border-right:1px solid #EEF2F8;text-align:center">
               <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:22px;font-weight:800;color:#1FBE8D;text-align:center">${buyCount}</p>
