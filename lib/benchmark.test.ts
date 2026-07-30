@@ -65,4 +65,33 @@ describe('computeSpyBenchmark', () => {
     const r = computeSpyBenchmark(flows, spyHistory, positions, new Map())!
     expect(r.realValueUsd).toBe(0)
   })
+
+  // Regresión (jul 2026, a pedido de Cas): screenshot real con "En SPY
+  // habrías tenido US$0,00" exacto y sin % vs. SPY — una venta que ganó MUCHO
+  // más que SPY retira más dólares de la sombra de los que esos mismos flujos
+  // habrían generado en SPY, dejando la sombra en negativo (pisada a 0). Sin
+  // el flag `degenerate`, la UI presentaba esto como "le ganaste al mercado
+  // por el 100% de tu cartera", un veredicto limpio pero engañoso.
+  it('venta con ganancia mucho mayor a SPY dobla la sombra a negativo → degenerate=true, shadow en 0', () => {
+    const flows: CashFlowEvent[] = [
+      { date: '2025-01-01', usd: 1000 },    // compra: 1000/400 = 2.5 shadow shares
+      { date: '2025-03-01', usd: -5000 },   // venta con ganancia real enorme: -5000/450 ≈ -11.11 shadow shares
+      { date: '2025-04-01', usd: 2000 },    // nueva compra (posición abierta hoy): +2000/475 ≈ +4.21
+    ]
+    const positions: PositionLite[] = [{ ticker: 'NVDA', shares: 10 }]
+    const latest = new Map([['NVDA', 253.294]])   // realValueUsd ≈ 2532.94, como en el screenshot
+    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
+    expect(r.degenerate).toBe(true)
+    expect(r.shadowValueUsd).toBe(0)
+    expect(r.spyShares).toBe(0)
+    expect(r.diffPct).toBeNull()
+  })
+
+  it('caso normal (sin ventas que superen la sombra): degenerate=false', () => {
+    const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 4000 }]
+    const positions: PositionLite[] = [{ ticker: 'AAPL', shares: 10 }]
+    const latest = new Map([['AAPL', 500]])
+    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
+    expect(r.degenerate).toBe(false)
+  })
 })

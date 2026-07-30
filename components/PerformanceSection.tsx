@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUp, ArrowDown } from 'lucide-react'
+import { ArrowUp, ArrowDown, Info } from 'lucide-react'
 import type { StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 
@@ -110,29 +110,53 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
                   <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(b.shadowValueUsd)}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: won ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)' }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: won ? 'rgba(31,190,141,0.18)' : 'rgba(255,111,97,0.18)' }}>
-                  {won ? <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} /> : <ArrowDown className="w-4 h-4" style={{ color: 'var(--coral)' }} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
-                    {won ? 'Le ganaste al mercado' : 'El mercado te ganó'}
-                  </p>
-                  {b.diffPct !== null && (
-                    <p className="text-[11px] font-semibold" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
-                      {won ? '+' : ''}{b.diffPct.toFixed(1)}% vs. SPY
+              {b.degenerate ? (
+                // Regresión (jul 2026): una venta ganó tanto más que SPY que la
+                // simulación de sombra queda en negativo (pisada a 0) — mostrar
+                // "le ganaste al mercado por el 100% de tu cartera" acá sería un
+                // veredicto técnicamente calculado pero engañoso, porque la
+                // comparación en sí dejó de ser válida. Aviso neutro, sin el
+                // verde/coral de un veredicto (UX5: esto no es una alerta, es
+                // una limitación del dato).
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: 'var(--surface-2)' }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface)' }}>
+                    <Info className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Comparación no confiable por ahora</p>
+                    <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      Una venta generó más plata de la que ese mismo dinero habría hecho en SPY hasta esa fecha — pasa cuando una
+                      posición individual le gana por mucho al mercado. Se recupera sola con tus próximos movimientos.
                     </p>
-                  )}
+                  </div>
                 </div>
-                <p className="text-base font-bold tabular-nums shrink-0" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
-                  {fmtUSDSigned(b.diffUsd)}
-                </p>
-              </div>
+              ) : (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: won ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)' }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: won ? 'rgba(31,190,141,0.18)' : 'rgba(255,111,97,0.18)' }}>
+                    {won ? <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} /> : <ArrowDown className="w-4 h-4" style={{ color: 'var(--coral)' }} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
+                      {won ? 'Le ganaste al mercado' : 'El mercado te ganó'}
+                    </p>
+                    {b.diffPct !== null && (
+                      <p className="text-[11px] font-semibold" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
+                        {won ? '+' : ''}{b.diffPct.toFixed(1)}% vs. SPY
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-base font-bold tabular-nums shrink-0" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
+                    {fmtUSDSigned(b.diffUsd)}
+                  </p>
+                </div>
+              )}
               <p className="text-[10px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
                 Valorizado con el último cierre conocido de cada acción (no precio en vivo) — puede ir un día atrás.
-                {won
-                  ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
-                  : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
+                {b.degenerate
+                  ? ''
+                  : won
+                    ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
+                    : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
               </p>
             </div>
           </div>

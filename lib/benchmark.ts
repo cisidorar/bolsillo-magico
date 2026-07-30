@@ -36,6 +36,21 @@ export interface SpyBenchmarkResult {
   diffPct:        number | null   // diff como % del valor sombra (null si sombra es 0)
   asOfDate:       string   // fecha del cierre usado como "hoy" (último dato disponible)
   spyShares:      number   // acciones sombra de SPY remanentes (diagnóstico)
+  /**
+   * true cuando la simulación de sombra se rompió: una venta retiró más
+   * dólares de los que esos mismos flujos habrían generado en SPY hasta esa
+   * fecha (típico cuando una posición individual le ganó por mucho al
+   * mercado — el modelo tendría que "cortar en corto" SPY para seguir
+   * calzando, lo cual no tiene sentido para una posición sombra long-only).
+   * Cuando esto pasa, `shadowValueUsd` queda en 0 (piso, nunca negativo) y
+   * `diffUsd` termina siendo prácticamente el valor total de la posición
+   * real — un número técnicamente correcto según la fórmula, pero engañoso
+   * de presentar como "cuánto le ganaste al mercado", porque la comparación
+   * en sí dejó de ser válida. La UI debe avisarlo en vez de mostrar un
+   * veredicto limpio (detectado por Cas, jul 2026 — screenshot con "En SPY
+   * habrías tenido US$0,00" exacto).
+   */
+  degenerate:     boolean
 }
 
 /** Cierre de SPY en `date` o el más cercano HACIA ATRÁS. null si no hay ningún dato ≤ date. */
@@ -57,13 +72,19 @@ export function computeSpyBenchmark(
   if (spyHistory.length === 0 || cashFlows.length === 0) return null
 
   const sorted = [...cashFlows].sort((a, b) => a.date.localeCompare(b.date))
-  let spyShares = 0
+  let rawSpyShares = 0
   for (const ev of sorted) {
     const px = closeOnOrBefore(spyHistory, ev.date) ?? spyHistory[0].close
     if (px <= 0) continue
-    spyShares += ev.usd / px
+    rawSpyShares += ev.usd / px
   }
-  spyShares = Math.max(0, spyShares)   // guard: no debería ir negativo, pero no reportar posición corta imaginaria
+  // Piso en 0: una venta con ganancia mucho mayor a la de SPY puede retirar
+  // más dólares de la sombra de los que esos mismos flujos generaron en
+  // SPY hasta esa fecha — el modelo no reporta una posición corta imaginaria.
+  // `degenerate` avisa cuándo pasó esto, para que la UI no presente el
+  // resultado como un veredicto limpio (ver comentario en SpyBenchmarkResult).
+  const degenerate = rawSpyShares < -1e-6
+  const spyShares  = Math.max(0, rawSpyShares)
 
   const asOfDate    = spyHistory[spyHistory.length - 1].date
   const latestSpyPx = spyHistory[spyHistory.length - 1].close
@@ -77,5 +98,5 @@ export function computeSpyBenchmark(
   const diffUsd = realValueUsd - shadowValueUsd
   const diffPct = shadowValueUsd > 0 ? (diffUsd / shadowValueUsd) * 100 : null
 
-  return { realValueUsd, shadowValueUsd, diffUsd, diffPct, asOfDate, spyShares }
+  return { realValueUsd, shadowValueUsd, diffUsd, diffPct, asOfDate, spyShares, degenerate }
 }
