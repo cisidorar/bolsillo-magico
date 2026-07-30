@@ -1236,27 +1236,31 @@ export default function Radar({
         </div>
         {/* V3 (roadmap de vista): selector de orden — antes era fijo (solo
             convicción); se recuerda en localStorage, mismo patrón que la
-            leyenda descartable. */}
-        <select
-          value={sortMode}
-          onChange={e => changeSortMode(e.target.value as 'convict' | 'daily' | 'total' | 'value')}
-          className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
-          style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
-        >
-          <option value="convict">Ordenar: convicción</option>
-          <option value="daily">Ordenar: % hoy</option>
-          <option value="total">Ordenar: retorno total</option>
-          <option value="value">Ordenar: valor</option>
-        </select>
-        <button
-          onClick={showLegendToast}
-          aria-label="Qué significa el número de cada fila"
-          title="Qué significa el número de cada fila"
-          className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
-          style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
-        >
-          <Info className="w-3.5 h-3.5" />
-        </button>
+            leyenda descartable. Agrupado con el botón de info (antes cada
+            uno era un hijo directo del flex justify-between, así que el
+            select quedaba centrado lejos del ícono — a pedido de Cas). */}
+        <div className="flex items-center gap-2">
+          <select
+            value={sortMode}
+            onChange={e => changeSortMode(e.target.value as 'convict' | 'daily' | 'total' | 'value')}
+            className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
+            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
+          >
+            <option value="convict">Ordenar: convicción</option>
+            <option value="daily">Ordenar: % hoy</option>
+            <option value="total">Ordenar: retorno total</option>
+            <option value="value">Ordenar: valor</option>
+          </select>
+          <button
+            onClick={showLegendToast}
+            aria-label="Qué significa el número de cada fila"
+            title="Qué significa el número de cada fila"
+            className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
+            style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* ── Lista ─────────────────────────────────────────────────────────── */}
