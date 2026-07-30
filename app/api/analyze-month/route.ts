@@ -95,7 +95,7 @@ IMPORTANTE — qué NO reportar:
 - "excluded_this_month" trae los gastos que el usuario YA marcó como únicos este mes (ya están fuera de categories/top_expenses/merchants). Nunca los reportes de nuevo ni los cuentes como evidencia — si es útil, puedes mencionar de pasada que ya quedaron excluidos del análisis.
 
 PRIORIZA patrones de COMPORTAMIENTO que solo se ven cruzando meses — para eso recibes categories[].history_6m (serie mensual por categoría), merchants (gasto por comercio con promedio histórico) e intra_month (distribución del gasto dentro del mes):
-1. merchant_trend: un comercio/servicio específico que crece sostenido vs su promedio (ej. "Uber subió 41% vs tus 3 meses previos: 14 viajes por $86.000").
+1. merchant_trend: un comercio/servicio específico que crece sostenido vs su promedio (ej. "Uber subió 41% vs tus 3 meses previos: 14 viajes por $86.000"). ANTES de reportarlo, descarta compras periódicas normales usando months_active_hist, window_months y typical_amount de ese comercio: si months_active_hist < window_months (no aparece todos los meses) y el monto de este mes está cerca (±30%) de typical_amount, es un ciclo de compra esperado (ej. comida de mascota cada 2 meses, mantención cada trimestre) — NO es una alza, no lo reportes como merchant_trend. Solo repórtalo si el monto por compra realmente subió respecto a typical_amount, o si months_active_hist llegó al máximo (compra todos los meses) y aun así el monto sigue subiendo.
 2. subscription_price_increase: un cargo recurrente del mismo comercio cuyo monto subió (misma suscripción, precio nuevo).
 3. payday_effect: concentración del gasto discrecional en una ventana específica del mes (ej. días post-sueldo, fines de semana) — usa intra_month y sé específico con el % y los días.
 4. seasonal_pattern / habit_increase: categoría con deriva sostenida en history_6m (3+ meses subiendo), distinguiendo deriva real de un spike puntual.
@@ -142,6 +142,17 @@ function normalizeMerchant(desc: string | null | undefined): string {
     .replace(/[^a-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+// I1.2 (jul 2026): mediana de una lista de montos — usada para "typical_amount"
+// de un comercio. Más robusta que el promedio para compras periódicas (ej.
+// comida de mascota cada 2 meses): un promedio se diluye con los meses sin
+// compra, la mediana de las compras reales no.
+function median(nums: number[]): number | null {
+  if (nums.length === 0) return null
+  const sorted = [...nums].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid]
 }
 
 function sanitize(str: string | null | undefined, maxLen = 80): string {
@@ -313,17 +324,29 @@ export async function POST(request: Request) {
       byCatHistory[catId][k] = (byCatHistory[catId][k] ?? 0) + e.amount
     }
 
-    // ── I1.2: agregado por comercio — mes actual vs promedio de los 3 meses
-    // previos. Sin esto la IA no puede decir "Uber subió 41%": solo ve el
-    // total de la categoría, no el comercio específico que la mueve.
-    const prev3Keys = new Set(monthKeys6.slice(2, 5))
-    const merchantHistoryTotal: Record<string, number> = {}
+    // ── I1.2: agregado por comercio — mes actual vs comportamiento histórico.
+    // Ventana ampliada de 3→5 meses previos (jul 2026, bug reportado por Cas:
+    // "Comida Kida" — comida de perro que compra cada ~2 meses — se marcaba
+    // como alza de 194% porque el promedio simple de 3 meses se diluía con
+    // meses sin compra). Ahora se manda months_active_hist y typical_amount
+    // (mediana por compra) para que el prompt distinga "compra periódica
+    // normal" de "alza real": delta_pct compara contra el promedio SOLO de
+    // los meses en que el comercio tuvo actividad, no contra el total/3.
+    const WINDOW_MONTHS = 5
+    const prevWindowKeys = new Set(monthKeys6.slice(0, WINDOW_MONTHS))
+    const merchantHistoryTotal:   Record<string, number> = {}
+    const merchantHistoryMonths:  Record<string, Set<string>> = {}
+    const merchantHistoryAmounts: Record<string, number[]> = {}
     for (const e of activeHistoryExpenses) {
       const k = String(e.date).slice(0, 7)
-      if (!prev3Keys.has(k)) continue
+      if (!prevWindowKeys.has(k)) continue
       const mk = normalizeMerchant(e.description)
       if (!mk) continue
       merchantHistoryTotal[mk] = (merchantHistoryTotal[mk] ?? 0) + e.amount
+      if (!merchantHistoryMonths[mk])  merchantHistoryMonths[mk] = new Set()
+      if (!merchantHistoryAmounts[mk]) merchantHistoryAmounts[mk] = []
+      merchantHistoryMonths[mk].add(k)
+      merchantHistoryAmounts[mk].push(e.amount)
     }
     const merchantNow: Record<string, { count: number; total: number; label: string }> = {}
     for (const e of activeExpenses) {
@@ -335,15 +358,20 @@ export async function POST(request: Request) {
     }
     const merchants = Object.entries(merchantNow)
       .map(([mk, m]) => {
-        const histTotal = merchantHistoryTotal[mk] ?? 0
-        const avg3m = Math.round(histTotal / 3)
+        const histTotal    = merchantHistoryTotal[mk] ?? 0
+        const monthsActive = merchantHistoryMonths[mk]?.size ?? 0
+        const avgPerActiveMonth = monthsActive > 0 ? Math.round(histTotal / monthsActive) : null
+        const typicalAmount     = median(merchantHistoryAmounts[mk] ?? [])
         return {
-          name:       m.label,
-          count_now:  m.count,
-          total_now:  m.total,
-          avg_3m:     avg3m,
-          delta_pct:  avg3m > 0 ? Math.round(((m.total - avg3m) / avg3m) * 100) : null,
-          is_new:     histTotal === 0,
+          name:                 m.label,
+          count_now:            m.count,
+          total_now:            m.total,
+          months_active_hist:   monthsActive,      // en cuántos de los últimos window_months meses hubo compra
+          window_months:        WINDOW_MONTHS,
+          avg_per_active_month: avgPerActiveMonth,  // promedio SOLO de los meses con compra (no diluido por meses sin compra)
+          typical_amount:       typicalAmount,      // mediana del monto por compra histórica
+          delta_pct:            avgPerActiveMonth && avgPerActiveMonth > 0 ? Math.round(((m.total - avgPerActiveMonth) / avgPerActiveMonth) * 100) : null,
+          is_new:               histTotal === 0,
         }
       })
       .sort((a, b) => b.total_now - a.total_now)
