@@ -6,6 +6,9 @@ import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-
 import { computeConviction, isActionableBuyNow, computeMarketRegime } from '@/lib/conviction'
 import { backtestSignals, type LabelStat } from '@/lib/signal-backtest'
 import { getNowChile } from '@/lib/utils'
+import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
+import { computeRatePath } from '@/lib/rate-path'
+import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
 // Programado en vercel.json (22:30 UTC ≈ post-cierre NYSE). Protegido con
@@ -185,6 +188,50 @@ async function refreshUsdClp(supabase: SupabaseClient): Promise<void> {
     if (error) console.error('[sync-prices] usdclp cache error:', error.message)
   } catch (err) {
     console.error('[sync-prices] refreshUsdClp falló:', err)
+  }
+}
+
+// ── Aviso "la Fed decide tasas en 7 días" (a pedido de Cas, jul 2026) ────────
+// Corre TODOS los días, no solo días hábiles NYSE (a diferencia del resto de
+// este cron) — el calendario de la Fed no respeta el mercado de acciones, y
+// el aviso tiene que existir 7 días antes sin importar si eso cae un fin de
+// semana. Barato: nextFomcMeeting() es aritmética de fechas, y
+// fetchAllMacroSeries() ya cachea 24h en price_cache.
+//
+// Se persiste (no se manda el correo desde acá): notify-fomc-reminder (Edge
+// Function, Deno) lee esta fila y arma el HTML — mismo split que
+// weekly_reports/daily_decisions, porque Deno no puede importar
+// lib/market-week.ts ni lib/rate-path.ts.
+async function updateFomcAlert(supabase: SupabaseClient): Promise<{ meetingDate: string } | null> {
+  try {
+    const { dateStr: todayCL } = getNowChile()
+    const meetingDate = nextFomcMeeting(todayCL, 7)
+    if (!meetingDate) return null
+
+    const macro   = await fetchAllMacroSeries(supabase)
+    const dffObs  = macro.DFF?.observations ?? []
+    const dgs2Obs = macro.DGS2?.observations ?? []
+    if (dffObs.length === 0) return null   // sin FRED_API_KEY o sin datos: no hay frase que mandar
+
+    const ratePath = dgs2Obs.length > 0
+      ? computeRatePath(dgs2Obs[dgs2Obs.length - 1].value, dffObs[dffObs.length - 1].value)
+      : null
+    const sentence = fedRateSentence(dffObs, ratePath)
+    if (!sentence) return null
+
+    const { error } = await supabase.from('fomc_alerts').upsert({
+      meeting_date:  meetingDate,
+      sentence,
+      direction:     ratePath?.direction ?? 'estable',
+      implied_moves: ratePath?.impliedMoves ?? 0,
+      computed_at:   new Date().toISOString(),
+    }, { onConflict: 'meeting_date' })
+    if (error) { console.error('[sync-prices] fomc_alerts upsert error:', error.message); return null }
+
+    return { meetingDate }
+  } catch (err) {
+    console.error('[sync-prices] updateFomcAlert falló:', err)
+    return null
   }
 }
 
@@ -496,9 +543,10 @@ export async function GET(request: Request) {
   // es historia perdida para siempre (los meses pasados quedan congelados).
   await refreshUsdClp(supabase)
   const netWorthSnapshots = await snapshotAllNetWorths(supabase)
+  const fomcAlert = await updateFomcAlert(supabase)
 
   if (!isTradingDay()) {
-    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots })
+    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert })
   }
 
   // Tickers en uso: watchlist ∪ posiciones (todos los usuarios) ∪ SPY.
@@ -542,5 +590,6 @@ export async function GET(request: Request) {
     digest,
     trailingStops,
     netWorthSnapshots,
+    fomcAlert,
   })
 }

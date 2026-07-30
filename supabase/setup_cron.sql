@@ -122,6 +122,26 @@ select cron.schedule(
   $$
 );
 
+-- 7. Aviso "la Fed decide tasas en 7 días" — todos los días a las 9:20 AM CLT.
+--    Corre después de /api/cron/sync-prices de Vercel (que ya dejó la fila
+--    lista en fomc_alerts si hay una reunión FOMC dentro de 7 días); esta
+--    función solo lee esa fila y manda el correo (idempotente por reunión,
+--    un solo aviso aunque el cron corra todos los días de la ventana).
+select cron.schedule(
+  'notify-fomc-reminder-daily',
+  '20 12 * * *',   -- 12:20 UTC = 09:20 CLT
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-fomc-reminder',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;
 
@@ -132,3 +152,4 @@ select cron.schedule(
 -- select cron.unschedule('notify-recurring-reminder');
 -- select cron.unschedule('notify-watchlist-digest-daily');
 -- select cron.unschedule('notify-weekly-report-monday');
+-- select cron.unschedule('notify-fomc-reminder-daily');
