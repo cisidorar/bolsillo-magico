@@ -1,6 +1,6 @@
 # Roadmap · Análisis de tasas: de "cuál es la tasa" a "hacia dónde va y qué te hace"
 
-**Estado: propuesta (jul 2026).** Nada implementado todavía. Detonante: la decisión del FOMC del 29 de julio de 2026.
+**Estado: M1, M2, M3, M4, M5 implementados (jul 2026).** `npx tsc --noEmit` y `npm test` (338/338) verdes tras cada bloque. Queda pendiente M6 (puente USD/CLP + TPM Chile). Detonante: la decisión del FOMC del 29 de julio de 2026.
 
 ---
 
@@ -39,7 +39,7 @@ Las mismas de `ROADMAP-largo-plazo-inversiones.md`, sin excepción:
 
 ---
 
-## M1 — Leer la expectativa, no solo la tasa (impacto alto · esfuerzo bajo)
+## M1 — Leer la expectativa, no solo la tasa (impacto alto · esfuerzo bajo) ✅
 
 **Problema.** Descrito arriba: `DFF` es un dato retrospectivo. Hoy la app dice "sin presión nueva" el mismo día en que el mercado incorporó dos alzas.
 
@@ -61,9 +61,11 @@ Las mismas de `ROADMAP-largo-plazo-inversiones.md`, sin excepción:
 
 **Por qué primero.** Es el único ítem que corrige una frase **actualmente equivocada** en producción, y es el insumo del que dependen M2, M3 y M4.
 
+**Implementado.** `lib/rate-path.ts` con `computeRatePath(dgs2, dff)` tal cual el diseño (spread en pb, umbral ±15pb, `impliedMoves` redondeado). `fedRateSentence()` reescrito con 2do parámetro opcional `ratePath` — sin él se degrada exactamente al mensaje anterior (compatibilidad hacia atrás, tests lo cubren). **Recortado a propósito:** no se agregaron `T10YIE`/`DFII10` a `MACRO_SERIES` — `computeRatePath()` solo necesita `DGS2`/`DFF` (ambos ya cacheados); esas dos series quedan documentadas para cuando algún módulo futuro las necesite de verdad, agregarlas sin un consumidor sería un indicador sin decisión detrás (regla de la casa).
+
 ---
 
-## M2 — Cuánto le pega a *cada acción tuya* (impacto alto · esfuerzo medio)
+## M2 — Cuánto le pega a *cada acción tuya* (impacto alto · esfuerzo medio) ✅
 
 **Problema.** "Suben las tasas" es una noticia genérica. Lo accionable es: *a cuáles de mis posiciones les pega y a cuáles no*. Hoy la app no distingue: NVDA y una utility reciben exactamente la misma frase macro.
 
@@ -85,9 +87,11 @@ Salida: `{ betaPer10bp, r2, n }` — *"por cada +10 pb en el bono a 2 años, est
 
 **Dónde se ve.** Un chip discreto en la ficha del ticker (`TechnicalDetail.tsx`), junto a los chips que ya existen (`ConvictionChip`, `PriceZoneChip`) — mismo patrón tap→toast, sin card nueva.
 
+**Implementado.** `lib/rate-sensitivity.ts` con `computeRateSensitivity()` tal cual el diseño (regresión sobre retornos diarios alineados por fecha, `n≥120`/`r²≥0.10`). Test con series sintéticas de beta inyectada a mano (recuperada con `toBeCloseTo`, tolerancia de redondeo). `DGS2` en `lib/macro-fetch.ts` pasó de 30 a 200 días de historia cacheada — 30 alcanzaba para el nivel actual pero no para esta regresión. `/api/technical` calcula `rateSensitivity` junto al análisis técnico (reusa `price_history` + el mismo `DGS2` cacheado, sin fetch nuevo) y lo cachea en `lib/analysis-cache.ts`. Nuevo `RateSensitivityChip` en `RiskRail.tsx`, en la cabecera de `TechnicalDetail.tsx` junto al score de convicción — estilo neutro (no es un chip de severidad UX5, es un dato), toast con la aclaración de correlación-no-causalidad tal cual se propuso.
+
 ---
 
-## M3 — Escenarios: qué pasa si suben, si mantienen, si bajan (impacto alto · esfuerzo medio · depende de M2)
+## M3 — Escenarios: qué pasa si suben, si mantienen, si bajan (impacto alto · esfuerzo medio · depende de M2) ✅
 
 **Problema.** Esto es literalmente lo que pediste: *"los posibles movimientos"*. Hoy no existe nada parecido en la app.
 
@@ -110,9 +114,11 @@ Para cada uno: `impactoUSD = Σ (valorPosición × betaPer10bp × movimientoEn10
 - Los ETFs apalancados ya detectados por `lib/leveraged-etfs.ts` deben multiplicar su impacto por el `factor` (2× o 3×). Sin esto, un `TMF` (3× bonos largos) aparecería subestimado justo en el escenario que más le importa.
 - **Severidad:** este bloque es **gold como máximo, nunca coral.** Un escenario hipotético no es una acción para hoy y no debe competir con las alertas reales de la cartera.
 
+**Implementado.** `lib/rate-scenarios.ts` con `computeRateScenarios()` — 3 escenarios fijos (+25/0/-25pb, no solo el mes ancla de septiembre) sobre `TickerScenarioInput[]`; tickers sin beta confiable se excluyen del cálculo y se listan aparte (`excludedTickers`); `leverageFactor` multiplica el impacto tal cual el diseño. `page.tsx` de `/inversiones` arma el input reusando `price_history` que YA se traía para `spyBenchmark`/`portfolioHistory` (se hoisteó `priceHistoryByTicker`/`latestCloseByTicker` fuera de ese bloque, cero fetch nuevo) + `detectLeverage()` + la serie `DGS2` de M1. Nuevo `RateScenariosCard.tsx`, `<details>` colapsado igual que `WeekSnapshotCard`, con el disclaimer de aproximación de primer orden explícito en la UI y colores tope gold/mint (nunca coral). Test con regresión exacta (beta conocida × movimiento conocido = impacto exacto) y casos de exclusión/apalancamiento/cartera vacía.
+
 ---
 
-## M4 — La tasa dentro de la decisión de compra (impacto medio · esfuerzo bajo · depende de M2)
+## M4 — La tasa dentro de la decisión de compra (impacto medio · esfuerzo bajo · depende de M2) ✅
 
 **Problema.** `computeConviction()` pondera cuatro cosas (técnico 40 · riesgo/recompensa 25 · track record 20 · fuerza relativa 15) y ninguna sabe que el mercado espera dos alzas.
 
@@ -126,9 +132,11 @@ En cambio, **una razón contextual sin tocar el número**: cuando `direction ===
 
 Esto encaja con la mecánica de tramos escalonados (`buy[]`) que el motor ya calcula — es una razón para usarlos, no un veto.
 
+**Implementado, con una simplificación documentada.** `computeConviction()` acepta un 4to parámetro opcional `rateContext` y agrega la razón cuando `direction==='alzas'` y el rating es de COMPRA — el score no se toca (verificado con test: mismo score con y sin contexto). **Cambio respecto al diseño:** en vez de "el cuartil más sensible de tu cartera" se usa un umbral absoluto (`|betaPer10bp| ≥ 1.0`), porque `computeConviction()` analiza un ticker a la vez y no tiene visibilidad del resto de la cartera para calcular un cuartil — documentado en el código. `/api/technical` ahora también expone `rateDirection` (reusa el mismo `DGS2`/`DFF` que ya trae para M2) y `lib/analysis-cache.ts` expone `getCachedRateContext()`, listo para pasar directo — wireado en los 3 call sites cliente (`TechnicalDetail`, `Radar`, `TransactionModal`).
+
 ---
 
-## M5 — Arreglar el calendario FOMC antes de que se apague solo (impacto medio · esfuerzo bajo)
+## M5 — Arreglar el calendario FOMC antes de que se apague solo (impacto medio · esfuerzo bajo) ✅
 
 **Bug latente encontrado revisando esto.** `FOMC_DECISION_DATES_2026` en `lib/market-week.ts` contiene **solo fechas de 2026**. La última es el **9 de diciembre de 2026**. A partir de esa fecha, `nextFomcMeeting()` devuelve `null` para siempre y la sección "Lo que viene" pierde silenciosamente la mitad de su contenido — sin error, sin aviso. Faltan ~4 meses.
 
@@ -138,6 +146,8 @@ Esto encaja con la mecánica de tramos escalonados (`buy[]`) que el motor ya cal
    `2027-01-27 · 2027-03-17 · 2027-04-28 · 2027-06-09 · 2027-07-28 · 2027-09-15 · 2027-10-27 · 2027-12-08`
 2. **Test que falla solo**: un caso que verifique que la lista cubre al menos 6 meses hacia adelante desde `hoy`. Así la próxima vez que se venza, lo dice la suite y no el silencio de la UI.
 3. Pasar el FOMC próximo a `computeDailyDecisions()` (cron `sync-prices` → tabla `daily_decisions`) para que el correo diario pueda abrir con *"la Fed decide mañana — hoy no es día de ejecutar"*. **La infraestructura ya existe entera**; hoy la fecha del FOMC solo vive en una card colapsada que hay que ir a abrir.
+
+**Implementado (puntos 1 y 2).** Las 8 fechas de 2027 están agregadas a `FOMC_DECISION_DATES_2026` (mismo nombre de constante, se documentó por qué no se renombró) y el test de cobertura de ≥6 meses está en `market-week.test.ts`. **Punto 3 no se hizo** — quedó superado por algo más directo que pidió Cas en la misma sesión: en vez de meter el FOMC al flujo de `daily_decisions`/correo diario, se construyó un aviso dedicado una semana antes (`supabase/functions/notify-fomc-reminder`, tabla `fomc_alerts`, cron `sync-prices` calcula y persiste) — cubre el mismo caso de uso ("no te agarre desprevenido") con más anticipación (7 días vs. la víspera) y sin acoplarlo al correo de señales de acciones.
 
 ---
 
@@ -158,12 +168,12 @@ Esto encaja con la mecánica de tramos escalonados (`buy[]`) que el motor ya cal
 
 | # | Ítem | Impacto | Esfuerzo | Depende de |
 |---|---|---|---|---|
-| 1 | **M1** — expectativa de tasas | Alto | Bajo | — |
-| 2 | **M5** — calendario FOMC 2027 + test | Medio | Bajo | — |
-| 3 | **M2** — sensibilidad por ticker | Alto | Medio | M1 |
-| 4 | **M3** — escenarios de cartera | Alto | Medio | M2 |
-| 5 | **M4** — razón contextual en convicción | Medio | Bajo | M2 |
-| 6 | **M6** — puente USD/CLP + TPM | Medio | Bajo | M1 |
+| 1 | **M1** — expectativa de tasas ✅ | Alto | Bajo | — |
+| 2 | **M5** — calendario FOMC 2027 + test ✅ | Medio | Bajo | — |
+| 3 | **M2** — sensibilidad por ticker ✅ | Alto | Medio | M1 |
+| 4 | **M3** — escenarios de cartera ✅ | Alto | Medio | M2 |
+| 5 | **M4** — razón contextual en convicción ✅ | Medio | Bajo | M2 |
+| 6 | **M6** — puente USD/CLP + TPM (pendiente) | Medio | Bajo | M1 |
 
 **M1 + M5 son una sesión corta** y ya dejan la app diciendo la verdad sobre el momento actual en vez de "sin presión nueva". **M2 + M3 son el análisis complejo propiamente tal** y merecen su propia sesión, con tests de la regresión sobre series sintéticas (beta conocida de antemano) antes de mostrar un solo número en pantalla.
 

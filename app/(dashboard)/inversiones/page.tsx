@@ -13,6 +13,10 @@ import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotC
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
+import { computeRateSensitivity } from '@/lib/rate-sensitivity'
+import { computeRateScenarios } from '@/lib/rate-scenarios'
+import RateScenariosCard from '@/components/RateScenariosCard'
+import { detectLeverage } from '@/lib/leveraged-etfs'
 import { computeYieldCurve } from '@/lib/yield-curve'
 import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
@@ -223,6 +227,12 @@ export default async function InversionesPage({ searchParams }: Props) {
   // benchmark vs SPY (todo el historial de los tickers en posición), sin
   // fetch aparte.
   let portfolioHistory: PortfolioPoint[] = []
+  // M3 (roadmap macro/tasas): historial completo por ticker + último cierre,
+  // hoisteados fuera del bloque para reusarlos más abajo en los escenarios de
+  // tasa (necesitan el mismo price_history que ya se pide acá — cero fetch
+  // aparte) — se calculan DESPUÉS de traer dgs2Obs (bloque macro, más abajo).
+  let priceHistoryByTicker = new Map<string, { date: string; value: number }[]>()
+  let latestCloseByTicker  = new Map<string, number>()
   if ((purchases?.length ?? 0) > 0) {
     const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker))]
     const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
@@ -240,9 +250,11 @@ export default async function InversionesPage({ searchParams }: Props) {
         : Promise.resolve({ data: [] as { ticker: string; date: string; close: number }[] }),
     ])
 
-    const latestCloseByTicker = new Map<string, number>()
     for (const row of latestRows ?? []) {
       if (!latestCloseByTicker.has(row.ticker)) latestCloseByTicker.set(row.ticker, Number(row.close))
+      const list = priceHistoryByTicker.get(row.ticker) ?? []
+      list.push({ date: row.date as string, value: Number(row.close) })
+      priceHistoryByTicker.set(row.ticker, list)
     }
 
     const cashFlows = [
@@ -287,6 +299,25 @@ export default async function InversionesPage({ searchParams }: Props) {
   const yieldCurveInverted = dgs10Obs.length > 0 && dgs2Obs.length > 0
     ? computeYieldCurve(dgs10Obs[dgs10Obs.length - 1].value, dgs2Obs[dgs2Obs.length - 1].value).inverted
     : false
+
+  // M3 (roadmap macro/tasas, jul 2026): escenarios +25/0/-25pb sobre la
+  // cartera real — reusa el price_history ya traído arriba (spyBenchmark/
+  // portfolioHistory) y la serie DGS2 recién cacheada, sin fetch aparte.
+  // Aproximación de primer orden, no una predicción (ver disclaimer en la UI).
+  const rateScenarios = dgs2Obs.length > 0
+    ? computeRateScenarios(
+        (stocks ?? []).map(s => {
+          const valueUsd = s.shares * (latestCloseByTicker.get(s.ticker) ?? 0)
+          const sensitivity = computeRateSensitivity(priceHistoryByTicker.get(s.ticker) ?? [], dgs2Obs)
+          return {
+            ticker: s.ticker,
+            valueUsd,
+            betaPer10bp: sensitivity?.betaPer10bp ?? null,
+            leverageFactor: detectLeverage(s.ticker)?.factor ?? null,
+          }
+        }),
+      )
+    : null
 
   // "Lo que viene": reunión de la Fed en ≤7 días + earnings de tickers en
   // cartera en ≤5 días hábiles (mismo umbral que D3 ya usa para earnings) —
@@ -385,6 +416,15 @@ export default async function InversionesPage({ searchParams }: Props) {
               upcoming={upcoming}
             />
           </div>
+          {rateScenarios && (
+            <div className="mt-4">
+              <RateScenariosCard
+                scenarios={rateScenarios.scenarios}
+                excludedTickers={rateScenarios.excludedTickers}
+                consideredValueUsd={rateScenarios.consideredValueUsd}
+              />
+            </div>
+          )}
         </>
       )}
 
