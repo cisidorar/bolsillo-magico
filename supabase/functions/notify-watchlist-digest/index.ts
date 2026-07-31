@@ -401,6 +401,83 @@ function decisionBlockHtml(decision: Decision | null, infoMap: Map<string, Ticke
   </table>`
 }
 
+// ── Bloque "día tranquilo" (jul 2026, a pedido de Cas) ────────────────────────
+// Cuando nada es accionable (strongRows vacío) el correo antes terminaba en
+// header + stats + disclaimer, sin ningún dato real del día — se sentía
+// vacío. Acá se agrega, solo para ese caso: (1) cómo le fue HOY en plata a lo
+// que el usuario realmente tiene (si tiene algo dentro de su watchlist), y
+// (2) el mayor movimiento del día entre todo lo que sigue, tenga posición o
+// no — un dato, no una señal (por eso sigue en "mantener"). Puramente
+// informativo: nunca lleva color de severidad UX5 (ni banner ni chip de
+// alerta), el rojo/verde es el mismo indicador numérico que ya se usa en
+// cada tarjeta de ticker del correo.
+function quietDayBlockHtml(signals: Signal[], sharesMap: Map<string, number>): string {
+  const owned = signals
+    .map(s => ({ s, shares: sharesMap.get(s.ticker) ?? 0 }))
+    .filter(o => o.shares > 0)
+
+  let portfolioRow = ''
+  if (owned.length > 0) {
+    let valueUsd = 0, deltaUsd = 0
+    for (const { s, shares } of owned) {
+      const prevPrice = s.price / (1 + s.change_pct / 100)
+      valueUsd += shares * s.price
+      deltaUsd += shares * (s.price - prevPrice)
+    }
+    const prevValueUsd = valueUsd - deltaUsd
+    const pct   = prevValueUsd > 0 ? (deltaUsd / prevValueUsd) * 100 : 0
+    const color = deltaUsd >= 0 ? '#1FBE8D' : '#FF6F61'
+    const arrow = deltaUsd >= 0 ? '▲' : '▼'
+    portfolioRow = `
+      <tr><td style="padding:16px 18px">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <tr>
+            <td style="vertical-align:top">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.4px;color:#8B9AB0">TU PORTAFOLIO HOY</p>
+              <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:20px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtUSD(valueUsd)}</p>
+            </td>
+            <td style="text-align:right;vertical-align:top;white-space:nowrap">
+              <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:15px;font-weight:800;color:${color}">${arrow} ${fmtPct(pct)}</p>
+              <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:600;color:${color}">${deltaUsd >= 0 ? '+' : '−'}${fmtUSD(Math.abs(deltaUsd))} hoy</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>`
+  }
+
+  // Solo destacar el mayor movimiento si es realmente notorio — bajo 1% en
+  // 20 tickers seguro hay alguno, pero no vale la pena resaltarlo como dato.
+  const sorted = [...signals].sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
+  const mover  = sorted.find(s => Math.abs(s.change_pct) >= 1) ?? null
+  let moverRow = ''
+  if (mover) {
+    const color = mover.change_pct >= 0 ? '#1FBE8D' : '#FF6F61'
+    const arrow = mover.change_pct >= 0 ? '▲' : '▼'
+    moverRow = `
+      <tr><td style="padding:16px 18px${portfolioRow ? ';border-top:1px solid #EEF2F8' : ''}">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.4px;color:#8B9AB0">MAYOR MOVIMIENTO DEL DÍA</p>
+        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:700;color:#0E2A52">
+          ${mover.ticker} <span style="color:${color}">${arrow} ${fmtPct(mover.change_pct)}</span>
+        </p>
+      </td></tr>`
+  }
+
+  if (!portfolioRow && !moverRow) return ''
+
+  return `
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+    <tr><td style="padding-bottom:12px">
+      <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📊 Tu día en números</span>
+    </td></tr>
+    <tr><td>
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-signal-card" style="border:1.5px solid #E4EAF3;border-radius:16px">
+        ${portfolioRow}
+        ${moverRow}
+      </table>
+    </td></tr>
+  </table>`
+}
+
 function digestEmailHtml({
   displayName,
   signals,
@@ -560,6 +637,8 @@ function digestEmailHtml({
       <tr><td style="padding:8px 20px 28px">
 
         ${decisionBlockHtml(decision, infoMap)}
+
+        ${strongRows.length === 0 ? quietDayBlockHtml(signals, sharesMap) : ''}
 
         ${strongRows.length > 0 ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
