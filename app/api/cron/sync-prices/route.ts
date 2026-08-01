@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { syncTicker, readCandles } from '@/lib/price-providers'
-import { analyze, positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
+import { analyze, positionSizeUsd, type TechnicalAnalysis, type PriceZone } from '@/lib/technical'
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
-import { computeConviction, isActionableBuyNow, computeMarketRegime } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { backtestSignals, type LabelStat } from '@/lib/signal-backtest'
 import { getNowChile } from '@/lib/utils'
 import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
@@ -93,6 +93,15 @@ interface SignalRow {
   change_pct: number
   strong:     boolean
   watch:      boolean
+  // Convicción/zona de precio (jul 2026): mismo número y misma etiqueta que
+  // ConvictionChip/PriceZoneChip en la app — antes el digest solo mandaba el
+  // gatillo técnico puro (kind='buy') sin este contexto, y un ticker con
+  // gatillo pero convicción baja ("Caro") se veía en el correo con el mismo
+  // peso que la mejor compra del día real. Se llenan después de armar la fila
+  // (computeDailySignals), quedan null si por lo que sea no se pudo calcular.
+  conviction_score?: number | null
+  conviction_tier?:  ConvictionTier | null
+  price_zone?:       PriceZone | null
 }
 
 /** Frase corta de estado para tickers en neutral — para "el resto de tu lista"
@@ -388,6 +397,25 @@ async function computeDailySignals(supabase: SupabaseClient) {
     }
   }
 
+  // Convicción/zona de precio por ticker (jul 2026) — se calcula UNA vez por
+  // ticker (no por usuario: computeConviction solo depende de analysis/stats/
+  // spyReturn6m, ninguno de los tres es específico de un usuario) y se pega a
+  // cada fila de daily_signals ya armada, antes del upsert. Mismo cálculo que
+  // usa computeDailyDecisions más abajo — se comparte vía convictionByTicker
+  // para no recalcularlo por usuario también ahí.
+  const { spyReturn6m, marketRegime } = await computeSpyContext(supabase, analysesByTicker)
+  const convictionByTicker = new Map<string, ReturnType<typeof computeConviction>>()
+  for (const [ticker, analysis] of analysesByTicker) {
+    convictionByTicker.set(ticker, computeConviction(analysis, statsByTicker.get(ticker) ?? null, spyReturn6m))
+  }
+  for (const row of allSignals) {
+    const c = convictionByTicker.get(row.ticker)
+    const a = analysesByTicker.get(row.ticker)
+    row.conviction_score = c?.score ?? null
+    row.conviction_tier  = c?.tier  ?? null
+    row.price_zone       = a?.priceZone ?? null
+  }
+
   if (allSignals.length > 0) {
     const { error } = await supabase.from('daily_signals').upsert(allSignals, {
       onConflict: 'user_id,ticker,kind,signal_date',
@@ -404,9 +432,30 @@ async function computeDailySignals(supabase: SupabaseClient) {
     if (error) console.error('[sync-prices] signal_stats upsert error:', error.message)
   }
 
-  const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker, statsByTicker)
+  const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker, spyReturn6m, marketRegime, convictionByTicker)
 
   return { signals: allSignals.length, targetsReached: allNotifiedIds.length, decisions: decisions.decisions, signalStats: statRows.length }
+}
+
+// Fuerza relativa vs SPY + régimen de mercado — compartido entre el enriquecido
+// de daily_signals (convicción por ticker) y computeDailyDecisions (antes cada
+// uno lo calculaba por su cuenta). Se reutiliza si SPY ya se analizó (siempre
+// se sincroniza); si nadie la sigue en watchlist, se calcula aparte.
+async function computeSpyContext(
+  supabase: SupabaseClient,
+  analysesByTicker: Map<string, TechnicalAnalysis>,
+): Promise<{ spyReturn6m: number | null; marketRegime: MarketRegime | null }> {
+  let spyAnalysis = analysesByTicker.get('SPY') ?? null
+  if (spyAnalysis === null) {
+    try {
+      const spyCandles = await readCandles(supabase, 'SPY')
+      if (spyCandles.closes.length >= 30) spyAnalysis = analyze(spyCandles)
+    } catch { /* sin SPY el score simplemente pesa sin ese componente y el régimen queda null */ }
+  }
+  return {
+    spyReturn6m:  spyAnalysis?.returns.m6 ?? null,
+    marketRegime: computeMarketRegime(spyAnalysis?.trend ?? null),
+  }
 }
 
 // ── Decisión diaria de portafolio (Fase 5.4 del roadmap) ─────────────────────
@@ -419,25 +468,11 @@ async function computeDailyDecisions(
   supabase: SupabaseClient,
   wlRows: WatchlistRow[],
   analysesByTicker: Map<string, TechnicalAnalysis>,
-  statsByTicker: Map<string, LabelStat[]>,
+  spyReturn6m: number | null,
+  marketRegime: MarketRegime | null,
+  convictionByTicker: Map<string, ReturnType<typeof computeConviction>>,
 ): Promise<{ decisions: number }> {
   if (wlRows.length === 0) return { decisions: 0 }
-
-  // Fuerza relativa vs SPY: se reutiliza si SPY ya se analizó (ahora siempre
-  // se sincroniza); si nadie la sigue en watchlist, se calcula aparte — es
-  // solo un ticker más y ya está sincronizada por el paso anterior del cron.
-  // D4: mismo análisis de SPY expone el régimen de mercado (trend), reusado
-  // para exigir compra_fuerte en isActionableBuyNow cuando el mercado en
-  // general va para abajo.
-  let spyAnalysis = analysesByTicker.get('SPY') ?? null
-  if (spyAnalysis === null) {
-    try {
-      const spyCandles = await readCandles(supabase, 'SPY')
-      if (spyCandles.closes.length >= 30) spyAnalysis = analyze(spyCandles)
-    } catch { /* sin SPY el score simplemente pesa sin ese componente y el régimen queda null */ }
-  }
-  const spyReturn6m = spyAnalysis?.returns.m6 ?? null
-  const marketRegime = computeMarketRegime(spyAnalysis?.trend ?? null)
 
   const userIds = [...new Set(wlRows.map(r => r.user_id))]
   const [{ data: posRows }, { data: usdRows }] = await Promise.all([
@@ -473,9 +508,11 @@ async function computeDailyDecisions(
     const candidates = userTickers
       .map(ticker => {
         const a = analysesByTicker.get(ticker)
-        // D1: mismo track record calculado arriba en este cron para daily_signals —
-        // antes esto también pasaba null.
-        return a ? { ticker, a, conviction: computeConviction(a, statsByTicker.get(ticker) ?? null, spyReturn6m) } : null
+        const c = convictionByTicker.get(ticker)
+        // La convicción ya se calculó una vez por ticker más arriba (compartida
+        // con el enriquecido de daily_signals) — acá solo se reusa, no se
+        // vuelve a calcular por usuario.
+        return a && c ? { ticker, a, conviction: c } : null
       })
       .filter((c): c is { ticker: string; a: TechnicalAnalysis; conviction: ReturnType<typeof computeConviction> } => c !== null)
       .sort((x, y) => y.conviction.score - x.conviction.score)

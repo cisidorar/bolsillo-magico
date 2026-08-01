@@ -68,6 +68,9 @@ function closeLabelET(): string {
   return `${dia} ${et.getDate()} ${mes} · 16:00 ET`
 }
 
+type ConvictionTier = 'compra_fuerte' | 'compra' | 'neutral' | 'evitar' | 'venta'
+type PriceZone      = 'conveniente' | 'justo' | 'caro'
+
 interface Signal {
   user_id:    string
   ticker:     string
@@ -77,6 +80,16 @@ interface Signal {
   change_pct: number
   strong:     boolean
   watch:      boolean
+  // jul 2026 (bug reportado por Cas con capturas): el digest mostraba "SEÑAL
+  // DE COMPRA" con el mismo peso para cualquier ticker con gatillo técnico,
+  // mientras la app decía que la mejor compra del día era otra y marcaba esos
+  // mismos tickers con convicción baja / precio "Caro" — dos verdades sin
+  // conectar ("a quién le creo"). Estos dos campos son el MISMO número y la
+  // MISMA etiqueta que ConvictionChip/PriceZoneChip en la app, calculados una
+  // vez por ticker en sync-prices y guardados en daily_signals.
+  conviction_score: number | null
+  conviction_tier:  ConvictionTier | null
+  price_zone:       PriceZone | null
 }
 
 // Fase 5.4 del roadmap: la decisión de portafolio, calculada por el cron de
@@ -135,6 +148,48 @@ const KIND_COLOR: Record<Signal['kind'], { fg: string; bg: string }> = {
   hold:    { fg: '#8B9AB0', bg: '#F5F7FA' },
 }
 
+// jul 2026 — mismos colores/etiquetas que ConvictionChip/PriceZoneChip en la
+// app (components/RiskRail.tsx), para que "70" y "Conveniente" signifiquen
+// exactamente lo mismo en el correo que en la app.
+const TIER_COLOR: Record<ConvictionTier, { fg: string; bg: string }> = {
+  compra_fuerte: { fg: '#1FBE8D', bg: '#EAFBF5' },
+  compra:        { fg: '#1FBE8D', bg: '#EAFBF5' },
+  neutral:       { fg: '#8B9AB0', bg: '#F5F7FA' },
+  evitar:        { fg: '#D98A1F', bg: '#FFF6E8' },
+  venta:         { fg: '#FF6F61', bg: '#FFF1EF' },
+}
+const ZONE_LABEL: Record<PriceZone, string> = { conveniente: 'Conveniente', justo: 'Justo', caro: 'Caro' }
+const ZONE_COLOR: Record<PriceZone, string> = { conveniente: '#1FBE8D', justo: '#8B9AB0', caro: '#D98A1F' }
+
+// Tarjeta con gatillo técnico ("SEÑAL DE COMPRA") pero convicción baja o
+// precio "Caro" — el mismo ticker que la app marcaría como poco atractivo
+// pese al gatillo. Antes el correo no lo distinguía de una compra limpia
+// (bug reportado por Cas: AMZN/GOOGL/INTC con "SEÑAL DE COMPRA" mientras la
+// app decía que la mejor compra era NVDA). >=55 = tier 'compra'/'compra_fuerte'.
+function isWeakDespiteTrigger(s: Signal): boolean {
+  if (s.kind !== 'buy') return false
+  if (s.conviction_score !== null && s.conviction_score < 55) return true
+  if (s.price_zone === 'caro') return true
+  return false
+}
+
+/** Badge "70 · Conveniente" — mismo número y misma palabra que ve el usuario
+ *  en /inversiones para este ticker, para que el correo y la app hablen el
+ *  mismo idioma en vez de dos verdades sin conectar. */
+function convictionBadgeHtml(s: Signal): string {
+  if (s.conviction_score === null && !s.price_zone) return ''
+  const parts: string[] = []
+  if (s.conviction_score !== null && s.conviction_tier) {
+    const c = TIER_COLOR[s.conviction_tier]
+    parts.push(`<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:${c.bg};color:${c.fg};font-weight:800">${Math.round(s.conviction_score)}/100</span>`)
+  }
+  if (s.price_zone) {
+    parts.push(`<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:#F5F7FA;color:${ZONE_COLOR[s.price_zone]};font-weight:800">${ZONE_LABEL[s.price_zone]}</span>`)
+  }
+  if (parts.length === 0) return ''
+  return `<span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;margin-left:6px">${parts.join('&nbsp;')}</span>`
+}
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
   let body: Record<string, unknown> = {}
@@ -146,17 +201,23 @@ Deno.serve(async (req: Request) => {
     const testEmail = (body?.email as string) ?? null
     if (!testEmail) return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
     const testSignals: Signal[] = [
-      { user_id: 'x', ticker: 'MELI', kind: 'sell', message: 'Cruzó por debajo de su media de 50 días. Perdió el soporte y el RSI marca sobrecompra — considera tomar ganancias.', price: 1852.22, change_pct: -3.4, strong: true, watch: false },
-      { user_id: 'x', ticker: 'NVDA', kind: 'buy',  message: 'Rebotó en su media de 20 días con volumen alto y MACD girando al alza. Rompe resistencia — buen punto para promediar.', price: 210.96, change_pct: 2.6, strong: true, watch: false },
-      { user_id: 'x', ticker: 'META', kind: 'hold', message: 'tendencia estable', price: 669.21, change_pct: 0.4, strong: false, watch: false },
-      { user_id: 'x', ticker: 'SPY',  kind: 'hold', message: 'dentro de rango', price: 754.95, change_pct: 0.3, strong: false, watch: false },
-      { user_id: 'x', ticker: 'MU',   kind: 'caution', message: 'Débil · cerca de soporte', price: 979.30, change_pct: -1.2, strong: false, watch: true },
-      { user_id: 'x', ticker: 'GOOGL', kind: 'hold', message: 'consolidando', price: 357.18, change_pct: 0.9, strong: false, watch: false },
-      { user_id: 'x', ticker: 'IBIT', kind: 'hold', message: 'lateral', price: 36.23, change_pct: 0.6, strong: false, watch: false },
+      { user_id: 'x', ticker: 'MELI', kind: 'sell', message: 'Cruzó por debajo de su media de 50 días. Perdió el soporte y el RSI marca sobrecompra — considera tomar ganancias.', price: 1852.22, change_pct: -3.4, strong: true, watch: false, conviction_score: 22, conviction_tier: 'venta', price_zone: 'caro' },
+      { user_id: 'x', ticker: 'NVDA', kind: 'buy',  message: 'Rebotó en su media de 20 días con volumen alto y MACD girando al alza. Rompe resistencia — buen punto para promediar.', price: 210.96, change_pct: 2.6, strong: true, watch: false, conviction_score: 78, conviction_tier: 'compra_fuerte', price_zone: 'conveniente' },
+      // A propósito con convicción BAJA y "Caro" pese al gatillo técnico —
+      // reproduce el caso real reportado por Cas (AMZN con SEÑAL DE COMPRA en
+      // el correo, pero 39/100 "Caro" en la app) para verificar visualmente
+      // que ahora se ve la misma tensión en el correo, no una compra limpia.
+      { user_id: 'x', ticker: 'AMZN', kind: 'buy', message: 'El impulso de mediano plazo mejora. En las últimas ~2 semanas el movimiento del precio giró al alza.', price: 271.58, change_pct: 15.3, strong: false, watch: false, conviction_score: 39, conviction_tier: 'neutral', price_zone: 'caro' },
+      { user_id: 'x', ticker: 'META', kind: 'hold', message: 'tendencia estable', price: 669.21, change_pct: 0.4, strong: false, watch: false, conviction_score: 48, conviction_tier: 'neutral', price_zone: 'justo' },
+      { user_id: 'x', ticker: 'SPY',  kind: 'hold', message: 'dentro de rango', price: 754.95, change_pct: 0.3, strong: false, watch: false, conviction_score: 55, conviction_tier: 'compra', price_zone: 'justo' },
+      { user_id: 'x', ticker: 'MU',   kind: 'caution', message: 'Débil · cerca de soporte', price: 979.30, change_pct: -1.2, strong: false, watch: true, conviction_score: 41, conviction_tier: 'neutral', price_zone: 'caro' },
+      { user_id: 'x', ticker: 'GOOGL', kind: 'hold', message: 'consolidando', price: 357.18, change_pct: 0.9, strong: false, watch: false, conviction_score: 56, conviction_tier: 'compra', price_zone: 'conveniente' },
+      { user_id: 'x', ticker: 'IBIT', kind: 'hold', message: 'lateral', price: 36.23, change_pct: 0.6, strong: false, watch: false, conviction_score: null, conviction_tier: null, price_zone: null },
     ]
     const infoMap = new Map<string, TickerInfo>([
       ['MELI', { name: 'MercadoLibre', domain: 'mercadolibre.com' }],
       ['NVDA', { name: 'NVIDIA', domain: 'nvidia.com' }],
+      ['AMZN', { name: 'Amazon.com Inc', domain: 'amazon.com' }],
       ['META', { name: 'Meta Platforms', domain: 'meta.com' }],
       ['SPY',  { name: 'S&P 500 ETF', domain: null }],
       ['MU',   { name: 'Micron Technology', domain: 'micron.com' }],
@@ -194,7 +255,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: rows, error } = await supabase
     .from('daily_signals')
-    .select('user_id, ticker, kind, message, price, change_pct, strong, watch')
+    .select('user_id, ticker, kind, message, price, change_pct, strong, watch, conviction_score, conviction_tier, price_zone')
     .eq('signal_date', today)
 
   if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 })
@@ -531,9 +592,13 @@ function digestEmailHtml({
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="${color.bg}" style="background:${color.bg};border-radius:12px;margin-top:12px">
               <tr><td style="padding:12px 14px">
                 <p style="margin:0 0 4px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.4px;color:${color.fg}">
-                  <span style="color:${color.fg}">●</span> ${KIND_TITLE[s.kind]}
+                  <span style="color:${color.fg}">●</span> ${KIND_TITLE[s.kind]}${convictionBadgeHtml(s)}
                 </p>
                 <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:500;color:#3D4C63;line-height:1.5">${s.message}</p>
+                ${isWeakDespiteTrigger(s) ? `
+                <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:700;color:#D98A1F;line-height:1.5">
+                  ⚠ No es la mejor compra del día — convicción baja o precio ya estirado. Mira el número de arriba antes de entrar.
+                </p>` : ''}
               </td></tr>
             </table>
           </td></tr>
@@ -644,6 +709,10 @@ function digestEmailHtml({
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td style="padding-bottom:12px">
             <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚡ Para revisar hoy</span>
+            ${strongRows.some(s => s.conviction_score !== null) ? `
+            <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0;line-height:1.5">
+              El número junto a cada acción es su convicción de compra (mismo que ves en la app) — no todo gatillo técnico es una compra igual de buena.
+            </p>` : ''}
           </td></tr>
           ${strongCardsHtml}
         </table>` : ''}
