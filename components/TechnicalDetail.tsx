@@ -309,14 +309,20 @@ export default function TechnicalDetail({
     : !a.trend.aboveSma200 && a.trend.sma200Rising === false ? 'var(--coral)'
     : 'var(--gold)'
 
-  const RATING_UI: Record<TechnicalAnalysis['rating']['label'], { color: string; bg: string }> = {
-    compra_fuerte: { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.20)' },
-    compra:        { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.10)' },
-    neutral:       { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)' },
-    venta:         { color: 'var(--coral)', bg: 'rgba(255,111,97,0.10)' },
-    venta_fuerte:  { color: 'var(--coral)', bg: 'rgba(255,111,97,0.20)' },
+  // Fondo tintado para la cabecera — se calcula sobre headerColor más abajo
+  // (compra/venta/hold ACCIONABLE hoy, conviction+gatillo), no sobre
+  // a.rating.label (lectura técnica cruda). Antes eran dos fuentes distintas:
+  // el borde salía de a.rating.label mientras el texto "Compra ahora" y el
+  // chip de convicción salían de buyNow/conviction — un ticker con lectura
+  // técnica "neutral" (borde gold) pero convicción/gatillo de compra (texto
+  // mint) mostraba un borde y un texto en colores contradictorios en la misma
+  // tarjeta (screenshot de Cas: NVDA con borde amarillo, INTC con borde verde,
+  // mismos 70/100 y "Compra ahora" en ambos). Un solo color por tarjeta.
+  const HEADER_BG: Record<string, string> = {
+    'var(--mint)':  'rgba(31,190,141,0.14)',
+    'var(--gold)':  'rgba(255,194,60,0.14)',
+    'var(--ink-3)': 'var(--surface-2)',
   }
-  const ratingUi = { ...RATING_UI[a.rating.label], text: `Lectura técnica: ${a.rating.action}` }
 
   // Cabecera: score de convicción (mismo cálculo que el ranking de favoritos)
   // + la acción concreta de HOY con monto, no solo el rating en abstracto.
@@ -481,7 +487,7 @@ export default function TechnicalDetail({
       {/* 0. Cabecera fija: score + acción con monto + el porqué en 2 líneas
           (U3 del roadmap UX) — esto es lo único que hace falta leer para
           decidir; el resto de bloques son profundización opcional. */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: ratingUi.bg, borderLeft: `3px solid ${ratingUi.color}` }}>
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: HEADER_BG[headerColor] ?? 'var(--surface-2)', borderLeft: `3px solid ${headerColor}` }}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <ConvictionChip score={conviction.score} tier={conviction.tier} />
@@ -489,7 +495,7 @@ export default function TechnicalDetail({
             <p className="text-sm font-extrabold truncate" style={{ color: headerColor }}>{headerAction}</p>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
-            style={{ background: 'var(--surface)', color: ratingUi.color }}>
+            style={{ background: 'var(--surface)', color: headerColor }}>
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
