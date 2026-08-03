@@ -3,9 +3,10 @@
 import { useState, useCallback } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, X, Timer, Trash2, ChevronRight, CalendarDays, CheckCircle2 } from 'lucide-react'
+import { Plus, X, Timer, Trash2, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
+import StatHeroRow from '@/components/StatHeroRow'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity,
 } from '@/lib/term-deposits'
@@ -49,9 +50,9 @@ function fmtPct(n: number): string {
   return n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + '%'
 }
 
-function fmtDate(dateStr: string): string {
+function fmtDateShort(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', {
-    day: 'numeric', month: 'short', year: 'numeric',
+    day: 'numeric', month: 'short',
   })
 }
 
@@ -219,10 +220,13 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     const idleLong = isMatured && daysIdle >= 30
 
     const statusColor = isMatured ? (idleLong ? 'var(--gold)' : 'var(--mint)') : soon ? 'var(--gold)' : 'var(--primary)'
-    const statusText  = isMatured
-      ? daysIdle <= 0 ? `Venció hoy` : `Venció hace ${daysIdle} día${daysIdle !== 1 ? 's' : ''} · ${fmtDate(d.maturity_date)}`
-      : days === 0 ? 'Vence hoy'
-      : `Vence en ${days} día${days !== 1 ? 's' : ''} · ${fmtDate(d.maturity_date)}`
+    // Subtitulo (mockup de Cas, ago 2026): tasa + vencimiento en una sola línea
+    // — antes la tasa vivía junto al nombre del banco en la línea 1.
+    const venceText  = isMatured
+      ? daysIdle <= 0 ? 'venció hoy' : `venció hace ${daysIdle} día${daysIdle !== 1 ? 's' : ''}`
+      : days === 0 ? 'vence hoy'
+      : `vence ${fmtDateShort(d.maturity_date)} · en ${days} día${days !== 1 ? 's' : ''}`
+    const statusText = `${fmtPct(d.interest_rate)} período · ${venceText}`
 
     return (
       <button
@@ -239,9 +243,6 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{d.bank}</span>
-              <span className="text-[10px] font-semibold shrink-0" style={{ color: 'var(--ink-3)' }}>
-                {fmtPct(d.interest_rate)} período
-              </span>
               {isMatured && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide inline-flex items-center gap-1"
                   style={idleLong
@@ -294,7 +295,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
             <div className="flex items-center gap-2 min-w-0 text-[11px] mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--primary)' }} />
               <span style={{ color: 'var(--ink-2)' }} className="font-semibold truncate">
-                Próximo vencimiento: {fmtDate(nextMaturity.maturity_date)}
+                {(() => {
+                  const d = daysToMaturity(nextMaturity, today)
+                  return d === 0 ? 'Próx. vencimiento hoy' : `Próx. vencimiento en ${d} día${d !== 1 ? 's' : ''}`
+                })()}
               </span>
             </div>
           )}
@@ -606,79 +610,21 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
         </div>
       )}
 
-      {/* ── Hero + KPIs ──────────────────────────────────────────────────── */}
+      {/* ── Mini-hero (mockup de Cas, ago 2026): una sola fila compacta en vez
+          del hero-gradient 40% + grid de 2 KPI cards de antes — la fecha del
+          próximo vencimiento ya vive en el chip del header de arriba. */}
       {active.length > 0 && (
-        <div className="flex flex-col lg:flex-row gap-4">
-
-          {/* Hero card — mismo azul que Acciones (.hero-gradient), no var(--primary) */}
-          <div
-            className="card overflow-hidden hero-gradient"
-            style={{ flex: '40 1 0' }}
-          >
-            <div className="px-5 pt-5 pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                Total al vencimiento
-              </p>
-              <p
-                className="text-4xl lg:text-5xl font-extrabold tabular-nums leading-none"
-                style={{ color: 'white', fontFamily: 'Fredoka, sans-serif' }}
-              >
-                {formatCLP(totalAtEnd)}
-              </p>
-              <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                {active.length} depósito{active.length !== 1 ? 's' : ''} vigente{active.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-4 py-3 lg:px-5 lg:py-4">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: 'white' }}>
-                  {formatCLP(totalInvested)}
-                </p>
-              </div>
-              <div className="px-4 py-3 lg:px-5 lg:py-4 border-l" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.5)' }}>Interés total</p>
-                <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: '#7CF2CB' }}>
-                  +{formatCLP(totalEarnAll)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
-            <div className="card p-4 lg:p-5 flex flex-col">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Devengado a hoy</p>
-              <p
-                className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
-                style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--mint)' }}
-              >
-                +{formatCLP(totalAccrued)}
-              </p>
-              <p className="text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
-                interés ganado hasta hoy
-              </p>
-            </div>
-            <div className="card p-4 lg:p-5 flex flex-col">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>Próximo vencimiento</p>
-              {nextMaturity ? (
-                <>
-                  <p
-                    className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
-                    style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-                  >
-                    {daysToMaturity(nextMaturity, today)}d
-                  </p>
-                  <p className="text-[11px] mt-1.5 font-medium truncate" style={{ color: 'var(--ink-3)' }}>
-                    {nextMaturity.bank} · {formatCLP(nextMaturity.amount + totalInterest(nextMaturity))}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xl font-semibold" style={{ color: 'var(--ink-3)' }}>—</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <StatHeroRow
+          variant="surface"
+          label="Total al vencimiento"
+          value={formatCLP(totalAtEnd)}
+          caption={`${active.length} depósito${active.length !== 1 ? 's' : ''} vigente${active.length !== 1 ? 's' : ''}`}
+          stats={[
+            { label: 'Invertido',       value: formatCLP(totalInvested) },
+            { label: 'Interés total',   value: `+${formatCLP(totalEarnAll)}`, color: 'var(--mint)' },
+            { label: 'Devengado hoy',   value: `+${formatCLP(totalAccrued)}`, color: 'var(--mint)' },
+          ]}
+        />
       )}
 
       {/* ── Lista de depósitos vigentes ──────────────────────────────────── */}
@@ -688,13 +634,6 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
             {[...active].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)).map(d => (
               <DepositRow key={d.id} d={d} isMatured={false} />
             ))}
-          </div>
-          <div
-            className="px-4 lg:px-6 py-2.5 border-t flex items-center gap-2 text-[10px]"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
-          >
-            <CalendarDays className="w-3 h-3 shrink-0" />
-            <span>Interés simple del período · devengo lineal por días transcurridos</span>
           </div>
         </div>
       )}

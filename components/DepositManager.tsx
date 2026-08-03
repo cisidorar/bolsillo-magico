@@ -3,13 +3,10 @@
 import { useState, useCallback } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Plus, X, Landmark, Trash2, ChevronRight,
-  ArrowUp, CalendarDays,
-} from 'lucide-react'
+import { Plus, X, Landmark, Trash2, ChevronRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
-import { realReturnPct } from '@/lib/cl-indicators'
 import ServiceLogo from '@/components/ServiceLogo'
+import StatHeroRow from '@/components/StatHeroRow'
 import { daysElapsed, earnedSoFar, dailyInterest, projectedInterest } from '@/lib/savings-accounts'
 import type { SavingsAccount } from '@/app/(dashboard)/inversiones/page'
 
@@ -102,37 +99,11 @@ function focusOff(e: React.FocusEvent<HTMLInputElement>) {
   e.currentTarget.style.boxShadow   = 'none'
 }
 
-// ── Sparkline mini-bar (proyección 12 meses) ──────────────────────────────────
-
-function ProjectionBar({ balance, annualRate }: { balance: number; annualRate: number }) {
-  const months = [1, 3, 6, 9, 12]
-  const values = months.map(m => projectedInterest(balance, annualRate, m * 30))
-  const max    = values[values.length - 1] || 1
-
-  return (
-    <div className="flex items-end gap-1 h-8">
-      {values.map((v, i) => (
-        <div key={i} className="flex flex-col items-center gap-1 flex-1">
-          <div
-            className="w-full rounded-t-md transition-all"
-            style={{
-              height:     `${Math.max(4, (v / max) * 28)}px`,
-              background: `rgba(31,190,141,${0.35 + i * 0.13})`,
-            }}
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface Props {
   userId:         string
   initialSavings: SavingsAccount[]
-  /** E5 (roadmap economía) / F7: inflación anualizada trailing (IPC Chile, mindicador.cl) — null si no se pudo obtener. */
-  trailingInflationPct?: number | null
 }
 interface FormState {
   name:       string
@@ -149,7 +120,7 @@ const emptyForm: FormState = {
   notes:      '',
 }
 
-export default function DepositManager({ userId, initialSavings, trailingInflationPct = null }: Props) {
+export default function DepositManager({ userId, initialSavings }: Props) {
   const supabase = createClient()
 
   const [savings,       setSavings]       = useState<SavingsAccount[]>(initialSavings)
@@ -162,23 +133,15 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   // ── Computed totals ───────────────────────────────────────────────────────
-  const totalBalance     = savings.reduce((s, a) => s + a.balance, 0)
-  const totalEarned      = savings.reduce((s, a) => s + earnedSoFar(a.balance, a.annual_rate, a.start_date), 0)
+  const totalBalance      = savings.reduce((s, a) => s + a.balance, 0)
+  const totalEarned       = savings.reduce((s, a) => s + earnedSoFar(a.balance, a.annual_rate, a.start_date), 0)
   const totalCurrentValue = totalBalance + totalEarned
-  const totalReturn      = totalBalance > 0 ? (totalEarned / totalBalance) * 100 : 0
-
-  const totalDaily       = savings.reduce((s, a) => s + dailyInterest(a.balance, a.annual_rate), 0)
-  const totalMonthly     = savings.reduce((s, a) => s + projectedInterest(a.balance, a.annual_rate, 30), 0)
-  const totalAnnual      = savings.reduce((s, a) => s + projectedInterest(a.balance, a.annual_rate, 365), 0)
+  const totalDaily        = savings.reduce((s, a) => s + dailyInterest(a.balance, a.annual_rate), 0)
+  const totalAnnual       = savings.reduce((s, a) => s + projectedInterest(a.balance, a.annual_rate, 365), 0)
 
   const avgRate = savings.length > 0
     ? savings.reduce((s, a) => s + a.annual_rate * a.balance, 0) / (totalBalance || 1)
     : 0
-
-  const bestAccount = savings.reduce<{ name: string; rate: number } | null>((best, a) => {
-    if (!best || a.annual_rate > best.rate) return { name: a.name, rate: a.annual_rate }
-    return best
-  }, null)
 
   // ── Form helpers ──────────────────────────────────────────────────────────
   function openAdd() {
@@ -271,7 +234,7 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
             <div className="flex items-center gap-2 min-w-0 text-[11px] mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--mint)' }} />
               <span style={{ color: 'var(--mint)' }} className="font-semibold">
-                {fmtPct(avgRate)} TAE promedio
+                {fmtPct(avgRate)} TAE · +{formatCLP(totalDaily)}/día
               </span>
             </div>
           )}
@@ -508,266 +471,69 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
         </div>
       )}
 
-      {/* ── Hero + KPIs ──────────────────────────────────────────────────── */}
+      {/* ── Mini-hero (mockup de Cas, ago 2026): una sola fila compacta en vez
+          del hero-gradient 40% + grid de 3 KPI cards + fila Hoy/30d/12m de
+          antes — el detalle diario ya vive en el chip del header de arriba. */}
       {savings.length > 0 && (
-        <div className="flex flex-col lg:flex-row gap-4">
-
-          {/* Hero card */}
-          <div
-            className="card overflow-hidden hero-gradient"
-            style={{ flex: '40 1 0' }}
-          >
-            {/* Valor total */}
-            <div className="px-5 pt-5 pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                Total en ahorro
-              </p>
-              <div className="flex items-baseline gap-2">
-                <p
-                  className="text-4xl lg:text-5xl font-extrabold tabular-nums leading-none"
-                  style={{ color: 'white', fontFamily: 'Fredoka, sans-serif' }}
-                >
-                  {formatCLP(totalCurrentValue)}
-                </p>
-              </div>
-              <p className="text-[11px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                {fmtPct(avgRate)} TAE promedio ponderado
-                {trailingInflationPct !== null && (
-                  <> · ≈{fmtPct(realReturnPct(avgRate, trailingInflationPct))} real (IPC {fmtPct(trailingInflationPct)} 12m)</>
-                )}
-              </p>
-            </div>
-
-            {/* Sub-KPIs */}
-            <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Depositado</p>
-                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: 'white' }}>
-                  {formatCLP(totalBalance)}
-                </p>
-              </div>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Interés ganado</p>
-                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: '#1FBE8D' }}>
-                  +{formatCLP(totalEarned)}
-                </p>
-              </div>
-              <div className="px-2 py-3 lg:px-5 lg:py-4 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Rentabilidad</p>
-                <p className="text-xs sm:text-sm lg:text-base font-bold tabular-nums truncate" style={{ color: '#1FBE8D' }}>
-                  +{fmtPct(totalReturn)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 3 KPI cards horizontales */}
-          <div className="grid grid-cols-3 gap-2 lg:gap-3 w-full lg:min-w-0" style={{ flex: '60 1 0', alignContent: 'stretch' }}>
-
-            {/* Hoy */}
-            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Hoy</p>
-              <p
-                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
-                style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--mint)' }}
-              >
-                +{formatCLP(totalDaily)}
-              </p>
-              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
-                por día
-              </p>
-              <div className="flex-1" />
-              {bestAccount && (
-                <div className="flex items-center gap-1 mt-2 min-w-0">
-                  <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--mint)' }} />
-                  <span className="text-[10px] font-semibold truncate" style={{ color: 'var(--ink-3)' }}>
-                    {bestAccount.name} {fmtPct(bestAccount.rate)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 30 días */}
-            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>30 días</p>
-              <p
-                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
-                style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-              >
-                +{formatCLP(totalMonthly)}
-              </p>
-              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
-                proyección mensual
-              </p>
-            </div>
-
-            {/* 12 meses */}
-            <div className="card p-3 lg:p-5 min-w-0 flex flex-col">
-              <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest mb-2 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>12 meses</p>
-              <p
-                className="text-lg sm:text-xl lg:text-3xl font-extrabold tabular-nums leading-none truncate"
-                style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
-              >
-                +{formatCLP(totalAnnual)}
-              </p>
-              <p className="text-[10px] lg:text-[11px] mt-1.5 font-medium" style={{ color: 'var(--ink-3)' }}>
-                proyección anual
-              </p>
-              <div className="flex-1" />
-              <div className="mt-2">
-                <ProjectionBar balance={totalBalance} annualRate={avgRate} />
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <StatHeroRow
+          variant="surface"
+          label="Total en ahorro"
+          value={formatCLP(totalCurrentValue)}
+          stats={[
+            { label: 'Depositado',      value: formatCLP(totalBalance) },
+            { label: 'Interés',         value: `+${formatCLP(totalEarned)}`, color: 'var(--mint)' },
+            { label: 'Proyección 12m',  value: `+${formatCLP(totalAnnual)}`, color: 'var(--mint)' },
+          ]}
+        />
       )}
 
       {/* ── Tabla de cuentas ─────────────────────────────────────────────── */}
       {savings.length > 0 && (
         <div className="card overflow-hidden">
 
-          {/* Table header */}
-          <div className="hidden lg:grid px-6 py-2.5 border-b" style={{
-            borderColor: 'var(--border)',
-            gridTemplateColumns: '2fr 1fr 0.8fr 1fr 1fr 1fr 40px',
-          }}>
-            {['Cuenta', 'Saldo', 'Tasa', 'Ganado hoy', 'Total ganado', 'Desde', ''].map((h, i) => (
-              <p key={i} className={`text-[10px] font-bold uppercase tracking-widest ${i > 0 ? 'text-right' : ''}`}
-                style={{ color: 'var(--ink-3)' }}>
-                {h}
-              </p>
-            ))}
-          </div>
-
-          {/* Rows */}
+          {/* Fila única (mockup de Cas): antes había una tabla ancha para
+              desktop y otra fila compacta para mobile — se unificaron en
+              una sola, más legible y sin duplicar markup. */}
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {savings.map(acc => {
               const earned = earnedSoFar(acc.balance, acc.annual_rate, acc.start_date)
-              const today  = dailyInterest(acc.balance, acc.annual_rate)
               const days   = daysElapsed(acc.start_date)
 
               return (
                 <button
                   key={acc.id}
                   onClick={() => openEdit(acc)}
-                  className="w-full text-left group px-4 lg:px-6 py-3.5 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
+                  className="w-full text-left group px-4 lg:px-6 py-3.5 hover:bg-[var(--surface-2)] transition-colors active:opacity-80 flex items-center gap-3"
                 >
-                  {/* Desktop */}
-                  <div
-                    className="hidden lg:grid items-center"
-                    style={{ gridTemplateColumns: '2fr 1fr 0.8fr 1fr 1fr 1fr 40px' }}
-                  >
-                    {/* Cuenta */}
-                    <div className="flex items-center gap-3">
-                      <ServiceLogo
-                        domain={domainFromSavingsName(acc.name)}
-                        name={acc.name}
-                        size={36}
-                        fallbackColor={avatarColor(acc.name)}
-                      />
-                      <div>
-                        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{acc.name}</p>
-                        {acc.notes && (
-                          <p className="text-[11px] truncate max-w-[160px]" style={{ color: 'var(--ink-3)' }}>{acc.notes}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Saldo */}
-                    <div className="text-right">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {formatCLP(acc.balance)}
-                      </p>
-                    </div>
-
-                    {/* Tasa */}
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {fmtPct(acc.annual_rate)}
-                      </p>
-                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
-                        {trailingInflationPct !== null
-                          ? `≈${fmtPct(realReturnPct(acc.annual_rate, trailingInflationPct))} real`
-                          : 'anual'}
-                      </p>
-                    </div>
-
-                    {/* Ganado hoy */}
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--mint)' }}>
-                        +{formatCLP(today)}
-                      </p>
-                    </div>
-
-                    {/* Total ganado */}
-                    <div className="text-right">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
-                        +{formatCLP(earned)}
-                      </p>
-                      <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                        {days} días
-                      </p>
-                    </div>
-
-                    {/* Desde */}
-                    <div className="text-right">
-                      <p className="text-sm tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                        {fmtDate(acc.start_date)}
-                      </p>
-                    </div>
-
-                    {/* Chevron */}
-                    <div className="flex items-center justify-end">
-                      <ChevronRight
-                        className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
-                        style={{ color: 'var(--ink-3)' }}
-                      />
-                    </div>
+                  <ServiceLogo
+                    domain={domainFromSavingsName(acc.name)}
+                    name={acc.name}
+                    size={40}
+                    fallbackColor={avatarColor(acc.name)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{acc.name}</p>
+                    <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>
+                      {fmtPct(acc.annual_rate)} TAE · desde {fmtDate(acc.start_date)} · {days} día{days !== 1 ? 's' : ''}
+                    </p>
+                    {acc.notes && (
+                      <p className="text-[10px] truncate" style={{ color: 'var(--ink-3)' }}>{acc.notes}</p>
+                    )}
                   </div>
-
-                  {/* Mobile */}
-                  <div className="lg:hidden flex items-center gap-3">
-                    <ServiceLogo
-                      domain={domainFromSavingsName(acc.name)}
-                      name={acc.name}
-                      size={40}
-                      fallbackColor={avatarColor(acc.name)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{acc.name}</span>
-                        <span className="text-[10px] font-semibold shrink-0" style={{ color: 'var(--ink-3)' }}>
-                          {fmtPct(acc.annual_rate)}
-                        </span>
-                      </div>
-                      <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                        {formatCLP(acc.balance)} · {days} días
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
-                        +{formatCLP(earned)}
-                      </p>
-                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
-                        +{formatCLP(today)}/día
-                      </p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+                  <div className="text-right shrink-0">
+                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Saldo</p>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                      {formatCLP(acc.balance)}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'var(--ink-3)' }}>Ganado</p>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
+                      +{formatCLP(earned)}
+                    </p>
                   </div>
-
+                  <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
                 </button>
               )
             })}
-          </div>
-
-          {/* Footer */}
-          <div
-            className="px-4 lg:px-6 py-2.5 border-t flex items-center gap-2 text-[10px]"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
-          >
-            <CalendarDays className="w-3 h-3 shrink-0" />
-            <span>Capitalización compuesta diaria (TEA) · actualizado al día de hoy</span>
           </div>
         </div>
       )}

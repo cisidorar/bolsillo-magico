@@ -222,8 +222,6 @@ export default async function InversionesPage({ searchParams }: Props) {
     .reduce((s, r) => s + Number(r.total_paid_clp ?? 0), 0)
 
   const stockCount   = stocks?.length   ?? 0
-  const savingCount  = savings?.length  ?? 0
-  const depositCount = deposits?.length ?? 0
 
   // ── Benchmark vs SPY (Fase 2.2 del roadmap): ¿le ganaste al mercado? ──────
   // Basado en cierres de price_history (misma tabla que usa el motor técnico)
@@ -353,11 +351,11 @@ export default async function InversionesPage({ searchParams }: Props) {
           className="text-3xl font-semibold leading-tight"
           style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
         >
-          Inversiones
+          {isAhorro ? 'Ahorros y depósitos' : 'Inversiones'}
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
           {isAhorro
-            ? `${savingCount + depositCount} ${savingCount + depositCount !== 1 ? 'cuentas' : 'cuenta'} · ahorro y depósitos`
+            ? 'Todo tu dinero que genera interés'
             : isBilletera
             ? 'el fondo desde el que compras acciones'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
@@ -383,13 +381,19 @@ export default async function InversionesPage({ searchParams }: Props) {
             <DepositManager
               userId={user.id}
               initialSavings={(savings ?? []) as SavingsAccount[]}
-              trailingInflationPct={trailingInflationPctResolved}
             />
             <TermDepositManager
               userId={user.id}
               initialDeposits={(deposits ?? []) as TermDeposit[]}
             />
           </div>
+          {/* Footer único (mockup de Cas, ago 2026): combina las dos notas que
+              antes vivían por separado en cada manager. */}
+          {(((savings ?? []).length > 0) || ((deposits ?? []).length > 0)) && (
+            <p className="text-[11px] text-center mt-4" style={{ color: 'var(--ink-3)' }}>
+              Ahorro con capitalización diaria · plazo con interés simple del período. Actualizado hoy.
+            </p>
+          )}
         </>
       ) : isBilletera ? (
         <UsdWalletManager
