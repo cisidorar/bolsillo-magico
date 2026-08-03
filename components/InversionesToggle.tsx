@@ -1,12 +1,19 @@
 import Link from 'next/link'
-import { TrendingUp, Landmark, Wallet } from 'lucide-react'
+import { TrendingUp, Landmark, Wallet, Eye } from 'lucide-react'
 
 // Ago 2026 (roadmap ROADMAP-ahorro-depositos.md, A1): Ahorro y Depósitos se
 // fusionaron en una sola pestaña — ambos son "plata segura en pesos que
 // rinde un interés conocido", a diferencia de Acciones/Billetera que son el
 // mundo USD con riesgo. 'depositos' se mantiene como ALIAS de 'ahorro' en
 // page.tsx (no como tab propia) para que links/bookmarks viejos no rompan.
-export type InversionesView = 'acciones' | 'ahorro' | 'billetera'
+//
+// Ago 2026 (pedido de Cas: "quiero separar en dos vistas, una de seguimiento
+// de las acciones que ya tengo y otra con las que me interesa comprar"):
+// 'acciones' (Mis acciones) y 'watchlist' se separaron — antes Radar fusionaba
+// posiciones y favoritos en una sola pantalla con tabs Tengo/Sigo/Todo. Ahora
+// son dos vistas: Mis acciones es 100% seguimiento (valor, rendimiento,
+// historial), Watchlist es 100% decisión de compra (ranking, candidatos).
+export type InversionesView = 'acciones' | 'watchlist' | 'ahorro' | 'billetera'
 
 /**
  * Toggle compartido de las vistas de /inversiones.
@@ -18,9 +25,10 @@ export default function InversionesToggle({
   active: InversionesView
 }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
-    { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',           Icon: TrendingUp },
-    { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera',          Icon: Wallet },
-    { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro y depósitos', Icon: Landmark },
+    { view: 'acciones',   href: '/inversiones',                  label: 'Mis acciones',        Icon: TrendingUp },
+    { view: 'watchlist',  href: '/inversiones?view=watchlist',   label: 'Watchlist',           Icon: Eye },
+    { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera',           Icon: Wallet },
+    { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro y depósitos',  Icon: Landmark },
   ]
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">

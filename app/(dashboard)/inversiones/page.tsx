@@ -111,6 +111,12 @@ export default async function InversionesPage({ searchParams }: Props) {
   // silenciosamente mostrar Acciones.
   const isAhorro    = sp.view === 'ahorro' || sp.view === 'depositos'
   const isBilletera = sp.view === 'billetera'
+  // Ago 2026 (pedido de Cas: "quiero separar en dos vistas, una de
+  // seguimiento de las acciones que ya tengo y otra con las que me interesa
+  // comprar") — Watchlist es 100% candidatos a comprar (ranking, favoritos
+  // sin posición); el default (sin ?view=, antes "Acciones") pasa a ser
+  // "Mis acciones", 100% seguimiento (valor, rendimiento, historial).
+  const isWatchlist = sp.view === 'watchlist'
 
   // E5 (roadmap economía): rentabilidad real (F7 de FEATURES.md) — un
   // depósito al 12% con IPC 4% rinde ~7,7% real, no 8%. Solo se pide en la
@@ -351,11 +357,13 @@ export default async function InversionesPage({ searchParams }: Props) {
           className="text-3xl font-semibold leading-tight"
           style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
         >
-          {isAhorro ? 'Ahorros y depósitos' : 'Inversiones'}
+          {isAhorro ? 'Ahorros y depósitos' : isWatchlist ? 'Watchlist' : isBilletera ? 'Inversiones' : 'Mis acciones'}
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
           {isAhorro
             ? 'Todo tu dinero que genera interés'
+            : isWatchlist
+            ? 'Candidatos que te interesa comprar'
             : isBilletera
             ? 'el fondo desde el que compras acciones'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
@@ -403,6 +411,27 @@ export default async function InversionesPage({ searchParams }: Props) {
           stockPurchases={(purchases ?? []) as StockPurchase[]}
           sales={(sales ?? []) as StockSale[]}
         />
+      ) : isWatchlist ? (
+        /* Ago 2026 (split Mis acciones / Watchlist): esta vista es 100%
+           candidatos a comprar — ranking "¿Qué comprar hoy?" + favoritos sin
+           posición. Sin PerformanceSection/WeekSnapshotCard/RateScenariosCard
+           (eso es contexto sobre lo que YA tienes, vive en Mis acciones). */
+        <Radar
+          view="watchlist"
+          userId={user.id}
+          initialPositions={(stocks ?? []) as StockPosition[]}
+          walletUsdBase={walletUsdBase}
+          initialSales={(sales ?? []) as StockSale[]}
+          initialPurchases={(purchases ?? []) as StockPurchase[]}
+          spyBenchmark={spyBenchmark}
+          lastAutoUpdate={lastSignal?.created_at ?? null}
+          initialWatchlist={(watchlist ?? []) as WatchlistItem[]}
+          todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
+          todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
+          portfolioHistory={portfolioHistory}
+          monthlyInvestGoal={monthlyInvestGoal}
+          investedThisMonthClp={investedThisMonthClp}
+        />
       ) : (
         <>
           {/* U4 (roadmap UX): un solo mundo — Radar reemplaza StockPositionManager
@@ -413,8 +442,11 @@ export default async function InversionesPage({ searchParams }: Props) {
               decisión (calculada anoche por el cron, la misma del correo) se
               le pasa a Radar como prop para que la fusione con el panel
               "¿Qué comprar hoy?" en una sola tarjeta, en vez de dos que podían
-              contradecirse (detectado por Cas en AMD e INTC/TSM). */}
+              contradecirse (detectado por Cas en AMD e INTC/TSM).
+              Ago 2026 (split Mis acciones / Watchlist): view="mias" — 100%
+              seguimiento, sin ranking ni tabs (eso vive en ?view=watchlist). */}
           <Radar
+            view="mias"
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
             walletUsdBase={walletUsdBase}

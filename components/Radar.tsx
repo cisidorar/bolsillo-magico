@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Plus, ChevronRight, ChevronDown, ChevronUp, Info, RefreshCw, X, Search, Check,
-  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, TrendingUp, Newspaper,
+  AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, Newspaper,
 } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
@@ -121,9 +121,21 @@ function TickerLink({ t, onOpen, bold = false, muted = false }: { t: string; onO
   )
 }
 
-type Tab = 'tengo' | 'sigo' | 'todo'
+/** Ago 2026 (pedido de Cas: separar seguimiento de decisión de compra) —
+ *  'mias' = 100% tracking (valor del portafolio, rendimiento, historial de
+ *  operaciones, sin señales de compra). 'watchlist' = 100% candidatos a
+ *  comprar (ranking "¿Qué comprar hoy?", lista de favoritos sin posición).
+ *  Ambas vistas comparten el mismo componente porque comparten TODO el
+ *  estado caro: fetch de quotes/análisis técnico/conviction por ticker, CRUD
+ *  de watchlist, TechnicalDetail y TransactionModal — separarlas en dos
+ *  componentes hubiera significado duplicar ~700 líneas de hooks o inventar
+ *  un context/store nuevo solo para esto. El ranking de convicción sigue
+ *  corriendo sobre posiciones + watchlist igual que antes (puede sugerir
+ *  comprar MÁS de algo que ya tienes) — solo cambia dónde se MUESTRA. */
+type View = 'mias' | 'watchlist'
 
 interface Props {
+  view:              View
   userId:            string
   initialPositions:  StockPosition[]
   walletUsdBase?:    number
@@ -148,7 +160,7 @@ interface Props {
 }
 
 export default function Radar({
-  userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
+  view, userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
   todayDecision = null, todaySignals = [], portfolioHistory = [],
   monthlyInvestGoal = null, investedThisMonthClp = 0,
@@ -165,7 +177,6 @@ export default function Radar({
   const [analyses,   setAnalyses]   = useState<Record<string, TechnicalAnalysis | 'loading' | 'error'>>({})
   const [errDetails, setErrDetails] = useState<Record<string, string>>({})
   const [expanded,   setExpanded]   = useState<string | null>(null)
-  const [tab,        setTab]        = useState<Tab>('todo')
 
   const [loadingQ,    setLoadingQ]    = useState(false)
   const [quotesError, setQuotesError] = useState('')
@@ -247,8 +258,6 @@ export default function Radar({
   const prevTotalValueUsd = totalValueUsd - dailyChangeUsd
   const dailyChangePct = prevTotalValueUsd > 0 ? (dailyChangeUsd / prevTotalValueUsd) * 100 : 0
 
-  const posUp = positions.filter(p => { const q = quotes[p.ticker]; return q && p.shares * q.price > p.shares * p.avg_cost_usd }).length
-  const posDown = positions.filter(p => { const q = quotes[p.ticker]; return q && p.shares * q.price < p.shares * p.avg_cost_usd }).length
   const bestPos = positions.reduce<{ ticker: string; pct: number } | null>((best, p) => {
     const q = quotes[p.ticker]
     if (!q) return best
@@ -569,23 +578,6 @@ export default function Radar({
     showToast('● número = convicción de compra (0-100, toca cualquiera para el detalle).')
   }
 
-  // V4 (roadmap de vista): en mobile, antes de la primera fila de la lista
-  // había ~3 pantallas de resúmenes. El hero colapsa por defecto a valor +
-  // hoy + total en una sola fila; los KPIs secundarios (Invertido, vs SPY,
-  // Billetera, Posiciones, Mejor retorno) se expanden con un tap. Desktop no
-  // cambia — ahí sí sobra espacio (lg:grid/lg:flex fuerzan visible siempre).
-  const [heroExpanded, setHeroExpanded] = useState(false)
-  useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('radarHeroExpanded') === '1') setHeroExpanded(true)
-  }, [])
-  function toggleHeroExpanded() {
-    setHeroExpanded(prev => {
-      const next = !prev
-      try { localStorage.setItem('radarHeroExpanded', next ? '1' : '0') } catch { /* modo privado */ }
-      return next
-    })
-  }
-
   // ── Precio objetivo ───────────────────────────────────────────────────────
   const [targetInput,       setTargetInput]       = useState<string | null>(null)
   const [targetDirOverride, setTargetDirOverride] = useState<'above' | 'below' | null>(null)
@@ -662,20 +654,23 @@ export default function Radar({
     return r
   }
 
-  const tabTickers = tab === 'tengo' ? positionTickers
-    : tab === 'sigo' ? watchTickers.filter(t => !owned.has(t))
-    : allTickers
+  // Ago 2026 (split Mis acciones / Watchlist): la lista de tickers con
+  // filas de convicción/flags ahora es EXCLUSIVA de la vista Watchlist —
+  // equivalente al viejo tab "Sigo" (favoritos sin posición). Mis acciones
+  // tiene su propia tabla más abajo, sin este componente de fila.
+  const watchlistTickers = watchTickers.filter(t => !owned.has(t))
 
   // V3 (roadmap de vista): antes el orden era fijo (solo convicción) — para
-  // responder preguntas del día a día ("¿cuál cayó más hoy?", "¿cuál es mi
-  // mayor posición?") había que leer fila por fila. Recordado en localStorage,
-  // mismo patrón que `radarLegendDismissed`.
-  type SortMode = 'convict' | 'daily' | 'total' | 'value'
+  // responder "¿cuál se ve mejor hoy?" había que leer fila por fila.
+  // Recordado en localStorage. 'total'/'value' se quitaron con el split: sin
+  // posición (esta lista ya no incluye tickers poseídos) esos criterios no
+  // significan nada — todo evaluaba -Infinity.
+  type SortMode = 'convict' | 'daily'
   const [sortMode, setSortMode] = useState<SortMode>('convict')
   useEffect(() => {
     if (typeof window === 'undefined') return
     const saved = localStorage.getItem('radarSortMode')
-    if (saved === 'convict' || saved === 'daily' || saved === 'total' || saved === 'value') setSortMode(saved)
+    if (saved === 'convict' || saved === 'daily') setSortMode(saved)
   }, [])
   function changeSortMode(m: SortMode) {
     setSortMode(m)
@@ -684,18 +679,13 @@ export default function Radar({
   function rowSortValue(ticker: string): number {
     if (sortMode === 'convict') return buyRank(ticker)
     const q = quotes[ticker]
-    const pos = ownedMap[ticker]
-    if (sortMode === 'daily') return q ? q.changePercent : -Infinity
-    if (sortMode === 'total') return pos && q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : -Infinity
-    // 'value'
-    return pos && q ? pos.shares * q.price : -Infinity
+    return q ? q.changePercent : -Infinity
   }
   // I3 (roadmap interacción): mientras la precarga sigue en curso, NO
   // reordenar — las filas saltaban bajo el dedo a medida que llegaba cada
   // análisis. Se ordena recién cuando todo terminó de cargar; antes de eso se
-  // respeta el orden natural (posiciones primero, luego favoritos en el
-  // orden en que se siguieron).
-  const rows = allLoaded ? [...tabTickers].sort((x, y) => rowSortValue(y) - rowSortValue(x)) : tabTickers
+  // respeta el orden natural (favoritos en el orden en que se siguieron).
+  const rows = allLoaded ? [...watchlistTickers].sort((x, y) => rowSortValue(y) - rowSortValue(x)) : watchlistTickers
   const loadedCount = allTickers.filter(t => typeof analyses[t] === 'object').length
 
   // V4 (roadmap de vista): antes esto vivía en su propia línea suelta debajo
@@ -759,7 +749,7 @@ export default function Radar({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="acciones" />
+          <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
               dos flujos para lo mismo. Ahora uno solo: Agregar abre la
@@ -776,139 +766,247 @@ export default function Radar({
         </div>
       </div>
 
-      {/* V2 (roadmap de vista): en lg+ se deja de apilar todo en una sola
-          columna — columna izquierda (ancha) = tabs+lista, columna derecha
-          (angosta, sticky) = decisión+hero+frescura, siempre a la vista sin
-          scrollear. En mobile esto no cambia nada (sin grid, el orden natural
-          del DOM es el mismo de siempre: hero, decisión, tabs, lista). */}
-      <div className="lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:items-start">
-      <div className="lg:order-2 lg:sticky lg:top-6 lg:min-w-0">
-      {/* ── Hero + KPIs (portafolio) ─────────────────────────────────────── */}
-      {/* W1 (roadmap de vista, fase 2): esto vive en la columna sticky de
-          380px desde V2 — el diseño viejo (flex 40/60, grid-cols-4,
-          text-5xl…) estaba pensado para el ancho completo de la página y
-          salía cortado acá (bug reportado por Cas con screenshot). Ahora es
-          UN solo diseño compacto, sin escalar tamaños en lg:, que funciona
-          igual de bien apilado en la columna que a lo ancho en mobile. */}
+      {/* Ago 2026 (pedido de Cas: separar seguimiento de decisión de compra):
+          ya no hay grid de 2 columnas sticky — cada vista es más angosta en
+          contenido (Mis acciones: hero + tabla; Watchlist: ranking + lista),
+          así que el ancho completo de la página alcanza sin necesitar una
+          columna fija. */}
+      {view === 'mias' && (
+      <>
+      {/* ── Hero (mockup de Cas, ago 2026): valor del portafolio + card de
+          "Rendimiento" lado a lado, siempre visibles — reemplaza el hero
+          colapsable de 380px (pensado para la columna sticky que ya no
+          existe) por dos cards a lo ancho de la página. */}
       {positions.length > 0 && (
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="card overflow-hidden hero-gradient w-full">
+        <div className="flex flex-col lg:flex-row gap-4 mb-4">
+          <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 0' }}>
             <div className="px-5 pt-5 pb-4">
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
               <div className="flex items-baseline gap-2 flex-wrap">
-                <p className="text-3xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                <p className="text-4xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
                   {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
                 </p>
                 <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
-              {/* Retorno de HOY y retorno TOTAL, juntos bajo el valor grande —
-                  ambos de un vistazo sin tener que expandir (pedido de Cas). */}
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  {hasQ && (
-                    <p className="flex items-center gap-1 text-xs font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
-                      {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
-                      {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
-                    </p>
-                  )}
-                  {hasQ && (
-                    <p className="text-[11px] font-semibold mt-1" style={{ color: totalReturnUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
-                      {fmtUSDSigned(totalReturnUsd)} ({fmtPct(totalReturnPct)}) total
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={toggleHeroExpanded}
-                  className="flex items-center gap-1 text-[10px] font-bold px-2 py-1.5 rounded-lg flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.12)', color: 'white' }}
-                >
-                  {heroExpanded ? 'Menos' : 'Más'}
-                  {heroExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-              </div>
+              {hasQ && (
+                <p className="flex items-center gap-1 text-xs font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                  {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                  {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
+                </p>
+              )}
             </div>
-            {heroExpanded && (
-              <div className="border-t grid grid-cols-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <div className="px-4 py-3 min-w-0">
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
-                </div>
-                <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno %</p>
-                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                    {hasQ ? fmtPct(totalReturnPct) : '—'}
-                  </p>
-                </div>
-                <div className="px-4 py-3 border-t min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
-                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                    {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
-                  </p>
-                </div>
-                <div className="px-4 py-3 border-t border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>vs SPY</p>
-                  <p className="text-sm font-bold tabular-nums truncate" style={{ color: spyBenchmark?.diffPct != null ? (spyBenchmark.diffPct >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                    {spyBenchmark?.diffPct != null ? fmtPct(spyBenchmark.diffPct) : '—'}
-                  </p>
-                </div>
+            <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+              <div className="px-4 py-3 min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-sm font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
               </div>
-            )}
-          </div>
-
-          {/* Billetera / Posiciones / Mejor retorno — antes 3 cards de
-              text-4xl en grid-cols-3 (pensadas para ancho completo, salían
-              truncadas en 380px). Ahora una sola card con 3 filas compactas. */}
-          {heroExpanded && (
-            <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
-              <a href="/inversiones?view=billetera" className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
-                <div className="min-w-0">
-                  <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Billetera</p>
-                  <p className="text-[10px] font-semibold mt-0.5 truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
-                    {walletAvailable === null ? 'Registra tus aportes →' : walletAvailable >= 0 ? 'disponible →' : 'revisa tus aportes'}
-                  </p>
-                </div>
-                <p className="text-base font-extrabold tabular-nums flex-shrink-0" style={{ fontFamily: 'Fredoka, sans-serif', color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral)' : 'var(--ink)' }}>
+              <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  {hasQ ? `${fmtUSDSigned(totalReturnUsd)} · ${fmtPct(totalReturnPct)}` : '—'}
+                </p>
+              </div>
+              <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-sm font-bold tabular-nums truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
                   {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
                 </p>
-              </a>
-
-              <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Posiciones</p>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <p className="text-base font-extrabold tabular-nums" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
-                    {positionTickers.length}
-                  </p>
-                  {hasQ && (posUp > 0 || posDown > 0) && (
-                    <span className="text-[10px] font-semibold">
-                      {posUp   > 0 && <span style={{ color: 'var(--mint)' }}>{posUp}↑</span>}
-                      {posDown > 0 && <span style={{ color: 'var(--coral)' }}> {posDown}↓</span>}
-                    </span>
-                  )}
-                </div>
               </div>
+            </div>
+          </div>
 
+          {/* Card "Rendimiento" — no realizado / realizado / vs SPY / mejor
+              posición, antes repartido entre "Mi rendimiento" y el KPI
+              colapsable de la columna sticky que ya no existe. */}
+          <div className="card overflow-hidden" style={{ flex: '2 1 0' }}>
+            <div className="px-5 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Rendimiento</p>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between px-5 py-3">
+                <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>No realizado</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
+                  {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+                </p>
+              </div>
+              <div className="flex items-center justify-between px-5 py-3">
+                <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Realizado</p>
+                <p className="text-sm font-bold tabular-nums" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                  {fmtUSDSigned(realizedPnlUsd)}
+                </p>
+              </div>
+              {spyBenchmark?.diffPct != null && (
+                <div className="flex items-center justify-between px-5 py-3">
+                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>vs SPY</p>
+                  <p className="text-sm font-bold tabular-nums" style={{ color: spyBenchmark.diffPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    {fmtPct(spyBenchmark.diffPct)}
+                  </p>
+                </div>
+              )}
               <button
                 onClick={() => { if (bestPos) openDetail(bestPos.ticker) }}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--surface-2)]"
+                className="w-full flex items-center justify-between px-5 py-3 text-left transition-colors hover:bg-[var(--surface-2)]"
               >
-                <p className="text-[9px] font-bold uppercase tracking-widest whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
-                  {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor retorno'}
+                <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  {bestPos && bestPos.pct < 0 ? 'Menor pérdida' : 'Mejor'}
                 </p>
                 {bestPos ? (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-sm font-extrabold" style={{ fontFamily: 'ui-monospace, monospace', color: 'var(--ink)' }}>{bestPos.ticker}</span>
-                    {bestPos.pct >= 0 ? <ArrowUp className="w-3 h-3" style={{ color: 'var(--mint)' }} /> : <ArrowDown className="w-3 h-3" style={{ color: 'var(--coral)' }} />}
-                    <span className="text-[10px] font-semibold" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>{fmtPct(bestPos.pct)}</span>
-                  </div>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{bestPos.ticker}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>{fmtPct(bestPos.pct)}</span>
+                  </span>
                 ) : (
-                  <span className="text-sm font-extrabold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>—</span>
+                  <span className="text-sm font-extrabold" style={{ color: 'var(--ink-3)' }}>—</span>
                 )}
               </button>
             </div>
-          )}
+          </div>
         </div>
       )}
 
+      {/* W3: evolución del valor de la cartera — solo si hay suficiente
+          historial para que la curva diga algo. */}
+      {positions.length > 0 && portfolioHistory.length >= 2 && (
+        <div className="card overflow-hidden mb-4 px-4 lg:px-5 py-3">
+          <PortfolioChart points={portfolioHistory} costBasisUsd={totalCostUsd} />
+        </div>
+      )}
+
+      {/* ── Tabla de posiciones (mockup de Cas, ago 2026): Acción / Valor /
+          Rendimiento / Hoy — tabla pura de seguimiento, sin conviction chips
+          ni flags de compra/venta (eso vive en Watchlist ahora). Reemplaza
+          la vieja card "Mi rendimiento" (lista angosta sin logos ni nombre)
+          y el tab "Tengo" de la lista fusionada. */}
+      {positions.length === 0 ? (
+        <div className="card px-6 py-8 text-center">
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin posiciones todavía</p>
+          <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+            Registra tus compras acá para hacerles seguimiento: valor, rendimiento y qué pasó cada día.
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button onClick={openSearch}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 18px var(--shadow)' }}>
+              <Search className="w-3.5 h-3.5" />
+              Buscar y registrar
+            </button>
+            <button onClick={() => setTxn({ mode: 'new', ticker: null })}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-opacity hover:opacity-85"
+              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}>
+              <Plus className="w-3.5 h-3.5" />
+              Agregar posición
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="card overflow-hidden mb-4">
+          <div className="hidden lg:grid px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)', gridTemplateColumns: '1fr 130px 150px 90px 20px' }}>
+            <span>Acción</span>
+            <span className="text-right">Valor</span>
+            <span className="text-right">Rendimiento</span>
+            <span className="text-right">Hoy</span>
+            <span />
+          </div>
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {myPerformance.map(row => {
+              const q = quotes[row.ticker]
+              return (
+                <button
+                  key={row.ticker}
+                  onClick={() => openDetail(row.ticker)}
+                  className="w-full flex items-center gap-3 px-4 lg:px-5 py-3.5 text-left transition-colors hover:bg-black/5"
+                >
+                  <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={36} fallbackColor={avatarColor(row.ticker)} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
+                    {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-right flex-shrink-0" style={{ color: 'var(--ink)', minWidth: 84 }}>
+                    {fmtUSD(row.valueUsd)}
+                  </p>
+                  <div className="text-right flex-shrink-0" style={{ minWidth: 104 }}>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: row.gainUsd === null ? 'var(--ink-3)' : row.gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {row.gainUsd !== null ? fmtUSDSigned(row.gainUsd) : '—'}
+                    </p>
+                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.gainPct === null ? 'var(--ink-3)' : row.gainPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {row.gainPct !== null ? fmtPct(row.gainPct) : '—'}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-right flex-shrink-0" style={{ color: row.dailyPct === null ? 'var(--ink-3)' : row.dailyPct >= 0 ? 'var(--mint)' : 'var(--coral)', minWidth: 60 }}>
+                    {row.dailyPct !== null ? `${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(2)}%` : '—'}
+                  </p>
+                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Y1 (a pedido de Cas): historial de operaciones — todas las compras y
+          ventas, de cualquier ticker, ordenadas por fecha (más reciente
+          primero). Colapsado por defecto: es consulta ocasional, no algo
+          que se mire a diario, no debería sumar al primer scroll. */}
+      {operations.length > 0 && (
+        <div className="card overflow-hidden">
+          <button
+            onClick={() => setShowOpsHistory(v => !v)}
+            className="w-full px-4 lg:px-5 py-3 flex items-center gap-2 text-left transition-colors hover:bg-black/5"
+          >
+            <Newspaper className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+            <p className="text-sm font-bold flex-1" style={{ color: 'var(--ink)' }}>Historial de operaciones</p>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+              {operations.length}
+            </span>
+            {showOpsHistory ? <ChevronUp className="w-4 h-4" style={{ color: 'var(--ink-3)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />}
+          </button>
+          {showOpsHistory && (
+            <>
+              <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
+                {operations.slice(0, opsShown).map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => openDetail(op.ticker)}
+                    className="w-full flex items-center gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
+                  >
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: op.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
+                      {op.type === 'buy'
+                        ? <Plus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+                        : <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                        {op.type === 'buy' ? 'Compra' : 'Venta'} · {op.ticker}
+                      </p>
+                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                      </p>
+                    </div>
+                    <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                      {op.amountUsd >= 0 ? '+' : '-'}{fmtUSD(Math.abs(op.amountUsd))}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              {opsShown < operations.length && (
+                <button
+                  onClick={() => setOpsShown(n => n + OPS_PAGE)}
+                  className="w-full px-4 lg:px-5 py-2.5 text-xs font-bold text-center border-t transition-colors hover:bg-black/5"
+                  style={{ color: 'var(--primary)', borderColor: 'var(--border)' }}
+                >
+                  Ver {Math.min(OPS_PAGE, operations.length - opsShown)} más
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      </>
+      )}
+
+      {view === 'watchlist' && (
+      <>
       {/* ── P6: plata ociosa — hay saldo disponible en la billetera Y una señal
           de compra activa hoy (server o recálculo en vivo), pero nada la usa.
           Umbral US$50 para no molestar por residuos de centavos. */}
@@ -1156,131 +1254,35 @@ export default function Radar({
         </div>
       )}
 
-      {/* W2 (roadmap de vista, fase 2): "cómo va lo que ya tengo" — antes no
-          existía ningún lugar que respondiera esto de un vistazo; había que
-          ir al tab Tengo y leer fila por fila (pedido explícito de Cas). */}
-      {positions.length > 0 && (
-        <div className="card overflow-hidden mb-4">
-          <div className="px-4 lg:px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
-            <TrendingUp className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Mi rendimiento</p>
-          </div>
-          {/* Totales: no realizado (posiciones abiertas) + realizado (ventas
-              cerradas) = retorno total del portafolio. */}
-          <div className="px-4 lg:px-5 py-3 border-b grid grid-cols-3 gap-2" style={{ borderColor: 'var(--border)' }}>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>No realizado</p>
-              <p className="text-xs font-bold tabular-nums truncate" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
-                {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
-              </p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Realizado</p>
-              <p className="text-xs font-bold tabular-nums truncate" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                {fmtUSDSigned(realizedPnlUsd)}
-              </p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>Total</p>
-              <p className="text-xs font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
-                {hasQ ? `${fmtUSDSigned(totalReturnUsd)} (${fmtPct(totalReturnPct)})` : '—'}
-              </p>
-            </div>
-          </div>
-          {/* W3: evolución del valor de la cartera — solo si hay suficiente
-              historial para que la curva diga algo. */}
-          {portfolioHistory.length >= 2 && (
-            <div className="px-4 lg:px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-              <PortfolioChart points={portfolioHistory} costBasisUsd={totalCostUsd} />
-            </div>
-          )}
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {myPerformance.map(row => (
-              <button
-                key={row.ticker}
-                onClick={() => openDetail(row.ticker)}
-                className="w-full flex items-center justify-between gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
-              >
-                <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--ink)' }}>{row.ticker}</span>
-                <div className="text-right min-w-0">
-                  <p className="text-xs font-bold tabular-nums truncate" style={{ color: 'var(--ink)' }}>{fmtUSD(row.valueUsd)}</p>
-                  <p className="text-[10px] font-semibold tabular-nums" style={{ color: row.gainUsd === null ? 'var(--ink-3)' : row.gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {row.gainUsd !== null && row.gainPct !== null ? `${fmtUSDSigned(row.gainUsd)} (${fmtPct(row.gainPct, false)})` : '—'}
-                    {row.dailyPct !== null && (
-                      <span style={{ color: row.dailyPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                        {' · '}{row.dailyPct >= 0 ? '+' : ''}{row.dailyPct.toFixed(2)}% hoy
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      </div>{/* /columna derecha (V2) */}
-
-      <div className="lg:order-1 lg:min-w-0">
-      {/* ── Tabs Tengo / Sigo / Todo ─────────────────────────────────────── */}
-      {/* V4: sticky al scrollear en mobile — cambiar de vista sin volver
-          arriba. lg: no sticky (ya está todo a la vista en la columna). */}
-      <div className="sticky top-0 z-10 lg:static flex items-center justify-between gap-2 mb-3 flex-wrap py-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:py-0" style={{ background: 'var(--bg)' }}>
-        <div className="flex items-center gap-2">
-          {([
-            ['tengo', 'Tengo', positionTickers.length],
-            ['sigo',  'Sigo',  watchTickers.filter(t => !owned.has(t)).length],
-            ['todo',  'Todo',  allTickers.length],
-          ] as const).map(([id, label, count]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-              style={tab === id ? { background: 'var(--primary)', color: 'var(--primary-ink)' } : { background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}
-            >
-              {label}
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums"
-                style={tab === id ? { background: 'rgba(255,255,255,0.25)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-                {count}
-              </span>
-            </button>
-          ))}
-        </div>
-        {/* V3 (roadmap de vista): selector de orden — antes era fijo (solo
-            convicción); se recuerda en localStorage, mismo patrón que la
-            leyenda descartable. Agrupado con el botón de info (antes cada
-            uno era un hijo directo del flex justify-between, así que el
-            select quedaba centrado lejos del ícono — a pedido de Cas). */}
-        <div className="flex items-center gap-2">
-          <select
-            value={sortMode}
-            onChange={e => changeSortMode(e.target.value as 'convict' | 'daily' | 'total' | 'value')}
-            className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
-          >
-            <option value="convict">Ordenar: convicción</option>
-            <option value="daily">Ordenar: % hoy</option>
-            <option value="total">Ordenar: retorno total</option>
-            <option value="value">Ordenar: valor</option>
-          </select>
-          <button
-            onClick={showLegendToast}
-            aria-label="Qué significa el número de cada fila"
-            title="Qué significa el número de cada fila"
-            className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
-          >
-            <Info className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      {/* ── Orden + leyenda ──────────────────────────────────────────────── */}
+      {/* V4: sticky al scrollear en mobile — antes esto compartía fila con
+          los tabs Tengo/Sigo/Todo, que se quitaron con el split (esta vista
+          YA es solo watchlist, no necesita filtrar). */}
+      <div className="sticky top-0 z-10 lg:static flex items-center justify-end gap-2 mb-3 py-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:py-0" style={{ background: 'var(--bg)' }}>
+        <select
+          value={sortMode}
+          onChange={e => changeSortMode(e.target.value as 'convict' | 'daily')}
+          className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
+          style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
+        >
+          <option value="convict">Ordenar: convicción</option>
+          <option value="daily">Ordenar: % hoy</option>
+        </select>
+        <button
+          onClick={showLegendToast}
+          aria-label="Qué significa el número de cada fila"
+          title="Qué significa el número de cada fila"
+          className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
+          style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+        >
+          <Info className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* ── Lista ─────────────────────────────────────────────────────────── */}
       {rows.length === 0 ? (
         <div className="card px-6 py-8 text-center">
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
-            {tab === 'tengo' ? 'Sin posiciones todavía' : tab === 'sigo' ? 'Sin favoritos sin posición' : 'Sin tickers en tu radar'}
-          </p>
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Sin candidatos en tu watchlist</p>
           <p className="text-xs mt-1 max-w-md mx-auto leading-relaxed" style={{ color: 'var(--ink-3)' }}>
             Busca por nombre (Apple, Netflix, Vanguard…) y toca la fila para ver su lectura en simple:
             hacia dónde va la tendencia, los pisos y techos donde suele frenarse, y si subió o cayó demasiado rápido.
@@ -1291,12 +1293,6 @@ export default function Radar({
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 18px var(--shadow)' }}>
               <Search className="w-3.5 h-3.5" />
               Buscar y seguir
-            </button>
-            <button onClick={() => setTxn({ mode: 'new', ticker: null })}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border transition-opacity hover:opacity-85"
-              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}>
-              <Plus className="w-3.5 h-3.5" />
-              Agregar posición
             </button>
           </div>
         </div>
@@ -1407,68 +1403,8 @@ export default function Radar({
           })}
         </div>
       )}
-
-      {/* Y1 (a pedido de Cas): historial de operaciones — todas las compras
-          y ventas, de cualquier ticker, ordenadas por fecha (más reciente
-          primero). Colapsado por defecto: es consulta ocasional, no algo
-          que se mire a diario, no debería sumar al primer scroll. */}
-      {operations.length > 0 && (
-        <div className="card overflow-hidden mt-4">
-          <button
-            onClick={() => setShowOpsHistory(v => !v)}
-            className="w-full px-4 lg:px-5 py-3 flex items-center gap-2 text-left transition-colors hover:bg-black/5"
-          >
-            <Newspaper className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-            <p className="text-sm font-bold flex-1" style={{ color: 'var(--ink)' }}>Historial de operaciones</p>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
-              {operations.length}
-            </span>
-            {showOpsHistory ? <ChevronUp className="w-4 h-4" style={{ color: 'var(--ink-3)' }} /> : <ChevronDown className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />}
-          </button>
-          {showOpsHistory && (
-            <>
-              <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
-                {operations.slice(0, opsShown).map(op => (
-                  <button
-                    key={op.id}
-                    onClick={() => openDetail(op.ticker)}
-                    className="w-full flex items-center gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
-                  >
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: op.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
-                      {op.type === 'buy'
-                        ? <Plus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
-                        : <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
-                        {op.type === 'buy' ? 'Compra' : 'Venta'} · {op.ticker}
-                      </p>
-                      <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
-                      </p>
-                    </div>
-                    <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
-                      {op.amountUsd >= 0 ? '+' : '-'}{fmtUSD(Math.abs(op.amountUsd))}
-                    </p>
-                  </button>
-                ))}
-              </div>
-              {opsShown < operations.length && (
-                <button
-                  onClick={() => setOpsShown(n => n + OPS_PAGE)}
-                  className="w-full px-4 lg:px-5 py-2.5 text-xs font-bold text-center border-t transition-colors hover:bg-black/5"
-                  style={{ color: 'var(--primary)', borderColor: 'var(--border)' }}
-                >
-                  Ver {Math.min(OPS_PAGE, operations.length - opsShown)} más
-                </button>
-              )}
-            </>
-          )}
-        </div>
+      </>
       )}
-      </div>{/* /columna izquierda (V2) */}
-      </div>{/* /grid dos columnas (V2) */}
 
       {/* ── Popup de búsqueda ("Seguir") ─────────────────────────────────── */}
       {showSearch && (
