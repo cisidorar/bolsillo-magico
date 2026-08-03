@@ -56,6 +56,12 @@ function fmtDateShort(dateStr: string): string {
   })
 }
 
+function fmtDateFull(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
+}
+
 function fmtInput(raw: string): string {
   const n = raw.replace(/\D/g, '')
   if (!n) return ''
@@ -110,6 +116,12 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  // Detalle de un depósito (pedido de Cas, ago 2026): antes tocar la fila iba
+  // directo al formulario de edición — no había forma de solo MIRAR el
+  // detalle (nota completa, fechas, progreso) sin entrar en modo editar.
+  // Ahora la fila abre este detalle de solo lectura; "Editar" es un botón
+  // explícito ahí adentro.
+  const [detailId,      setDetailId]      = useState<string | null>(null)
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const today    = todayStr()
@@ -150,6 +162,11 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
   const backdropClose = useBackdropClose(cancelForm)
+
+  function closeDetail() { setDetailId(null) }
+  // Mismo motivo que backdropClose arriba: hook llamado siempre, el modal
+  // de detalle es condicional más abajo.
+  const detailBackdropClose = useBackdropClose(closeDetail)
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveDeposit = useCallback(async () => {
@@ -230,7 +247,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
     return (
       <button
-        onClick={() => openEdit(d)}
+        onClick={() => setDetailId(d.id)}
         className="w-full text-left group px-4 lg:px-6 py-4 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
       >
         <div className="flex items-center gap-3">
@@ -261,6 +278,12 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
             <p className="text-[11px] mt-0.5" style={{ color: soon ? 'var(--gold)' : 'var(--ink-3)' }}>
               {statusText}
             </p>
+            {/* Para qué es (pedido de Cas, ago 2026): la nota quedaba solo
+                adentro del formulario de edición — ahora se ve directo en la
+                fila, mismo patrón que ya usa DepositManager para Ahorro. */}
+            {d.notes && (
+              <p className="text-[10px] truncate mt-0.5" style={{ color: 'var(--ink-3)' }}>{d.notes}</p>
+            )}
             {/* Barra de progreso al vencimiento */}
             {!isMatured && (
               <div className="mt-2 h-1.5 rounded-full overflow-hidden max-w-[240px]" style={{ background: 'var(--surface-2)' }}>
@@ -585,6 +608,143 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Detalle de solo lectura (pedido de Cas, ago 2026) ─────────────── */}
+      {(() => {
+        const d = detailId ? deposits.find(x => x.id === detailId) ?? null : null
+        if (!d) return null
+        const isMatured = daysToMaturity(d, today) < 0
+        const interest  = totalInterest(d)
+        const accrued   = earnedToDate(d, today)
+        const pct       = progressPct(d, today)
+        const days      = daysToMaturity(d, today)
+        const daysIdle  = isMatured ? -days : 0
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...detailBackdropClose}
+          >
+            <div
+              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+              style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <ServiceLogo domain={domainFromBankName(d.bank)} name={d.bank} size={40} fallbackColor={avatarColor(d.bank)} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{d.bank}</h2>
+                    {isMatured ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide inline-flex items-center gap-1"
+                        style={daysIdle >= 30
+                          ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
+                          : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                        <CheckCircle2 className="w-2.5 h-2.5" /> {daysIdle >= 30 ? 'Reinvierte' : 'Vencido'}
+                      </span>
+                    ) : d.renewable ? (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide"
+                        style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                        Renovable
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{fmtPct(d.interest_rate)} período</p>
+                </div>
+                <button
+                  onClick={closeDetail}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
+                {/* Progreso al vencimiento */}
+                {!isMatured && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                        Vence {fmtDateFull(d.maturity_date)}
+                      </span>
+                      <span className="text-[11px] font-bold" style={{ color: days <= 7 ? 'var(--gold)' : 'var(--ink-2)' }}>
+                        {days === 0 ? 'hoy' : `en ${days} día${days !== 1 ? 's' : ''}`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: 'var(--primary)' }} />
+                    </div>
+                  </div>
+                )}
+                {isMatured && (
+                  <p className="text-[11px] font-semibold" style={{ color: daysIdle >= 30 ? 'var(--gold)' : 'var(--mint)' }}>
+                    Venció {fmtDateFull(d.maturity_date)} — hace {daysIdle} día{daysIdle !== 1 ? 's' : ''}
+                  </p>
+                )}
+
+                {/* Cifras clave */}
+                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Monto invertido</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(d.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Fecha de inicio</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtDateFull(d.start_date)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                      {isMatured ? 'Interés ganado' : 'Devengado a hoy'}
+                    </span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
+                      +{formatCLP(isMatured ? interest : accrued)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Interés total del período</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(interest)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Total al vencimiento</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(d.amount + interest)}</span>
+                  </div>
+                </div>
+
+                {/* Para qué es (pedido de Cas, ago 2026): acá se ve completa,
+                    sin truncar — en la fila de la lista solo cabe una línea. */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                    ¿Para qué es este ahorro?
+                  </p>
+                  <p className="text-sm" style={{ color: d.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
+                    {d.notes || 'Sin nota — agrégala al editar.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <button
+                  onClick={closeDetail}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => { setDetailId(null); openEdit(d) }}
+                  className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                >
+                  Editar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Empty state ──────────────────────────────────────────────────── */}
       {deposits.length === 0 && (
