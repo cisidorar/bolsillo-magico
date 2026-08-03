@@ -59,7 +59,14 @@ interface WeeklyTickerData {
   nextEarningsDate: string | null
 }
 
-interface SpyBenchmarkResult { diffUsd: number; diffPct: number | null; asOfDate: string }
+// jul/ago 2026: cuando una venta generó mucha más ganancia de la que SPY
+// habría dado con los mismos flujos, la sombra de SPY se va a negativo y se
+// pisa a 0 — sin el flag `degenerate`, esto se ve como "le ganaste al mercado
+// por el 100% de tu cartera", limpio pero engañoso (bug real, reproducido con
+// datos de Cas: lib/benchmark.ts + components/PerformanceSection.tsx ya lo
+// arreglaron en la app; este correo usaba una copia del tipo sin el campo
+// nuevo y seguía mostrando el número sin la advertencia).
+interface SpyBenchmarkResult { diffUsd: number; diffPct: number | null; asOfDate: string; degenerate: boolean }
 
 interface DecisionPayload {
   ticker: string | null; tier: string | null; score: number
@@ -252,7 +259,15 @@ function weeklyReportEmailHtml({
   siteUrl:     string
   weekLabel:   string
 }): string {
-  const benchmarkHtml = payload.spyBenchmark ? `
+  const benchmarkHtml = payload.spyBenchmark ? (
+    payload.spyBenchmark.degenerate ? `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
+      <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
+        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#3D4C63">Comparación no confiable por ahora</p>
+        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0;line-height:1.5">Una venta reciente generó mucha más ganancia de la que un SPY equivalente habría dado — el punto de comparación quedó distorsionado. Se recupera solo con tus próximos movimientos.</p>
+      </td></tr>
+    </table>` : `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
       <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
@@ -262,7 +277,8 @@ function weeklyReportEmailHtml({
         </p>
         <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas</p>
       </td></tr>
-    </table>` : ''
+    </table>`
+  ) : ''
 
   const rowsHtml = payload.items.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
 

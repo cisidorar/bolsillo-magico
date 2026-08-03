@@ -815,10 +815,30 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   } else {
     verdict = `Está en zona de cambio: hace ${wks} que va ${aboveSma200 ? 'por encima' : 'por debajo'} de su promedio de largo plazo, y ese promedio ${sma200Rising ? 'empieza a subir' : 'se está aplanando'}.`
   }
+  // Bug real (ago 2026, reportado por Cas vía el informe semanal): esta
+  // segunda frase solo cubría divergence/macdCross/range/support/resistance —
+  // golden_cross, death_cross, rsi_oversold y rsi_overbought SÍ generan una
+  // fila en `signals` (trigger:true) pero no tenían rama acá. Como el correo
+  // semanal muestra por separado el primer elemento de esa lista
+  // (weekSignals[0], ver notify-weekly-report), un ticker con death_cross Y
+  // macd_bullish a la vez mostraba "La tendencia está girando a la baja"
+  // (el bullet, tomado de weekSignals[0]) justo debajo de un veredicto que
+  // decía "El impulso de las últimas semanas giró al alza" (esta frase,
+  // que solo miraba macdCross) — dos lecturas contradictorias en la misma
+  // tarjeta. El orden de abajo ahora replica EXACTO el orden en que se
+  // empujan a `signals` más arriba (divergence → rsi → cross → macd →
+  // volumen → rango/soporte/resistencia), así la frase siempre describe lo
+  // mismo que weekSignals[0], nunca algo distinto.
   if (divergence === 'bullish')      verdict += ' Además, la caída muestra señales de agotamiento — a veces anticipa un rebote.'
   else if (divergence === 'bearish') verdict += ' Además, la subida muestra señales de agotamiento — puede venir una pausa.'
+  else if (rsi14 !== null && rsi14 <= 30) verdict += ' Cayó muy rápido en poco tiempo — puede rebotar desde aquí, aunque también puede seguir cayendo.'
+  else if (rsi14 !== null && rsi14 >= 70) verdict += ' Subió muy rápido en poco tiempo — aumenta la probabilidad de una pausa o un retroceso.'
+  else if (cross === 'golden') verdict += ' La tendencia de fondo acaba de girar al alza.'
+  else if (cross === 'death')  verdict += ' La tendencia de fondo acaba de girar a la baja.'
   else if (macdCross === 'bullish')  verdict += ' El impulso de las últimas semanas giró al alza.'
   else if (macdCross === 'bearish')  verdict += ' El impulso de las últimas semanas se está debilitando.'
+  else if (volSignal === 'up')   verdict += ' Se movió con bastante más volumen comprador de lo normal.'
+  else if (volSignal === 'down') verdict += ' Se movió con bastante más volumen vendedor de lo normal.'
   else if (signals.some(s => s.kind === 'range_squeeze'))   verdict += ' Está atrapada entre un piso y un techo muy cercanos: atenta a hacia qué lado rompe.'
   else if (signals.some(s => s.kind === 'near_support'))    verdict += ' Ahora mismo está tocando un piso que antes la frenó.'
   else if (signals.some(s => s.kind === 'near_resistance')) verdict += ' Ahora mismo está frente a un techo que antes la frenó.'
