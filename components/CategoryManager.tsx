@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Check, X, Search, ChevronDown, Loader2, ChevronRight } from 'lucide-react'
@@ -93,6 +94,9 @@ export default function CategoryManager({ categories: init, userId, expenseCount
   function closeSheet() {
     setSheetOpen(false); setForm(DEFAULT_FORM); setEditTarget(null); setFormError(''); setDeleteConfirm(false)
   }
+  // Hook llamado siempre — el backdrop es condicional (`{sheetOpen && ...}`)
+  // más abajo, pero el hook no puede serlo.
+  const backdropClose = useBackdropClose(closeSheet)
   function pickIcon(name: string) {
     const opt = getCategoryIconOption(name)
     const autoIdx = COLORS.findIndex(c => c.color === opt.defaultColor)
@@ -333,7 +337,7 @@ export default function CategoryManager({ categories: init, userId, expenseCount
       {sheetOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-          onClick={closeSheet}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-lg bg-white rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto"

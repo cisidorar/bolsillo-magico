@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, X, PiggyBank, Trash2, Check, Loader2 } from 'lucide-react'
@@ -86,6 +87,9 @@ export default function SavingsGoalsManager({ userId, goals: initGoals, monthlyS
   function close() {
     setShowForm(false); setEditingId(null); setForm(emptyForm); setError(''); setDeleteConfirm(false)
   }
+  // Hook llamado siempre — el backdrop es condicional (`{showForm && ...}`)
+  // más abajo, pero el hook no puede serlo.
+  const backdropClose = useBackdropClose(close)
 
   const save = useCallback(async () => {
     const name = form.name.trim()
@@ -204,7 +208,7 @@ export default function SavingsGoalsManager({ userId, goals: initGoals, monthlyS
 
       {/* ── Sheet ── */}
       {showForm && (
-        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50" onClick={close}>
+        <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50" {...backdropClose}>
           <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto" style={{ background: 'var(--surface)' }} onClick={e => e.stopPropagation()}>
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
             <div className="flex items-center justify-between px-5 pt-3 pb-3 lg:px-6 border-b" style={{ borderColor: 'var(--border)' }}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { X, Check, Calculator, CreditCard, AlertTriangle, ThumbsUp, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -201,11 +202,16 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
   function reset() {
     setAmount(''); setInstallments(1)
   }
+  // Hook llamado siempre, ANTES del `if (!isOpen) return null` — el
+  // componente queda montado con isOpen alternando true/false (SideNav/
+  // BottomNav no lo desmontan), así que el hook no puede depender de esa
+  // condición sin romper el orden de hooks entre renders.
+  const backdropClose = useBackdropClose(() => { reset(); onClose() })
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50" onClick={() => { reset(); onClose() }}>
+    <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50" {...backdropClose}>
       <div className="w-full lg:max-w-md bg-white rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto" style={{ background: 'var(--surface)' }} onClick={e => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 

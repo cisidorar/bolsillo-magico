@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, CheckCircle, AlertCircle, X, FileText } from 'lucide-react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 
 type State = 'idle' | 'loading' | 'success' | 'error'
 
@@ -26,6 +27,9 @@ export default function ImportCSV() {
     setState('idle'); setResult(null); setErrMsg(''); setFile(null)
     if (inputRef.current) inputRef.current.value = ''
   }
+  // Hook llamado siempre (aunque el sheet esté cerrado) — el backdrop es
+  // condicional (`{open && ...}`) más abajo, pero el hook no puede serlo.
+  const backdropClose = useBackdropClose(() => { setOpen(false); reset() })
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -74,7 +78,7 @@ export default function ImportCSV() {
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-end lg:items-center justify-center bg-black/50"
-          onClick={() => { setOpen(false); reset() }}
+          {...backdropClose}
         >
           {/* Sheet */}
           <div

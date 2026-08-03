@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles, ArrowUp, ArrowDown } from 'lucide-react'
@@ -213,6 +214,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   function closeSheet() {
     setSheetOpen(false); setForm(DEFAULT); setEditTarget(null); setError(''); setDeleteConfirm(false); setShowAllCats(false)
   }
+  // Hook llamado siempre — el backdrop es condicional (`{sheetOpen && ...}`)
+  // más abajo, pero el hook no puede serlo.
+  const backdropClose = useBackdropClose(closeSheet)
 
   async function save() {
     if (!form.name.trim()) { setError('Escribe un nombre'); return }
@@ -609,7 +613,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       {sheetOpen && (
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-          onClick={closeSheet}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-lg bg-white rounded-t-3xl lg:rounded-3xl max-h-[92vh] overflow-y-auto"
