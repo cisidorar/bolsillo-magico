@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import Radar, { type WatchlistItem } from '@/components/Radar'
 import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
+import RentaFijaSummary from '@/components/RentaFijaSummary'
+import InversionesToggle from '@/components/InversionesToggle'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
@@ -102,8 +104,12 @@ export default async function InversionesPage({ searchParams }: Props) {
   ])
   if (!user) redirect('/login')
 
-  const isAhorro    = sp.view === 'ahorro'
-  const isDepositos = sp.view === 'depositos'
+  // Ago 2026 (ROADMAP-ahorro-depositos.md, A3): Ahorro y Depósitos se
+  // fusionaron en una sola vista — 'depositos' queda como ALIAS de 'ahorro'
+  // para que links/bookmarks viejos (ej. PatrimonioCards antes de A3, o
+  // correos ya enviados) sigan cayendo en la vista correcta en vez de
+  // silenciosamente mostrar Acciones.
+  const isAhorro    = sp.view === 'ahorro' || sp.view === 'depositos'
   const isBilletera = sp.view === 'billetera'
 
   // E5 (roadmap economía): rentabilidad real (F7 de FEATURES.md) — un
@@ -351,9 +357,7 @@ export default async function InversionesPage({ searchParams }: Props) {
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
           {isAhorro
-            ? `${savingCount} cuenta${savingCount !== 1 ? 's' : ''} · ahorro`
-            : isDepositos
-            ? `${depositCount} depósito${depositCount !== 1 ? 's' : ''} · a plazo`
+            ? `${savingCount + depositCount} ${savingCount + depositCount !== 1 ? 'cuentas' : 'cuenta'} · ahorro y depósitos`
             : isBilletera
             ? 'el fondo desde el que compras acciones'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
@@ -362,11 +366,31 @@ export default async function InversionesPage({ searchParams }: Props) {
 
       {/* ── Content */}
       {isAhorro ? (
-        <DepositManager
-          userId={user.id}
-          initialSavings={(savings ?? []) as SavingsAccount[]}
-          trailingInflationPct={trailingInflationPctResolved}
-        />
+        <>
+          {/* A1 (roadmap ahorro+depósitos): el toggle vive UNA sola vez acá
+              — DepositManager y TermDepositManager ya no dibujan el suyo
+              propio, porque ahora conviven en la misma pantalla. */}
+          <div className="flex items-center justify-end mb-4">
+            <InversionesToggle active="ahorro" />
+          </div>
+          <RentaFijaSummary
+            savings={(savings ?? []) as SavingsAccount[]}
+            deposits={(deposits ?? []) as TermDeposit[]}
+            todayStr={todayCL}
+            trailingInflationPct={trailingInflationPctResolved}
+          />
+          <div className="space-y-8">
+            <DepositManager
+              userId={user.id}
+              initialSavings={(savings ?? []) as SavingsAccount[]}
+              trailingInflationPct={trailingInflationPctResolved}
+            />
+            <TermDepositManager
+              userId={user.id}
+              initialDeposits={(deposits ?? []) as TermDeposit[]}
+            />
+          </div>
+        </>
       ) : isBilletera ? (
         <UsdWalletManager
           userId={user.id}
@@ -374,11 +398,6 @@ export default async function InversionesPage({ searchParams }: Props) {
           investedUsd={investedUsd}
           stockPurchases={(purchases ?? []) as StockPurchase[]}
           sales={(sales ?? []) as StockSale[]}
-        />
-      ) : isDepositos ? (
-        <TermDepositManager
-          userId={user.id}
-          initialDeposits={(deposits ?? []) as TermDeposit[]}
         />
       ) : (
         <>

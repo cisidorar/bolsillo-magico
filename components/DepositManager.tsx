@@ -10,7 +10,7 @@ import {
 import { formatCLP } from '@/lib/utils'
 import { realReturnPct } from '@/lib/cl-indicators'
 import ServiceLogo from '@/components/ServiceLogo'
-import InversionesToggle from '@/components/InversionesToggle'
+import { daysElapsed, earnedSoFar, dailyInterest, projectedInterest } from '@/lib/savings-accounts'
 import type { SavingsAccount } from '@/app/(dashboard)/inversiones/page'
 
 // ── Dominio por nombre de banco/fintech ───────────────────────────────────────
@@ -60,34 +60,6 @@ function avatarColor(name: string): string {
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0]
-}
-
-/** Días transcurridos desde start_date hasta hoy (mínimo 0 — el día de inicio no genera interés) */
-function daysElapsed(startDate: string): number {
-  const s   = new Date(startDate + 'T12:00:00')
-  const now = new Date()
-  return Math.max(0, Math.floor((now.getTime() - s.getTime()) / 86_400_000))
-}
-
-/** Tasa diaria efectiva a partir de TEA: (1 + r)^(1/365) - 1 */
-function dailyRate(annualRate: number): number {
-  return Math.pow(1 + annualRate / 100, 1 / 365) - 1
-}
-
-/** Interés ganado acumulado (capitalización compuesta diaria) en CLP */
-function earnedSoFar(balance: number, annualRate: number, startDate: string): number {
-  const days = daysElapsed(startDate)
-  return Math.round(balance * (Math.pow(1 + annualRate / 100, days / 365) - 1))
-}
-
-/** Interés ganado en un día en CLP (tasa diaria efectiva) */
-function dailyInterest(balance: number, annualRate: number): number {
-  return Math.round(balance * dailyRate(annualRate))
-}
-
-/** Interés proyectado en N días (capitalización compuesta) */
-function projectedInterest(balance: number, annualRate: number, days: number): number {
-  return Math.round(balance * (Math.pow(1 + annualRate / 100, days / 365) - 1))
 }
 
 function fmtCLP(n: number, showSign = false): string {
@@ -286,34 +258,32 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div id="ahorro" className="space-y-4 scroll-mt-20">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      {/* ── Header de sección (A1, roadmap ahorro+depósitos: el toggle de tabs
+          ahora vive una sola vez en page.tsx — este manager ya no dibuja el
+          suyo propio, para poder convivir con TermDepositManager en la misma
+          pantalla sin duplicar tabs ni botones "Agregar") ─────────────────── */}
       <div className="flex items-center justify-between gap-3">
-        {/* Tasa promedio — izquierda */}
-        <div className="flex items-center gap-2 min-w-0 text-[11px]">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cuentas de ahorro</h2>
           {savings.length > 0 && (
-            <>
+            <div className="flex items-center gap-2 min-w-0 text-[11px] mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--mint)' }} />
               <span style={{ color: 'var(--mint)' }} className="font-semibold">
                 {fmtPct(avgRate)} TAE promedio
               </span>
-            </>
+            </div>
           )}
         </div>
-
-        {/* Tabs + Agregar — derecha */}
-        <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="ahorro" />
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-          >
-            <Plus className="w-4 h-4" strokeWidth={2.5} />
-            Agregar
-          </button>
-        </div>
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+          Agregar
+        </button>
       </div>
 
       {/* ── Modal add/edit ───────────────────────────────────────────────── */}

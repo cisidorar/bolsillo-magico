@@ -1,7 +1,12 @@
 import Link from 'next/link'
-import { TrendingUp, Timer, Landmark, Wallet } from 'lucide-react'
+import { TrendingUp, Landmark, Wallet } from 'lucide-react'
 
-export type InversionesView = 'acciones' | 'depositos' | 'ahorro' | 'billetera'
+// Ago 2026 (roadmap ROADMAP-ahorro-depositos.md, A1): Ahorro y Depósitos se
+// fusionaron en una sola pestaña — ambos son "plata segura en pesos que
+// rinde un interés conocido", a diferencia de Acciones/Billetera que son el
+// mundo USD con riesgo. 'depositos' se mantiene como ALIAS de 'ahorro' en
+// page.tsx (no como tab propia) para que links/bookmarks viejos no rompan.
+export type InversionesView = 'acciones' | 'ahorro' | 'billetera'
 
 /**
  * Toggle compartido de las vistas de /inversiones.
@@ -13,10 +18,9 @@ export default function InversionesToggle({
   active: InversionesView
 }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
-    { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',  Icon: TrendingUp },
-    { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera', Icon: Wallet },
-    { view: 'depositos',  href: '/inversiones?view=depositos',   label: 'Depósitos', Icon: Timer },
-    { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro',    Icon: Landmark },
+    { view: 'acciones',   href: '/inversiones',                  label: 'Acciones',           Icon: TrendingUp },
+    { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera',          Icon: Wallet },
+    { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro y depósitos', Icon: Landmark },
   ]
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">

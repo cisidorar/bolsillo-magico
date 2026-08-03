@@ -6,7 +6,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Timer, Trash2, ChevronRight, CalendarDays, CheckCircle2 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
-import InversionesToggle from '@/components/InversionesToggle'
+import {
+  daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity,
+} from '@/lib/term-deposits'
 import type { TermDeposit } from '@/app/(dashboard)/inversiones/page'
 
 // ── Dominio por nombre de banco ───────────────────────────────────────────────
@@ -41,40 +43,6 @@ function avatarColor(name: string): string {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function todayStr(): string {
   return new Date().toISOString().split('T')[0]
-}
-
-function daysBetween(a: string, b: string): number {
-  const da = new Date(a + 'T12:00:00'), db = new Date(b + 'T12:00:00')
-  return Math.round((db.getTime() - da.getTime()) / 86_400_000)
-}
-
-/** dateStr + N días (YYYY-MM-DD) — para calcular el vencimiento por defecto a partir del plazo. */
-function addDaysStr(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
-}
-
-/** Interés total del período en CLP: interest_rate es % sobre el capital al vencimiento. */
-function totalInterest(d: TermDeposit): number {
-  return Math.round(d.amount * (d.interest_rate / 100))
-}
-
-/** Interés devengado a hoy (lineal por días transcurridos, capped al total). */
-function earnedToDate(d: TermDeposit): number {
-  const total = daysBetween(d.start_date, d.maturity_date)
-  const gone  = Math.min(Math.max(daysBetween(d.start_date, todayStr()), 0), total)
-  return total > 0 ? Math.round(totalInterest(d) * (gone / total)) : 0
-}
-
-function progressPct(d: TermDeposit): number {
-  const total = daysBetween(d.start_date, d.maturity_date)
-  const gone  = Math.min(Math.max(daysBetween(d.start_date, todayStr()), 0), total)
-  return total > 0 ? Math.round((gone / total) * 100) : 100
-}
-
-function daysToMaturity(d: TermDeposit): number {
-  return daysBetween(todayStr(), d.maturity_date)
 }
 
 function fmtPct(n: number): string {
@@ -143,13 +111,14 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const active   = deposits.filter(d => daysToMaturity(d) >= 0)
-  const matured  = deposits.filter(d => daysToMaturity(d) < 0)
+  const today    = todayStr()
+  const active   = deposits.filter(d => daysToMaturity(d, today) >= 0)
+  const matured  = deposits.filter(d => daysToMaturity(d, today) < 0)
 
   const totalInvested = active.reduce((s, d) => s + d.amount, 0)
   const totalAtEnd    = active.reduce((s, d) => s + d.amount + totalInterest(d), 0)
   const totalEarnAll  = active.reduce((s, d) => s + totalInterest(d), 0)
-  const totalAccrued  = active.reduce((s, d) => s + earnedToDate(d), 0)
+  const totalAccrued  = active.reduce((s, d) => s + earnedToDate(d, today), 0)
 
   const nextMaturity = active.length > 0
     ? [...active].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date))[0]
@@ -240,9 +209,9 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   // ── Fila de depósito ──────────────────────────────────────────────────────
   function DepositRow({ d, isMatured }: { d: TermDeposit; isMatured: boolean }) {
     const interest = totalInterest(d)
-    const accrued  = earnedToDate(d)
-    const pct      = progressPct(d)
-    const days     = daysToMaturity(d)
+    const accrued  = earnedToDate(d, today)
+    const pct      = progressPct(d, today)
+    const days     = daysToMaturity(d, today)
     const soon     = !isMatured && days <= 7
     // P6 — plata ociosa: cuánto tiempo lleva vencido sin reinvertir. A los 30
     // días el tono pasa a gold para que no quede invisible entre los "sanos".
@@ -312,31 +281,32 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <div id="depositos" className="space-y-4 scroll-mt-20">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      {/* ── Header de sección (A1, roadmap ahorro+depósitos: el toggle de tabs
+          ahora vive una sola vez en page.tsx — este manager ya no dibuja el
+          suyo propio, para poder convivir con DepositManager en la misma
+          pantalla sin duplicar tabs ni botones "Agregar") ─────────────────── */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0 text-[11px]">
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Depósitos a plazo</h2>
           {active.length > 0 && nextMaturity && (
-            <>
+            <div className="flex items-center gap-2 min-w-0 text-[11px] mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--primary)' }} />
               <span style={{ color: 'var(--ink-2)' }} className="font-semibold truncate">
                 Próximo vencimiento: {fmtDate(nextMaturity.maturity_date)}
               </span>
-            </>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <InversionesToggle active="depositos" />
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-          >
-            <Plus className="w-4 h-4" strokeWidth={2.5} />
-            Agregar
-          </button>
-        </div>
+        <button
+          onClick={openAdd}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+          Agregar
+        </button>
       </div>
 
       {/* ── Modal add/edit ───────────────────────────────────────────────── */}
@@ -697,7 +667,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-none"
                     style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
                   >
-                    {daysToMaturity(nextMaturity)}d
+                    {daysToMaturity(nextMaturity, today)}d
                   </p>
                   <p className="text-[11px] mt-1.5 font-medium truncate" style={{ color: 'var(--ink-3)' }}>
                     {nextMaturity.bank} · {formatCLP(nextMaturity.amount + totalInterest(nextMaturity))}

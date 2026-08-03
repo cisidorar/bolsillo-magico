@@ -198,9 +198,13 @@ export default function PatrimonioCards({
     : null
   const nwBreakdown = nw ? [
     { label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
-    { label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=depositos' },
-    { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro' },
-    { label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=ahorro' },
+    // Ago 2026 (ROADMAP-ahorro-depositos.md, A3/A4): Ahorro y Depósitos
+    // fusionaron en una sola vista (?view=ahorro) — cada card apunta a su
+    // ancla (#ahorro / #depositos) para no dejar a Cas arriba de todo.
+    { label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=ahorro#depositos' },
+    { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro#ahorro' },
+    // Bug detectado de paso: "Dólares" apuntaba a Ahorro en vez de Billetera.
+    { label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=billetera' },
   ].filter(b => b.value > 0) : []
   // P1: neto real = bruto − deuda ya contraída (cuotas pendientes + tarjeta por facturar)
   const netReal = nw ? nw.current.total_clp - committedDebtTotal : null
@@ -431,7 +435,7 @@ export default function PatrimonioCards({
                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Recomendado: 3–6 meses de gasto</p>
               </div>
             </div>
-            <Link href="/inversiones?view=ahorro" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
+            <Link href="/inversiones?view=ahorro#ahorro" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
               Ver
             </Link>
           </div>
@@ -524,7 +528,7 @@ export default function PatrimonioCards({
                   : 'Sabrás cuántos meses de gasto cubren tus ahorros líquidos: el primer hito antes de invertir.'}
               </p>
               {!hasSavings && (
-                <Link href="/inversiones?view=ahorro"
+                <Link href="/inversiones?view=ahorro#ahorro"
                   className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-xl text-xs font-bold transition-opacity hover:opacity-85"
                   style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 18px var(--shadow)' }}>
                   Agregar cuenta <ArrowRight className="w-3.5 h-3.5" />
