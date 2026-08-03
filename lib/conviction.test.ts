@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeConviction, isActionableBuyNow, computeMarketRegime } from './conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio } from './conviction'
 import type { TechnicalAnalysis, TechnicalRating } from './technical'
 import type { LabelStat } from './signal-backtest'
 
@@ -196,6 +196,45 @@ describe('isActionableBuyNow', () => {
     const conviction = { tier: 'compra' as const }
     expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, 'alcista')).toBe(true)
     expect(isActionableBuyNow({ buy: [{ now: true }] }, conviction, undefined)).toBe(true)
+  })
+})
+
+describe('riskRewardRatio', () => {
+  // Ago 2026: desempate de ranking cuando dos tickers empatan en score (bug
+  // real NVDA/INTC 70/100 ambos con gatillo activo). Cubre el mismo cálculo
+  // que usa computeConviction internamente, pero como función standalone.
+  it('más recompensa por unidad de riesgo → ratio más alto', () => {
+    const a = baseAnalysis({
+      price: 100, alarm: 97,   // riesgo 3%
+      resistanceLevels: [{ price: 115, touches: 2, firstDate: '2025-01-01', lastDate: '2025-05-01', weeksActive: 20, weeksSinceLast: 1, distPct: 15 }],   // recompensa 15%
+    })
+    expect(riskRewardRatio(a)).toBeCloseTo(5, 5)   // 15/3
+  })
+
+  it('sin alarm (sin stop definido) → null, no revienta', () => {
+    const a = baseAnalysis({ alarm: null })
+    expect(riskRewardRatio(a)).toBeNull()
+  })
+
+  it('sin resistencia por encima (sin recompensa medible) → null', () => {
+    const a = baseAnalysis({ alarm: 95, resistanceLevels: [] })
+    expect(riskRewardRatio(a)).toBeNull()
+  })
+
+  it('resistencia con distPct negativo (ya la pasó) → null, no un ratio negativo engañoso', () => {
+    const a = baseAnalysis({
+      alarm: 95,
+      resistanceLevels: [{ price: 90, touches: 1, firstDate: '2025-01-01', lastDate: '2025-05-01', weeksActive: 5, weeksSinceLast: 1, distPct: -5 }],
+    })
+    expect(riskRewardRatio(a)).toBeNull()
+  })
+
+  it('alarm igual o por encima del precio (riesgo cero o negativo) → null', () => {
+    const a = baseAnalysis({
+      price: 100, alarm: 100,
+      resistanceLevels: [{ price: 115, touches: 2, firstDate: '2025-01-01', lastDate: '2025-05-01', weeksActive: 20, weeksSinceLast: 1, distPct: 15 }],
+    })
+    expect(riskRewardRatio(a)).toBeNull()
   })
 })
 

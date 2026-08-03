@@ -3,7 +3,7 @@ import { createClient as createAdminClient, type SupabaseClient } from '@supabas
 import { syncTicker, readCandles } from '@/lib/price-providers'
 import { analyze, positionSizeUsd, type TechnicalAnalysis, type PriceZone } from '@/lib/technical'
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
-import { computeConviction, isActionableBuyNow, computeMarketRegime, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { backtestSignals, type LabelStat } from '@/lib/signal-backtest'
 import { getNowChile } from '@/lib/utils'
 import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
@@ -515,7 +515,13 @@ async function computeDailyDecisions(
         return a && c ? { ticker, a, conviction: c } : null
       })
       .filter((c): c is { ticker: string; a: TechnicalAnalysis; conviction: ReturnType<typeof computeConviction> } => c !== null)
-      .sort((x, y) => y.conviction.score - x.conviction.score)
+      // Ago 2026: mismo desempate que Radar.tsx (lib/conviction.ts#riskRewardRatio)
+      // — sin esto, un empate de score (ej. NVDA/INTC 70/100, ambos con
+      // gatillo) lo ganaba el que apareciera primero en userTickers, no el de
+      // mejor relación riesgo/recompensa. Un solo criterio en los dos lugares
+      // que arman este ranking (acá y el panel en vivo).
+      .sort((x, y) => (y.conviction.score - x.conviction.score)
+        || ((riskRewardRatio(y.a) ?? -Infinity) - (riskRewardRatio(x.a) ?? -Infinity)))
 
     if (candidates.length === 0) continue
     const top = candidates[0]

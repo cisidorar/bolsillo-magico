@@ -12,7 +12,7 @@ import InversionesToggle from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisError } from '@/lib/analysis-cache'
-import { computeConviction, isActionableBuyNow, computeMarketRegime, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
+import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
@@ -414,7 +414,13 @@ export default function Radar({
       return { ticker: t, a, conviction }
     })
     .filter((r): r is { ticker: string; a: TechnicalAnalysis; conviction: ConvictionResult } => r !== null)
-    .sort((x, y) => y.conviction.score - x.conviction.score)
+    // Ago 2026 (bug reportado por Cas: NVDA e INTC empatados 70/100, ambos con
+    // gatillo activo — el ranking no tenía desempate y ganaba el que apareciera
+    // primero en allTickers, orden de inserción en watchlist, no calidad de la
+    // compra). Desempate por riesgo/recompensa: más potencial por unidad de
+    // riesgo gana: si el score es idéntico, no es "arbitrario".
+    .sort((x, y) => (y.conviction.score - x.conviction.score)
+      || ((riskRewardRatio(y.a) ?? -Infinity) - (riskRewardRatio(x.a) ?? -Infinity)))
   const allLoaded = allTickers.length > 0 && ranking.length === allTickers.length
   const top      = ranking[0] ?? null
   const runnerUp = ranking[1] ?? null

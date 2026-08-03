@@ -145,6 +145,26 @@ export function computeConviction(
   return { score, tier, verdict, reasons }
 }
 
+// ── Desempate por riesgo/recompensa (ago 2026, a pedido de Cas) ──────────────
+// Bug real: NVDA e INTC empataron 70/100 en convicción, ambos con gatillo de
+// entrada activo hoy — el ranking ("¿Qué comprar hoy?" en Radar.tsx y
+// computeDailyDecisions en sync-prices) no tenía ningún criterio de desempate,
+// así que ganaba el que apareciera primero en el array (orden de inserción en
+// watchlist/posiciones — no algo que refleje calidad de la compra). Se agrega
+// esta función standalone (misma fórmula que el componente 2 del score de
+// arriba, pero calculada aparte para no tocar computeConviction ni sus 25
+// tests) para desempatar por CUÁNTO se arriesga vs. cuánto potencial queda —
+// más recompensa por unidad de riesgo gana el empate.
+export function riskRewardRatio(analysis: Pick<TechnicalAnalysis, 'price' | 'alarm' | 'resistanceLevels'>): number | null {
+  const riskPct = analysis.alarm !== null && analysis.price > 0
+    ? ((analysis.price - analysis.alarm) / analysis.price) * 100
+    : null
+  const resRef    = analysis.resistanceLevels[0] ?? null
+  const rewardPct = resRef && resRef.distPct > 0 ? resRef.distPct : null
+  if (riskPct === null || riskPct <= 0 || rewardPct === null) return null
+  return rewardPct / riskPct
+}
+
 /**
  * ¿Hay caso Y gatillo para comprar HOY, con monto? El score de convicción
  * mide si la acción es una buena candidata (riesgo/recompensa, fuerza vs.
