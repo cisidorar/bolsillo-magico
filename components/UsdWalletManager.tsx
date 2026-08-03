@@ -71,6 +71,10 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   const [formError, setFormError] = useState('')
   const [busy,      setBusy]      = useState(false)
   const [fx,        setFx]        = useState<number | null>(null)
+  // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
+  // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
+  // real: crasheaba al abrir el modal, reportado por Cas).
+  const backdropClose = useBackdropClose(() => setShowForm(false))
 
   // FX solo como dato chico (no protagonista) — si falla, la card vive sin él
   useEffect(() => {
@@ -220,7 +224,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...useBackdropClose(() => setShowForm(false))}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"

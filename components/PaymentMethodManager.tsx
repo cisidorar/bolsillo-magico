@@ -441,6 +441,10 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
     setError('')
     setDeleteConfirm(false)
   }
+  // Hook llamado siempre — el modal es condicional (`{expandedId && ...}`)
+  // más abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
+  // real: crasheaba al abrir el modal, reportado por Cas).
+  const backdropClose = useBackdropClose(closeAll)
 
   function setField<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }))
@@ -646,7 +650,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...useBackdropClose(closeAll)}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"

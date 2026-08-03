@@ -226,6 +226,10 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
     setShowForm(false); setEditingId(null); setForm(emptyForm)
     setFormError(''); setDeleteConfirm(false)
   }
+  // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
+  // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
+  // real: crasheaba al abrir el modal, reportado por Cas).
+  const backdropClose = useBackdropClose(cancelForm)
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveAccount = useCallback(async () => {
@@ -317,7 +321,7 @@ export default function DepositManager({ userId, initialSavings, trailingInflati
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...useBackdropClose(cancelForm)}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"

@@ -61,12 +61,19 @@ function SheetRow({ row, onClose }: { row: Row; onClose: () => void }) {
 }
 
 export default function MoreSheet({ isOpen, onClose, onOpenAfford }: Props) {
+  // Hook llamado siempre, ANTES del `if (!isOpen) return null` — el
+  // componente queda montado con isOpen alternando true/false (BottomNav no
+  // lo desmonta), así que el hook no puede depender de esa condición sin
+  // romper el orden de hooks entre renders (bug real: crasheaba al abrir el
+  // sheet, reportado por Cas).
+  const backdropClose = useBackdropClose(onClose)
+
   if (!isOpen) return null
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 lg:hidden"
-      {...useBackdropClose(onClose)}
+      {...backdropClose}
       role="dialog"
       aria-modal="true"
       aria-label="Más opciones"

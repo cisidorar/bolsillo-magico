@@ -89,6 +89,10 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
     setFormError('')
     setDeleteConfirm(false)
   }
+  // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
+  // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
+  // real: crasheaba al abrir el modal, reportado por Cas).
+  const backdropClose = useBackdropClose(cancelForm)
 
   function addItem() {
     setItems(prev => [...prev, { label: '', amount: 0 }])
@@ -150,7 +154,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...useBackdropClose(cancelForm)}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto"

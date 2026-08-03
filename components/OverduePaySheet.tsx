@@ -35,6 +35,10 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
   const [done,   setDone]   = useState(false)
+  // Hook llamado siempre — el popup es condicional (`{open && ...}`) más
+  // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
+  // real: crasheaba al abrir el popup, reportado por Cas).
+  const backdropClose = useBackdropClose(() => setOpen(false))
 
   useEffect(() => {
     if (!open) return
@@ -106,7 +110,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...useBackdropClose(() => setOpen(false))}
+          {...backdropClose}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto overflow-x-hidden overscroll-contain"
