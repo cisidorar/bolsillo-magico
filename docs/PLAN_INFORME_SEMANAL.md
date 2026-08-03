@@ -96,7 +96,7 @@ Entrega: bloque "Contexto de mercado" en `WeeklyReport.tsx` con tasa Fed, curva 
 
 **v0 (vista en vivo) ✅** — `/inversiones?view=semanal`, calculado on-demand al abrir la página (jul 2026).
 
-**Persistencia (cron + email) ✅ implementada (jul 2026)** — `app/api/cron/weekly-report` (Vercel, lunes 12:00 UTC) calcula el informe para TODOS los usuarios reusando `lib/weekly-report.ts` (extraído del v0 para no duplicar lógica) y lo guarda en `weekly_reports` (una fila por usuario por semana, `payload` jsonb autocontenido). La Edge Function `notify-weekly-report` (pg_cron, lunes 12:30 UTC) solo lee esa tabla y manda el correo — no recalcula nada, mismo patrón que `sync-prices` → `daily_decisions` → `notify-watchlist-digest`. Opt-out vía `profiles.notify_weekly_report`.
+**Persistencia (cron + email) ✅ implementada (jul 2026)** — `app/api/cron/weekly-report` (Vercel, 02:30 UTC lunes = domingo 22:30 CLT en horario normal — cambiado de lunes en la mañana a domingo de noche en ago 2026, a pedido de Cas) calcula el informe para TODOS los usuarios reusando `lib/weekly-report.ts` (extraído del v0 para no duplicar lógica) y lo guarda en `weekly_reports` (una fila por usuario por semana, `payload` jsonb autocontenido). La Edge Function `notify-weekly-report` (pg_cron, 03:00 UTC lunes = domingo 23:00 CLT) solo lee esa tabla y manda el correo — no recalcula nada, mismo patrón que `sync-prices` → `daily_decisions` → `notify-watchlist-digest`. Opt-out vía `profiles.notify_weekly_report`.
 
 Estructura del correo/página, en el orden del video:
 

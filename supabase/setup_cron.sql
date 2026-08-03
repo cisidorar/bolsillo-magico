@@ -102,14 +102,24 @@ select cron.schedule(
   $$
 );
 
--- 6. Informe semanal (S5) — todos los lunes a las 12:30 UTC (09:30 CLT en
---    horario normal), 30 min después de que corra /api/cron/weekly-report de
---    Vercel (lunes 12:00 UTC, ver vercel.json) — ese cron calcula y deja en
+-- 6. Informe semanal (S5) — domingo 22:30 CLT (a pedido de Cas, ago 2026; antes
+--    corría lunes en la mañana). 22:30 CLT en horario normal (UTC-4) cae en
+--    02:30 UTC del LUNES siguiente — por eso el día de cron.schedule sigue
+--    siendo "1" (lunes) aunque en Chile todavía sea domingo de noche; ambas
+--    fechas están definidas en UTC/servidor pero el propio cron/edge function
+--    lee getNowChile()/mondayOfCL() para saber qué semana reportar, así que
+--    con "todavía domingo en Chile" igual calculan el lunes correcto (el que
+--    abrió la semana que recién termina), no uno adelantado.
+--    30 min después de que corra /api/cron/weekly-report de Vercel (mismo día
+--    UTC, 02:30 UTC, ver vercel.json) — ese cron calcula y deja en
 --    weekly_reports; esta función solo lee esa tabla y arma el correo, no
 --    recalcula nada (mismo patrón que notify-watchlist-digest/daily_signals).
+--    En horario de verano chileno (UTC-3, oct-mar) esto cae ~1h más tarde en
+--    hora Chile (23:30 en vez de 22:30) — mismo desfase que ya acepta
+--    notify-watchlist-digest, sigue cayendo el domingo de noche igual.
 select cron.schedule(
   'notify-weekly-report-monday',
-  '30 12 * * 1',   -- 12:30 UTC, lunes = 09:30 CLT (horario normal)
+  '0 3 * * 1',   -- 03:00 UTC lunes = 23:00 CLT domingo (horario normal)
   $$
   select net.http_post(
     url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-weekly-report',
