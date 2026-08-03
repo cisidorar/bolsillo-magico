@@ -28,7 +28,6 @@ import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import type { PortfolioPoint } from '@/lib/portfolio-history'
-import PortfolioChart from '@/components/PortfolioChart'
 
 // ── U4 (roadmap UX): "Radar" — un solo mundo para posiciones y favoritos.
 // Reemplaza StockPositionManager.tsx + WatchlistPanel.tsx: antes eran dos
@@ -655,10 +654,16 @@ export default function Radar({
   }
 
   // Ago 2026 (split Mis acciones / Watchlist): la lista de tickers con
-  // filas de convicción/flags ahora es EXCLUSIVA de la vista Watchlist —
-  // equivalente al viejo tab "Sigo" (favoritos sin posición). Mis acciones
-  // tiene su propia tabla más abajo, sin este componente de fila.
-  const watchlistTickers = watchTickers.filter(t => !owned.has(t))
+  // filas de convicción/flags ahora es EXCLUSIVA de la vista Watchlist. Al
+  // principio filtraba los tickers ya poseídos (equivalente al viejo tab
+  // "Sigo") — bug reportado por Cas: INTC, que sigue Y tiene en cartera,
+  // desaparecía de acá aunque quisiera seguir analizándola para comprar
+  // más. "Seguir" un ticker no deja de tener sentido al comprarlo — TODO lo
+  // que está en watchlist se muestra, esté o no en cartera (la fila ya
+  // marca "· en cartera" cuando corresponde). Mis acciones tiene su propia
+  // tabla de posiciones más abajo — esto no le compite, es la vista de
+  // análisis/decisión, no la de seguimiento de saldo.
+  const watchlistTickers = watchTickers
 
   // V3 (roadmap de vista): antes el orden era fijo (solo convicción) — para
   // responder "¿cuál se ve mejor hoy?" había que leer fila por fila.
@@ -861,14 +866,6 @@ export default function Radar({
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* W3: evolución del valor de la cartera — solo si hay suficiente
-          historial para que la curva diga algo. */}
-      {positions.length > 0 && portfolioHistory.length >= 2 && (
-        <div className="card overflow-hidden mb-4 px-4 lg:px-5 py-3">
-          <PortfolioChart points={portfolioHistory} costBasisUsd={totalCostUsd} />
         </div>
       )}
 
