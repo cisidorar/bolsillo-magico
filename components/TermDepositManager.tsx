@@ -48,6 +48,13 @@ function daysBetween(a: string, b: string): number {
   return Math.round((db.getTime() - da.getTime()) / 86_400_000)
 }
 
+/** dateStr + N días (YYYY-MM-DD) — para calcular el vencimiento por defecto a partir del plazo. */
+function addDaysStr(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() + days)
+  return d.toISOString().split('T')[0]
+}
+
 /** Interés total del período en CLP: interest_rate es % sobre el capital al vencimiento. */
 function totalInterest(d: TermDeposit): number {
   return Math.round(d.amount * (d.interest_rate / 100))
@@ -114,11 +121,13 @@ interface FormState {
   amount:       string  // raw digits
   interestRate: string
   startDate:    string
+  termDays:     string  // plazo en días — al completarlo, calcula el vencimiento por defecto
   maturityDate: string
+  renewable:    boolean
   notes:        string
 }
 const emptyForm: FormState = {
-  bank: '', amount: '', interestRate: '', startDate: todayStr(), maturityDate: '', notes: '',
+  bank: '', amount: '', interestRate: '', startDate: todayStr(), termDays: '', maturityDate: '', renewable: false, notes: '',
 }
 
 export default function TermDepositManager({ userId, initialDeposits }: Props) {
@@ -156,7 +165,9 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       amount:       String(d.amount),
       interestRate: String(d.interest_rate),
       startDate:    d.start_date,
+      termDays:     String(daysBetween(d.start_date, d.maturity_date)),
       maturityDate: d.maturity_date,
+      renewable:    d.renewable ?? false,
       notes:        d.notes ?? '',
     })
     setEditingId(d.id); setFormError(''); setDeleteConfirm(false); setShowForm(true)
@@ -191,6 +202,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       interest_rate: rate,
       start_date:    form.startDate,
       maturity_date: form.maturityDate,
+      renewable:     form.renewable,
       notes:         form.notes.trim() || null,
     }
 
@@ -267,6 +279,12 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
                     : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
                   <CheckCircle2 className="w-2.5 h-2.5" /> {idleLong ? 'Reinvierte' : 'Vencido'}
+                </span>
+              )}
+              {!isMatured && d.renewable && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                  Renovable
                 </span>
               )}
             </div>
@@ -418,7 +436,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 </div>
               )}
 
-              {/* Fechas */}
+              {/* Fecha de inicio + Plazo (días) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
@@ -427,7 +445,14 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   <input
                     type="date"
                     value={form.startDate}
-                    onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                    onChange={e => {
+                      const startDate = e.target.value
+                      setForm(f => {
+                        const days = parseInt(f.termDays)
+                        const maturityDate = startDate && !isNaN(days) && days > 0 ? addDaysStr(startDate, days) : f.maturityDate
+                        return { ...f, startDate, maturityDate }
+                      })
+                    }}
                     max={todayStr()}
                     className="w-full text-sm border px-4 py-3"
                     style={inputBase}
@@ -436,30 +461,85 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                    Vencimiento
+                    Plazo (días)
                   </label>
                   <input
-                    type="date"
-                    value={form.maturityDate}
-                    onChange={e => setForm(f => ({ ...f, maturityDate: e.target.value }))}
-                    min={form.startDate || undefined}
-                    className="w-full text-sm border px-4 py-3"
+                    type="number"
+                    inputMode="numeric"
+                    value={form.termDays}
+                    onChange={e => {
+                      const termDays = e.target.value
+                      setForm(f => {
+                        const days = parseInt(termDays)
+                        const maturityDate = f.startDate && !isNaN(days) && days > 0 ? addDaysStr(f.startDate, days) : f.maturityDate
+                        return { ...f, termDays, maturityDate }
+                      })
+                    }}
+                    placeholder="35"
+                    min="1"
+                    className="w-full text-sm border px-4 py-3 tabular-nums"
                     style={inputBase}
                     onFocus={focusOn} onBlur={focusOff}
                   />
                 </div>
               </div>
 
+              {/* Vencimiento — se autocompleta desde Fecha de inicio + Plazo, pero se puede ajustar */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Vencimiento
+                </label>
+                <input
+                  type="date"
+                  value={form.maturityDate}
+                  onChange={e => setForm(f => ({ ...f, maturityDate: e.target.value }))}
+                  min={form.startDate || undefined}
+                  className="w-full text-sm border px-4 py-3"
+                  style={inputBase}
+                  onFocus={focusOn} onBlur={focusOff}
+                />
+                <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                  Calculado desde el plazo — ajústalo si tu banco cuenta los días distinto.
+                </p>
+              </div>
+
+              {/* Tipo de depósito */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  Tipo de depósito
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {([{ value: false, label: 'Fijo' }, { value: true, label: 'Renovable' }] as const).map(opt => {
+                    const active = form.renewable === opt.value
+                    return (
+                      <button
+                        key={String(opt.value)}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, renewable: opt.value }))}
+                        className="px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all"
+                        style={{
+                          background:  active ? 'var(--primary-soft)' : 'var(--surface-2)',
+                          borderColor: active ? 'var(--primary)' : 'var(--border)',
+                          color:       active ? 'var(--primary)' : 'var(--ink-2)',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Nota */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  Nota (opcional)
+                  ¿Para qué es este ahorro? (opcional)
                 </label>
                 <input
                   type="text"
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="ej: renovable, tasa fija"
+                  placeholder="ej: fondo de emergencia, viaje, pie de depto"
                   maxLength={80}
                   className="w-full text-sm border px-4 py-3"
                   style={inputBase}

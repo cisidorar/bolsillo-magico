@@ -72,6 +72,8 @@ export interface TermDeposit {
   interest_rate: number
   start_date:    string
   maturity_date: string
+  /** Renovable (se reinvierte solo al vencer) vs. fijo (se corta al vencer). Ago 2026. */
+  renewable:     boolean
   notes:         string | null
   created_at:    string
 }
