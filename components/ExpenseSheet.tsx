@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { X, Delete, CalendarDays, ChevronDown, Trash2, Check, FileText, SlidersHorizontal, CreditCard, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -214,6 +215,11 @@ export default function ExpenseSheet({
     if (hasUnsavedChanges && !window.confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return
     close()
   }, [hasUnsavedChanges, close])
+  // Un solo hook para los dos backdrops del sheet (hay dos `return` con su
+  // propio div fixed inset-0 más abajo) — llamarlo inline en cada JSX
+  // arriesgaría orden de hooks distinto entre renders según qué return se
+  // tome; acá se llama una sola vez, siempre, y se reusa el resultado.
+  const backdropClose = useBackdropClose(requestClose)
 
   // Cerrar con Escape (sin perder datos por accidente)
   useEffect(() => {
@@ -691,7 +697,7 @@ export default function ExpenseSheet({
     return (
       <div
         className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-        onClick={e => { if (e.target === e.currentTarget) requestClose() }}
+        {...backdropClose}
         role="dialog"
         aria-modal="true"
         aria-label="Editar gasto"
@@ -892,7 +898,7 @@ export default function ExpenseSheet({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
-      onClick={e => { if (e.target === e.currentTarget) requestClose() }}
+      {...backdropClose}
       role="dialog"
       aria-modal="true"
       aria-label="Nuevo gasto"

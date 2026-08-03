@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
 import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info } from 'lucide-react'
@@ -219,7 +220,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowForm(false) }}
+          {...useBackdropClose(() => setShowForm(false))}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"

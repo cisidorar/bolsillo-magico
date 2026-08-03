@@ -9,6 +9,7 @@ import { detectLeverage } from '@/lib/leveraged-etfs'
 import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
 import { getCachedBacktestStats, getCachedRateContext } from '@/lib/analysis-cache'
 import { useToast } from '@/components/ToastProvider'
+import { useBackdropClose } from '@/components/useBackdropClose'
 
 // ── U4 (roadmap UX): modal SOLO transaccional — extraído de
 // StockPositionManager.tsx. Ya no es la puerta de entrada a la información
@@ -419,7 +420,7 @@ export default function TransactionModal({
     <div
       className="fixed inset-0 z-[110] flex items-end lg:items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.65)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      {...useBackdropClose(onClose)}
     >
       <div
         className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto overflow-x-hidden overscroll-contain"

@@ -5,6 +5,7 @@ import {
   X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings, Calculator,
   type LucideIcon,
 } from 'lucide-react'
+import { useBackdropClose } from '@/components/useBackdropClose'
 
 interface Props {
   isOpen: boolean
@@ -65,7 +66,7 @@ export default function MoreSheet({ isOpen, onClose, onOpenAfford }: Props) {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 lg:hidden"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      {...useBackdropClose(onClose)}
       role="dialog"
       aria-modal="true"
       aria-label="Más opciones"

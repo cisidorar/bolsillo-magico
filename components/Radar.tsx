@@ -18,6 +18,7 @@ import { detectLeverage } from '@/lib/leveraged-etfs'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip, PriceZoneChip } from '@/components/RiskRail'
+import { useBackdropClose } from '@/components/useBackdropClose'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
@@ -505,6 +506,11 @@ export default function Radar({
 
   function openSearch() { setShowSearch(true); setQuery(''); setResults([]); setAddError('') }
   function closeSearch() { setShowSearch(false); setQuery(''); setResults([]); setAddError('') }
+  // Hooks de los backdrops de los dos overlays (búsqueda / ficha expandida) —
+  // llamados siempre, sin importar si el overlay está abierto (los divs que
+  // los usan sí son condicionales), para no romper el orden de hooks.
+  const searchBackdropClose   = useBackdropClose(closeSearch)
+  const expandedBackdropClose = useBackdropClose(() => setExpanded(null))
 
   async function addSymbol(symbol: string) {
     const t = symbol.trim().toUpperCase()
@@ -1467,7 +1473,7 @@ export default function Radar({
       {/* ── Popup de búsqueda ("Seguir") ─────────────────────────────────── */}
       {showSearch && (
         <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
-          onClick={e => { if (e.target === e.currentTarget) closeSearch() }}>
+          {...searchBackdropClose}>
           <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '80dvh' }}>
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
@@ -1592,7 +1598,7 @@ export default function Radar({
 
         return (
           <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
-            onClick={e => { if (e.target === e.currentTarget) setExpanded(null) }}>
+            {...expandedBackdropClose}>
             <div className="w-full lg:max-w-3xl rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '88dvh' }}>
               {/* V5: handle + header no scrollean — el swipe-down para cerrar
                   (mobile) se engancha acá para no pelear con el scroll del
