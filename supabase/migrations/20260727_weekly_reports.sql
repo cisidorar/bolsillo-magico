@@ -32,3 +32,13 @@ create policy "select own weekly_reports"
 
 alter table public.profiles
   add column if not exists notify_weekly_report boolean not null default true;
+
+-- Bug real (ago 2026, encontrado por Cas): esta migración nunca se corrió en
+-- producción — "Could not find the table 'public.weekly_reports' in the
+-- schema cache" fue el síntoma (PostgREST no ve una tabla que no existe).
+-- Aprovechando el fix, se agrega acá el GRANT a service_role que sí tienen
+-- daily_decisions/daily_signals/etc. y a esta migración le faltaba —sin él,
+-- apenas creada la tabla el cron habría chocado con un segundo error, de
+-- permisos. Mismo patrón de bug que price_cache/watchlist/stock_positions/
+-- price_history documentado en 20260714_daily_signals_enrich.sql.
+grant all on public.weekly_reports to service_role;
