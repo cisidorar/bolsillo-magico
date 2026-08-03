@@ -585,59 +585,82 @@ export async function GET(request: Request) {
   if (!url || !key) return NextResponse.json({ error: 'Supabase env faltante' }, { status: 503 })
   const supabase = createAdminClient(url, key)
 
-  // P1/F4: snapshot de patrimonio SIEMPRE corre, incluso fines de semana o
-  // feriados NYSE (a diferencia del sync de precios) — el usuario puede
-  // ahorrar, pagar cuotas o depositar cualquier día, y un mes sin snapshot
-  // es historia perdida para siempre (los meses pasados quedan congelados).
-  await refreshUsdClp(supabase)
-  const netWorthSnapshots = await snapshotAllNetWorths(supabase)
-  const fomcAlert = await updateFomcAlert(supabase)
+  // Ago 2026 (bug reportado por Cas: 3 días sin análisis nuevo, sin forma de
+  // ver por qué porque su plan de Vercel no retiene logs tan atrás). Antes
+  // nada acá abajo tenía una red de seguridad: una excepción sin capturar en
+  // CUALQUIER paso (network blip, timeout de un proveedor, lo que sea)
+  // tumbaba la función entera con un 500 genérico — sin log claro y sin que
+  // los pasos de MÁS ABAJO (daily_signals, que es lo que la UI lee para
+  // "análisis de hoy") llegaran a correr. Ahora el cuerpo completo queda
+  // envuelto: si algo revienta, se loguea con un prefijo grepeable y la
+  // respuesta HTTP trae el motivo explícito en vez de una página en blanco.
+  try {
+    // P1/F4: snapshot de patrimonio SIEMPRE corre, incluso fines de semana o
+    // feriados NYSE (a diferencia del sync de precios) — el usuario puede
+    // ahorrar, pagar cuotas o depositar cualquier día, y un mes sin snapshot
+    // es historia perdida para siempre (los meses pasados quedan congelados).
+    await refreshUsdClp(supabase)
+    const netWorthSnapshots = await snapshotAllNetWorths(supabase)
+    const fomcAlert = await updateFomcAlert(supabase)
 
-  if (!isTradingDay()) {
-    return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert })
+    if (!isTradingDay()) {
+      return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert })
+    }
+
+    // Tickers en uso: watchlist ∪ posiciones (todos los usuarios) ∪ SPY.
+    // SPY se sincroniza SIEMPRE, la sigas o no: es el benchmark contra el que
+    // se compara el rendimiento del portafolio ("¿le ganaste al mercado?"),
+    // así que necesita historia propia aunque nadie la tenga en watchlist.
+    const [{ data: wl }, { data: pos }] = await Promise.all([
+      supabase.from('watchlist').select('ticker'),
+      supabase.from('stock_positions').select('ticker'),
+    ])
+    const tickers = [...new Set([
+      'SPY',
+      ...(wl ?? []).map(r => r.ticker as string),
+      ...(pos ?? []).map(r => r.ticker as string),
+    ])]
+
+    // Sincronizar TODOS los tickers en paralelo, no uno por uno: en serie, si
+    // varios caen a la cadena de fallbacks (hasta ~7s por proveedor × 4
+    // proveedores), la función entera puede superar el límite de 60s de Vercel
+    // — y como las señales del digest se calculan DESPUÉS de sincronizar todo,
+    // un corte a mitad de camino deja daily_signals vacía esa noche aunque
+    // price_history ya tenga lo que alcanzó a guardar antes del corte. En
+    // paralelo, el tiempo total lo marca el ticker más lento, no la suma de
+    // todos — y Tiingo permite 50 req/hora, muy por encima de este volumen.
+    //
+    // allSettled, no all (mismo bug de fondo que el try/catch de arriba): un
+    // solo ticker que revienta (no solo "sin datos", sino una excepción real)
+    // ya no puede tumbar la sincronización de los demás ni cortar el paso de
+    // daily_signals más abajo.
+    const settled = await Promise.allSettled(tickers.map(t => syncTicker(supabase, t)))
+    const results = settled.map((r, i) => r.status === 'fulfilled'
+      ? r.value
+      : { ticker: tickers[i], inserted: 0, source: null, reasons: [`excepción: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] })
+
+    const ok     = results.filter(r => r.source !== null).length
+    const failed = results.filter(r => r.source === null)
+    console.log(`[sync-prices] ${ok}/${tickers.length} ok`, failed.map(f => `${f.ticker}: ${f.reasons.join('·')}`))
+
+    // Señales del digest diario — solo tiene sentido si hay favoritos con historia
+    const digest = wl && wl.length > 0 ? await computeDailySignals(supabase) : { signals: 0, targetsReached: 0, decisions: 0 }
+
+    // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
+    const trailingStops = await updateTrailingStops(supabase)
+
+    return NextResponse.json({
+      synced: ok,
+      total:  tickers.length,
+      failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
+      digest,
+      trailingStops,
+      netWorthSnapshots,
+      fomcAlert,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[sync-prices] ⚠ corte inesperado, daily_signals puede haber quedado sin actualizar:', message)
+    return NextResponse.json({ error: 'sync-prices falló', detail: message }, { status: 500 })
   }
-
-  // Tickers en uso: watchlist ∪ posiciones (todos los usuarios) ∪ SPY.
-  // SPY se sincroniza SIEMPRE, la sigas o no: es el benchmark contra el que
-  // se compara el rendimiento del portafolio ("¿le ganaste al mercado?"),
-  // así que necesita historia propia aunque nadie la tenga en watchlist.
-  const [{ data: wl }, { data: pos }] = await Promise.all([
-    supabase.from('watchlist').select('ticker'),
-    supabase.from('stock_positions').select('ticker'),
-  ])
-  const tickers = [...new Set([
-    'SPY',
-    ...(wl ?? []).map(r => r.ticker as string),
-    ...(pos ?? []).map(r => r.ticker as string),
-  ])]
-
-  // Sincronizar TODOS los tickers en paralelo, no uno por uno: en serie, si
-  // varios caen a la cadena de fallbacks (hasta ~7s por proveedor × 4
-  // proveedores), la función entera puede superar el límite de 60s de Vercel
-  // — y como las señales del digest se calculan DESPUÉS de sincronizar todo,
-  // un corte a mitad de camino deja daily_signals vacía esa noche aunque
-  // price_history ya tenga lo que alcanzó a guardar antes del corte. En
-  // paralelo, el tiempo total lo marca el ticker más lento, no la suma de
-  // todos — y Tiingo permite 50 req/hora, muy por encima de este volumen.
-  const results = await Promise.all(tickers.map(t => syncTicker(supabase, t)))
-
-  const ok     = results.filter(r => r.source !== null).length
-  const failed = results.filter(r => r.source === null)
-  console.log(`[sync-prices] ${ok}/${tickers.length} ok`, failed.map(f => `${f.ticker}: ${f.reasons.join('·')}`))
-
-  // Señales del digest diario — solo tiene sentido si hay favoritos con historia
-  const digest = wl && wl.length > 0 ? await computeDailySignals(supabase) : { signals: 0, targetsReached: 0, decisions: 0 }
-
-  // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
-  const trailingStops = await updateTrailingStops(supabase)
-
-  return NextResponse.json({
-    synced: ok,
-    total:  tickers.length,
-    failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
-    digest,
-    trailingStops,
-    netWorthSnapshots,
-    fomcAlert,
-  })
 }
