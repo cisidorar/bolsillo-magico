@@ -48,6 +48,9 @@ interface MacroSeriesData { series: string; label: string; unit: string; observa
 
 interface TechnicalSignal { kind: string; tone: 'mint' | 'coral' | 'gold' | 'neutral'; title: string; detail: string; trigger: boolean }
 
+type ConvictionTier = 'compra_fuerte' | 'compra' | 'neutral' | 'evitar' | 'venta'
+type PriceZone      = 'conveniente' | 'justo' | 'caro'
+
 interface WeeklyTickerData {
   ticker:           string
   owned:            boolean
@@ -57,6 +60,16 @@ interface WeeklyTickerData {
   verdict:          string
   weekSignals:      TechnicalSignal[]
   nextEarningsDate: string | null
+  // ago 2026 (bug reportado por Cas: "veo cosas diferentes en el correo y en
+  // la página" — NVDA aparecía "Neutral" acá y "70/100 · Conveniente, mejor
+  // compra del día" en la app): ratingLabel viene de analysis.rating, un
+  // gatillo técnico puro y distinto de computeConviction() (técnico + riesgo/
+  // recompensa + track record + fuerza vs. SPY), que es lo que muestra la
+  // app. Estos dos campos son el MISMO número/etiqueta que ve en /inversiones,
+  // calculados una vez por ticker en lib/weekly-report.ts.
+  convictionScore:  number
+  convictionTier:   ConvictionTier
+  priceZone:        PriceZone | null
 }
 
 // jul/ago 2026: cuando una venta generó mucha más ganancia de la que SPY
@@ -93,6 +106,47 @@ const RATING_COLOR: Record<WeeklyTickerData['ratingLabel'], { fg: string; bg: st
   neutral:       { fg: '#8B9AB0', bg: '#F5F7FA' },
   venta:         { fg: '#FF6F61', bg: '#FFF1EF' },
   venta_fuerte:  { fg: '#FF6F61', bg: '#FFF1EF' },
+}
+
+// Mismos colores/etiquetas que ConvictionChip/PriceZoneChip en la app
+// (components/RiskRail.tsx) y que ya usa notify-watchlist-digest — "70" y
+// "Conveniente" tienen que significar lo mismo en cualquier canal.
+const TIER_COLOR: Record<ConvictionTier, { fg: string; bg: string }> = {
+  compra_fuerte: { fg: '#1FBE8D', bg: '#EAFBF5' },
+  compra:        { fg: '#1FBE8D', bg: '#EAFBF5' },
+  neutral:       { fg: '#8B9AB0', bg: '#F5F7FA' },
+  evitar:        { fg: '#D98A1F', bg: '#FFF6E8' },
+  venta:         { fg: '#FF6F61', bg: '#FFF1EF' },
+}
+const ZONE_LABEL: Record<PriceZone, string> = { conveniente: 'Conveniente', justo: 'Justo', caro: 'Caro' }
+const ZONE_COLOR: Record<PriceZone, string> = { conveniente: '#1FBE8D', justo: '#8B9AB0', caro: '#D98A1F' }
+
+function convictionBadgeHtml(item: WeeklyTickerData): string {
+  const parts: string[] = []
+  const c = TIER_COLOR[item.convictionTier]
+  parts.push(`<span style="display:inline-block;padding:1px 6px;border-radius:999px;background:${c.bg};color:${c.fg};font-weight:800">${Math.round(item.convictionScore)}</span>`)
+  if (item.priceZone) {
+    parts.push(`<span style="display:inline-block;padding:1px 6px;border-radius:999px;background:#F5F7FA;color:${ZONE_COLOR[item.priceZone]};font-weight:800">${ZONE_LABEL[item.priceZone]}</span>`)
+  }
+  return `<span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:9px;margin-left:5px">${parts.join('&nbsp;')}</span>`
+}
+
+// "Relevante" (ago 2026, a pedido de Cas: "no es necesario saber info de
+// todas las que sigo") = tiene posición real, O el rating técnico dice algo
+// accionable, O la convicción de la app dice algo accionable aunque el
+// rating técnico diga neutral (mismo caso NVDA de arriba), O reporta
+// resultados dentro de 7 días. Todo lo demás (no tengo, rating neutral,
+// convicción neutral/evitar, sin catalizador cerca) es ruido de fondo que no
+// vale la pena leer cada semana — se cuenta pero no se muestra.
+function isRelevant(item: WeeklyTickerData): boolean {
+  if (item.owned) return true
+  if (item.ratingLabel !== 'neutral') return true
+  if (item.convictionTier === 'compra' || item.convictionTier === 'compra_fuerte' || item.convictionTier === 'venta') return true
+  if (item.nextEarningsDate) {
+    const days = Math.round((new Date(item.nextEarningsDate + 'T12:00:00').getTime() - Date.now()) / 86_400_000)
+    if (days >= 0 && days <= 7) return true
+  }
+  return false
 }
 
 // ── Contexto macro: mismas fórmulas que lib/yield-curve.ts y lib/yoy-change.ts
@@ -242,6 +296,7 @@ function tickerRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
             <td style="text-align:right;vertical-align:top;white-space:nowrap">
               <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${fmtUSD(item.price)}</p>
               <p style="margin:3px 0 0;display:inline-block;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:800;color:${color.fg};background:${color.bg};border-radius:8px;padding:2px 7px">${item.ratingAction}</p>
+              <p style="margin:3px 0 0">${convictionBadgeHtml(item)}</p>
             </td>
           </tr>
         </table>
@@ -280,7 +335,14 @@ function weeklyReportEmailHtml({
     </table>`
   ) : ''
 
-  const rowsHtml = payload.items.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
+  // Ago 2026, a pedido de Cas ("no es necesario saber info de todas las que
+  // sigo"): antes se mostraban TODOS los tickers seguidos, la mayoría en
+  // "Neutral — esperar" sin nada nuevo que decir — el correo se sentía largo
+  // sin ser útil. Ahora solo entran los relevantes (ver isRelevant); el resto
+  // se cuenta, no se calla.
+  const relevantItems = payload.items.filter(isRelevant)
+  const quietCount    = payload.items.length - relevantItems.length
+  const rowsHtml = relevantItems.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -315,13 +377,18 @@ function weeklyReportEmailHtml({
         ${rowsHtml ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td style="padding-bottom:10px">
-            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📊 Tu watchlist esta semana</span>
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📊 Lo relevante de tu watchlist esta semana</span>
           </td></tr>
           ${rowsHtml}
         </table>` : ''}
 
-        ${payload.skippedTickers.length > 0 ? `
+        ${quietCount > 0 ? `
         <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">
+          ${quietCount} más sin novedad esta semana (sin posición, rating neutral y sin catalizador cerca) — no se muestran acá.
+        </p>` : ''}
+
+        ${payload.skippedTickers.length > 0 ? `
+        <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">
           Sin historia suficiente todavía: ${payload.skippedTickers.join(', ')}
         </p>` : ''}
 

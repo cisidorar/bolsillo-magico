@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readCandles } from '@/lib/price-providers'
-import { analyze, type RatingLabel, type TechnicalSignal } from '@/lib/technical'
+import { analyze, type RatingLabel, type TechnicalSignal, type PriceZone } from '@/lib/technical'
 import { computeFibonacci, type FibRetracement } from '@/lib/fibonacci'
 import { computeVolumeProfile, type VolumeProfile } from '@/lib/volume-profile'
 import { fetchEarnings } from '@/lib/earnings-fetch'
+import { computeConviction, type ConvictionTier } from '@/lib/conviction'
 import type { LabelStat } from '@/lib/signal-backtest'
 
 // ── Cálculo por ticker del informe semanal (S5) ──────────────────────────────
@@ -27,6 +28,14 @@ export interface WeeklyTickerData {
   volProfile:           VolumeProfile | null
   nextEarningsDate:     string | null
   backtestStats:        LabelStat[] | null
+  // ago 2026 (bug reportado por Cas): el correo mostraba "Compra"/"Venta" con
+  // el mismo peso para cualquier ticker con gatillo técnico, sin el número de
+  // convicción ni la zona de precio que ya ve en la app — mismo problema que
+  // se arregló en notify-watchlist-digest (daily_signals.conviction_score),
+  // ahora también acá.
+  convictionScore:      number
+  convictionTier:       ConvictionTier
+  priceZone:            PriceZone | null
 }
 
 /** Candles + analyze + Fibonacci + volumen por precio + earnings + backtest,
@@ -37,6 +46,10 @@ export async function computeWeeklyItems(
   supabase: SupabaseClient,
   tickers: string[],
   ownedTickers: Set<string>,
+  /** Retorno 6m de SPY — mismo insumo que usa computeConviction() en el resto
+   *  de la app (cron diario, panel "¿Qué comprar hoy?"). Se calcula UNA vez
+   *  por corrida del cron semanal (no por ticker) y se pasa acá. */
+  spyReturn6m: number | null = null,
 ): Promise<{ items: WeeklyTickerData[]; skipped: string[] }> {
   const results = await Promise.all(tickers.map(async (ticker): Promise<WeeklyTickerData | null> => {
     const candles = await readCandles(supabase, ticker)
@@ -61,6 +74,8 @@ export async function computeWeeklyItems(
         }))
       : null
 
+    const conviction = computeConviction(analysis, backtestStats, spyReturn6m)
+
     return {
       ticker,
       owned:            ownedTickers.has(ticker),
@@ -74,6 +89,9 @@ export async function computeWeeklyItems(
       volProfile,
       nextEarningsDate: earnings.nextDate,
       backtestStats,
+      convictionScore:  conviction.score,
+      convictionTier:   conviction.tier,
+      priceZone:        analysis.priceZone,
     }
   }))
 

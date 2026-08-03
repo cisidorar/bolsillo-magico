@@ -4,6 +4,8 @@ import { computeWeeklyItems } from '@/lib/weekly-report'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { getNowChile } from '@/lib/utils'
+import { readCandles } from '@/lib/price-providers'
+import { analyze } from '@/lib/technical'
 
 // ── Cron semanal: persiste el informe (S5) para TODOS los usuarios ───────────
 // Programado en vercel.json, lunes por la mañana. Hasta ahora /inversiones?
@@ -64,6 +66,17 @@ export async function GET(request: Request) {
   // Contexto macro (S1): una sola vez, es el mismo para todos los usuarios —
   // null en cada serie si falta FRED_API_KEY, no rompe el resto del informe.
   const macro = await fetchAllMacroSeries(supabase)
+
+  // Fuerza relativa vs SPY (ago 2026): mismo insumo que usa computeConviction()
+  // en sync-prices — una sola vez para todos los usuarios, no por ticker.
+  // Sin esto, el correo semanal no podía calcular convicción/zona de precio
+  // por ticker (bug reportado por Cas: "Compra"/"Venta" sin el contexto que
+  // sí tiene la app).
+  let spyReturn6m: number | null = null
+  try {
+    const spyCandles = await readCandles(supabase, 'SPY')
+    if (spyCandles.closes.length >= 30) spyReturn6m = analyze(spyCandles).returns.m6
+  } catch { /* sin SPY, conviction pesa sin ese componente */ }
 
   const [{ data: wl }, { data: pos }] = await Promise.all([
     supabase.from('watchlist').select('user_id, ticker'),
@@ -126,7 +139,7 @@ export async function GET(request: Request) {
       const tickers = [...new Set([...ownedTickers, ...(watchlistRows ?? []).map(w => w.ticker as string)])]
       if (tickers.length === 0) continue   // sin watchlist ni posiciones: no hay informe que armar
 
-      const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers)
+      const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers, spyReturn6m)
 
       // Benchmark vs SPY — mismo cálculo que app/(dashboard)/inversiones/page.tsx
       let spyBenchmark: SpyBenchmarkResult | null = null
