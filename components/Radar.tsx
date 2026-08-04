@@ -711,8 +711,14 @@ export default function Radar({
   return (
     <div>
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 min-w-0 text-[11px]">
+      {/* flex-wrap + basis-full: en mobile el toggle (4 tabs) + Agregar ya no
+          caben al lado del texto de estado del mercado — antes se dibujaban
+          encima uno del otro (min-w-0 dejaba encoger el texto sin recortarlo,
+          así que se desbordaba tapado por el toggle). Ahora el estado ocupa
+          su propia fila completa en mobile y el toggle baja a la siguiente;
+          en sm+ vuelven a compartir una sola fila como antes. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
+        <div className="flex items-center gap-2 min-w-0 text-[11px] basis-full sm:basis-auto">
           {lastUpdated && !quotesError && marketOpen !== null && (
             <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -758,7 +764,7 @@ export default function Radar({
           })()}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
           <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
