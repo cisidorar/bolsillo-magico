@@ -138,11 +138,22 @@ export default async function RecurrentesPage({
   }))
 
   const activeItems  = recurringWithCounts.filter(r => r.is_active)
+  // Bug reportado por Cas: una cuota ya pagada completa (3/3) seguía
+  // proyectándose como si fuera a cobrarse de nuevo — "carga mensual",
+  // "atrasados" y el calendario de flujo de caja (F8, más abajo) usaban
+  // activeItems sin descontar las cuotas ya terminadas (is_active puede
+  // seguir en true aunque no quede nada por cobrar; RecurringManager.tsx ya
+  // distingue "Completado" de "Activo" para mostrar el badge, pero acá no se
+  // aplicaba el mismo criterio a los cálculos). ongoingItems son las
+  // activeItems que TODAVÍA generan cobros futuros.
+  const isInstallmentDone = (r: { total_installments: number | null; paid_installments: number | null }) =>
+    r.total_installments != null && r.total_installments > 0 && (r.paid_installments ?? 0) >= r.total_installments
+  const ongoingItems = activeItems.filter(r => !isInstallmentDone(r))
   // Carga mensual: los anuales NO se suman completos cada mes — se prorratean
   // a amount/12. Antes un seguro anual de $600.000 inflaba la "carga mensual"
   // en $600.000 (y el "anual estimado" en $7,2M).
-  const monthlyItems = activeItems.filter(r => r.billing_month === null)
-  const annualItems  = activeItems.filter(r => r.billing_month !== null)
+  const monthlyItems = ongoingItems.filter(r => r.billing_month === null)
+  const annualItems  = ongoingItems.filter(r => r.billing_month !== null)
   const totalMonthly = monthlyItems.reduce((s, r) => s + r.amount, 0)
     + Math.round(annualItems.reduce((s, r) => s + r.amount, 0) / 12)
   const activeCount  = activeItems.length
@@ -155,7 +166,7 @@ export default async function RecurrentesPage({
       .map((e: { recurring_expense_id: string | null }) => e.recurring_expense_id)
       .filter(Boolean)
   )
-  const overdueItems = activeItems.filter(r =>
+  const overdueItems = ongoingItems.filter(r =>
     (r.billing_month === null || r.billing_month === month) &&
     r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
   )
@@ -190,7 +201,7 @@ export default async function RecurrentesPage({
     cashFlowEvents.push({ date: nextPayday, type: 'income', label: 'Sueldo', amount: sueldoEstimado })
   }
 
-  activeItems.forEach(r => {
+  ongoingItems.forEach(r => {
     const d = nextBillingDate(r.billing_day, now, r.billing_month)
     const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     cashFlowEvents.push({

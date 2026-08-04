@@ -522,10 +522,17 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     )}
                   </div>
 
-                  <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
-                    <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
-                    <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
-                  </div>
+                  {/* Bug reportado por Cas: una cuota ya completa (3/3, badge
+                      "Completado") seguía mostrando "Próximo cargo" con una
+                      fecha futura — nextBillingDate() no sabe de cuotas, solo
+                      hace aritmética de fechas, así que sin este gate mostraba
+                      un cargo que nunca va a existir. */}
+                  {!isCompleted && (
+                    <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
+                      <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
+                      <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
+                    </div>
+                  )}
 
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
