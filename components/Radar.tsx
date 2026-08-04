@@ -279,7 +279,12 @@ export default function Radar({
       const valueUsd = pos.shares * price
       const gainUsd = q ? pos.shares * (q.price - pos.avgCost) : null
       const gainPct = q && pos.avgCost > 0 ? ((q.price - pos.avgCost) / pos.avgCost) * 100 : null
-      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null }
+      // Mockup de Cas (ago 2026): la fila muestra el cambio de HOY como
+      // monto + %, no solo el %. prevClose sale de la misma fórmula que ya
+      // se usa arriba (línea ~254) para no duplicar lógica de cálculo.
+      const prevClose = q ? q.price / (1 + q.changePercent / 100) : null
+      const dailyUsd = q && prevClose !== null ? pos.shares * (q.price - prevClose) : null
+      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null, dailyUsd }
     })
     .sort((a, b) => b.valueUsd - a.valueUsd)
 
@@ -810,8 +815,13 @@ export default function Radar({
               <div className="px-4 py-3 min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <p className="text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? `${fmtUSDSigned(totalReturnUsd)} · ${fmtPct(totalReturnPct)}` : '—'}
+                  {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
                 </p>
+                {hasQ && (
+                  <p className="text-xs font-bold tabular-nums truncate" style={{ color: totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61' }}>
+                    {fmtPct(totalReturnPct)}
+                  </p>
+                )}
               </div>
               <div className="px-4 py-3 min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
@@ -899,12 +909,10 @@ export default function Radar({
         </div>
       ) : (
         <div className="card overflow-hidden mb-4">
-          <div className="hidden lg:grid px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)', gridTemplateColumns: '1fr 130px 150px 90px 20px' }}>
-            <span>Acción</span>
-            <span className="text-right">Valor</span>
-            <span className="text-right">Rendimiento</span>
-            <span className="text-right">Hoy</span>
-            <span />
+          <div className="flex items-center px-4 lg:px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
+            <span className="flex-1">Acción</span>
+            <span className="text-right" style={{ minWidth: 110 }}>Valor · Hoy</span>
+            <span className="w-4 flex-shrink-0" />
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {myPerformance.map(row => {
@@ -920,20 +928,20 @@ export default function Radar({
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
                     {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
                   </div>
-                  <p className="text-sm font-bold tabular-nums text-right flex-shrink-0" style={{ color: 'var(--ink)', minWidth: 84 }}>
-                    {fmtUSD(row.valueUsd)}
-                  </p>
-                  <div className="text-right flex-shrink-0" style={{ minWidth: 104 }}>
-                    <p className="text-sm font-bold tabular-nums" style={{ color: row.gainUsd === null ? 'var(--ink-3)' : row.gainUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                      {row.gainUsd !== null ? fmtUSDSigned(row.gainUsd) : '—'}
+                  {/* Mockup de Cas (ago 2026): valor arriba, cambio de HOY
+                      ($ + %) al medio, retorno total (%) abajo — todo en una
+                      sola columna a la derecha en vez de 3 columnas separadas. */}
+                  <div className="text-right flex-shrink-0" style={{ minWidth: 110 }}>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                      {fmtUSD(row.valueUsd)}
+                    </p>
+                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.dailyUsd === null ? 'var(--ink-3)' : row.dailyUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      {row.dailyUsd !== null && row.dailyPct !== null ? `${fmtUSDSigned(row.dailyUsd)} · ${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(1)}%` : '—'}
                     </p>
                     <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.gainPct === null ? 'var(--ink-3)' : row.gainPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                       {row.gainPct !== null ? fmtPct(row.gainPct) : '—'}
                     </p>
                   </div>
-                  <p className="text-sm font-bold tabular-nums text-right flex-shrink-0" style={{ color: row.dailyPct === null ? 'var(--ink-3)' : row.dailyPct >= 0 ? 'var(--mint)' : 'var(--coral)', minWidth: 60 }}>
-                    {row.dailyPct !== null ? `${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(2)}%` : '—'}
-                  </p>
                   <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                 </button>
               )
