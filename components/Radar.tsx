@@ -718,20 +718,27 @@ export default function Radar({
           su propia fila completa en mobile y el toggle baja a la siguiente;
           en sm+ vuelven a compartir una sola fila como antes. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
-        <div className="flex items-center gap-2 min-w-0 text-[11px] basis-full sm:basis-auto">
+        {/* flex-wrap acá también: antes "Mercado cerrado" y la hora no tenían
+            whitespace-nowrap, así que cuando no cabían en una sola línea el
+            navegador las partía a media palabra ("Mercado" / "cerrado") en
+            vez de bajar de línea como bloque. Ahora los textos cortos no se
+            parten nunca (whitespace-nowrap) y el texto largo de "análisis…"
+            se reserva su propia línea completa (basis-full) para poder
+            truncar con "…" si hace falta. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-[11px] basis-full sm:basis-auto">
           {lastUpdated && !quotesError && marketOpen !== null && (
             <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ background: marketOpen ? 'var(--mint)' : 'var(--coral)', animation: marketOpen ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' : 'none' }} />
               {marketOpen ? (
-                <span style={{ color: 'var(--mint)' }} className="font-semibold">Precios en vivo · {marketLabel}</span>
+                <span style={{ color: 'var(--mint)' }} className="font-semibold whitespace-nowrap">Precios en vivo · {marketLabel}</span>
               ) : (
-                <span style={{ color: 'var(--ink-3)' }} className="font-medium">{marketLabel}</span>
+                <span style={{ color: 'var(--ink-3)' }} className="font-medium whitespace-nowrap">{marketLabel}</span>
               )}
               {/* I5 (roadmap interacción): hora de la última quote — antes el
                   pill decía "en vivo" sin importar cuánto rato llevaba abierta
                   la pestaña; ahora se ve cuándo se refrescó de verdad. */}
-              <span className="tabular-nums" style={{ color: 'var(--ink-3)' }}>
+              <span className="tabular-nums whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
                 · {lastUpdated.toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' })}
               </span>
               <button
@@ -756,7 +763,7 @@ export default function Radar({
           {lastAutoUpdate && (() => {
             const au = fmtLastAutoUpdate(lastAutoUpdate)
             return (
-              <span className="flex items-center gap-1 font-medium truncate" style={{ color: au.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
+              <span className="flex items-center gap-1 font-medium truncate min-w-0 basis-full sm:basis-auto" style={{ color: au.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
                 · análisis {au.label}{au.stale ? ' — revisa el cron' : ''}
                 {latestAsOf && ` (cierre ${fmtAsOfDay(latestAsOf)})`}
               </span>
