@@ -364,7 +364,19 @@ export default function TechnicalDetail({
   // "N a favor · M en contra" de la cabecera ("Lectura técnica a favor:
   // compra (2 a favor, 1 en contra)") — mismo número, dos veces seguidas en
   // el mismo bloque (screenshot de Cas). El verdict solo alcanza.
-  const rationale = buyTierNoTrigger
+  //
+  // Bug reportado por Cas (ago 2026, screenshots de SOXL e INTC): cuando
+  // sellNow es true la cabecera dice "Vende $X ahora" pero acá abajo seguía
+  // cayendo al conviction.verdict — que es el veredicto de CONVICCIÓN DE
+  // COMPRA por score (p.ej. "Compra clara: la evidencia está a favor."),
+  // sin ninguna noción de que hay una venta activa. Mismo bloque, dos
+  // lecturas contradictorias. conviction.verdict responde "¿es buena compra
+  // en general?", no "¿qué hago con mi posición hoy?" — para eso ya existe
+  // a.sellPlan (lib/technical.ts), calculado junto con el tramo `sell` que
+  // originó sellNow, así que describe exactamente esta situación.
+  const rationale = sellNow
+    ? a.sellPlan
+    : buyTierNoTrigger
     ? `Buena evidencia en general (${conviction.score}/100), pero sin gatillo de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
     : conviction.verdict
 
