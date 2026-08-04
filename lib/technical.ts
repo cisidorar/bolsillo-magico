@@ -1047,7 +1047,12 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     // aunque la acción esté en tendencia bajista (compraste más abajo). El
     // texto cubre ambos casos; el % personal se ve al lado en la misma tarjeta.
     sell = [str(100, 'en el próximo rebote — la tendencia ya no la sostiene', true)]
-    sellPlan = 'Vende: la tendencia larga se dio vuelta, técnicamente ya no hay razón para seguir adentro. Si vas ganando, vende ahora y protege esa ganancia antes de que se achique; si vas perdiendo, no esperes a "quedar a mano" — ahí es donde más plata se pierde.'
+    // Este SÍ es el caso "sal de verdad" — cambio de tendencia de fondo, no
+    // toma de ganancia parcial. Texto explícito para que no se confunda con
+    // el trim de hotZone de abajo (a pedido de Cas, ago 2026: quería un
+    // "rojo ultra fuerte" bien diferenciado del "vende una parte pero
+    // mantén para largo plazo").
+    sellPlan = 'Vende: la tendencia de largo plazo se dio vuelta — esto ya no es "aguanta, es de largo plazo", técnicamente no hay razón para seguir adentro. Si vas ganando, vende ahora y protege esa ganancia antes de que se achique; si vas perdiendo, no esperes a "quedar a mano" — ahí es donde más plata se pierde.'
   } else if (hotZone) {
     sell = exitRef !== null
       ? [
@@ -1057,8 +1062,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
       : [str(40, `ahora (${fmtLevel(price)}) — reduce riesgo en zona caliente`, true), str(60, 'con la alarma de salida que definas')]
     // Neutral respecto de TU costo: el análisis no lo conoce. Vender una parte
     // en zona caliente es gestión de riesgo hacia adelante — asegura ganancia
-    // si vas arriba, achica el golpe si vas abajo.
-    sellPlan = 'Vende una parte ahora: zona caliente, el precio está sobre-extendido y las caídas violentas son típicas aquí. Si vas ganando, asegura ganancia real ahora; si vas perdiendo, achica la posición antes de que el golpe crezca. Deja correr el resto con la alarma puesta.'
+    // si vas arriba, achica el golpe si vas abajo. A pedido de Cas (ago 2026):
+    // esto NO es señal de salida — deja explícito que la tendencia de fondo
+    // sigue viva y la posición de largo plazo no cambia, para que no se
+    // confunda con el caso de arriba (tendencia realmente dada vuelta).
+    sellPlan = 'Vende una parte para asegurar la ganancia — no es señal de salida, la tendencia de fondo sigue viva: es solo un respiro después de una subida fuerte, y estas zonas calientes suelen tener caídas violentas. Si vas ganando, esa parte protege ganancia real; si vas perdiendo, achica el golpe. Deja correr el resto con la alarma puesta — tu posición de largo plazo sigue en pie.'
     alarm = exitRef
   } else if (inSqueeze && supRef) {
     sell = [str(100, `solo si rompe ${fmtLevel(supRef.price)} hacia abajo con claridad`)]

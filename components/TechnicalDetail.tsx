@@ -321,6 +321,9 @@ export default function TechnicalDetail({
   const HEADER_BG: Record<string, string> = {
     'var(--mint)':  'rgba(31,190,141,0.14)',
     'var(--gold)':  'rgba(255,194,60,0.14)',
+    // Más opacidad que los demás a propósito — cambio de tendencia real es
+    // el único caso "sal ya", se lee más fuerte que un trim en zona caliente.
+    'var(--coral)': 'rgba(255,111,97,0.20)',
     'var(--ink-3)': 'var(--surface-2)',
   }
 
@@ -334,13 +337,21 @@ export default function TechnicalDetail({
   const conviction = computeConviction(a, getCachedBacktestStats(ticker), spyReturn6m, getCachedRateContext(ticker))
   const buyNow  = a.buy.find(t => t.now)
   const sellNow = position ? a.sell.find(t => t.now) : undefined
+  // A pedido de Cas (ago 2026, filosofía "comprar barato para largo plazo"):
+  // hasta ahora TODO sellNow se mostraba en gold, sin distinguir un trim
+  // táctico en zona caliente (la tendencia de fondo sigue viva, se vende
+  // una parte para asegurar ganancia y el resto se mantiene) de un cambio
+  // de tendencia de verdad (aboveSma200 pasó a false — ahí sí hay que
+  // salir). Quería el segundo caso "en rojo ultra fuerte" y bien
+  // diferenciado del primero, no el mismo tratamiento visual para ambos.
+  const trendReversed = a.rating.label === 'venta' || a.rating.label === 'venta_fuerte'
   let headerAction: string
   let headerColor: string
   if (sellNow) {
     const currentValue = position!.shares * (livePrice ?? a.price)
     const usdAmount = currentValue * (sellNow.pct / 100)
-    headerAction = `Vende ${fmtUSD(usdAmount)} ahora`
-    headerColor = 'var(--gold)'
+    headerAction = trendReversed ? `Sal ahora: ${fmtUSD(usdAmount)} — cambió la tendencia` : `Vende ${fmtUSD(usdAmount)} ahora`
+    headerColor = trendReversed ? 'var(--coral)' : 'var(--gold)'
   } else if (buyNow) {
     const usd = trancheUsd(buyNow.pct, true)
     const noCash = cashCap !== null && cashCap < 1

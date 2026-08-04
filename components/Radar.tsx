@@ -941,26 +941,32 @@ export default function Radar({
             {myPerformance.map(row => {
               const q = quotes[row.ticker]
               // Reportado por Cas: la fila no daba ninguna pista de que había
-              // que vender — había que abrir el detalle para enterarse. Mismo
-              // chequeo que TechnicalDetail (a.sell.find(t => t.now)) y mismo
-              // color gold que ya usa el resto de la app para "accionable, no
-              // urgente" (UX5 en CLAUDE.md).
+              // que vender — había que abrir el detalle para enterarse.
+              // A pedido de Cas (filosofía "comprar barato para largo
+              // plazo"): un trim táctico en zona caliente (tendencia de
+              // fondo viva, se vende una parte y se mantiene el resto) no es
+              // lo mismo que un cambio de tendencia real (acá sí toca
+              // salir) — mismo criterio que TechnicalDetail/actionFlag:
+              // trendReversed → coral "ultra fuerte", trim → gold.
               const a = analyses[row.ticker]
               const sellNow = typeof a === 'object' && a.sell.find(t => t.now)
+              const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
+              const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold)'
+              const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
               return (
                 <button
                   key={row.ticker}
                   onClick={() => openDetail(row.ticker)}
                   className="w-full flex items-center gap-3 px-4 lg:px-5 py-3.5 text-left transition-colors hover:bg-black/5"
-                  style={sellNow ? { background: 'rgba(255,194,60,0.06)' } : undefined}
+                  style={sellNow ? { background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)' } : undefined}
                 >
                   <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={36} fallbackColor={avatarColor(row.ticker)} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
                       {sellNow && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
-                          Vende
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: sellBg, color: sellColor }}>
+                          {trendReversed ? 'Sal ya' : 'Vende'}
                         </span>
                       )}
                     </div>
