@@ -68,9 +68,19 @@ function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owne
   if (typeof a !== 'object') return null
   const isBuy  = conviction !== null && conviction !== undefined && isActionableBuyNow(a, conviction, regime)
   const isSell = a.rating.label === 'venta'  || a.rating.label === 'venta_fuerte'
+  // Bug reportado por Cas (ago 2026, SOXL/INTC subiendo >9% en el día):
+  // esto miraba a.rating.caution, que solo es UNA de las cuatro condiciones
+  // que arman la zona caliente en lib/technical.ts (hotZone = caution ||
+  // RSI>=70 || distPct>=40 || divergencia bajista). Cuando el gatillo era
+  // RSI sobrecomprado (el caso típico tras un rally de un día) en vez de
+  // "caution" propiamente, la fila se quedaba sin teñir aunque el detalle
+  // del ticker ya mostrara "Vende $X ahora". a.sell.some(t => t.now) es la
+  // misma condición que arma ese tramo "ahora" — usarla acá alinea la fila
+  // con lo que dice el detalle, sin importar cuál de las 4 causas lo gatilló.
+  const sellNow = a.sell.some(t => t.now)
   if (isBuy) return 'buy'
   if (isSell && owned) return 'sell'
-  if (a.rating.caution && owned) return 'caution'
+  if (sellNow && owned) return 'caution'
   return null
 }
 
