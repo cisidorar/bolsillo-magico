@@ -131,6 +131,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
   const [formError,     setFormError]     = useState('')
   const [deletingId,    setDeletingId]    = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  // Detalle de solo lectura (pedido de Cas, ago 2026 — mismo patrón que
+  // TermDepositManager): tocar la fila ya no va directo al formulario de
+  // edición, muestra un detalle primero; "Editar" es un botón explícito ahí.
+  const [detailId,      setDetailId]      = useState<string | null>(null)
 
   // ── Computed totals ───────────────────────────────────────────────────────
   const totalBalance      = savings.reduce((s, a) => s + a.balance, 0)
@@ -165,6 +169,11 @@ export default function DepositManager({ userId, initialSavings }: Props) {
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
   const backdropClose = useBackdropClose(cancelForm)
+
+  function closeDetail() { setDetailId(null) }
+  // Mismo motivo que backdropClose arriba: hook llamado siempre, el modal
+  // de detalle es condicional más abajo.
+  const detailBackdropClose = useBackdropClose(closeDetail)
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveAccount = useCallback(async () => {
@@ -447,6 +456,103 @@ export default function DepositManager({ userId, initialSavings }: Props) {
         </div>
       )}
 
+      {/* ── Detalle de solo lectura (pedido de Cas, ago 2026) ─────────────── */}
+      {(() => {
+        const acc = detailId ? savings.find(a => a.id === detailId) ?? null : null
+        if (!acc) return null
+        const earned  = earnedSoFar(acc.balance, acc.annual_rate, acc.start_date)
+        const days    = daysElapsed(acc.start_date)
+        const daily   = dailyInterest(acc.balance, acc.annual_rate)
+        const annual  = projectedInterest(acc.balance, acc.annual_rate, 365)
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...detailBackdropClose}
+          >
+            <div
+              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+              style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <ServiceLogo domain={domainFromSavingsName(acc.name)} name={acc.name} size={40} fallbackColor={avatarColor(acc.name)} />
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold truncate" style={{ color: 'var(--ink)' }}>{acc.name}</h2>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{fmtPct(acc.annual_rate)} TAE</p>
+                </div>
+                <button
+                  onClick={closeDetail}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
+                <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  Desde {fmtDate(acc.start_date)} · {days} día{days !== 1 ? 's' : ''}
+                </p>
+
+                {/* Cifras clave */}
+                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Saldo depositado</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(acc.balance)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Interés ganado a hoy</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(earned)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ganas por día</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(daily)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Proyección 12 meses</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(annual)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Valor actual</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(acc.balance + earned)}</span>
+                  </div>
+                </div>
+
+                {/* Nota completa, sin truncar — en la fila de la lista solo cabe una línea */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                    Nota
+                  </p>
+                  <p className="text-sm" style={{ color: acc.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
+                    {acc.notes || 'Sin nota — agrégala al editar.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <button
+                  onClick={closeDetail}
+                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => { setDetailId(null); openEdit(acc) }}
+                  className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                >
+                  Editar
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Empty state ──────────────────────────────────────────────────── */}
       {savings.length === 0 && (
         <div className="card flex flex-col items-center justify-center py-16 text-center px-6">
@@ -502,7 +608,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               return (
                 <button
                   key={acc.id}
-                  onClick={() => openEdit(acc)}
+                  onClick={() => setDetailId(acc.id)}
                   className="w-full text-left group px-4 lg:px-6 py-3.5 hover:bg-[var(--surface-2)] transition-colors active:opacity-80 flex items-center gap-3"
                 >
                   <ServiceLogo
