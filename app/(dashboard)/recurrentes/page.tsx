@@ -202,7 +202,17 @@ export default async function RecurrentesPage({
   }
 
   ongoingItems.forEach(r => {
-    const d = nextBillingDate(r.billing_day, now, r.billing_month)
+    // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
+    // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
+    // billing_day y seguía apareciendo en el flujo de caja como si fuera a
+    // cobrarse "mañana" — nextBillingDate() es pura aritmética de fechas y
+    // no sabe si YA se registró un gasto este mes. Si es mensual y ya está
+    // pagado este mes, se calcula la ocurrencia del PRÓXIMO mes en vez de
+    // dejar que nextBillingDate devuelva la de este mes.
+    const from = (r.billing_month === null && paidThisMonthSet.has(r.id))
+      ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
+      : now
+    const d = nextBillingDate(r.billing_day, from, r.billing_month)
     const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     cashFlowEvents.push({
       date: dStr, type: 'recurring', label: r.name, amount: -r.amount,
