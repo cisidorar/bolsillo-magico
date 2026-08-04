@@ -21,6 +21,11 @@ import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 // y arma el HTML, no recalcula nada.
 
 export const maxDuration = 60
+// Gotcha documentado por Vercel para crons que "no aparecen" en los logs:
+// sin esto Next puede servir una respuesta cacheada de una invocación
+// anterior en vez de correr el handler de nuevo cada vez.
+// https://vercel.com/kb/guide/troubleshooting-vercel-cron-jobs
+export const dynamic = 'force-dynamic'
 
 function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
