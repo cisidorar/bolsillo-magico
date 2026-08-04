@@ -441,8 +441,15 @@ export default async function DashboardPage() {
     })
     .map(r => {
       let d = r.billing_day, m = month, y = year
-      // Si ya fue pagado este mes o es hoy → calcular próxima ocurrencia (mes siguiente)
-      if (paidThisMonthSet.has(r.id) && d <= todayDate) {
+      // Si ya fue pagado este mes → calcular próxima ocurrencia (mes siguiente),
+      // sin importar si billing_day ya pasó o no. Bug reportado por Cas: pagó
+      // "Corretaje departamento" (billing_day 5) el día 4, un día ANTES de su
+      // fecha — quedaba registrado en paidThisMonthSet, pero el `&& d <=
+      // todayDate` de antes solo rolleaba al mes siguiente cuando el pago
+      // llegaba en la fecha o después. Pagar por adelantado dejaba el mismo
+      // billing_day de este mes sin resolver, así que seguía apareciendo acá
+      // como "Mañana · en 1 día" pese a estar ya pagado.
+      if (paidThisMonthSet.has(r.id)) {
         m = month === 12 ? 1 : month + 1
         y = month === 12 ? year + 1 : year
       }
