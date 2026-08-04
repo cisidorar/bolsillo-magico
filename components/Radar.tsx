@@ -786,34 +786,34 @@ export default function Radar({
         <div className="flex flex-col lg:flex-row gap-4 mb-4">
           <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 0' }}>
             <div className="px-5 pt-5 pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
               <div className="flex items-baseline gap-2 flex-wrap">
-                <p className="text-4xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                <p className="text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
                   {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
                 </p>
-                <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
+                <span className="text-base font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
               </div>
               {hasQ && (
-                <p className="flex items-center gap-1 text-xs font-bold mt-1.5" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
-                  {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+                <p className="flex items-center gap-1 text-sm font-bold mt-2" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                  {dailyChangeUsd >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
                   {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
                 </p>
               )}
             </div>
             <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="px-4 py-3 min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-sm font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-base font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
               </div>
-              <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
-                <p className="text-sm font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+              <div className="px-4 py-3 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-base font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                   {hasQ ? `${fmtUSDSigned(totalReturnUsd)} · ${fmtPct(totalReturnPct)}` : '—'}
                 </p>
               </div>
-              <div className="px-4 py-3 border-l min-w-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
-                <p className="text-sm font-bold tabular-nums truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
+              <div className="px-4 py-3 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-base font-bold tabular-nums truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
                   {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
                 </p>
               </div>
