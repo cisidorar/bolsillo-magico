@@ -654,11 +654,39 @@ export async function GET(request: Request) {
     // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
     const trailingStops = await updateTrailingStops(supabase)
 
+    // Invocar notify-watchlist-digest (Edge Function Supabase) después de que
+    // daily_signals y daily_decisions ya están escritos. Se dispara fire-and-
+    // forget con un timeout generoso pero sin bloquear la respuesta del cron.
+    // Si falla, se loguea pero no tumba sync-prices — el correo es secundario
+    // respecto a tener los datos del día actualizados.
+    let digestEmail: { sent?: number; skipped?: string; error?: string } = {}
+    if (wl && wl.length > 0) {
+      try {
+        const edgeFnUrl = `${url}/functions/v1/notify-watchlist-digest`
+        const edgeRes = await fetch(edgeFnUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(20_000),
+        })
+        digestEmail = await edgeRes.json().catch(() => ({ error: `HTTP ${edgeRes.status}` }))
+        if (!edgeRes.ok) console.error('[sync-prices] notify-watchlist-digest error:', digestEmail)
+        else console.log('[sync-prices] notify-watchlist-digest ok:', digestEmail)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.error('[sync-prices] notify-watchlist-digest no alcanzó a enviar:', msg)
+        digestEmail = { error: msg }
+      }
+    }
+
     return NextResponse.json({
       synced: ok,
       total:  tickers.length,
       failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
       digest,
+      digestEmail,
       trailingStops,
       netWorthSnapshots,
       fomcAlert,
