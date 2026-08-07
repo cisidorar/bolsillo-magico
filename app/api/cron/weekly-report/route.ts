@@ -6,6 +6,7 @@ import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { getNowChile } from '@/lib/utils'
 import { readCandles } from '@/lib/price-providers'
 import { analyze } from '@/lib/technical'
+import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 
 // ── Cron semanal: persiste el informe (S5) para TODOS los usuarios ───────────
 // Programado en vercel.json, lunes por la mañana. Hasta ahora /inversiones?
@@ -200,5 +201,13 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ users: userIds.length, ok, failed, weekStart })
+  // Recién con weekly_reports ya escrito para todos: la Edge Function solo LEE
+  // esa tabla, así que llamarla antes mandaría el informe de la semana pasada.
+  // Ver lib/invoke-edge-function.ts — esta llamada faltaba por completo y el
+  // correo semanal nunca se envió, pese a que el informe se generaba bien.
+  const reportEmail = ok > 0
+    ? await invokeEdgeFunction(url, key, 'notify-weekly-report')
+    : { ok: true, body: { skipped: 'ningún informe generado esta semana' } }
+
+  return NextResponse.json({ users: userIds.length, ok, failed, weekStart, reportEmail })
 }

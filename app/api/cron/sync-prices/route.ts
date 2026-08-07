@@ -9,6 +9,7 @@ import { getNowChile } from '@/lib/utils'
 import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
+import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
 // Programado en vercel.json (22:30 UTC ≈ post-cierre NYSE). Protegido con
@@ -654,32 +655,21 @@ export async function GET(request: Request) {
     // Trailing stops de posiciones: ratchet diario post-sync (solo sube)
     const trailingStops = await updateTrailingStops(supabase)
 
-    // Invocar notify-watchlist-digest (Edge Function Supabase) después de que
-    // daily_signals y daily_decisions ya están escritos. Se dispara fire-and-
-    // forget con un timeout generoso pero sin bloquear la respuesta del cron.
-    // Si falla, se loguea pero no tumba sync-prices — el correo es secundario
-    // respecto a tener los datos del día actualizados.
-    let digestEmail: { sent?: number; skipped?: string; error?: string } = {}
-    if (wl && wl.length > 0) {
-      try {
-        const edgeFnUrl = `${url}/functions/v1/notify-watchlist-digest`
-        const edgeRes = await fetch(edgeFnUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          signal: AbortSignal.timeout(20_000),
-        })
-        digestEmail = await edgeRes.json().catch(() => ({ error: `HTTP ${edgeRes.status}` }))
-        if (!edgeRes.ok) console.error('[sync-prices] notify-watchlist-digest error:', digestEmail)
-        else console.log('[sync-prices] notify-watchlist-digest ok:', digestEmail)
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        console.error('[sync-prices] notify-watchlist-digest no alcanzó a enviar:', msg)
-        digestEmail = { error: msg }
-      }
-    }
+    // ── Disparar los correos ──────────────────────────────────────────────
+    // Recién acá, con daily_signals / daily_decisions / fomc_alerts ya
+    // persistidos: las Edge Functions solo LEEN esas tablas, así que llamarlas
+    // antes mandaría el correo de ayer. Ver lib/invoke-edge-function.ts para el
+    // bug que motivó esto (ninguna de las dos se llamaba nunca).
+    const digestEmail = wl && wl.length > 0
+      ? await invokeEdgeFunction(url, key, 'notify-watchlist-digest')
+      : { ok: true, body: { skipped: 'sin watchlist' } }
+
+    // El recordatorio de FOMC solo tiene sentido si updateFomcAlert() encontró
+    // una reunión vigente y dejó la fila del día; si no hay nada que leer, la
+    // Edge Function saldría en vacío igual, pero nos ahorramos la llamada.
+    const fomcEmail = fomcAlert
+      ? await invokeEdgeFunction(url, key, 'notify-fomc-reminder')
+      : { ok: true, body: { skipped: 'sin reunión FOMC vigente' } }
 
     return NextResponse.json({
       synced: ok,
@@ -687,6 +677,7 @@ export async function GET(request: Request) {
       failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
       digest,
       digestEmail,
+      fomcEmail,
       trailingStops,
       netWorthSnapshots,
       fomcAlert,
