@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, CreditCard, Target, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Bell, CreditCard, Target, RefreshCw, AlertTriangle, TrendingUp, BarChart2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { NotificationStatusSummary } from '@/lib/notification-status'
 
 interface Props {
   userId: string
-  notifyBilling:   boolean
-  notifyBudget:    boolean
-  notifyMonthly:   boolean
-  notifyRecurring: boolean
+  notifyBilling:         boolean
+  notifyBudget:          boolean
+  notifyMonthly:         boolean
+  notifyRecurring:       boolean
+  notifyWatchlistDigest: boolean
+  notifyWeeklyReport:    boolean
   budgetAlertPct:  number   // umbral de la primera alerta (50–95)
   billingAlertDays: number  // días de anticipación del aviso de cierre (1–7)
   /** E1: último envío real de cada canal, para notar si un aviso quedó silenciosamente roto. */
@@ -32,8 +34,8 @@ const PCT_OPTIONS  = [60, 70, 80, 90]
 const DAYS_OPTIONS = [1, 2, 3, 5]
 
 interface ToggleItem {
-  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring'
-  statusKey: 'billing' | 'budget' | 'monthly' | 'recurring'
+  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring' | 'notifyWatchlistDigest' | 'notifyWeeklyReport'
+  statusKey: 'billing' | 'budget' | 'monthly' | 'recurring' | 'watchlistDigest' | 'weeklyReport'
   dbCol: string
   icon: React.ReactNode
   title: string
@@ -42,22 +44,26 @@ interface ToggleItem {
 
 export default function NotificationPrefs({
   userId,
-  notifyBilling:   initBilling,
-  notifyBudget:    initBudget,
-  notifyMonthly:   initMonthly,
-  notifyRecurring: initRecurring,
-  budgetAlertPct:  initPct,
-  billingAlertDays: initDays,
+  notifyBilling:         initBilling,
+  notifyBudget:          initBudget,
+  notifyMonthly:         initMonthly,
+  notifyRecurring:       initRecurring,
+  notifyWatchlistDigest: initWatchlistDigest,
+  notifyWeeklyReport:    initWeeklyReport,
+  budgetAlertPct:        initPct,
+  billingAlertDays:      initDays,
   status,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
 
   const [state, setState] = useState({
-    notifyBilling:   initBilling,
-    notifyBudget:    initBudget,
-    notifyMonthly:   initMonthly,
-    notifyRecurring: initRecurring,
+    notifyBilling:         initBilling,
+    notifyBudget:          initBudget,
+    notifyMonthly:         initMonthly,
+    notifyRecurring:       initRecurring,
+    notifyWatchlistDigest: initWatchlistDigest,
+    notifyWeeklyReport:    initWeeklyReport,
   })
   const [alertPct, setAlertPct] = useState(initPct)
 
@@ -120,6 +126,22 @@ export default function NotificationPrefs({
       title:    'Gastos recurrentes',
       subtitle: 'Recordatorio el día que vence un gasto manual, y aviso si al día siguiente aún no se registró.',
     },
+    {
+      key:      'notifyWatchlistDigest',
+      statusKey: 'watchlistDigest',
+      dbCol:    'notify_watchlist_target',
+      icon:     <TrendingUp className="w-5 h-5" style={{ color: '#2B7CF6' }} />,
+      title:    'Análisis diario de acciones',
+      subtitle: 'Email al cierre de Wall Street con señales de compra/venta para tu lista de seguimiento.',
+    },
+    {
+      key:      'notifyWeeklyReport',
+      statusKey: 'weeklyReport',
+      dbCol:    'notify_weekly_report',
+      icon:     <BarChart2 className="w-5 h-5" style={{ color: '#7C3AED' }} />,
+      title:    'Reporte semanal',
+      subtitle: 'Resumen de la semana en bolsa: rendimiento de tu portafolio, mejores y peores posiciones.',
+    },
   ]
 
   return (
@@ -130,10 +152,14 @@ export default function NotificationPrefs({
           {/* Icon */}
           <div
             className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{
-              '--cat-bg':    item.key === 'notifyBilling' ? '#F5F3FF' : item.key === 'notifyBudget' ? '#FFF7ED' : item.key === 'notifyRecurring' ? '#ECFDF5' : 'var(--primary-soft)',
-              '--cat-color': item.key === 'notifyBilling' ? '#7C3AED' : item.key === 'notifyBudget' ? '#EA580C' : item.key === 'notifyRecurring' ? '#059669' : 'var(--primary)',
-            } as React.CSSProperties}
+            style={({
+              notifyBilling:         { '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' },
+              notifyBudget:          { '--cat-bg': '#FFF7ED', '--cat-color': '#EA580C' },
+              notifyMonthly:         { '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' },
+              notifyRecurring:       { '--cat-bg': '#ECFDF5', '--cat-color': '#059669' },
+              notifyWatchlistDigest: { '--cat-bg': '#EEF4FF', '--cat-color': '#2B7CF6' },
+              notifyWeeklyReport:    { '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' },
+            } as Record<string, React.CSSProperties>)[item.key]}
           >
             {item.icon}
           </div>

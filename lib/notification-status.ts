@@ -25,10 +25,12 @@ export interface ChannelStatus {
 }
 
 export interface NotificationStatusSummary {
-  billing:   ChannelStatus
-  budget:    ChannelStatus
-  monthly:   ChannelStatus
-  recurring: ChannelStatus
+  billing:         ChannelStatus
+  budget:          ChannelStatus
+  monthly:         ChannelStatus
+  recurring:       ChannelStatus
+  watchlistDigest: ChannelStatus
+  weeklyReport:    ChannelStatus
 }
 
 /** Último `sent_at` (ISO, comparación lexicográfica válida) entre los tipos dados. */
@@ -58,19 +60,23 @@ export function summarizeNotificationStatus({
     if (!prev || l.sent_at > prev) latestByType.set(l.type, l.sent_at)
   }
 
-  const billingLast   = latestOf(latestByType, ['billing'])
-  const budgetLast     = latestOf(latestByType, ['budget_80', 'budget_100'])
-  const monthlyLast    = latestOf(latestByType, ['monthly'])
-  const recurringLast  = latestOf(latestByType, ['recurring_due', 'recurring_overdue'])
+  const billingLast        = latestOf(latestByType, ['billing'])
+  const budgetLast         = latestOf(latestByType, ['budget_80', 'budget_100'])
+  const monthlyLast        = latestOf(latestByType, ['monthly'])
+  const recurringLast      = latestOf(latestByType, ['recurring_due', 'recurring_overdue'])
+  const watchlistDigestLast = latestOf(latestByType, ['watchlist_digest'])
+  const weeklyReportLast   = latestOf(latestByType, ['weekly_report'])
 
   const budgetSentThisMonth = budgetLast !== null && budgetLast.startsWith(monthStr)
   const budgetLagging =
     budgetPct !== null && budgetPct >= budgetThreshold && !budgetSentThisMonth
 
   return {
-    billing:   { lastSentAt: billingLast,   lagging: false },
-    budget:    { lastSentAt: budgetLast,    lagging: budgetLagging },
-    monthly:   { lastSentAt: monthlyLast,   lagging: false },
-    recurring: { lastSentAt: recurringLast, lagging: false },
+    billing:         { lastSentAt: billingLast,         lagging: false },
+    budget:          { lastSentAt: budgetLast,          lagging: budgetLagging },
+    monthly:         { lastSentAt: monthlyLast,         lagging: false },
+    recurring:       { lastSentAt: recurringLast,       lagging: false },
+    watchlistDigest: { lastSentAt: watchlistDigestLast, lagging: false },
+    weeklyReport:    { lastSentAt: weeklyReportLast,    lagging: false },
   }
 }
