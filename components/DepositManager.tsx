@@ -56,7 +56,9 @@ function avatarColor(name: string): string {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0]
+  // Chile time — toISOString() es UTC y después de las ~21h ya dice "mañana".
+  const cl = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  return `${cl.getFullYear()}-${String(cl.getMonth() + 1).padStart(2, '0')}-${String(cl.getDate()).padStart(2, '0')}`
 }
 
 function fmtCLP(n: number, showSign = false): string {

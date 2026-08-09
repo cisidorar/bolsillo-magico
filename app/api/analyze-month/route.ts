@@ -196,6 +196,12 @@ export async function POST(request: Request) {
 
     const supabase = await createClient()
 
+    // Mes en curso: en Chile (mismo criterio que el resto de la app).
+    // Se usa para la comparación pro-rata con el mes anterior.
+    const nowCL = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+    const todayDayCL    = nowCL.getDate()
+    const isCurrentMonth = year === nowCL.getFullYear() && month === (nowCL.getMonth() + 1)
+
     // ── 1. Construir payload de análisis ──────────────────────────────────────
     const monthStr = String(month).padStart(2, '0')
     const startDate = `${year}-${monthStr}-01`
@@ -295,7 +301,20 @@ export async function POST(request: Request) {
       const k = String(e.date).slice(0, 7)
       monthTotals[k] = (monthTotals[k] ?? 0) + e.amount
     }
-    const totalPrev = monthTotals[`${prevYear}-${String(prevMonth).padStart(2, '0')}`] ?? 0
+    const totalPrevFull = monthTotals[`${prevYear}-${String(prevMonth).padStart(2, '0')}`] ?? 0
+
+    // Comparación pro-rata: si estamos en el mes en curso, comparar solo con
+    // los primeros N días del mes anterior (misma regla que /inicio y /analisis,
+    // definida en CLAUDE.md). Comparar 9 días de agosto contra julio COMPLETO
+    // daría una "reducción del 95%" que la IA interpreta como un logro, cuando
+    // en realidad es solo que el mes recién empezó.
+    const prevMonthKey = `${prevYear}-${String(prevMonth).padStart(2, '0')}`
+    const totalPrevProrata = isCurrentMonth
+      ? activeHistoryExpenses
+          .filter(e => String(e.date).slice(0, 7) === prevMonthKey && Number(String(e.date).slice(8, 10)) <= todayDayCL)
+          .reduce((s, e) => s + e.amount, 0)
+      : totalPrevFull
+    const totalPrev = isCurrentMonth ? totalPrevProrata : totalPrevFull
     const completedMonthlyTotals = Object.values(monthTotals).filter(v => v > 0)
     const avgMonthlyExpense = completedMonthlyTotals.length > 0
       ? Math.round(completedMonthlyTotals.reduce((s, v) => s + v, 0) / completedMonthlyTotals.length)
@@ -454,6 +473,12 @@ export async function POST(request: Request) {
     const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
     const payload = {
       period:                  `${MONTH_NAMES[month - 1]} ${year}`,
+      // Contexto de período parcial: si es el mes en curso, previous_month_expense
+      // ya es la cifra pro-rata (solo los primeros N días del mes anterior).
+      // La IA DEBE respetar esta nota antes de comparar totales entre meses.
+      period_context:          isCurrentMonth
+        ? `Mes en curso — solo se muestran los primeros ${todayDayCL} días de ${MONTH_NAMES[month - 1]}. La cifra "previous_month_expense" ya está ajustada a los mismos ${todayDayCL} días del mes anterior (comparación pro-rata). NO concluyas que el gasto "bajó mucho" ni generes improvement_confirmed por diferencias entre meses que solo reflejan el avance del mes — espera a tener el mes completo para ese tipo de juicio.`
+        : null,
       income,
       total_expense:           totalMonth,
       previous_month_expense:  totalPrev > 0 ? totalPrev : null,

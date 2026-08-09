@@ -43,7 +43,11 @@ function avatarColor(name: string): string {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0]
+  // Chile time (UTC-3 / UTC-4 según horario de verano). No usar toISOString()
+  // porque es UTC — después de las ~21-22h en Santiago ya dice "mañana" y la
+  // barra de progreso avanza un día de más.
+  const cl = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  return `${cl.getFullYear()}-${String(cl.getMonth() + 1).padStart(2, '0')}-${String(cl.getDate()).padStart(2, '0')}`
 }
 
 function fmtPct(n: number): string {
