@@ -166,9 +166,15 @@ export default async function RecurrentesPage({
       .map((e: { recurring_expense_id: string | null }) => e.recurring_expense_id)
       .filter(Boolean)
   )
+  // auto_register=true: el sistema lo registra solo — aunque el billing_day
+  // ya pasó y el gasto todavía no existe (race con AutoRegister, que corre
+  // client-side después del render), NO es "atrasado" para el usuario: él
+  // no tiene que hacer nada. Excluirlo evita la alerta falsa que veía Cas
+  // con Apple (billing_day=8, auto_register=true, "Pago atrasado · 1 día").
   const overdueItems = ongoingItems.filter(r =>
     (r.billing_month === null || r.billing_month === month) &&
-    r.billing_day < todayDate && !paidThisMonthSet.has(r.id)
+    r.billing_day < todayDate && !paidThisMonthSet.has(r.id) &&
+    !r.auto_register
   )
   const overdueCount = overdueItems.length
   const overdueNames = overdueItems.map(r => r.name)

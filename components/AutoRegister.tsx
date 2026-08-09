@@ -1,16 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { runAutoRegister } from '@/app/actions/auto-register'
 import { RefreshCw, X } from 'lucide-react'
 
 export default function AutoRegister() {
+  const router = useRouter()
   const [toast, setToast] = useState<string[] | null>(null)
 
   useEffect(() => {
     runAutoRegister().then(({ registered }) => {
       if (registered.length > 0) {
         setToast(registered)
+        // Re-renderiza los Server Components para que la página refleje los
+        // gastos recién creados (paidThisMonthSet, flujo de caja, etc.) sin
+        // forzar una recarga completa — importante para /recurrentes, que
+        // calcula overdueItems server-side con los datos del momento del render.
+        router.refresh()
       }
     })
   }, [])
