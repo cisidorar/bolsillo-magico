@@ -56,6 +56,7 @@ export type RecurringExpense = {
   billing_month: number | null        // null = mensual, 1-12 = anual (mes del cobro)
   auto_register: boolean
   is_active: boolean
+  reactivated_at: string | null       // timestamp de la última reactivación (null si nunca fue pausado)
   notes: string | null
   domain: string | null
   total_installments: number | null   // null = indefinido, N = cuotas fijas

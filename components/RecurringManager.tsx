@@ -354,8 +354,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   async function toggleActive(item: RecurringExpense, e: React.MouseEvent) {
     e.stopPropagation()
     const next = !item.is_active
-    await supabase.from('recurring_expenses').update({ is_active: next }).eq('id', item.id)
-    setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: next } : i))
+    const extra = next ? { reactivated_at: new Date().toISOString() } : {}
+    await supabase.from('recurring_expenses').update({ is_active: next, ...extra }).eq('id', item.id)
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: next, ...extra } : i))
     router.refresh()
   }
 

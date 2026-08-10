@@ -171,11 +171,15 @@ export default async function RecurrentesPage({
   // client-side después del render), NO es "atrasado" para el usuario: él
   // no tiene que hacer nada. Excluirlo evita la alerta falsa que veía Cas
   // con Apple (billing_day=8, auto_register=true, "Pago atrasado · 1 día").
-  const overdueItems = ongoingItems.filter(r =>
-    (r.billing_month === null || r.billing_month === month) &&
-    r.billing_day < todayDate && !paidThisMonthSet.has(r.id) &&
-    !r.auto_register
-  )
+  const overdueItems = ongoingItems.filter(r => {
+    if (r.billing_month !== null && r.billing_month !== month) return false
+    if (r.billing_day >= todayDate) return false
+    if (paidThisMonthSet.has(r.id)) return false
+    if (r.auto_register) return false
+    // Si fue reactivado DESPUÉS del billing_day de este mes → lo tenía pausado, no es atraso
+    if (r.reactivated_at && new Date(r.reactivated_at) > new Date(year, month - 1, r.billing_day)) return false
+    return true
+  })
   const overdueCount = overdueItems.length
   const overdueNames = overdueItems.map(r => r.name)
 

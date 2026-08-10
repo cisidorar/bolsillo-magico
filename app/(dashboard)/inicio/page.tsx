@@ -404,11 +404,15 @@ export default async function DashboardPage() {
       if (r.billing_day < todayDate) {
         // Vencido en el ciclo del mes actual
         if (r.billing_month !== null && r.billing_month !== month) return false
+        // Si fue reactivado DESPUÉS del billing_day de este mes → no es atraso (lo pausó a propósito)
+        if (r.reactivated_at && new Date(r.reactivated_at) > new Date(year, month - 1, r.billing_day)) return false
         return !paidThisMonthSet.has(r.id)
       } else if (r.billing_day > todayDate && todayDate <= 15) {
         // billing_day > hoy: posible atraso del ciclo del mes anterior (cruce de mes)
         if (r.billing_month !== null && r.billing_month !== prevM) return false
-        // Considerar pagado si está en junio O si el usuario lo pagó tarde en el mes actual
+        // Si fue reactivado DESPUÉS del billing_day del mes anterior → lo tenía pausado, no es atraso
+        if (r.reactivated_at && new Date(r.reactivated_at) > new Date(prevY, prevM - 1, r.billing_day)) return false
+        // Considerar pagado si está en julio O si el usuario lo pagó tarde en el mes actual
         return !paidPrevMonthSet.has(r.id) && !paidThisMonthSet.has(r.id)
       }
       return false
