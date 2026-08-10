@@ -94,6 +94,7 @@ export default async function HistorialPage({
   let totalCount = 0
   let totalPages = 1
   let billingHitLimit = false
+  let prevBillingTotal = 0  // suma del estado de cuenta anterior (solo modo facturación)
 
   if (isBilling) {
     const prev = prevMonth(month, year)
@@ -137,6 +138,33 @@ export default async function HistorialPage({
     totalPages = 1
     // Advertir solo si el raw fetch llegó al límite Y los gastos filtrados son muchos (probablemente incompletos)
     billingHitLimit = all.length === 300 && expenses.length >= 100
+
+    // ── Estado de cuenta ANTERIOR — para "vs estado anterior" ────────────────
+    // El período de facturación anterior puede comenzar hasta 31 días antes del
+    // mes calendario anterior (ej. CMR bd=25: jul anterior = 25 jun – 24 jul).
+    // Por eso se necesita una ventana separada que va 2 meses atrás.
+    const prevBM  = month === 1 ? 12 : month - 1
+    const prevBY  = month === 1 ? year - 1 : year
+    const pbFetch = prevMonth(prevBM, prevBY)         // 2 meses antes del mes actual
+    const pbEnd   = nextMonthOf(prevBM, prevBY)       // inicio del mes actual (exclusive)
+    let prevBQ = supabase
+      .from('expenses')
+      .select('amount, date, payment_method:payment_methods(billing_day)')
+      .eq('user_id', user!.id)
+      .gte('date', `${pbFetch.y}-${String(pbFetch.m).padStart(2, '0')}-01`)
+      .lt('date',  `${pbEnd.y}-${String(pbEnd.m).padStart(2, '0')}-01`)
+    if (catIds.length > 0) prevBQ = prevBQ.in('category_id', catIds)
+    if (pmId)               prevBQ = prevBQ.eq('payment_method_id', pmId)
+    if (q)                  prevBQ = prevBQ.ilike('description', `%${q}%`)
+    const { data: prevBD } = await prevBQ
+    prevBillingTotal = ((prevBD ?? []) as { amount: number; date: string; payment_method: { billing_day?: number | null } | null }[])
+      .filter(e => {
+        const bd = e.payment_method?.billing_day ?? null
+        if (!bd) return false
+        const bp = billingPeriod(e.date, bd)
+        return bp.month === prevBM && bp.year === prevBY
+      })
+      .reduce((s, e) => s + e.amount, 0)
   } else {
     const nextM = month === 12 ? 1       : month + 1
     const nextY = month === 12 ? year + 1 : year
@@ -203,8 +231,10 @@ export default async function HistorialPage({
   const prevFiltered = isCurrentMonth
     ? prevMonthRaw.filter(e => parseInt(e.date.split('-')[2]) <= now.getDate())
     : prevMonthRaw
-  const prevTotal = prevFiltered.reduce((s, e) => s + e.amount, 0)
-  const delta = !isBilling && prevTotal > 0
+  const prevTotal = isBilling
+    ? prevBillingTotal
+    : prevFiltered.reduce((s, e) => s + e.amount, 0)
+  const delta = prevTotal > 0
     ? Math.round(((total - prevTotal) / prevTotal) * 100)
     : null
   const absoluteDelta = total - prevTotal
@@ -367,8 +397,8 @@ export default async function HistorialPage({
                 }
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-gray-400 font-medium">vs mes anterior{isCurrentMonth && !isBilling ? ` · día ${now.getDate()}` : ''}</p>
-                {isBilling || delta === null ? (
+                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'vs estado anterior' : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
+                {delta === null ? (
                   <p className="text-2xl font-extrabold text-gray-400 leading-tight">—</p>
                 ) : (
                   <>
