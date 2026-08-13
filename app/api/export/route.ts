@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('expenses')
-    .select('*, category:categories(name), payment_method:payment_methods(name)')
+    .select('*, category:categories(name), payment_method:payment_methods(name), recurring_expense:recurring_expenses(name)')
     .eq('user_id', user.id)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
@@ -34,14 +34,18 @@ export async function GET(req: NextRequest) {
   if (error) return new NextResponse('Error fetching expenses', { status: 500 })
 
   const rows = expenses ?? []
-  const header = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Método de pago'].join(',')
-  const lines = rows.map(e => [
-    escapeCSV(e.date),
-    escapeCSV(e.description),
-    escapeCSV((e.category as { name: string } | null)?.name),
-    escapeCSV(e.amount),
-    escapeCSV((e.payment_method as { name: string } | null)?.name ?? 'Efectivo'),
-  ].join(','))
+  const header = ['Fecha', 'Descripción', 'Categoría', 'Monto', 'Método de pago', 'Recurrente'].join(',')
+  const lines = rows.map(e => {
+    const recurringName = (e.recurring_expense as { name: string } | null)?.name ?? null
+    return [
+      escapeCSV(e.date),
+      escapeCSV(e.description),
+      escapeCSV((e.category as { name: string } | null)?.name),
+      escapeCSV(e.amount),
+      escapeCSV((e.payment_method as { name: string } | null)?.name ?? 'Efectivo'),
+      escapeCSV(recurringName ?? 'No'),
+    ].join(',')
+  })
 
   const csv = [header, ...lines].join('\n')
   const bom = '﻿'
