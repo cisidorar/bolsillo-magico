@@ -32,3 +32,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Config local de Claude Code y respaldos
+.claude/settings.local.json
+.claude/launch.json
+*.bak
+supabase/.temp/

@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { computeWeeklyItems } from '@/lib/weekly-report'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
-import { fetchAllMacroSeries } from '@/lib/macro-fetch'
+import { fetchAllMacroSeries, type MacroSeriesData } from '@/lib/macro-fetch'
+import { nextFomcMeeting } from '@/lib/market-week'
+import { computeRatePath } from '@/lib/rate-path'
 import { getNowChile } from '@/lib/utils'
 import { readCandles } from '@/lib/price-providers'
 import { analyze } from '@/lib/technical'
@@ -26,6 +28,47 @@ function mondayOf(dateStr: string): string {
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
   return d.toISOString().slice(0, 10)
+}
+
+/** Última observación de una serie macro (las vienen ascendentes por fecha). */
+function latestValue(series: MacroSeriesData | null | undefined): number | null {
+  if (!series || series.observations.length === 0) return null
+  return series.observations[series.observations.length - 1].value
+}
+
+// ── "Lo que viene esta semana" (ago 2026, a pedido de Cas) ───────────────────
+// El correo semanal contaba lo que YA pasó pero no lo que está por venir, que
+// es lo único sobre lo que todavía se puede decidir algo. Dos catalizadores
+// caben en una semana y se pueden saber con certeza de antemano:
+//   · Reunión de la Fed — fecha fija publicada con un año de anticipación
+//     (lib/market-week.ts), más la tasa vigente y hacia dónde la ve el mercado
+//     (computeRatePath sobre DGS2−DFF, sin API nueva ni scrapear FedWatch).
+//   · Resultados trimestrales de SUS tickers — ya vienen en cada item
+//     (nextEarningsDate), la Edge Function los filtra a la ventana de 7 días.
+// Se calcula una sola vez por corrida: es idéntico para todos los usuarios.
+interface WeekAhead {
+  fomcDate:    string | null   // YYYY-MM-DD si cae dentro de los próximos 8 días
+  currentRate: number | null   // DFF vigente, %
+  direction:   'alzas' | 'estable' | 'bajas' | null
+  impliedMoves: number | null  // movimientos de 25pb implícitos, con signo
+  spreadBp:    number | null
+}
+
+function computeWeekAhead(macro: Record<string, MacroSeriesData | null>, todayCL: string): WeekAhead {
+  // 8 días desde el domingo del envío: cubre lunes a domingo completo — con 7
+  // se perdía una reunión de miércoles si el cron corría con unas horas de
+  // atraso respecto al corte del día en Chile.
+  const fomcDate = nextFomcMeeting(todayCL, 8)
+  const dff  = latestValue(macro.DFF)
+  const dgs2 = latestValue(macro.DGS2)
+  const path = (dff !== null && dgs2 !== null) ? computeRatePath(dgs2, dff) : null
+  return {
+    fomcDate,
+    currentRate:  dff,
+    direction:    path?.direction ?? null,
+    impliedMoves: path?.impliedMoves ?? null,
+    spreadBp:     path?.spreadBp ?? null,
+  }
 }
 
 interface DecisionRow {
@@ -67,6 +110,7 @@ export async function GET(request: Request) {
   // Contexto macro (S1): una sola vez, es el mismo para todos los usuarios —
   // null en cada serie si falta FRED_API_KEY, no rompe el resto del informe.
   const macro = await fetchAllMacroSeries(supabase)
+  const weekAhead = computeWeekAhead(macro, todayCL)
 
   // Fuerza relativa vs SPY (ago 2026): mismo insumo que usa computeConviction()
   // en sync-prices — una sola vez para todos los usuarios, no por ticker.
@@ -175,6 +219,7 @@ export async function GET(request: Request) {
         skippedTickers: skipped,
         spyBenchmark,
         macro,
+        weekAhead,
         todayDecision: decision ? {
           ticker: decision.ticker, tier: decision.tier, score: decision.score,
           suggested_usd: decision.suggested_usd, verdict: decision.verdict, reasons: decision.reasons,

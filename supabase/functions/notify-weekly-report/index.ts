@@ -88,11 +88,23 @@ interface DecisionPayload {
 
 interface SignalPayload { ticker: string; kind: string; message: string; price: number }
 
+// "Lo que viene esta semana" — calculado en el cron (Next), ver
+// computeWeekAhead en app/api/cron/weekly-report/route.ts. Campos en null
+// cuando falta FRED_API_KEY o no hay reunión de la Fed dentro de la ventana.
+interface WeekAhead {
+  fomcDate:     string | null
+  currentRate:  number | null
+  direction:    'alzas' | 'estable' | 'bajas' | null
+  impliedMoves: number | null
+  spreadBp:     number | null
+}
+
 interface WeeklyReportPayload {
   items:           WeeklyTickerData[]
   skippedTickers:  string[]
   spyBenchmark:    SpyBenchmarkResult | null
   macro:           Partial<Record<string, MacroSeriesData | null>>
+  weekAhead?:      WeekAhead | null   // opcional: informes generados antes de ago 2026 no lo traen
   todayDecision:   DecisionPayload | null
   todaySignals:    SignalPayload[]
   generatedAt:     string
@@ -207,6 +219,164 @@ function macroContextHtml(macro: WeeklyReportPayload['macro']): string {
       </table>
     </td></tr>
   </table>`
+}
+
+// ── "Lo que viene esta semana" (ago 2026, a pedido de Cas) ──────────────────
+// El informe contaba lo que ya pasó; esto es lo único sobre lo que todavía se
+// puede decidir. Dos catalizadores con fecha conocida de antemano: la reunión
+// de la Fed (fecha fija + tasa vigente + hacia dónde la ve el mercado) y los
+// resultados trimestrales de SUS tickers dentro de los próximos 7 días.
+
+const MESES_LARGOS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+const DIAS_LARGOS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado']
+
+function fmtFechaLarga(iso: string): string {
+  const d = new Date(iso + 'T12:00:00')
+  return `${DIAS_LARGOS[d.getDay()]} ${d.getDate()} de ${MESES_LARGOS[d.getMonth()]}`
+}
+
+function daysUntil(iso: string): number {
+  const target = new Date(iso + 'T12:00:00').getTime()
+  const today  = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  today.setHours(12, 0, 0, 0)
+  return Math.round((target - today.getTime()) / 86_400_000)
+}
+
+/** Qué se espera de la Fed, en una frase. `impliedMoves` es el número de
+ *  movimientos de 25pb que el mercado tiene descontados (DGS2−DFF), no una
+ *  predicción de esta reunión puntual — se redacta como tal. */
+function fedExpectationText(w: WeekAhead): string {
+  if (w.currentRate === null) return 'Se publica la decisión de tasas.'
+  const rate = `La tasa hoy está en ${w.currentRate.toFixed(2)}%.`
+  if (w.direction === null || w.direction === 'estable') {
+    return `${rate} El mercado no tiene cambios descontados — lo más probable es que la deje igual.`
+  }
+  const n = Math.abs(w.impliedMoves ?? 0)
+  const verbo = w.direction === 'alzas' ? 'suba' : 'baje'
+  const signo = w.direction === 'alzas' ? 1 : -1
+  const destino = (w.currentRate + signo * n * 0.25).toFixed(2)
+  if (n === 0) return `${rate} El mercado no tiene cambios descontados para esta reunión.`
+  return `${rate} El mercado tiene descontado que ${verbo} unos ${n === 1 ? '25' : n * 25} puntos base en los próximos meses (hacia ~${destino}%), no necesariamente en esta reunión.`
+}
+
+function weekAheadHtml(weekAhead: WeekAhead | null | undefined, items: WeeklyTickerData[]): string {
+  const rows: string[] = []
+
+  if (weekAhead?.fomcDate) {
+    const d = daysUntil(weekAhead.fomcDate)
+    const cuando = d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`
+    rows.push(`
+      <tr><td style="padding:14px 16px;border-bottom:1px solid #E4EAF3">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:800;color:#0E2A52">
+          🏛 Decide la Fed — ${fmtFechaLarga(weekAhead.fomcDate)} <span style="color:#D98A1F">(${cuando})</span>
+        </p>
+        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#3D4C63;line-height:1.5">${fedExpectationText(weekAhead)}</p>
+        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0;line-height:1.5">Los días de decisión el mercado se mueve fuerte en ambos sentidos — si ibas a comprar algo, conviene esperar al cierre.</p>
+      </td></tr>`)
+  }
+
+  // Resultados trimestrales dentro de la semana — los de tus posiciones primero.
+  const earnings = items
+    .filter(i => i.nextEarningsDate !== null)
+    .map(i => ({ item: i, days: daysUntil(i.nextEarningsDate!) }))
+    .filter(e => e.days >= 0 && e.days <= 7)
+    .sort((a, b) => (Number(b.item.owned) - Number(a.item.owned)) || a.days - b.days)
+
+  if (earnings.length > 0) {
+    const lista = earnings.map(({ item, days }) => {
+      const cuando = days === 0 ? 'hoy' : days === 1 ? 'mañana' : `en ${days} días`
+      return `<span style="font-weight:800;color:#0E2A52">${item.ticker}</span>${item.owned ? ' <span style="font-size:9px;font-weight:800;color:#2B7CF6">·EN CARTERA</span>' : ''} <span style="color:#8B9AB0">(${cuando})</span>`
+    }).join(' &nbsp;·&nbsp; ')
+    const propias = earnings.filter(e => e.item.owned).length
+    rows.push(`
+      <tr><td style="padding:14px 16px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:800;color:#0E2A52">📈 Reportan resultados esta semana</p>
+        <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#3D4C63;line-height:1.7">${lista}</p>
+        ${propias > 0 ? `<p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0;line-height:1.5">${propias === 1 ? 'Una es tuya' : `${propias} son tuyas`} — el día del reporte la acción puede moverse 5-10% en cualquier dirección. No es día para comprar más ni para vender por nervios.</p>` : ''}
+      </td></tr>`)
+  }
+
+  if (rows.length === 0) {
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+      <tr><td style="padding-bottom:8px">
+        <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📅 Lo que viene esta semana</span>
+      </td></tr>
+      <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0;line-height:1.5">Semana tranquila: no decide la Fed y ninguna de tus acciones reporta resultados.</p>
+      </td></tr>
+    </table>`
+  }
+
+  return `
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+    <tr><td style="padding-bottom:8px">
+      <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📅 Lo que viene esta semana</span>
+    </td></tr>
+    <tr><td>
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1.5px solid #E4EAF3;border-radius:14px">
+        ${rows.join('')}
+      </table>
+    </td></tr>
+  </table>`
+}
+
+// ── Veredicto accionable: "¿compro o vendo sí o sí?" ────────────────────────
+// Cas: "si debo comprar sí o sí o vender sí o sí". El resto del correo describe
+// estado; esto se moja. Umbrales deliberadamente altos — que casi siempre diga
+// "nada urgente" es la respuesta correcta y hace que cuando SÍ aparezca algo,
+// signifique algo.
+//   · Comprar: convicción compra_fuerte, o ≥75 sin estar en zona cara.
+//   · Vender: solo con posición real (no tiene sentido "vende" sobre algo que
+//     no tienes) y con la convicción de la app en venta — no basta el gatillo
+//     técnico suelto, que es mucho más ruidoso.
+function mustBuy(i: WeeklyTickerData): boolean {
+  if (i.convictionTier === 'compra_fuerte') return true
+  return i.convictionScore >= 75 && i.priceZone !== 'caro' && i.convictionTier === 'compra'
+}
+function mustSell(i: WeeklyTickerData): boolean {
+  return i.owned && (i.convictionTier === 'venta' || i.ratingLabel === 'venta_fuerte')
+}
+
+function verdictBlockHtml(items: WeeklyTickerData[]): string {
+  const buys  = items.filter(mustBuy).sort((a, b) => b.convictionScore - a.convictionScore).slice(0, 3)
+  const sells = items.filter(mustSell).sort((a, b) => a.convictionScore - b.convictionScore).slice(0, 3)
+
+  if (buys.length === 0 && sells.length === 0) {
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+      <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:16px;padding:16px 18px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#3D4C63">Esta semana: nada urgente</p>
+        <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#8B9AB0;line-height:1.5">Ninguna acción de tu lista está lo bastante barata como para comprar sí o sí, ni tan deteriorada como para vender sí o sí. No hacer nada también es una decisión.</p>
+      </td></tr>
+    </table>`
+  }
+
+  const line = (i: WeeklyTickerData, kind: 'buy' | 'sell') => {
+    const c = kind === 'buy' ? '#1FBE8D' : '#FF6F61'
+    const zona = i.priceZone ? ` · ${ZONE_LABEL[i.priceZone]}` : ''
+    return `<p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#0E2A52">
+      <span style="color:${c}">${kind === 'buy' ? '▲' : '▼'}</span> ${i.ticker} <span style="font-weight:500;color:#8B9AB0;font-size:11px">${fmtUSD(i.price)} · convicción ${Math.round(i.convictionScore)}/100${zona}${i.owned ? ' · en cartera' : ''}</span>
+    </p>`
+  }
+
+  const buyHtml = buys.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr><td bgcolor="#EAFBF5" style="background:#EAFBF5;border:1.5px solid #1FBE8D;border-radius:16px;padding:16px 18px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">✅ Comprar sí o sí</p>
+        ${buys.map(i => line(i, 'buy')).join('')}
+      </td></tr>
+    </table>` : ''
+
+  const sellHtml = sells.length > 0 ? `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:${buys.length > 0 ? '10' : '0'}px">
+      <tr><td bgcolor="#FFF1EF" style="background:#FFF1EF;border:1.5px solid #FF6F61;border-radius:16px;padding:16px 18px">
+        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">⚠️ Vender sí o sí</p>
+        ${sells.map(i => line(i, 'sell')).join('')}
+      </td></tr>
+    </table>` : ''
+
+  return `<div style="margin-top:20px">${buyHtml}${sellHtml}</div>`
 }
 
 // ── Ícono del ticker (mismo patrón que notify-watchlist-digest) ─────────────
@@ -328,9 +498,9 @@ function weeklyReportEmailHtml({
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
         <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:${payload.spyBenchmark.diffUsd >= 0 ? '#1FBE8D' : '#FF6F61'}">
           ${payload.spyBenchmark.diffUsd >= 0 ? '+' : ''}${fmtUSD(payload.spyBenchmark.diffUsd)}
-          ${payload.spyBenchmark.diffPct !== null ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
+          ${payload.spyBenchmark.diffPct !== null && Math.abs(payload.spyBenchmark.diffPct) <= 200 ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
         </p>
-        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas</p>
+        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas${payload.spyBenchmark.diffPct !== null && Math.abs(payload.spyBenchmark.diffPct) > 200 ? ' · el % se omite: la base de comparación quedó muy chica tras tus ventas y daría una cifra sin sentido' : ''}</p>
       </td></tr>
     </table>`
   ) : ''
@@ -365,11 +535,13 @@ function weeklyReportEmailHtml({
         <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">SEMANA DEL ${weekLabel}</p>
         <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px">Tu informe semanal</p>
         <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
-          Hola ${displayName} — señales, niveles y calendario de tu watchlist, en un solo correo.
+          Hola ${displayName} — qué hacer esta semana, qué catalizadores vienen, y cómo va tu cartera.
         </p>
       </td></tr>
 
       <tr><td style="padding:24px 32px 28px">
+        ${verdictBlockHtml(payload.items)}
+        ${weekAheadHtml(payload.weekAhead, payload.items)}
         ${benchmarkHtml}
         ${macroContextHtml(payload.macro)}
         ${decisionBlockHtml(payload.todayDecision, infoMap)}
@@ -418,7 +590,7 @@ function weeklyReportEmailHtml({
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
           <tr><td style="text-align:center;padding-bottom:16px">${brandWordmark(siteUrl)}</td></tr>
           <tr><td style="text-align:center;padding-bottom:16px">
-            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#9FB5D4">Recibes este correo cada lunes.</p>
+            <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:500;color:#9FB5D4">Recibes este correo cada domingo por la noche.</p>
           </td></tr>
           <tr><td style="text-align:center;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">
             <a href="${siteUrl}/ajustes" style="color:#9FB5D4;text-decoration:none;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:600">Cancelar envíos</a>
@@ -467,7 +639,14 @@ Deno.serve(async (req: Request) => {
     (priceCacheRows ?? []).map(r => [r.ticker as string, { name: r.name as string | null, domain: r.domain as string | null }]),
   )
 
+  // El informe se calcula con los datos de la semana que termina, pero se
+  // envía el domingo por la noche y su contenido nuevo (veredicto + "lo que
+  // viene") apunta hacia adelante. Etiquetarlo con el lunes que YA pasó
+  // ("SEMANA DEL 3 de agosto" leído el 9) se lee como un correo atrasado —
+  // el label muestra el lunes que empieza, que es la semana sobre la que Cas
+  // va a decidir algo.
   const weekStartDate = new Date(weekStart + 'T12:00:00')
+  weekStartDate.setDate(weekStartDate.getDate() + 7)
   const weekLabel = weekStartDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
 
   let sent = 0, skipped = 0
