@@ -400,6 +400,15 @@ export default async function DashboardPage() {
   }
   const atrasados: PagoAtrasado[] = recurringWithCounts
     .filter(r => r.is_active)
+    // auto_register=true: el sistema lo registra solo — aunque el billing_day
+    // ya pasó y el gasto todavía no existe (race con AutoRegister, que corre
+    // client-side después del render, o un insert que falló silenciosamente
+    // y no se reintenta hasta mañana), NO es "atrasado" para el usuario: él
+    // no tiene que hacer nada. Mismo fix ya aplicado en /recurrentes
+    // (overdueItems) — este cálculo de /inicio (atrasados) se había quedado
+    // sin él y seguía mostrando "Pago atrasado" para Netflix pese a tener
+    // Registrar automáticamente activado.
+    .filter(r => !r.auto_register)
     .filter(r => {
       if (r.billing_day < todayDate) {
         // Vencido en el ciclo del mes actual
