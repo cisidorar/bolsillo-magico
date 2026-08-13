@@ -353,6 +353,8 @@ async function computeDailySignals(supabase: SupabaseClient) {
   // Se reutiliza para la decisión de portafolio (computeDailyDecisions) — evita
   // recalcular analyze() por segunda vez para los mismos tickers.
   const analysesByTicker = new Map<string, TechnicalAnalysis>()
+  // Para sincronizar price_cache con los precios de cierre EOD después del loop
+  const changePctByTicker = new Map<string, number>()
   // D1 (roadmap de calidad de decisión): track record por ticker, calculado
   // UNA vez por ticker por día acá (no por usuario) y reutilizado en
   // computeDailyDecisions — antes ese 20% del score se pasaba en null en
@@ -373,6 +375,7 @@ async function computeDailySignals(supabase: SupabaseClient) {
       const changePct = closes.length >= 2
         ? Math.round(((closes[closes.length - 1] - closes[closes.length - 2]) / closes[closes.length - 2]) * 1000) / 10
         : 0
+      changePctByTicker.set(ticker, changePct)
       const rowsForTicker = wlRows.filter(r => r.ticker === ticker)
       const { signals, notifiedIds } = buildSignals(analysis, rowsForTicker, ownedByUser, changePct)
       allSignals.push(...signals)
@@ -432,6 +435,25 @@ async function computeDailySignals(supabase: SupabaseClient) {
   if (allNotifiedIds.length > 0) {
     const { error } = await supabase.from('watchlist').update({ target_notified: true }).in('id', allNotifiedIds)
     if (error) console.error('[sync-prices] target_notified update error:', error.message)
+  }
+
+  // ── Sincronizar price_cache con precios de cierre EOD ─────────────────────
+  // La app lee price_cache (actualizado cuando el usuario abre la watchlist).
+  // Si el usuario la abrió a mediodía, price_cache queda con precios intraday,
+  // distintos al cierre. Al correr este cron ya tenemos el precio de cierre
+  // para cada ticker en analysesByTicker — lo pisamos para que la app y el
+  // correo muestren el mismo número.
+  // Solo se actualiza price y change_pct; name/domain/history7d los maneja
+  // /api/stock-price para no duplicar llamadas a la API de perfil.
+  if (analysesByTicker.size > 0) {
+    const priceRows = [...analysesByTicker.entries()].map(([ticker, a]) => ({
+      ticker,
+      price:      a.price,
+      change_pct: changePctByTicker.get(ticker) ?? 0,
+      fetched_at: new Date().toISOString(),
+    }))
+    const { error } = await supabase.from('price_cache').upsert(priceRows, { onConflict: 'ticker' })
+    if (error) console.error('[sync-prices] price_cache sync error:', error.message)
   }
   if (statRows.length > 0) {
     const { error } = await supabase.from('signal_stats').upsert(statRows, { onConflict: 'ticker,label' })
