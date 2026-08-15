@@ -60,7 +60,7 @@ export default function WeekSnapshotCard({ spyBenchmark, fedSentence, inflationS
         {spyBenchmark && (
           <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
             vs. haber puesto la misma plata, en las mismas fechas, en SPY — al cierre del {fmtDateShort(spyBenchmark.asOfDate)}
-            {spyBenchmark.diffPct !== null && <> ({spyBenchmark.diffPct >= 0 ? '+' : ''}{spyBenchmark.diffPct.toFixed(1)}%)</>}
+            {spyBenchmark.diffPct !== null && !spyBenchmark.distorted && <> ({spyBenchmark.diffPct >= 0 ? '+' : ''}{spyBenchmark.diffPct.toFixed(1)}%)</>}
           </p>
         )}
 

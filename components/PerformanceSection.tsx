@@ -139,7 +139,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
                       {won ? 'Le ganaste al mercado' : 'El mercado te ganó'}
                     </p>
-                    {b.diffPct !== null && (
+                    {b.diffPct !== null && !b.distorted && (
                       <p className="text-[11px] font-semibold" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
                         {won ? '+' : ''}{b.diffPct.toFixed(1)}% vs. SPY
                       </p>
@@ -154,9 +154,11 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
                 Valorizado con el último cierre conocido de cada acción (no precio en vivo) — puede ir un día atrás.
                 {b.degenerate
                   ? ''
-                  : won
-                    ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
-                    : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
+                  : b.distorted
+                    ? ' El % se omite: ventas anteriores dejaron la base de comparación (SPY) muy chica, y dividir por eso daría una cifra sin sentido — el monto en dólares sigue siendo válido.'
+                    : won
+                      ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
+                      : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
               </p>
             </div>
           </div>

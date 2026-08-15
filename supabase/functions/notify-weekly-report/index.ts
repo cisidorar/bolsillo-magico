@@ -79,7 +79,12 @@ interface WeeklyTickerData {
 // datos de Cas: lib/benchmark.ts + components/PerformanceSection.tsx ya lo
 // arreglaron en la app; este correo usaba una copia del tipo sin el campo
 // nuevo y seguía mostrando el número sin la advertencia).
-interface SpyBenchmarkResult { diffUsd: number; diffPct: number | null; asOfDate: string; degenerate: boolean }
+// ago 2026: `distorted` cubre el escalón previo a degenerate — la sombra no
+// llega a negativo pero queda casi en cero (bug real de Cas: "+1315,1% vs.
+// SPY" con solo US$284 de sombra). Mismo campo que ya expone lib/benchmark.ts
+// a la app — antes este correo calculaba su propio umbral ad-hoc (>200%)
+// duplicando la regla en vez de leerla de una sola fuente.
+interface SpyBenchmarkResult { diffUsd: number; diffPct: number | null; asOfDate: string; degenerate: boolean; distorted: boolean }
 
 interface DecisionPayload {
   ticker: string | null; tier: string | null; score: number
@@ -498,9 +503,9 @@ function weeklyReportEmailHtml({
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
         <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:${payload.spyBenchmark.diffUsd >= 0 ? '#1FBE8D' : '#FF6F61'}">
           ${payload.spyBenchmark.diffUsd >= 0 ? '+' : ''}${fmtUSD(payload.spyBenchmark.diffUsd)}
-          ${payload.spyBenchmark.diffPct !== null && Math.abs(payload.spyBenchmark.diffPct) <= 200 ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
+          ${payload.spyBenchmark.diffPct !== null && !payload.spyBenchmark.distorted ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
         </p>
-        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas${payload.spyBenchmark.diffPct !== null && Math.abs(payload.spyBenchmark.diffPct) > 200 ? ' · el % se omite: la base de comparación quedó muy chica tras tus ventas y daría una cifra sin sentido' : ''}</p>
+        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas${payload.spyBenchmark.distorted ? ' · el % se omite: la base de comparación quedó muy chica tras tus ventas y daría una cifra sin sentido' : ''}</p>
       </td></tr>
     </table>`
   ) : ''

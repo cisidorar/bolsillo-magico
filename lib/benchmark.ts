@@ -51,6 +51,18 @@ export interface SpyBenchmarkResult {
    * habrías tenido US$0,00" exacto).
    */
   degenerate:     boolean
+  /**
+   * ago 2026 (bug reportado por Cas: "+1315,1% vs. SPY" con solo US$284,75
+   * de sombra): `degenerate` solo cubre el caso en que la sombra se va a
+   * NEGATIVO y se pisa a 0. Pero una venta puede consumir CASI toda la
+   * sombra sin llegar a cruzar cero — spyShares queda positivo pero
+   * minúsculo frente al valor real, y dividir por esa base casi nula da un
+   * % de cientos o miles por ciento, técnicamente correcto pero sin
+   * significado práctico (mismo problema, un escalón antes de degenerate).
+   * `diffUsd` sigue siendo válido en este caso (es solo una resta, no
+   * depende de la base) — únicamente el % pierde sentido. Umbral: 300%.
+   */
+  distorted:      boolean
 }
 
 /** Cierre de SPY en `date` o el más cercano HACIA ATRÁS. null si no hay ningún dato ≤ date. */
@@ -97,6 +109,7 @@ export function computeSpyBenchmark(
 
   const diffUsd = realValueUsd - shadowValueUsd
   const diffPct = shadowValueUsd > 0 ? (diffUsd / shadowValueUsd) * 100 : null
+  const distorted = diffPct !== null && Math.abs(diffPct) > 300
 
-  return { realValueUsd, shadowValueUsd, diffUsd, diffPct, asOfDate, spyShares, degenerate }
+  return { realValueUsd, shadowValueUsd, diffUsd, diffPct, asOfDate, spyShares, degenerate, distorted }
 }

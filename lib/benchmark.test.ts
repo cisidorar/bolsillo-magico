@@ -94,4 +94,36 @@ describe('computeSpyBenchmark', () => {
     const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
     expect(r.degenerate).toBe(false)
   })
+
+  // Regresión (ago 2026, a pedido de Cas): screenshot real con "+1315,1% vs.
+  // SPY" y solo US$284,75 de sombra — un escalón antes de degenerate. La
+  // venta consumió CASI toda la sombra sin cruzar a negativo (spyShares
+  // termina positivo pero minúsculo), así que `degenerate` no se activaba y
+  // el % salía técnicamente correcto pero sin significado (dividir por casi
+  // nada). `distorted` cubre este caso — diffUsd sigue siendo válido, solo
+  // el % pierde sentido.
+  it('venta consume casi toda la sombra sin cruzar a negativo → distorted=true, degenerate=false', () => {
+    const flows: CashFlowEvent[] = [
+      { date: '2025-01-01', usd: 1000 },    // compra: 1000/400 = 2.5 shadow shares
+      { date: '2025-03-01', usd: -1080 },   // venta: -1080/450 = -2.4 shadow shares → queda 0.1 (positivo, no degenerate)
+    ]
+    const positions: PositionLite[] = [{ ticker: 'NVDA', shares: 10 }]
+    const latest = new Map([['NVDA', 400]])   // realValueUsd = 4000, muy por sobre la sombra chica (0.1 × 500 = 50)
+    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
+    expect(r.degenerate).toBe(false)
+    expect(r.spyShares).toBeGreaterThan(0)
+    expect(r.diffPct).not.toBeNull()
+    expect(Math.abs(r.diffPct!)).toBeGreaterThan(300)
+    expect(r.distorted).toBe(true)
+    // El $ sigue siendo una resta simple, válida sin importar el %.
+    expect(r.diffUsd).toBeCloseTo(r.realValueUsd - r.shadowValueUsd, 5)
+  })
+
+  it('% moderado (<=300%): distorted=false', () => {
+    const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 4000 }]
+    const positions: PositionLite[] = [{ ticker: 'NVDA', shares: 10 }]
+    const latest = new Map([['NVDA', 800]])   // 2x SPY, diffPct = 100%
+    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
+    expect(r.distorted).toBe(false)
+  })
 })

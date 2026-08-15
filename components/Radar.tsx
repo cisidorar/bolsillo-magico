@@ -875,7 +875,7 @@ export default function Radar({
                   {fmtUSDSigned(realizedPnlUsd)}
                 </p>
               </div>
-              {spyBenchmark?.diffPct != null && (
+              {spyBenchmark?.diffPct != null && !spyBenchmark.distorted && (
                 <div className="flex items-center justify-between px-5 py-3">
                   <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>vs SPY</p>
                   <p className="text-sm font-bold tabular-nums" style={{ color: spyBenchmark.diffPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
