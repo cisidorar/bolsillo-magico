@@ -39,13 +39,20 @@ export default function WeekSnapshotCard({ spyBenchmark, fedSentence, inflationS
   if (!spyBenchmark && !hasMacro && upcoming.length === 0) return null
 
   const vsMarketUp = spyBenchmark !== null && spyBenchmark.diffUsd >= 0
+  // ago 2026 (Cas: "¿cómo le voy a ganar eso si yo he ingresado como 4000
+  // USD?"): este header nunca había mirado degenerate/distorted — mostraba
+  // el $ diff siempre, aunque la sombra de SPY hubiera quedado vaciada o casi
+  // vaciada por una venta que le ganó por mucho al mercado. Mismo criterio
+  // que PerformanceSection: en ese caso ni el % ni el $ son un veredicto
+  // confiable.
+  const unreliable = spyBenchmark !== null && (spyBenchmark.degenerate || spyBenchmark.distorted)
 
   return (
     <details className="card overflow-hidden group">
       <summary className="flex items-center gap-2.5 px-4 lg:px-5 py-3.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <Newspaper className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
         <p className="text-sm font-bold flex-1 min-w-0" style={{ color: 'var(--ink)' }}>Tu semana</p>
-        {spyBenchmark ? (
+        {spyBenchmark && !unreliable ? (
           <span className="text-xs font-extrabold tabular-nums flex items-center gap-1 flex-shrink-0" style={{ color: vsMarketUp ? 'var(--mint)' : 'var(--coral)' }}>
             {vsMarketUp ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
             {fmtUSDSigned(spyBenchmark.diffUsd)} vs. el mercado
@@ -58,10 +65,16 @@ export default function WeekSnapshotCard({ spyBenchmark, fedSentence, inflationS
 
       <div className="px-4 lg:px-5 pb-4 pt-1 space-y-3 border-t" style={{ borderColor: 'var(--border)' }}>
         {spyBenchmark && (
-          <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            vs. haber puesto la misma plata, en las mismas fechas, en SPY — al cierre del {fmtDateShort(spyBenchmark.asOfDate)}
-            {spyBenchmark.diffPct !== null && !spyBenchmark.distorted && <> ({spyBenchmark.diffPct >= 0 ? '+' : ''}{spyBenchmark.diffPct.toFixed(1)}%)</>}
-          </p>
+          unreliable ? (
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+              Comparación no confiable por ahora: una venta le ganó por mucho a SPY y descuadró la base de comparación. Se recupera sola con tus próximos movimientos.
+            </p>
+          ) : (
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+              vs. haber puesto la misma plata, en las mismas fechas, en SPY — al cierre del {fmtDateShort(spyBenchmark.asOfDate)}
+              {spyBenchmark.diffPct !== null && <> ({spyBenchmark.diffPct >= 0 ? '+' : ''}{spyBenchmark.diffPct.toFixed(1)}%)</>}
+            </p>
+          )
         )}
 
         {hasMacro && (

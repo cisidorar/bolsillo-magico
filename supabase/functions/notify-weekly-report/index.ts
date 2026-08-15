@@ -489,8 +489,14 @@ function weeklyReportEmailHtml({
   siteUrl:     string
   weekLabel:   string
 }): string {
+  // ago 2026 (Cas: "¿cómo le voy a ganar eso si yo he ingresado como 4000
+  // USD?"): `distorted` se trata igual que `degenerate` acá — con la sombra
+  // de SPY casi vaciada por una venta que le ganó por mucho al mercado, ni
+  // el % NI el $ son un veredicto confiable (antes solo se ocultaba el %,
+  // dejando "+US$3.744" como si fuera un dato limpio). Mismo criterio que
+  // components/PerformanceSection.tsx en la app.
   const benchmarkHtml = payload.spyBenchmark ? (
-    payload.spyBenchmark.degenerate ? `
+    (payload.spyBenchmark.degenerate || payload.spyBenchmark.distorted) ? `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
       <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
@@ -503,9 +509,9 @@ function weeklyReportEmailHtml({
         <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
         <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:${payload.spyBenchmark.diffUsd >= 0 ? '#1FBE8D' : '#FF6F61'}">
           ${payload.spyBenchmark.diffUsd >= 0 ? '+' : ''}${fmtUSD(payload.spyBenchmark.diffUsd)}
-          ${payload.spyBenchmark.diffPct !== null && !payload.spyBenchmark.distorted ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
+          ${payload.spyBenchmark.diffPct !== null ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
         </p>
-        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas${payload.spyBenchmark.distorted ? ' · el % se omite: la base de comparación quedó muy chica tras tus ventas y daría una cifra sin sentido' : ''}</p>
+        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas</p>
       </td></tr>
     </table>`
   ) : ''

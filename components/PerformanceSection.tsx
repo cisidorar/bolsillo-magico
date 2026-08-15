@@ -110,14 +110,21 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
                   <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(b.shadowValueUsd)}</p>
                 </div>
               </div>
-              {b.degenerate ? (
-                // Regresión (jul 2026): una venta ganó tanto más que SPY que la
-                // simulación de sombra queda en negativo (pisada a 0) — mostrar
-                // "le ganaste al mercado por el 100% de tu cartera" acá sería un
-                // veredicto técnicamente calculado pero engañoso, porque la
-                // comparación en sí dejó de ser válida. Aviso neutro, sin el
-                // verde/coral de un veredicto (UX5: esto no es una alerta, es
-                // una limitación del dato).
+              {(b.degenerate || b.distorted) ? (
+                // Regresión (jul 2026) + ago 2026 (Cas: "¿cómo le voy a ganar
+                // eso si yo he ingresado como 4000 USD?"): cuando una venta le
+                // gana por mucho a SPY, la sombra queda vaciada (degenerate,
+                // pisada a 0) o casi vaciada (distorted, positiva pero
+                // mínima). En AMBOS casos no es solo el % lo que pierde
+                // sentido — el propio monto en dólares también, porque
+                // "realValueUsd − shadowValueUsd" con una sombra casi nula
+                // termina siendo casi el valor total de tu cartera actual,
+                // no una medida real de cuánto le ganaste al mercado. Antes
+                // esto solo se ocultaba en el caso negativo (degenerate);
+                // el caso "positivo pero mínimo" seguía mostrando un
+                // veredicto en dólares igual de engañoso. Aviso neutro, sin
+                // verde/coral de veredicto (UX5: es una limitación del dato,
+                // no una alerta).
                 <div className="flex items-center gap-3 px-4 py-3 rounded-2xl" style={{ background: 'var(--surface-2)' }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--surface)' }}>
                     <Info className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
@@ -139,7 +146,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
                       {won ? 'Le ganaste al mercado' : 'El mercado te ganó'}
                     </p>
-                    {b.diffPct !== null && !b.distorted && (
+                    {b.diffPct !== null && (
                       <p className="text-[11px] font-semibold" style={{ color: won ? 'var(--mint)' : 'var(--coral)' }}>
                         {won ? '+' : ''}{b.diffPct.toFixed(1)}% vs. SPY
                       </p>
@@ -152,13 +159,11 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
               )}
               <p className="text-[10px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
                 Valorizado con el último cierre conocido de cada acción (no precio en vivo) — puede ir un día atrás.
-                {b.degenerate
+                {(b.degenerate || b.distorted)
                   ? ''
-                  : b.distorted
-                    ? ' El % se omite: ventas anteriores dejaron la base de comparación (SPY) muy chica, y dividir por eso daría una cifra sin sentido — el monto en dólares sigue siendo válido.'
-                    : won
-                      ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
-                      : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
+                  : won
+                    ? ' Elegir acciones te sirvió esta vez, no significa que siga pasando.'
+                    : ' Indexarse (comprar SPY y no tocarlo) suele ganarle a elegir acciones sueltas en el largo plazo — vale la pena tenerlo presente.'}
               </p>
             </div>
           </div>
