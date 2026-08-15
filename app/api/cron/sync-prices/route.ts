@@ -146,24 +146,40 @@ function buildSignals(
   wlRows:    WatchlistRow[],
   ownedByUser: Set<string>,   // `${user_id}:${ticker}`
   changePct: number,
+  // ago 2026 (bug reportado por Cas con capturas: INTC/SOXL con "SEÑAL DE
+  // COMPRA" en el correo mientras la app mostraba el chip "Toma de
+  // ganancias" para el MISMO ticker el MISMO día — "en una parte dice
+  // vende y en el correo compra"). La causa: este correo decidía 'buy'
+  // mirando solo analysis.rating.label (gatillo técnico puro), mientras
+  // Radar.tsx (actionFlag) decide 'buy' con isActionableBuyNow(conviction,
+  // regime) y 'caution' con analysis.sell.some(t => t.now) — el hotZone
+  // completo (RSI sobrecomprado, distancia a la media, divergencia bajista,
+  // no solo `caution`). Dos criterios distintos para la misma pregunta. Se
+  // alinea acá al criterio de la app — mismo ticker, mismo día, misma
+  // respuesta en los dos canales.
+  conviction: ReturnType<typeof computeConviction> | null,
+  marketRegime: MarketRegime | null,
 ): { signals: SignalRow[]; notifiedIds: string[] } {
   const signals: SignalRow[] = []
   const notifiedIds: string[] = []
+
+  const l = analysis.rating.label
+  const isBuy   = conviction !== null && isActionableBuyNow(analysis, conviction, marketRegime)
+  const isSell  = l === 'venta' || l === 'venta_fuerte'
+  const sellNow = analysis.sell.some(t => t.now)
 
   for (const row of wlRows) {
     const owned = ownedByUser.has(`${row.user_id}:${row.ticker}`)
     const base = { user_id: row.user_id, ticker: row.ticker, price: analysis.price, change_pct: changePct }
 
-    // Rating: se reporta TODOS los días que siga vigente (recordatorio diario,
-    // no evento único) — compra siempre relevante, venta/toma solo con posición.
-    const l = analysis.rating.label
-    if (l === 'compra' || l === 'compra_fuerte') {
-      const strong = l === 'compra_fuerte'
+    // Mismo orden de prioridad que actionFlag() en Radar.tsx: buy > sell > caution > hold.
+    if (isBuy) {
+      const strong = conviction!.tier === 'compra_fuerte'
       signals.push({ ...base, kind: 'buy', strong, watch: false, message: signalDetail(analysis, 'mint') })
-    } else if (owned && (l === 'venta' || l === 'venta_fuerte')) {
+    } else if (owned && isSell) {
       const strong = l === 'venta_fuerte'
       signals.push({ ...base, kind: 'sell', strong, watch: false, message: signalDetail(analysis, 'coral') })
-    } else if (owned && analysis.rating.caution) {
+    } else if (owned && sellNow) {
       signals.push({ ...base, kind: 'caution', strong: false, watch: true, message: `Débil · ${holdLabel(analysis)}` })
     } else {
       signals.push({ ...base, kind: 'hold', strong: false, watch: analysis.watch.length > 0, message: holdLabel(analysis) })
@@ -376,10 +392,6 @@ async function computeDailySignals(supabase: SupabaseClient) {
         ? Math.round(((closes[closes.length - 1] - closes[closes.length - 2]) / closes[closes.length - 2]) * 1000) / 10
         : 0
       changePctByTicker.set(ticker, changePct)
-      const rowsForTicker = wlRows.filter(r => r.ticker === ticker)
-      const { signals, notifiedIds } = buildSignals(analysis, rowsForTicker, ownedByUser, changePct)
-      allSignals.push(...signals)
-      allNotifiedIds.push(...notifiedIds)
 
       // Track record: solo tiene sentido con suficiente historia para el
       // backtest (MIN_HISTORY de lib/signal-backtest.ts, ~260 ruedas) — con
@@ -417,6 +429,22 @@ async function computeDailySignals(supabase: SupabaseClient) {
   for (const [ticker, analysis] of analysesByTicker) {
     convictionByTicker.set(ticker, computeConviction(analysis, statsByTicker.get(ticker) ?? null, spyReturn6m))
   }
+
+  // buildSignals corre DESPUÉS de tener convictionByTicker/marketRegime (no
+  // en el loop de arriba) porque 'buy' ahora depende de isActionableBuyNow,
+  // que necesita la convicción — mismo criterio que usa Radar.tsx (actionFlag)
+  // para el chip de la app. Antes 'buy' se decidía solo con el gatillo técnico
+  // crudo (analysis.rating.label), sin convicción ni régimen de mercado.
+  for (const [ticker, analysis] of analysesByTicker) {
+    const rowsForTicker = wlRows.filter(r => r.ticker === ticker)
+    const { signals, notifiedIds } = buildSignals(
+      analysis, rowsForTicker, ownedByUser, changePctByTicker.get(ticker) ?? 0,
+      convictionByTicker.get(ticker) ?? null, marketRegime,
+    )
+    allSignals.push(...signals)
+    allNotifiedIds.push(...notifiedIds)
+  }
+
   for (const row of allSignals) {
     const c = convictionByTicker.get(row.ticker)
     const a = analysesByTicker.get(row.ticker)
