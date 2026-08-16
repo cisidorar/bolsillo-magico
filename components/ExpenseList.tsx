@@ -172,6 +172,13 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
         const catBg    = e.category?.bg_color ?? '#EEF4FF'
         const catColor = e.category?.color ?? '#4D93FF'
         const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+        // Mismo criterio que la fila de la lista (logoDomain/logoName) —
+        // faltaba acá, así que el header del detalle mostraba el ícono
+        // genérico de categoría en vez del logo real (ej. Uber).
+        const recurringDomain = e.recurring_expense?.domain
+        const descDomain = e.description ? detectDomain(e.description) : null
+        const logoDomain = recurringDomain ?? descDomain
+        const logoName = e.recurring_expense?.name ?? e.description ?? e.category?.name ?? ''
 
         return (
           <div
@@ -192,9 +199,13 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   cierre w-11 h-11) para que detalle y edición se sientan la
                   misma superficie, no dos modales distintos. */}
               <div className="flex items-center gap-3 px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
-                  <Icon className="w-5 h-5" style={{ color }} />
-                </div>
+                {logoDomain ? (
+                  <ServiceLogo domain={logoDomain} name={logoName} size={40} className="flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
+                    <Icon className="w-5 h-5" style={{ color }} />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <h2 className="text-base font-bold truncate text-gray-900">
                     {e.description ?? e.category?.name ?? 'Gasto'}
