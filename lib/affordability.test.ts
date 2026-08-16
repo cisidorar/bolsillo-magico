@@ -105,6 +105,22 @@ describe('evaluateAffordability', () => {
     expect(reason?.text).not.toContain('ahorrar')
   })
 
+  it('flujo YA negativo antes de esta compra (ej. $1) — el texto no le atribuye la causa a la compra', () => {
+    const r = evaluateAffordability(base({ amount: 1, cashFlowMin: -1116523, cashFlowMinLabel: '29 de agosto' }))
+    expect(r.verdict).toBe('tight')
+    const reason = r.reasons.find(x => x.text.includes('negativo'))
+    expect(reason?.severity).toBe('gold')
+    expect(reason?.text).toContain('Ya tienes un vencimiento')
+    expect(reason?.text).toContain('sin contar esta compra')
+  })
+
+  it('flujo positivo antes de esta compra pero la compra lo tira a negativo — sí se le atribuye a la compra', () => {
+    const r = evaluateAffordability(base({ amount: 50000, cashFlowMin: 30000, cashFlowMinLabel: '14 de agosto' }))
+    const reason = r.reasons.find(x => x.text.includes('negativo'))
+    expect(reason?.text).toContain('Tu flujo de 30 días queda en negativo')
+    expect(reason?.text).not.toContain('Ya tienes')
+  })
+
   it('la peor severidad entre varias razones manda el veredicto (coral gana sobre gold)', () => {
     const r = evaluateAffordability(base({
       amount: 999999,           // se pasa del presupuesto → coral

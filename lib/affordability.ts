@@ -100,7 +100,18 @@ export function evaluateAffordability(input: AffordabilityInput): AffordabilityR
     const dateSuffix = input.cashFlowMinLabel ? ` el ${input.cashFlowMinLabel}` : ''
     if (projectedMin < 0) {
       bump('gold')
-      reasons.push({ severity: 'gold', text: `Tu flujo de 30 días queda en negativo (${formatCLP(projectedMin)})${dateSuffix} — revisa que tengas colchón esos días` })
+      // ago 2026 (Cas: con un monto casi nulo — ej. $1 — igual aparecía "tu
+      // flujo queda en negativo (-$1.116.524)", dando a entender que ESA
+      // compra era la causante. En realidad ya había un vencimiento
+      // programado que deja el flujo en rojo aunque no se compre nada —
+      // distinguir la causa evita alarmar de más por una compra irrelevante.
+      const causedByThisPurchase = input.cashFlowMin >= 0
+      reasons.push({
+        severity: 'gold',
+        text: causedByThisPurchase
+          ? `Tu flujo de 30 días queda en negativo (${formatCLP(projectedMin)})${dateSuffix} — revisa que tengas colchón esos días`
+          : `Ya tienes un vencimiento que deja tu flujo de 30 días en negativo (${formatCLP(projectedMin)})${dateSuffix}, sin contar esta compra — revisa que tengas colchón esos días`,
+      })
     } else if (projectedMin < CASH_FLOW_TIGHT_THRESHOLD) {
       bump('gold')
       reasons.push({ severity: 'gold', text: `Tu flujo de 30 días queda justo en ${formatCLP(projectedMin)}${dateSuffix}` })
