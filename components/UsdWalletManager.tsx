@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
-import { Plus, Trash2, Pencil, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info } from 'lucide-react'
+import { Plus, Trash2, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info, ChevronRight } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPurchase, StockSale } from '@/app/(dashboard)/inversiones/page'
 
@@ -75,6 +75,17 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
   const backdropClose = useBackdropClose(() => setShowForm(false))
+
+  // Detalle al tocar una fila (ago 2026, a pedido de Cas — mismo patrón que
+  // el detalle de acciones en Radar.tsx: tocar la fila abre una tarjeta con
+  // el detalle completo del movimiento, con "Editar" y "Eliminar" ahí en vez
+  // de íconos sueltos en la fila). Aplica a las 3 filas de la cartola: aporte,
+  // venta y compra — las compras de acciones son de solo lectura acá (se
+  // gestionan en Acciones), aporte/venta se pueden editar/eliminar.
+  const [detailKey,     setDetailKey]     = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  function closeDetail() { setDetailKey(null); setConfirmDelete(false) }
+  const detailBackdropClose = useBackdropClose(closeDetail)
 
   // FX solo como dato chico (no protagonista) — si falla, la card vive sin él
   useEffect(() => {
@@ -162,6 +173,9 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     sub:   string | null
     usd:   number                 // con signo
     pnl:   number | null          // ganancia/pérdida realizada (solo ventas con detalle)
+    pnlPct: number | null
+    ticker: string | null         // solo ventas/compras con detalle de acción
+    shares: number | null
     row:   UsdPurchase | null     // solo filas de billetera son editables/eliminables
   }
   const salesByPurchaseId = new Map(sales.map(s => [s.usd_purchase_id, s]))
@@ -177,13 +191,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
             label: `Venta ${sale.ticker}`,
             sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
-            usd: Number(p.usd_amount), pnl, row: p,
+            usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p,
           }
         }
         return {
           key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
           label: p.notes ?? 'Venta de acciones', sub: null,
-          usd: Number(p.usd_amount), pnl: null, row: p,
+          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p,
         }
       }
       return {
@@ -193,14 +207,14 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
           p.notes,
         ].filter(Boolean).join(' · ') || null,
-        usd: Number(p.usd_amount), pnl: null, row: p,
+        usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p,
       }
     }),
     ...stockPurchases.map<Move>(sp => ({
       key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
       label: `Compra ${sp.ticker}`,
       sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
-      usd: -Number(sp.total_paid_usd), pnl: null, row: null,
+      usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -346,6 +360,176 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
         </div>
       )}
 
+      {/* ── Detalle de un movimiento (ago 2026, a pedido de Cas) ────────────
+          Tocar una fila de la cartola abre esto en vez de editar/eliminar
+          directo — mismo patrón que el detalle de acciones (Radar.tsx): ver
+          primero, decidir después. Cubre los 3 tipos de fila: aporte y venta
+          (editables/eliminables acá) y compra de acciones (solo lectura —
+          se gestiona en Acciones). */}
+      {(() => {
+        const m = detailKey ? moves.find(mv => mv.key === detailKey) ?? null : null
+        if (!m) return null
+        const canEdit   = m.type === 'aporte' && m.row !== null
+        const canDelete = m.row !== null
+        const iconBg    = m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)'
+        const iconColor = m.type === 'compra' ? 'var(--primary)' : 'var(--mint)'
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...detailBackdropClose}
+          >
+            <div
+              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+              style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+                  {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
+                  {m.type === 'venta'  && <DollarSign className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
+                  {m.type === 'compra' && <ArrowDown className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold truncate" style={{ color: 'var(--ink)' }}>{m.label}</h2>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{fmtDate(m.date)}</p>
+                </div>
+                <button
+                  onClick={closeDetail}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
+                {/* Cifras clave */}
+                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                      {m.type === 'aporte' ? 'Dólares recibidos' : m.type === 'venta' ? 'Dólares recibidos' : 'Monto invertido'}
+                    </span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(Math.abs(m.usd))}</span>
+                  </div>
+                  {m.type === 'aporte' && m.row?.total_paid_clp !== null && m.row?.total_paid_clp !== undefined && (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Pesos pagados</span>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(m.row.total_paid_clp)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Tasa implícita</span>
+                        <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {formatCLP(Math.round(m.row.total_paid_clp / Number(m.row.usd_amount)))}/USD
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {m.ticker !== null && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ticker</span>
+                      <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{m.ticker}</span>
+                    </div>
+                  )}
+                  {m.shares !== null && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Acciones</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
+                      </span>
+                    </div>
+                  )}
+                  {m.pnl !== null && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ganancia/pérdida</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: m.pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {fmtUSDSigned(m.pnl)} ({fmtPct(m.pnlPct ?? 0)})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {m.type === 'aporte' && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                      Nota
+                    </p>
+                    <p className="text-sm" style={{ color: m.row?.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
+                      {m.row?.notes || 'Sin nota — agrégala al editar.'}
+                    </p>
+                  </div>
+                )}
+
+                {m.type === 'compra' && (
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                    Esta compra se gestiona desde <strong style={{ color: 'var(--ink-2)' }}>Acciones</strong> — ahí puedes editarla, venderla o eliminarla.
+                  </p>
+                )}
+
+                {confirmDelete && (
+                  <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                    <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                      ¿Eliminar este movimiento?
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 py-2 text-sm font-semibold rounded-xl border transition-colors"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => { remove(m.row!); closeDetail() }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-bold rounded-xl"
+                        style={{ background: 'var(--coral)', color: 'white' }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {!confirmDelete && (
+                <div className="border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                  {canDelete && (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="w-10 h-10 flex items-center justify-center rounded-xl border shrink-0 transition-colors"
+                      style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                      aria-label="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={closeDetail}
+                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                  >
+                    Cerrar
+                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => { setDetailKey(null); setConfirmDelete(false); openEdit(m.row!) }}
+                      className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                      style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {purchases.length === 0 ? (
         <div className="card px-6 py-8 text-center">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Registra tus compras de dólares</p>
@@ -385,7 +569,11 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
               </div>
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {moves.map(m => (
-                  <div key={m.key} className="flex items-center gap-3 px-4 lg:px-5 py-3">
+                  <button
+                    key={m.key}
+                    onClick={() => setDetailKey(m.key)}
+                    className="w-full text-left group flex items-center gap-3 px-4 lg:px-5 py-3 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
+                  >
                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                       style={{ background: m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)' }}>
                       {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
@@ -402,24 +590,8 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                       style={{ color: m.pnl !== null ? (m.pnl >= 0 ? 'var(--mint)' : 'var(--coral)') : (m.usd >= 0 ? 'var(--mint)' : 'var(--ink-2)') }}>
                       {fmtUSDSigned(m.usd)}
                     </p>
-                    {/* Solo las filas de billetera se editan/eliminan aquí; las compras se gestionan en Acciones */}
-                    {m.row !== null ? (
-                      <div className="flex items-center gap-1 shrink-0">
-                        {m.type === 'aporte' && (
-                          <button onClick={() => openEdit(m.row!)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
-                            style={{ color: 'var(--ink-3)' }} aria-label="Editar">
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button onClick={() => remove(m.row!)} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-black/5"
-                          style={{ color: 'var(--coral)' }} aria-label="Eliminar">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-8 shrink-0" />
-                    )}
-                  </div>
+                    <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
+                  </button>
                 ))}
               </div>
             </div>
