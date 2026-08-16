@@ -818,7 +818,14 @@ export default function Radar({
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <p className="text-6xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
-                    {hasQ ? fmtUSD(totalValueUsd) : fmtUSD(totalCostUsd)}
+                    {/* ago 2026 (Cas: "aqui sigue sin salir la suma de los
+                        dolares" — el headline mostraba solo el valor de las
+                        posiciones, sin el efectivo de la billetera, aunque
+                        esa plata también es tuya y ya se contaba en
+                        portfolioValueUsd para el sizing del 1%. Mismo
+                        criterio que el benchmark vs SPY (lib/benchmark.ts):
+                        el valor total = posiciones + efectivo disponible. */}
+                    {hasQ ? fmtUSD(portfolioValueUsd) : fmtUSD(totalCostUsd + Math.max(0, walletAvailable ?? 0))}
                   </p>
                   <span className="text-lg font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
                 </div>
