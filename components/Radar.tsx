@@ -37,6 +37,31 @@ import type { PortfolioPoint } from '@/lib/portfolio-history'
 // el de U3) para cualquiera, y el modal (TransactionModal) queda SOLO para
 // comprar/vender/editar — se invoca desde el detalle, no al revés.
 
+// ── Orden de "Mis acciones" (ago 2026, a pedido de Cas: "me gustaria que en
+// la parte de mis acciones se pueda ordenar por valor inversion, ganancia
+// total %, ganancia total, ganancia hoy %, ganancia hoy y distribucion %") —
+// 6 criterios, siempre descendente (lo más grande/mejor primero). Los valores
+// null (sin cotización todavía) van al final sin importar el criterio.
+type SortKey = 'value' | 'gainPct' | 'gainUsd' | 'dailyPct' | 'dailyUsd' | 'distPct'
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'value',    label: 'Valor inversión' },
+  { key: 'gainPct',  label: 'Ganancia total %' },
+  { key: 'gainUsd',  label: 'Ganancia total' },
+  { key: 'dailyPct', label: 'Ganancia hoy %' },
+  { key: 'dailyUsd', label: 'Ganancia hoy' },
+  { key: 'distPct',  label: 'Distribución %' },
+]
+// SortKey usa nombres cortos para las labels; el objeto de la fila usa
+// nombres más largos (valueUsd, dailyPct, etc.) — este mapa conecta ambos.
+const SORT_FIELD: Record<SortKey, 'valueUsd' | 'gainPct' | 'gainUsd' | 'dailyPct' | 'dailyUsd' | 'distPct'> = {
+  value:    'valueUsd',
+  gainPct:  'gainPct',
+  gainUsd:  'gainUsd',
+  dailyPct: 'dailyPct',
+  dailyUsd: 'dailyUsd',
+  distPct:  'distPct',
+}
+
 export interface WatchlistItem {
   id:               string
   ticker:           string
@@ -199,6 +224,10 @@ export default function Radar({
   // re-tipear a mano lo que la app acababa de calcular.
   const [txn, setTxn] = useState<{ mode: TransactionMode; ticker: string | null; prefillUsd?: number } | null>(null)
 
+  // Orden de la tabla "Mis acciones" — ver SORT_OPTIONS arriba.
+  const [sortKey, setSortKey] = useState<SortKey>('value')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+
   // ── Posición agregada por ticker (puede haber legacy con varias filas) ──
   const ownedMap = useMemo(() => {
     const map: Record<string, OwnedPosition> = {}
@@ -294,9 +323,23 @@ export default function Radar({
       // se usa arriba (línea ~254) para no duplicar lógica de cálculo.
       const prevClose = q ? q.price / (1 + q.changePercent / 100) : null
       const dailyUsd = q && prevClose !== null ? pos.shares * (q.price - prevClose) : null
-      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null, dailyUsd }
+      // Distribución % (ago 2026, a pedido de Cas): qué porción del valor
+      // total en acciones representa esta posición — no existía como campo.
+      const distPct = totalValueUsd > 0 ? (valueUsd / totalValueUsd) * 100 : null
+      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null, dailyUsd, distPct }
     })
-    .sort((a, b) => b.valueUsd - a.valueUsd)
+    .sort((a, b) => {
+      // ago 2026 (Cas): orden elegible por 6 criterios (ver SORT_OPTIONS) en
+      // vez de siempre por valor. null (sin cotización aún) siempre al final,
+      // sin importar el criterio elegido.
+      const field = SORT_FIELD[sortKey]
+      const av = a[field]
+      const bv = b[field]
+      if (av === null && bv === null) return 0
+      if (av === null) return 1
+      if (bv === null) return -1
+      return bv - av
+    })
 
   // Y1 (a pedido de Cas): historial de operaciones — todas las compras y
   // ventas registradas, de cualquier ticker, en un solo lugar y ordenadas
@@ -939,10 +982,41 @@ export default function Radar({
         </div>
       ) : (
         <div className="card overflow-hidden mb-4">
-          <div className="flex items-center px-4 lg:px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
-            <span className="flex-1">Acción</span>
-            <span className="text-right" style={{ minWidth: 110 }}>Valor · Hoy</span>
-            <span className="w-4 flex-shrink-0" />
+          <div className="flex items-center justify-between px-4 lg:px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
+            <span>Acción</span>
+            {/* Orden de la tabla (ago 2026, a pedido de Cas): dropdown con los
+                6 criterios de SORT_OPTIONS — reemplaza el label fijo "Valor ·
+                Hoy" por el criterio elegido, la tabla se sigue viendo igual. */}
+            <div className="relative">
+              <button
+                onClick={() => setSortMenuOpen(v => !v)}
+                className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70"
+                style={{ color: 'var(--ink-3)' }}
+              >
+                Ordenar: {SORT_OPTIONS.find(o => o.key === sortKey)?.label}
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {sortMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setSortMenuOpen(false)} />
+                  <div
+                    className="absolute right-0 top-full mt-1.5 z-20 rounded-2xl border overflow-hidden py-1"
+                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 170 }}
+                  >
+                    {SORT_OPTIONS.map(o => (
+                      <button
+                        key={o.key}
+                        onClick={() => { setSortKey(o.key); setSortMenuOpen(false) }}
+                        className="block w-full text-left px-3.5 py-2 text-xs font-semibold normal-case tracking-normal whitespace-nowrap transition-colors hover:opacity-80"
+                        style={{ color: sortKey === o.key ? 'var(--primary)' : 'var(--ink-2)', background: sortKey === o.key ? 'var(--primary-soft)' : 'transparent' }}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {myPerformance.map(row => {
