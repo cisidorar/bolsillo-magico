@@ -118,6 +118,20 @@ export default async function InversionesPage({ searchParams }: Props) {
   // "Mis acciones", 100% seguimiento (valor, rendimiento, historial).
   const isWatchlist = sp.view === 'watchlist'
 
+  // ago 2026 (Cas: "siento que los cambios entre billetera, acciones y todo
+  // eso es muy lento" — `dynamic = 'force-dynamic'` significa que CADA click
+  // de tab en InversionesToggle es una navegación completa que vuelve a
+  // correr esta función entera, sin importar qué pestaña se pida. Antes de
+  // esto se traía TODO sin condicionar: benchmark vs SPY + historial de
+  // precios, hasta 5 llamadas a la API de FRED (macro) y una llamada a
+  // Finnhub POR CADA ticker en cartera (earnings) — aunque Billetera y
+  // Ahorro nunca renderizan nada de eso. Estos dos flags acotan ese trabajo
+  // a las pestañas que de verdad lo consumen (Radar: Mis acciones y
+  // Watchlist; macro/earnings: solo Mis acciones, mismo criterio que ya
+  // usaba WeekSnapshotCard/RateScenariosCard más abajo).
+  const needsRadarData = !isAhorro && !isBilletera   // Watchlist o Mis acciones
+  const needsMacro      = needsRadarData && !isWatchlist   // solo Mis acciones
+
   // E5 (roadmap economía): rentabilidad real (F7 de FEATURES.md) — un
   // depósito al 12% con IPC 4% rinde ~7,7% real, no 8%. Solo se pide en la
   // pestaña Ahorro, que es la única que la usa.
@@ -165,35 +179,40 @@ export default async function InversionesPage({ searchParams }: Props) {
   // Última vez que corrió el análisis técnico automático (cron sync-prices →
   // daily_signals) — visible en Acciones para poder notar de un vistazo si el
   // pipeline diario dejó de correr, sin tener que revisar logs de Vercel/Supabase.
-  const { data: lastSignal } = await supabase
-    .from('daily_signals')
-    .select('created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  // Solo lo lee Radar (Mis acciones/Watchlist) — sin uso en Ahorro/Billetera.
+  const { data: lastSignal } = needsRadarData
+    ? await supabase
+        .from('daily_signals')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null }
 
   // ── "Hoy" (U1 del roadmap UX): la cola de acciones del día, leída del
   // servidor — misma fuente que el correo, no un recálculo client-side que
   // puede desalinearse con el cierre analizado. daily_decisions trae el
   // veredicto comparado (mejor compra o "no compres nada"); daily_signals
   // trae lo accionable por ticker que no es "comprar" (vender, tomar
-  // ganancias, precio objetivo alcanzado).
+  // ganancias, precio objetivo alcanzado). Solo lo lee Radar.
   const { dateStr: todayCL } = getNowChile()
-  const [{ data: todayDecisionRow }, { data: todaySignalRows }] = await Promise.all([
-    supabase
-      .from('daily_decisions')
-      .select('ticker, tier, score, suggested_usd, verdict, reasons')
-      .eq('user_id', user.id)
-      .eq('decision_date', todayCL)
-      .maybeSingle(),
-    supabase
-      .from('daily_signals')
-      .select('ticker, kind, message, price')
-      .eq('user_id', user.id)
-      .eq('signal_date', todayCL)
-      .in('kind', ['sell', 'caution', 'target']),
-  ])
+  const [{ data: todayDecisionRow }, { data: todaySignalRows }] = needsRadarData
+    ? await Promise.all([
+        supabase
+          .from('daily_decisions')
+          .select('ticker, tier, score, suggested_usd, verdict, reasons')
+          .eq('user_id', user.id)
+          .eq('decision_date', todayCL)
+          .maybeSingle(),
+        supabase
+          .from('daily_signals')
+          .select('ticker, kind, message, price')
+          .eq('user_id', user.id)
+          .eq('signal_date', todayCL)
+          .in('kind', ['sell', 'caution', 'target']),
+      ])
+    : [{ data: null }, { data: null }]
 
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
   // Acciones para el saldo disponible (tope de compra)
@@ -214,11 +233,13 @@ export default async function InversionesPage({ searchParams }: Props) {
   // criterio que inicio/page.tsx: "invertido este mes" = depósitos a la
   // billetera USD del mes (kind='deposit'), en CLP — el aporte real desde el
   // mundo CLP, no lo que ya compraste con saldo de meses anteriores.
-  const { data: profileRow } = await supabase
-    .from('profiles')
-    .select('monthly_invest_goal')
-    .eq('id', user.id)
-    .maybeSingle()
+  const { data: profileRow } = needsRadarData
+    ? await supabase
+        .from('profiles')
+        .select('monthly_invest_goal')
+        .eq('id', user.id)
+        .maybeSingle()
+    : { data: null }
   const monthlyInvestGoal = (profileRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
   const [goalYear, goalMonth] = todayCL.split('-').map(Number)
   const thisMonthStartStr = `${goalYear}-${String(goalMonth).padStart(2, '0')}-01`
@@ -245,7 +266,9 @@ export default async function InversionesPage({ searchParams }: Props) {
   // aparte) — se calculan DESPUÉS de traer dgs2Obs (bloque macro, más abajo).
   let priceHistoryByTicker = new Map<string, { date: string; value: number }[]>()
   let latestCloseByTicker  = new Map<string, number>()
-  if ((purchases?.length ?? 0) > 0) {
+  // Solo lo consumen Radar (Mis acciones/Watchlist) y PerformanceSection —
+  // nada en Ahorro/Billetera lee spyBenchmark/portfolioHistory.
+  if (needsRadarData && (purchases?.length ?? 0) > 0) {
     const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker))]
     const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
       supabase
@@ -291,13 +314,17 @@ export default async function InversionesPage({ searchParams }: Props) {
   // completa: esa vista duplicaba el Radar ticker por ticker con más jerga
   // (Fibonacci, POC). Lo único que aportaba y que Acciones no tenía — vs. el
   // mercado, la Fed en cotidiano, el calendario — cabe en una card chica.
-  // Contexto macro: cache 24h (barato), se calcula siempre; null en cada
-  // serie si falta FRED_API_KEY, la card se degrada sola sin romper el resto.
-  const macro = await fetchAllMacroSeries(supabase)
-  const dffObs   = macro.DFF?.observations ?? []
-  const cpiObs   = macro.CPIAUCSL?.observations ?? []
-  const dgs10Obs = macro.DGS10?.observations ?? []
-  const dgs2Obs  = macro.DGS2?.observations ?? []
+  // Contexto macro: cache 24h en price_cache (barato en $ pero sigue siendo
+  // ida y vuelta a Supabase + hasta 5 llamadas a FRED en cache-miss) — solo
+  // WeekSnapshotCard/RateScenariosCard lo leen, y ambas viven solo en Mis
+  // acciones (ver comentario de Watchlist más abajo), así que se salta
+  // entero en Ahorro/Billetera/Watchlist. null en cada serie si falta
+  // FRED_API_KEY, la card se degrada sola sin romper el resto.
+  const macro = needsMacro ? await fetchAllMacroSeries(supabase) : null
+  const dffObs   = macro?.DFF?.observations ?? []
+  const cpiObs   = macro?.CPIAUCSL?.observations ?? []
+  const dgs10Obs = macro?.DGS10?.observations ?? []
+  const dgs2Obs  = macro?.DGS2?.observations ?? []
   // M1 (roadmap macro/tasas, jul 2026): DFF es la tasa YA realizada — nunca
   // se mueve antes de una decisión. El spread DGS2-DFF (lib/rate-path.ts) es
   // el proxy de hacia dónde el mercado espera que se mueva, sin lo cual
@@ -333,20 +360,25 @@ export default async function InversionesPage({ searchParams }: Props) {
 
   // "Lo que viene": reunión de la Fed en ≤7 días + earnings de tickers en
   // cartera en ≤5 días hábiles (mismo umbral que D3 ya usa para earnings) —
-  // ambos son avisos de "no es buen día para ejecutar compras", no solo trivia.
+  // ambos son avisos de "no es buen día para ejecutar compras", no solo
+  // trivia. Solo se renderiza en WeekSnapshotCard (Mis acciones) — la
+  // llamada a Finnhub por ticker (fetchEarnings) es la más cara de toda la
+  // página, así que se salta entero fuera de esa pestaña.
   const upcoming: UpcomingEvent[] = []
-  const fomcDate = nextFomcMeeting(todayCL)
-  if (fomcDate) upcoming.push({ label: 'Decisión de tasas de la Fed', date: fomcDate })
-  const ownedTickersForEarnings = [...new Set((stocks ?? []).map(s => s.ticker))]
-  if (ownedTickersForEarnings.length > 0) {
-    const earningsResults = await Promise.all(ownedTickersForEarnings.map(t => fetchEarnings(supabase, t)))
-    for (const e of earningsResults) {
-      if (!e.nextDate) continue
-      const days = businessDaysUntil(e.nextDate, todayCL)
-      if (days !== null && days <= 5) upcoming.push({ label: `${e.symbol} reporta resultados`, date: e.nextDate })
+  if (needsMacro) {
+    const fomcDate = nextFomcMeeting(todayCL)
+    if (fomcDate) upcoming.push({ label: 'Decisión de tasas de la Fed', date: fomcDate })
+    const ownedTickersForEarnings = [...new Set((stocks ?? []).map(s => s.ticker))]
+    if (ownedTickersForEarnings.length > 0) {
+      const earningsResults = await Promise.all(ownedTickersForEarnings.map(t => fetchEarnings(supabase, t)))
+      for (const e of earningsResults) {
+        if (!e.nextDate) continue
+        const days = businessDaysUntil(e.nextDate, todayCL)
+        if (days !== null && days <= 5) upcoming.push({ label: `${e.symbol} reporta resultados`, date: e.nextDate })
+      }
     }
+    upcoming.sort((a, b) => a.date.localeCompare(b.date))
   }
-  upcoming.sort((a, b) => a.date.localeCompare(b.date))
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
