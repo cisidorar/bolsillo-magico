@@ -98,11 +98,11 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
             </div>
             <div className="px-4 lg:px-5 py-4">
               <p className="text-[11px] leading-relaxed mb-3" style={{ color: 'var(--ink-3)' }}>
-                Si cada compra de acciones hubiera comprado SPY ese mismo día por el mismo monto (y cada venta hubiera vendido SPY ese día), hoy tendrías:
+                Si cada aporte a tu billetera hubiera comprado SPY ese mismo día por el mismo monto, hoy tendrías:
               </p>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="rounded-2xl p-3 text-center" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tus posiciones</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu portafolio</p>
                   <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(b.realValueUsd)}</p>
                 </div>
                 <div className="rounded-2xl p-3 text-center" style={{ background: 'var(--surface-2)' }}>

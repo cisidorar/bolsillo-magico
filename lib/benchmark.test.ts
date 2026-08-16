@@ -11,13 +11,20 @@ const spyHistory: DateClose[] = [
   { date: '2025-05-01', close: 500 },
 ]
 
+// ago 2026 (Cas: "me gustaria que cuando compre los dolares altiro hubiera
+// comprado [SPY]... para que sea justo" + "en el valor del portafolio quiero
+// que sumes lo que esta en la billetera"): el flujo de caja de la sombra
+// ahora son APORTES a la billetera (dinero nuevo entrando), no compras/
+// ventas de acciones — una venta ya no puede "romper" la sombra porque ya no
+// genera un evento de flujo. El valor real ahora es posiciones + efectivo en
+// la billetera. Ver comentario de metodología completo en lib/benchmark.ts.
 describe('computeSpyBenchmark', () => {
   it('null sin datos', () => {
     expect(computeSpyBenchmark([], spyHistory, [], new Map())).toBeNull()
     expect(computeSpyBenchmark([{ date: '2025-01-01', usd: 100 }], [], [], new Map())).toBeNull()
   })
 
-  it('compra única, sin ventas: shadow crece igual que SPY', () => {
+  it('aporte único, sin efectivo suelto: shadow crece igual que SPY', () => {
     const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 4000 }]   // 10 acciones sombra
     const positions: PositionLite[] = [{ ticker: 'AAPL', shares: 10 }]
     const latest = new Map([['AAPL', 500]])   // la acción real también terminó en $500/u
@@ -39,16 +46,31 @@ describe('computeSpyBenchmark', () => {
     expect(r.diffPct).toBeGreaterThan(0)
   })
 
-  it('venta reduce la posición sombra en el mismo monto y fecha', () => {
-    const flows: CashFlowEvent[] = [
-      { date: '2025-01-01', usd: 4000 },    // compra: +10 shadow shares
-      { date: '2025-03-01', usd: -2250 },   // venta parcial a precio SPY de esa fecha (450): −5 shadow shares
-    ]
-    const positions: PositionLite[] = [{ ticker: 'AAPL', shares: 5 }]   // le queda la mitad real también
+  it('efectivo disponible en la billetera se suma al valor real', () => {
+    const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 4000 }]
+    const positions: PositionLite[] = [{ ticker: 'AAPL', shares: 5 }]
     const latest = new Map([['AAPL', 500]])
-    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
-    expect(r.spyShares).toBeCloseTo(5, 5)
-    expect(r.shadowValueUsd).toBeCloseTo(2500, 5)   // 5 × 500
+    const withoutCash = computeSpyBenchmark(flows, spyHistory, positions, latest)!
+    const withCash    = computeSpyBenchmark(flows, spyHistory, positions, latest, 1500)!
+    expect(withoutCash.realValueUsd).toBeCloseTo(2500, 5)         // 5 × 500
+    expect(withCash.realValueUsd).toBeCloseTo(4000, 5)            // 2500 + 1500 efectivo
+    expect(withCash.shadowValueUsd).toBeCloseTo(withoutCash.shadowValueUsd, 5)  // la sombra no cambia
+  })
+
+  it('una venta grande ya no distorsiona la sombra — solo mueve valor a efectivo de billetera', () => {
+    // Aportó $1000 una vez (2.5 acciones sombra), compró una acción que se
+    // disparó y la vendió por mucho más de lo que la sombra vale — esa venta
+    // NO es un evento de flujo (ya no hay posición abierta ni cashflow extra),
+    // solo aumenta el efectivo disponible en la billetera.
+    const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 1000 }]
+    const positions: PositionLite[] = []   // se vendió todo
+    const latest = new Map<string, number>()
+    const r = computeSpyBenchmark(flows, spyHistory, positions, latest, 5000)!
+    expect(r.shadowValueUsd).toBeCloseTo(1250, 5)   // 2.5 × 500, intacta
+    expect(r.realValueUsd).toBeCloseTo(5000, 5)     // 0 en posiciones + 5000 de efectivo
+    expect(r.diffUsd).toBeCloseTo(3750, 5)
+    expect(r.degenerate).toBe(false)
+    expect(r.distorted).toBe(false)   // 300% de diffPct no se dispara por una venta — solo por revalorización real
   })
 
   it('fecha sin dato exacto usa el cierre disponible más cercano hacia atrás', () => {
@@ -66,20 +88,19 @@ describe('computeSpyBenchmark', () => {
     expect(r.realValueUsd).toBe(0)
   })
 
-  // Regresión (jul 2026, a pedido de Cas): screenshot real con "En SPY
-  // habrías tenido US$0,00" exacto y sin % vs. SPY — una venta que ganó MUCHO
-  // más que SPY retira más dólares de la sombra de los que esos mismos flujos
-  // habrían generado en SPY, dejando la sombra en negativo (pisada a 0). Sin
-  // el flag `degenerate`, la UI presentaba esto como "le ganaste al mercado
-  // por el 100% de tu cartera", un veredicto limpio pero engañoso.
-  it('venta con ganancia mucho mayor a SPY dobla la sombra a negativo → degenerate=true, shadow en 0', () => {
+  // `degenerate`/`distorted` son legado del modelo anterior (cash flow por
+  // compra/venta de acción, donde una venta grande podía forzar la sombra a
+  // negativo o casi vaciarla). Los callers reales (inversiones/page.tsx,
+  // weekly-report cron) ya solo mandan aportes (+) como flujo, así que estos
+  // casos no deberían ocurrir en producción — se prueba acá solo que la
+  // función sigue siendo defensiva si alguna vez recibe un flujo negativo.
+  it('flujo negativo directo (no usado por los callers reales) sigue sin generar sombra negativa', () => {
     const flows: CashFlowEvent[] = [
-      { date: '2025-01-01', usd: 1000 },    // compra: 1000/400 = 2.5 shadow shares
-      { date: '2025-03-01', usd: -5000 },   // venta con ganancia real enorme: -5000/450 ≈ -11.11 shadow shares
-      { date: '2025-04-01', usd: 2000 },    // nueva compra (posición abierta hoy): +2000/475 ≈ +4.21
+      { date: '2025-01-01', usd: 1000 },
+      { date: '2025-03-01', usd: -5000 },
     ]
     const positions: PositionLite[] = [{ ticker: 'NVDA', shares: 10 }]
-    const latest = new Map([['NVDA', 253.294]])   // realValueUsd ≈ 2532.94, como en el screenshot
+    const latest = new Map([['NVDA', 253.294]])
     const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
     expect(r.degenerate).toBe(true)
     expect(r.shadowValueUsd).toBe(0)
@@ -87,36 +108,12 @@ describe('computeSpyBenchmark', () => {
     expect(r.diffPct).toBeNull()
   })
 
-  it('caso normal (sin ventas que superen la sombra): degenerate=false', () => {
+  it('caso normal (solo aportes): degenerate=false', () => {
     const flows: CashFlowEvent[] = [{ date: '2025-01-01', usd: 4000 }]
     const positions: PositionLite[] = [{ ticker: 'AAPL', shares: 10 }]
     const latest = new Map([['AAPL', 500]])
     const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
     expect(r.degenerate).toBe(false)
-  })
-
-  // Regresión (ago 2026, a pedido de Cas): screenshot real con "+1315,1% vs.
-  // SPY" y solo US$284,75 de sombra — un escalón antes de degenerate. La
-  // venta consumió CASI toda la sombra sin cruzar a negativo (spyShares
-  // termina positivo pero minúsculo), así que `degenerate` no se activaba y
-  // el % salía técnicamente correcto pero sin significado (dividir por casi
-  // nada). `distorted` cubre este caso — diffUsd sigue siendo válido, solo
-  // el % pierde sentido.
-  it('venta consume casi toda la sombra sin cruzar a negativo → distorted=true, degenerate=false', () => {
-    const flows: CashFlowEvent[] = [
-      { date: '2025-01-01', usd: 1000 },    // compra: 1000/400 = 2.5 shadow shares
-      { date: '2025-03-01', usd: -1080 },   // venta: -1080/450 = -2.4 shadow shares → queda 0.1 (positivo, no degenerate)
-    ]
-    const positions: PositionLite[] = [{ ticker: 'NVDA', shares: 10 }]
-    const latest = new Map([['NVDA', 400]])   // realValueUsd = 4000, muy por sobre la sombra chica (0.1 × 500 = 50)
-    const r = computeSpyBenchmark(flows, spyHistory, positions, latest)!
-    expect(r.degenerate).toBe(false)
-    expect(r.spyShares).toBeGreaterThan(0)
-    expect(r.diffPct).not.toBeNull()
-    expect(Math.abs(r.diffPct!)).toBeGreaterThan(300)
-    expect(r.distorted).toBe(true)
-    // El $ sigue siendo una resta simple, válida sin importar el %.
-    expect(r.diffUsd).toBeCloseTo(r.realValueUsd - r.shadowValueUsd, 5)
   })
 
   it('% moderado (<=300%): distorted=false', () => {

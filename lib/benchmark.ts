@@ -1,20 +1,34 @@
 // ── Benchmark vs SPY: ¿le ganaste al mercado? ─────────────────────────────────
 // La pregunta más importante de cualquier portafolio de stock-picking: si el
-// mismo dinero, con las mismas fechas de entrada y salida, hubiera ido a un
-// índice pasivo (SPY), ¿tendrías más o menos de lo que tienes hoy?
+// mismo dinero, con las mismas fechas de entrada, hubiera ido a un índice
+// pasivo (SPY), ¿tendrías más o menos de lo que tienes hoy?
 //
-// Método (cash-flow matched, basado en cierres — no en precio en vivo, mismo
-// criterio que el resto del motor técnico, pensado para decisión semanal):
-//   1. Se simula una "posición sombra" en SPY: cada compra de acciones compra
-//      SPY por el mismo monto en la misma fecha; cada venta de acciones vende
-//      SPY por el mismo monto en la misma fecha (mismo timing de flujo de
-//      caja — así la comparación no premia/castiga por cuándo entraste o
-//      saliste, solo por QUÉ compraste).
-//   2. El valor real hoy = posiciones abiertas valorizadas al último cierre
-//      conocido de cada ticker (no precio en vivo: consistente con que el
-//      resto del análisis técnico trabaja con cierres).
+// ago 2026 (Cas: "me gustaria que cuando compre los dolares altiro hubiera
+// comprado [SPY], vs lo que he ganado asta ahora... para que sea justo" + "en
+// el valor del portafolio quiero que sumes lo que esta en la billetera"):
+// ANTES el flujo de caja de la sombra se armaba con cada COMPRA/VENTA de
+// acción individual (compra = compra SPY, venta = vende SPY) — eso rompía la
+// sombra cada vez que una venta le ganaba por mucho al mercado, porque el
+// modelo tenía que "vender" de la sombra más de lo que esos mismos dólares
+// habían generado en SPY hasta esa fecha (ver `degenerate`/`distorted` abajo,
+// ambos legado de ese diseño). Una compra o venta de acción no es dinero
+// nuevo ni dinero que sale del sistema — es solo mover valor entre "efectivo
+// en la billetera" y "posición abierta". El único evento que sí representa
+// dinero nuevo entrando es un APORTE a la billetera USD.
+//
+// Método actual (cash-flow matched, basado en cierres):
+//   1. Sombra en SPY: cada aporte a la billetera compra SPY por ese mismo
+//      monto en esa misma fecha. No hay eventos de venta — vender una acción
+//      no retira plata del sistema, solo la mueve de "posición" a "efectivo
+//      en la billetera", y ese efectivo ya cuenta en el valor real (punto 2).
+//   2. Valor real hoy = posiciones abiertas valorizadas al último cierre
+//      conocido de cada ticker + efectivo disponible en la billetera (no
+//      invertido todavía). Así una venta con ganancia nunca "rompe" la
+//      comparación: simplemente mueve valor de un lado a otro del valor real,
+//      sin tocar la sombra.
 //   3. La diferencia entre ambos valores es lo que ganaste (o perdiste) por
-//      elegir acciones individuales en vez de indexarte.
+//      elegir acciones individuales en vez de indexarte, con el mismo dinero
+//      y las mismas fechas de aporte.
 //
 // Precisión de fechas: los cierres de price_history no cubren fines de
 // semana/feriados. Si la fecha exacta no está, se usa el cierre disponible
@@ -24,43 +38,34 @@ export interface DateClose { date: string; close: number }
 
 export interface CashFlowEvent {
   date: string   // YYYY-MM-DD
-  usd:  number   // + = compra de acciones (compra SPY en la sombra) · − = venta (vende SPY en la sombra)
+  usd:  number   // aporte a la billetera (compra SPY en la sombra ese día) — siempre + en uso normal
 }
 
 export interface PositionLite { ticker: string; shares: number }
 
 export interface SpyBenchmarkResult {
-  realValueUsd:   number   // posiciones abiertas al último cierre conocido
-  shadowValueUsd: number   // lo que esos mismos flujos de caja valdrían en SPY
+  realValueUsd:   number   // posiciones abiertas al último cierre conocido + efectivo en la billetera
+  shadowValueUsd: number   // lo que esos mismos aportes valdrían en SPY
   diffUsd:        number   // realValueUsd − shadowValueUsd
   diffPct:        number | null   // diff como % del valor sombra (null si sombra es 0)
   asOfDate:       string   // fecha del cierre usado como "hoy" (último dato disponible)
   spyShares:      number   // acciones sombra de SPY remanentes (diagnóstico)
   /**
-   * true cuando la simulación de sombra se rompió: una venta retiró más
-   * dólares de los que esos mismos flujos habrían generado en SPY hasta esa
-   * fecha (típico cuando una posición individual le ganó por mucho al
-   * mercado — el modelo tendría que "cortar en corto" SPY para seguir
-   * calzando, lo cual no tiene sentido para una posición sombra long-only).
-   * Cuando esto pasa, `shadowValueUsd` queda en 0 (piso, nunca negativo) y
-   * `diffUsd` termina siendo prácticamente el valor total de la posición
-   * real — un número técnicamente correcto según la fórmula, pero engañoso
-   * de presentar como "cuánto le ganaste al mercado", porque la comparación
-   * en sí dejó de ser válida. La UI debe avisarlo en vez de mostrar un
-   * veredicto limpio (detectado por Cas, jul 2026 — screenshot con "En SPY
-   * habrías tenido US$0,00" exacto).
+   * Legado del modelo anterior (cash flow por compra/venta de acción): una
+   * venta podía retirar de la sombra más dólares de los que esos mismos
+   * flujos habrían generado en SPY, forzando un "corto" imaginario. Con el
+   * modelo actual (solo aportes como flujo, ventas no tocan la sombra) esto
+   * ya no debería poder pasar — se deja el campo por compatibilidad de tipo
+   * con los consumidores existentes (PerformanceSection, WeekSnapshotCard,
+   * Radar, el correo semanal), siempre en `false` en la práctica.
    */
   degenerate:     boolean
   /**
-   * ago 2026 (bug reportado por Cas: "+1315,1% vs. SPY" con solo US$284,75
-   * de sombra): `degenerate` solo cubre el caso en que la sombra se va a
-   * NEGATIVO y se pisa a 0. Pero una venta puede consumir CASI toda la
-   * sombra sin llegar a cruzar cero — spyShares queda positivo pero
-   * minúsculo frente al valor real, y dividir por esa base casi nula da un
-   * % de cientos o miles por ciento, técnicamente correcto pero sin
-   * significado práctico (mismo problema, un escalón antes de degenerate).
-   * `diffUsd` sigue siendo válido en este caso (es solo una resta, no
-   * depende de la base) — únicamente el % pierde sentido. Umbral: 300%.
+   * Legado del mismo rediseño: con cash flows que ya no pueden ir a
+   * negativo, la base de la sombra no debería volverse casi nula por una
+   * venta puntual. Se deja el campo/umbral (300%) por si algún escenario
+   * extremo de aportes muy chicos + revalorización enorme lo dispara, pero
+   * ya no es el caso típico que motivó su creación.
    */
   distorted:      boolean
 }
@@ -76,10 +81,11 @@ function closeOnOrBefore(history: DateClose[], date: string): number | null {
 }
 
 export function computeSpyBenchmark(
-  cashFlows:      CashFlowEvent[],     // compras (+) y ventas (−) de acciones, orden cualquiera
+  cashFlows:      CashFlowEvent[],     // aportes a la billetera USD (+) — compra SPY ese día
   spyHistory:     DateClose[],         // ascendente por fecha
   positions:      PositionLite[],      // posiciones abiertas hoy
   latestCloseByTicker: Map<string, number>,   // último cierre conocido por ticker (incluye posiciones)
+  walletCashUsd:  number = 0,          // efectivo disponible en la billetera hoy (no invertido)
 ): SpyBenchmarkResult | null {
   if (spyHistory.length === 0 || cashFlows.length === 0) return null
 
@@ -90,11 +96,9 @@ export function computeSpyBenchmark(
     if (px <= 0) continue
     rawSpyShares += ev.usd / px
   }
-  // Piso en 0: una venta con ganancia mucho mayor a la de SPY puede retirar
-  // más dólares de la sombra de los que esos mismos flujos generaron en
-  // SPY hasta esa fecha — el modelo no reporta una posición corta imaginaria.
-  // `degenerate` avisa cuándo pasó esto, para que la UI no presente el
-  // resultado como un veredicto limpio (ver comentario en SpyBenchmarkResult).
+  // Piso en 0 — legado del modelo anterior (ver comentario en SpyBenchmarkResult).
+  // Con solo aportes (+) como flujo, rawSpyShares no debería poder ir a
+  // negativo, pero se deja el resguardo.
   const degenerate = rawSpyShares < -1e-6
   const spyShares  = Math.max(0, rawSpyShares)
 
@@ -102,10 +106,14 @@ export function computeSpyBenchmark(
   const latestSpyPx = spyHistory[spyHistory.length - 1].close
   const shadowValueUsd = spyShares * latestSpyPx
 
-  const realValueUsd = positions.reduce((s, p) => {
+  const positionsValueUsd = positions.reduce((s, p) => {
     const px = latestCloseByTicker.get(p.ticker)
     return px ? s + p.shares * px : s
   }, 0)
+  // ago 2026 (Cas): el valor real incluye el efectivo que todavía está en la
+  // billetera sin invertir — es plata que ya entró al sistema (contada en la
+  // sombra vía el aporte que la trajo), así que tiene que contar acá también.
+  const realValueUsd = positionsValueUsd + Math.max(0, walletCashUsd)
 
   const diffUsd = realValueUsd - shadowValueUsd
   const diffPct = shadowValueUsd > 0 ? (diffUsd / shadowValueUsd) * 100 : null

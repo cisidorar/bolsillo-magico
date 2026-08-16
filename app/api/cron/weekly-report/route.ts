@@ -173,11 +173,14 @@ export async function GET(request: Request) {
   let ok = 0, failed = 0
   for (const userId of userIds) {
     try {
-      const [{ data: stocks }, { data: watchlistRows }, { data: sales }, { data: purchases }] = await Promise.all([
-        supabase.from('stock_positions').select('ticker, shares').eq('user_id', userId),
+      const [{ data: stocks }, { data: watchlistRows }, { data: usdPurchases }] = await Promise.all([
+        supabase.from('stock_positions').select('ticker, shares, wallet_cost_usd').eq('user_id', userId),
         supabase.from('watchlist').select('ticker').eq('user_id', userId),
-        supabase.from('stock_sales').select('sale_date, proceeds_usd').eq('user_id', userId),
-        supabase.from('stock_purchases').select('purchase_date, total_paid_usd').eq('user_id', userId),
+        // ago 2026 (Cas): mismo cambio de metodología que inversiones/page.tsx
+        // — el flujo de caja de la sombra SPY es por aporte a la billetera,
+        // no por compra/venta de acción (ver lib/benchmark.ts). stock_sales/
+        // stock_purchases ya no hacen falta acá.
+        supabase.from('usd_purchases').select('usd_amount, purchase_date, kind').eq('user_id', userId),
       ])
 
       const ownedTickers = new Set((stocks ?? []).map(s => s.ticker as string))
@@ -187,8 +190,11 @@ export async function GET(request: Request) {
       const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers, spyReturn6m)
 
       // Benchmark vs SPY — mismo cálculo que app/(dashboard)/inversiones/page.tsx
+      // (ago 2026: flujo de caja por aporte a la billetera, no por compra/
+      // venta de acción — ver comentario de metodología en lib/benchmark.ts)
       let spyBenchmark: SpyBenchmarkResult | null = null
-      if ((purchases?.length ?? 0) > 0) {
+      const deposits = (usdPurchases ?? []).filter(p => p.kind === 'deposit')
+      if (deposits.length > 0) {
         const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker as string))]
         const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
           supabase.from('price_history').select('date, close').eq('ticker', 'SPY').order('date', { ascending: true }),
@@ -201,15 +207,16 @@ export async function GET(request: Request) {
           const t = row.ticker as string
           if (!latestCloseByTicker.has(t)) latestCloseByTicker.set(t, Number(row.close))
         }
-        const cashFlows = [
-          ...(purchases ?? []).map(p => ({ date: p.purchase_date as string, usd: Number(p.total_paid_usd) })),
-          ...(sales ?? []).map(s => ({ date: s.sale_date as string, usd: -Number(s.proceeds_usd) })),
-        ]
+        const cashFlows = deposits.map(p => ({ date: p.purchase_date as string, usd: Number(p.usd_amount) }))
+        const walletUsdBase = (usdPurchases ?? []).reduce((s, p) => s + Number(p.usd_amount), 0)
+        const investedUsd   = (stocks ?? []).reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
+        const walletCashUsd = Math.max(0, walletUsdBase - investedUsd)
         spyBenchmark = computeSpyBenchmark(
           cashFlows,
           (spyRows ?? []).map(r => ({ date: r.date as string, close: Number(r.close) })),
           (stocks ?? []).map(s => ({ ticker: s.ticker as string, shares: Number(s.shares) })),
           latestCloseByTicker,
+          walletCashUsd,
         )
       }
 

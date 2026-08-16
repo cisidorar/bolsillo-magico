@@ -268,7 +268,11 @@ export default async function InversionesPage({ searchParams }: Props) {
   let latestCloseByTicker  = new Map<string, number>()
   // Solo lo consumen Radar (Mis acciones/Watchlist) y PerformanceSection —
   // nada en Ahorro/Billetera lee spyBenchmark/portfolioHistory.
-  if (needsRadarData && (purchases?.length ?? 0) > 0) {
+  // ago 2026 (Cas): el gate ahora es sobre APORTES a la billetera, no sobre
+  // compras de acciones — son el flujo de caja que de verdad mueve la sombra
+  // (ver lib/benchmark.ts).
+  const hasDeposits = (usdPurchases ?? []).some(p => p.kind === 'deposit')
+  if (needsRadarData && hasDeposits) {
     const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker))]
     const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
       supabase
@@ -292,16 +296,21 @@ export default async function InversionesPage({ searchParams }: Props) {
       priceHistoryByTicker.set(row.ticker, list)
     }
 
-    const cashFlows = [
-      ...(purchases ?? []).map(p => ({ date: p.purchase_date, usd: Number(p.total_paid_usd) })),
-      ...(sales ?? []).map(s => ({ date: s.sale_date, usd: -Number(s.proceeds_usd) })),
-    ]
+    // ago 2026 (Cas: "me gustaria que cuando compre los dolares altiro
+    // hubiera comprado [SPY]... para que sea justo"): flujo de caja = aportes
+    // a la billetera (dinero nuevo entrando), no compra/venta de acciones —
+    // ver el comentario de metodología en lib/benchmark.ts.
+    const cashFlows = (usdPurchases ?? [])
+      .filter(p => p.kind === 'deposit')
+      .map(p => ({ date: p.purchase_date, usd: Number(p.usd_amount) }))
+    const walletCashUsd = Math.max(0, walletUsdBase - investedUsd)
 
     spyBenchmark = computeSpyBenchmark(
       cashFlows,
       (spyRows ?? []).map(r => ({ date: r.date as string, close: Number(r.close) })),
       (stocks ?? []).map(s => ({ ticker: s.ticker, shares: s.shares })),
       latestCloseByTicker,
+      walletCashUsd,
     )
 
     portfolioHistory = computePortfolioHistory(
