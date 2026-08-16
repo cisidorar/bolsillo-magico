@@ -102,7 +102,7 @@ export default async function IngresosPage() {
           >
             Ingresos
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
             Registra tus ingresos mensuales variables y sigue su evolución.
           </p>
         </div>

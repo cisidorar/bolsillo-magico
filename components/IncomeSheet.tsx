@@ -351,7 +351,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                   <div className="flex gap-2">
                     <button
                       onClick={() => setDeleteConfirm(false)}
-                      className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                      className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
                       Cancelar
@@ -359,7 +359,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                     <button
                       onClick={deleteIncome}
                       disabled={deleting}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-50 transition-colors"
                       style={{ background: 'var(--coral)', color: 'white' }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />

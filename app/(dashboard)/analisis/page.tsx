@@ -913,15 +913,15 @@ export default async function AnalisisPage({
             ) : isPatrimonio ? 'Patrimonio' : 'Análisis'}
           </h1>
           {isAnual && pastRows.length > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5 hidden lg:block">
+            <p className="text-sm mt-0.5 hidden lg:block" style={{ color: 'var(--ink-3)' }}>
               {pastRows.length} de 12 meses con registros
             </p>
           )}
           {isPatrimonio && (
-            <p className="text-xs text-gray-400 mt-0.5">Ahorro, respaldo, compromisos y proyección</p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Ahorro, respaldo, compromisos y proyección</p>
           )}
           {!isAnual && !isPatrimonio && totalSelected > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">{selectedExpenses.length} gasto{selectedExpenses.length !== 1 ? 's' : ''} · {daysElapsed} días registrados</p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>{selectedExpenses.length} gasto{selectedExpenses.length !== 1 ? 's' : ''} · {daysElapsed} días registrados</p>
           )}
         </div>
         {isAnual ? (

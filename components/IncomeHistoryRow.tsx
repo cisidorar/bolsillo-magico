@@ -163,7 +163,7 @@ export default function IncomeHistoryRow({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setConfirmDelete(false)}
-                      className="flex-1 py-2 text-sm font-semibold rounded-xl border transition-colors"
+                      className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
                     >
                       Cancelar
@@ -171,7 +171,7 @@ export default function IncomeHistoryRow({
                     <button
                       onClick={handleDelete}
                       disabled={deleting}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-bold rounded-xl"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl"
                       style={{ background: 'var(--coral)', color: 'white' }}
                     >
                       {deleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -187,7 +187,7 @@ export default function IncomeHistoryRow({
                 {isReg && (
                   <button
                     onClick={() => setConfirmDelete(true)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl border shrink-0 transition-colors"
+                    className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"
                     style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
                     aria-label="Eliminar"
                   >
@@ -196,14 +196,14 @@ export default function IncomeHistoryRow({
                 )}
                 <button
                   onClick={closeDetail}
-                  className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                  className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
                   style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                 >
                   Cerrar
                 </button>
                 <button
                   onClick={() => { setDetailOpen(false); setConfirmDelete(false); setFormOpen(true) }}
-                  className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                  className="flex-1 py-3 text-sm font-bold rounded-2xl transition-all active:scale-[.98]"
                   style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
                 >
                   {isReg ? 'Editar' : 'Registrar'}

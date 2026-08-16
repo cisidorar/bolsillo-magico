@@ -1784,10 +1784,18 @@ export default function Radar({
                   en un detalle largo (posición con movimientos + plan), justo
                   el gesto que I1 quiso eliminar. Ahora siempre visible. */}
               <div className="border-t px-4 py-3 space-y-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                {/* ago 2026 (Cas: "busca estandar, y estandariza los botones" —
+                    comparó este footer con el de Historial/Billetera): antes
+                    Comprar más/Vender usaban rounded-xl/py-2.5 y la fila de
+                    abajo (Editar posición/Eliminar/Dejar de seguir) eran
+                    links de puro texto sin ningún borde ni fondo — el único
+                    footer de la app sin chrome de botón real. Ahora todo usa
+                    el mismo estándar que Billetera/Ingresos/Historial:
+                    rounded-2xl, py-3/py-2.5, superficies con borde. */}
                 {!isOwned ? (
                   <button
                     onClick={() => setTxn({ mode: 'new', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-2xl transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-3 text-xs font-bold rounded-2xl transition-colors"
                     style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                   >
                     <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -1797,7 +1805,7 @@ export default function Radar({
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setTxn({ mode: 'buyMore', ticker, prefillUsd: suggestedUsdFor(ticker) ?? undefined })}
-                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[.98]"
+                      className="flex items-center justify-center gap-1.5 py-3 rounded-2xl font-bold text-xs transition-all active:scale-[.98]"
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                     >
                       <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -1805,7 +1813,7 @@ export default function Radar({
                     </button>
                     <button
                       onClick={() => setTxn({ mode: 'sell', ticker })}
-                      className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs border transition-all active:scale-[.98]"
+                      className="flex items-center justify-center gap-1.5 py-3 rounded-2xl font-bold text-xs border transition-all active:scale-[.98]"
                       style={{ background: 'transparent', color: 'var(--mint)', borderColor: 'rgba(31,190,141,0.4)' }}
                     >
                       <DollarSign className="w-3.5 h-3.5" />
@@ -1814,15 +1822,17 @@ export default function Radar({
                   </div>
                 )}
                 {(isOwned || item) && (
-                  <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {isOwned && (
                       <>
                         <button onClick={() => setTxn({ mode: 'edit', ticker })}
-                          className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                          className="px-3 py-2 text-[11px] font-semibold rounded-2xl border transition-colors"
+                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
                           Editar posición
                         </button>
                         <button onClick={() => setTxn({ mode: 'delete', ticker })}
-                          className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+                          className="px-3 py-2 text-[11px] font-semibold rounded-2xl border transition-colors"
+                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
                           Eliminar sin registrar venta
                         </button>
                       </>
@@ -1830,7 +1840,7 @@ export default function Radar({
                     {item && (
                       <button
                         onClick={() => { removeTicker(item); setExpanded(null) }}
-                        className="flex items-center gap-1 text-[11px] font-semibold"
+                        className="logout-btn flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-2xl border transition-colors"
                         style={{ color: 'var(--coral)' }}
                       >
                         <Trash2 className="w-3 h-3" />
