@@ -175,17 +175,23 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
 
         return (
           <div
-            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
-            style={{ background: 'rgba(0,0,0,0.65)' }}
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
             {...detailBackdropClose}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detalle de gasto"
           >
             <div
-              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden bg-white"
+              className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-hidden"
               style={{ maxHeight: '92dvh' }}
             >
               <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 
-              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b border-gray-100">
+              {/* Header — mismos tokens que ExpenseSheet (px-5 pt-3 pb-3 lg:px-6,
+                  border-gray-100, título text-base font-bold text-gray-900,
+                  cierre w-11 h-11) para que detalle y edición se sientan la
+                  misma superficie, no dos modales distintos. */}
+              <div className="flex items-center gap-3 px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
                   <Icon className="w-5 h-5" style={{ color }} />
                 </div>
@@ -193,27 +199,28 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   <h2 className="text-base font-bold truncate text-gray-900">
                     {e.description ?? e.category?.name ?? 'Gasto'}
                   </h2>
-                  <p className="text-[11px] text-gray-400">{fmtDateLong(e.date)}</p>
+                  <p className="text-xs text-gray-400">{fmtDateLong(e.date)}</p>
                 </div>
                 <button
                   onClick={closeDetail}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors"
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                  aria-label="Cerrar"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
+              <div className="px-5 lg:px-6 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
                 <div className="rounded-2xl overflow-hidden divide-y divide-gray-100 bg-gray-50">
                   <div className="flex items-center justify-between px-4 py-2.5">
-                    <span className="text-xs font-semibold text-gray-400">Monto</span>
+                    <span className="text-xs font-semibold text-gray-500">Monto</span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
                       −{formatCLP(e.amount)}
                     </span>
                   </div>
                   {e.category && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-400">Categoría</span>
+                      <span className="text-xs font-semibold text-gray-500">Categoría</span>
                       <span
                         className="cat-badge inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
                         style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
@@ -228,7 +235,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   )}
                   {e.payment_method && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-400">Método de pago</span>
+                      <span className="text-xs font-semibold text-gray-500">Método de pago</span>
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700">
                         <PaymentIcon cardType={e.payment_method.card_type} />
                         {e.payment_method.name}
@@ -237,36 +244,38 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   )}
                   {e.recurring_expense && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-400">Recurrente</span>
+                      <span className="text-xs font-semibold text-gray-500">Recurrente</span>
                       <span className="text-sm font-bold text-gray-700">{e.recurring_expense.name}</span>
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-gray-400">Descripción</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Descripción</p>
                   <p className={cn('text-sm', e.description ? 'text-gray-700' : 'text-gray-400')}>
-                    {e.description || 'Sin descripción — agrégala al editar.'}
+                    {e.description || 'Descripción (opcional) — agrégala al editar.'}
                   </p>
                 </div>
 
+                {/* Confirmación de eliminar — copia exacta del bloque de
+                    ExpenseSheet.editActions, sin caja de color de fondo. */}
                 {confirmDelete && (
-                  <div className="rounded-2xl p-4 space-y-3 bg-red-50 border border-red-200">
-                    <p className="text-sm text-center font-medium text-gray-700">¿Eliminar este gasto?</p>
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-2">
+                    <p className="text-sm text-center text-gray-500">¿Seguro que quieres eliminar este gasto?</p>
+                    <div className="flex gap-3">
                       <button
                         onClick={() => setConfirmDelete(false)}
-                        className="flex-1 py-2 text-sm font-semibold rounded-xl border border-gray-200 bg-white text-gray-600 transition-colors"
+                        className="flex-1 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
                       >
                         Cancelar
                       </button>
                       <button
                         onClick={() => handleDelete(e)}
                         disabled={deleting}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-bold rounded-xl bg-red-500 text-white disabled:opacity-60"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60"
                       >
-                        {deleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        {deleting ? 'Eliminando…' : 'Eliminar'}
+                        {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        {deleting ? 'Eliminando...' : 'Sí, eliminar'}
                       </button>
                     </div>
                   </div>
@@ -274,23 +283,23 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
               </div>
 
               {!confirmDelete && (
-                <div className="border-t border-gray-100 px-5 py-3 flex items-center gap-2 flex-shrink-0 bg-white">
+                <div className="border-t border-gray-100 px-5 lg:px-6 py-3 flex items-center gap-3 flex-shrink-0 bg-white">
                   <button
                     onClick={() => setConfirmDelete(true)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-red-500 transition-colors shrink-0"
+                    className="logout-btn flex items-center justify-center w-11 h-11 text-red-500 border rounded-2xl transition-colors flex-shrink-0"
                     aria-label="Eliminar"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={closeDetail}
-                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 bg-gray-50 text-gray-600 transition-colors"
+                    className="px-4 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
                   >
                     Cerrar
                   </button>
                   <button
                     onClick={() => { setDetailExpense(null); setConfirmDelete(false); setEditingExpense(e) }}
-                    className="flex-1 py-2.5 text-sm font-bold rounded-xl text-white transition-all active:scale-[.98]"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl transition-colors"
                     style={{ backgroundColor: 'var(--primary)' }}
                   >
                     Editar
