@@ -1055,17 +1055,30 @@ export default function Radar({
                   </div>
                   {/* Mockup de Cas (ago 2026): valor arriba, cambio de HOY
                       ($ + %) al medio, retorno total (%) abajo — todo en una
-                      sola columna a la derecha en vez de 3 columnas separadas. */}
+                      sola columna a la derecha en vez de 3 columnas separadas.
+                      Ordenando por Distribución % (Cas: "quiero que cuando
+                      sea distribucion % por ejemplo solo muestre el
+                      porcentaje y nada mas") ese único número reemplaza todo
+                      el stack — mostrar valor/hoy/ganancia junto al % de
+                      distribución no aporta nada, son magnitudes distintas. */}
                   <div className="text-right flex-shrink-0" style={{ minWidth: 110 }}>
-                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                      {fmtUSD(row.valueUsd)}
-                    </p>
-                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.dailyUsd === null ? 'var(--ink-3)' : row.dailyUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                      {row.dailyUsd !== null && row.dailyPct !== null ? `${fmtUSDSigned(row.dailyUsd)} · ${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(1)}%` : '—'}
-                    </p>
-                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.gainPct === null ? 'var(--ink-3)' : row.gainPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                      {row.gainPct !== null ? fmtPct(row.gainPct) : '—'}
-                    </p>
+                    {sortKey === 'distPct' ? (
+                      <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {row.distPct !== null ? `${row.distPct.toFixed(1)}%` : '—'}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {fmtUSD(row.valueUsd)}
+                        </p>
+                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.dailyUsd === null ? 'var(--ink-3)' : row.dailyUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {row.dailyUsd !== null && row.dailyPct !== null ? `${fmtUSDSigned(row.dailyUsd)} · ${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(1)}%` : '—'}
+                        </p>
+                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.gainPct === null ? 'var(--ink-3)' : row.gainPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {row.gainPct !== null ? fmtPct(row.gainPct) : '—'}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                 </button>
