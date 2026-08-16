@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { formatCLP, relativeDate, isEmoji, type DateFormat } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -10,6 +12,9 @@ import ExpenseSheet from './ExpenseSheet'
 import ServiceLogo from './ServiceLogo'
 import { cn } from '@/lib/utils'
 import { PaymentIcon } from './PaymentIcon'
+import { useBackdropClose } from '@/components/useBackdropClose'
+import { useToast } from '@/components/ToastProvider'
+import { X, Trash2, ChevronRight, RefreshCw } from 'lucide-react'
 
 interface Props {
   expenses: ExpenseWithRelations[]
@@ -17,8 +22,58 @@ interface Props {
   dateFormat?: DateFormat
 }
 
+function fmtDateLong(d: string): string {
+  try {
+    const s = new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  } catch { return d }
+}
+
+// ago 2026 (Cas: "quiero que ingresos y en historial de gastos también sea
+// la misma lógica, tocar ver contenido y con botones para editar y
+// eliminar") — mismo patrón que la Billetera USD y el detalle de acciones:
+// tocar una fila abre un detalle de solo lectura primero, con Editar (abre
+// el formulario real, ExpenseSheet) y Eliminar (con confirmación inline y
+// deshacer) en el footer, en vez de saltar directo al formulario de edición.
 export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
+  const router = useRouter()
+  const supabase = createClient()
+  const { showToast } = useToast()
+
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
+  const [detailExpense, setDetailExpense]   = useState<ExpenseWithRelations | null>(null)
+  const [confirmDelete, setConfirmDelete]   = useState(false)
+  const [deleting, setDeleting]             = useState(false)
+
+  function closeDetail() { setDetailExpense(null); setConfirmDelete(false) }
+  const detailBackdropClose = useBackdropClose(closeDetail)
+
+  async function handleDelete(e: ExpenseWithRelations) {
+    setDeleting(true)
+    const { error } = await supabase.from('expenses').delete().eq('id', e.id)
+    setDeleting(false)
+    if (error) return
+    router.refresh()
+    closeDetail()
+    showToast('Gasto eliminado', {
+      action: {
+        label: 'Deshacer',
+        onClick: async () => {
+          const { error: undoErr } = await supabase.from('expenses').insert({
+            user_id: e.user_id,
+            amount: e.amount,
+            category_id: e.category_id,
+            payment_method_id: e.payment_method_id,
+            recurring_expense_id: e.recurring_expense_id,
+            description: e.description,
+            date: e.date,
+            tags: e.tags,
+          })
+          if (!undoErr) { router.refresh(); showToast('Gasto restaurado') }
+        },
+      },
+    })
+  }
 
   if (expenses.length === 0) return null
 
@@ -37,9 +92,9 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
           return (
             <button
               key={e.id}
-              onClick={() => setEditingExpense(e)}
+              onClick={() => setDetailExpense(e)}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50 active:bg-gray-100/60',
+                'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50 active:bg-gray-100/60 group',
                 idx > 0 && 'border-t border-gray-50'
               )}
             >
@@ -102,10 +157,150 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date, dateFormat)}</p>
                 )}
               </div>
+
+              <ChevronRight className="w-4 h-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5" />
             </button>
           )
         })}
       </div>
+
+      {/* ── Detalle de un gasto (ago 2026, a pedido de Cas) ──────────────────
+          Tocar una fila abre esto primero — mismo patrón que la Billetera
+          USD: ver antes de editar/eliminar. */}
+      {detailExpense && (() => {
+        const e = detailExpense
+        const catBg    = e.category?.bg_color ?? '#EEF4FF'
+        const catColor = e.category?.color ?? '#4D93FF'
+        const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...detailBackdropClose}
+          >
+            <div
+              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden bg-white"
+              style={{ maxHeight: '92dvh' }}
+            >
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
+
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b border-gray-100">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold truncate text-gray-900">
+                    {e.description ?? e.category?.name ?? 'Gasto'}
+                  </h2>
+                  <p className="text-[11px] text-gray-400">{fmtDateLong(e.date)}</p>
+                </div>
+                <button
+                  onClick={closeDetail}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
+                <div className="rounded-2xl overflow-hidden divide-y divide-gray-100 bg-gray-50">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs font-semibold text-gray-400">Monto</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
+                      −{formatCLP(e.amount)}
+                    </span>
+                  </div>
+                  {e.category && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-gray-400">Categoría</span>
+                      <span
+                        className="cat-badge inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
+                      >
+                        {isEmoji(e.category.icon)
+                          ? <span className="text-[10px] leading-none">{e.category.icon}</span>
+                          : (() => { const CatIcon = getCategoryIcon(e.category!.icon); return <CatIcon className="w-3 h-3" /> })()
+                        }
+                        {e.category.name}
+                      </span>
+                    </div>
+                  )}
+                  {e.payment_method && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-gray-400">Método de pago</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700">
+                        <PaymentIcon cardType={e.payment_method.card_type} />
+                        {e.payment_method.name}
+                      </span>
+                    </div>
+                  )}
+                  {e.recurring_expense && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-gray-400">Recurrente</span>
+                      <span className="text-sm font-bold text-gray-700">{e.recurring_expense.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-gray-400">Descripción</p>
+                  <p className={cn('text-sm', e.description ? 'text-gray-700' : 'text-gray-400')}>
+                    {e.description || 'Sin descripción — agrégala al editar.'}
+                  </p>
+                </div>
+
+                {confirmDelete && (
+                  <div className="rounded-2xl p-4 space-y-3 bg-red-50 border border-red-200">
+                    <p className="text-sm text-center font-medium text-gray-700">¿Eliminar este gasto?</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 py-2 text-sm font-semibold rounded-xl border border-gray-200 bg-white text-gray-600 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(e)}
+                        disabled={deleting}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-bold rounded-xl bg-red-500 text-white disabled:opacity-60"
+                      >
+                        {deleting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        {deleting ? 'Eliminando…' : 'Eliminar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {!confirmDelete && (
+                <div className="border-t border-gray-100 px-5 py-3 flex items-center gap-2 flex-shrink-0 bg-white">
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-red-500 transition-colors shrink-0"
+                    aria-label="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={closeDetail}
+                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border border-gray-200 bg-gray-50 text-gray-600 transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    onClick={() => { setDetailExpense(null); setConfirmDelete(false); setEditingExpense(e) }}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl text-white transition-all active:scale-[.98]"
+                    style={{ backgroundColor: 'var(--primary)' }}
+                  >
+                    Editar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       <ExpenseSheet
         fetchData

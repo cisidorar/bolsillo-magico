@@ -15,6 +15,15 @@ interface Props {
   current:    IncomeData | null
   prevIncome: IncomeData | null
   monthName:  string
+  // ago 2026 (Cas: "quiero que ingresos... también sea la misma lógica,
+  // tocar ver contenido y con botones para editar y eliminar" — mismo
+  // patrón que Billetera USD): permite controlar el modal desde afuera
+  // (detalle de solo lectura → botón Editar), en vez de depender solo del
+  // botón trigger propio. Si se pasan estas props, se oculta el trigger y
+  // el open/close vive en el componente padre (IncomeHistoryRow).
+  isOpen?:       boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?:  boolean
 }
 
 const ITEM_COLORS = [
@@ -47,11 +56,17 @@ function parseAmt(raw: string): number {
   return parseInt(raw.replace(/\D/g, '')) || 0
 }
 
-export default function IncomeSheet({ userId, month, year, current, prevIncome, monthName }: Props) {
+export default function IncomeSheet({ userId, month, year, current, prevIncome, monthName, isOpen: externalOpen, onOpenChange, hideTrigger }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
-  const [showForm,     setShowForm]     = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const showForm = externalOpen !== undefined ? externalOpen : internalOpen
+  function setShowForm(v: boolean) {
+    if (onOpenChange) onOpenChange(v)
+    else setInternalOpen(v)
+  }
+
   const [mainAmt,      setMainAmt]      = useState('')
   const [desc,         setDesc]         = useState('')
   const [items,        setItems]        = useState<BreakdownItem[]>([])
@@ -66,6 +81,20 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
   const calza      = validItems.length > 0 && total > 0 && itemsTotal === total
   const noCalza    = validItems.length > 0 && total > 0 && itemsTotal !== total
 
+  // Precarga los campos al abrir — antes vivía solo en openForm() (llamado
+  // por el trigger propio), pero cuando el modal se abre externamente
+  // (isOpen controlado desde IncomeHistoryRow) nadie más llama openForm().
+  useEffect(() => {
+    if (showForm) {
+      setMainAmt(current?.amount ? String(current.amount) : '')
+      setDesc(current?.description ?? '')
+      setItems(current?.breakdown ?? [])
+      setFormError('')
+      setDeleteConfirm(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm])
+
   // Escape key
   useEffect(() => {
     if (!showForm) return
@@ -73,14 +102,10 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm])
 
   function openForm() {
-    setMainAmt(current?.amount ? String(current.amount) : '')
-    setDesc(current?.description ?? '')
-    setItems(current?.breakdown ?? [])
-    setFormError('')
-    setDeleteConfirm(false)
     setShowForm(true)
   }
 
@@ -140,14 +165,16 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
   return (
     <>
       {/* ── Trigger ─────────────────────────────────────────────────────────── */}
-      <button
-        onClick={openForm}
-        className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
-        style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-      >
-        {current ? <Pencil className="w-4 h-4" strokeWidth={2.5} /> : <Plus className="w-4 h-4" strokeWidth={2.5} />}
-        {current ? 'Editar' : 'Registrar'}
-      </button>
+      {!hideTrigger && (
+        <button
+          onClick={openForm}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
+        >
+          {current ? <Pencil className="w-4 h-4" strokeWidth={2.5} /> : <Plus className="w-4 h-4" strokeWidth={2.5} />}
+          {current ? 'Editar' : 'Registrar'}
+        </button>
+      )}
 
       {/* ── Modal ───────────────────────────────────────────────────────────── */}
       {showForm && (

@@ -3,41 +3,13 @@ import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile } from '@/lib/utils'
 import { CalendarDays, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
 import IncomeSheet from '@/components/IncomeSheet'
-import IncomeEditor from '@/components/IncomeEditor'
+import IncomeHistoryRow from '@/components/IncomeHistoryRow'
+import Sparkline from '@/components/Sparkline'
 import type { BreakdownItem, IncomeData } from '@/components/IncomeMonthEditor'
 
 export const dynamic = 'force-dynamic'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-
-function Sparkline({ values, positive = true }: { values: number[]; positive?: boolean }) {
-  const w = 80, h = 28, pad = 3
-  if (values.filter(v => v > 0).length < 2) {
-    return (
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-        <line x1={pad} y1={h/2} x2={w-pad} y2={h/2} stroke="var(--border)" strokeWidth="1.5" strokeDasharray="3 3" />
-      </svg>
-    )
-  }
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const xs = values.map((_, i) => pad + (i / (values.length - 1)) * (w - pad * 2))
-  const ys = values.map(v => h - pad - ((v - min) / range) * (h - pad * 2))
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-      <polyline
-        points={xs.map((x, i) => `${x},${ys[i]}`).join(' ')}
-        fill="none"
-        stroke={positive ? 'var(--mint)' : 'var(--border)'}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r="2.5" fill={positive ? 'var(--mint)' : 'var(--border)'} />
-    </svg>
-  )
-}
 
 export default async function IngresosPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
@@ -285,7 +257,6 @@ export default async function IngresosPage() {
         {periods.slice(1).map(({ month, year }) => {
           const key     = `${year}-${month}`
           const income  = incomeMap[key] ?? null
-          const isReg   = income !== null
 
           // Saldo real: sueldo del mes ANTERIOR financió los gastos de ESTE mes
           const prevM2  = month === 1 ? 12 : month - 1
@@ -302,60 +273,18 @@ export default async function IngresosPage() {
           }
 
           return (
-            <div key={key} className="px-4 lg:px-6 py-4 flex items-center gap-3 lg:gap-5">
-
-              {/* Mes */}
-              <div className="flex items-center gap-2 w-32 shrink-0">
-                <CalendarDays className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
-                <div>
-                  <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{MONTH_NAMES[month - 1]}</span>
-                  <span className="text-[11px] ml-1.5" style={{ color: 'var(--ink-3)' }}>{year}</span>
-                </div>
-              </div>
-
-              {/* Badge */}
-              <span
-                className="hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wide"
-                style={isReg
-                  ? { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }
-                  : { background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }
-                }
-              >
-                {isReg ? 'Registrado' : 'Sin registrar'}
-              </span>
-
-              {/* Monto + surplus */}
-              <div className="flex-1 min-w-0">
-                {income
-                  ? <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(income.amount)}</p>
-                  : <p className="text-sm" style={{ color: 'var(--ink-3)' }}>—</p>
-                }
-                {surplus !== null && expense > 0 && prevInc && (
-                  <p className="text-[10px] font-semibold tabular-nums mt-0.5"
-                    style={{ color: surplus >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                    {surplus >= 0 ? 'Sobró ' : 'Déficit '}{formatCLP(Math.abs(surplus))}
-                    {' '}· {surplus >= 0 ? '' : '−'}{Math.abs(Math.round((surplus / prevInc.amount) * 100))}% del sueldo
-                  </p>
-                )}
-              </div>
-
-              {/* Sparkline */}
-              <div className="hidden md:block shrink-0">
-                <Sparkline values={sparkValues} positive={isReg} />
-              </div>
-
-              {/* Botón */}
-              <div className="shrink-0">
-                <IncomeEditor
-                  userId={user.id}
-                  month={month}
-                  year={year}
-                  amount={income?.amount ?? null}
-                  description={income?.description ?? null}
-                  historyMode
-                />
-              </div>
-            </div>
+            <IncomeHistoryRow
+              key={key}
+              userId={user.id}
+              month={month}
+              year={year}
+              monthName={MONTH_NAMES[month - 1]}
+              income={income}
+              prevIncome={prevInc}
+              surplus={surplus}
+              expense={expense}
+              sparkValues={sparkValues}
+            />
           )
         })}
         </div>
