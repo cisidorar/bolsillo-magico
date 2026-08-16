@@ -37,12 +37,12 @@ interface Props {
   sales?:           StockSale[]      // ventas — para el detalle (ticker, costo base, ganancia) en cada fila
 }
 
-interface FormState { date: string; clp: string; usd: string; notes: string }
+interface FormState { date: string; clp: string; usd: string; notes: string; shares: string }
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
-const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '' })
+const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '', shares: '' })
 
 function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -77,8 +77,20 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   // monto rompería el costo base de la posición. `editSaleId` guarda esa
   // fila enlazada para mantener sale_date sincronizada en las dos tablas —
   // sin esto, la fecha quedaría distinta en Ventas/benchmark vs. la billetera.
-  const [editKind,  setEditKind]  = useState<'deposit' | 'sell'>('deposit')
+  // ago 2026 (Cas, ronda 2 — "quiero poder editar aca y que se refleje" sobre
+  // una fila de Compra): antes las compras de acciones eran de solo lectura
+  // acá ("se gestiona desde Acciones"). Ahora también se puede editar monto
+  // invertido, acciones y fecha de una compra — el ticker queda fijo (cambiar
+  // de ticker movería la fila a otra posición, fuera de alcance). Al guardar
+  // se recalcula stock_positions (costo promedio, acciones, wallet_cost_usd)
+  // con la misma lógica que "comprar más" en TransactionModal, y se resetea
+  // trail_stop_usd para que el cron lo recalcule. Eliminar una compra sigue
+  // sin estar acá — borrar una fila individual podría dejar la posición con
+  // acciones/costo inconsistentes; eso se sigue gestionando desde Acciones.
+  const [editKind,  setEditKind]  = useState<'deposit' | 'sell' | 'compra'>('deposit')
   const [editSaleId, setEditSaleId] = useState<string | null>(null)
+  const [editTicker, setEditTicker] = useState<string | null>(null)
+  const [stockPurchasesState, setStockPurchasesState] = useState<StockPurchase[]>(stockPurchases)
   const [form,      setForm]      = useState<FormState>(emptyForm())
   const [formError, setFormError] = useState('')
   const [busy,      setBusy]      = useState(false)
@@ -123,18 +135,31 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function openAdd() {
-    setEditId(null); setEditKind('deposit'); setEditSaleId(null)
+    setEditId(null); setEditKind('deposit'); setEditSaleId(null); setEditTicker(null)
     setForm(emptyForm()); setFormError(''); setShowForm(true)
   }
   function openEdit(p: UsdPurchase) {
     setEditId(p.id)
     setEditKind(p.kind === 'sell' ? 'sell' : 'deposit')
     setEditSaleId(p.kind === 'sell' ? (sales.find(s => s.usd_purchase_id === p.id)?.id ?? null) : null)
+    setEditTicker(null)
     setForm({
       date:  p.purchase_date,
       clp:   String(p.total_paid_clp ?? ''),
       usd:   String(p.usd_amount),
       notes: p.notes ?? '',
+      shares: '',
+    })
+    setFormError(''); setShowForm(true)
+  }
+  function openEditStockPurchase(sp: StockPurchase) {
+    setEditId(sp.id); setEditKind('compra'); setEditSaleId(null); setEditTicker(sp.ticker)
+    setForm({
+      date:   sp.purchase_date,
+      clp:    '',
+      usd:    String(sp.total_paid_usd),
+      notes:  sp.notes ?? '',
+      shares: String(sp.shares),
     })
     setFormError(''); setShowForm(true)
   }
@@ -163,6 +188,67 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
       setShowForm(false)
       router.refresh()   // refleja la fecha nueva en Ventas/benchmark
+      return
+    }
+
+    // Editar compra: monto invertido, acciones y fecha son editables — el
+    // ticker no (para eso está Acciones). Hay que recalcular la posición
+    // agregada (stock_positions) con el mismo criterio que "comprar más" en
+    // TransactionModal: el delta de costo/acciones se suma al agregado
+    // existente, en vez de reemplazarlo, porque la posición puede tener
+    // otras compras además de esta.
+    if (editId && editKind === 'compra') {
+      const shares = parseFloat(form.shares.replace(',', '.'))
+      const usdTotal = parseFloat(form.usd.replace(',', '.'))
+      if (!Number.isFinite(shares) || shares <= 0) { setFormError('¿Cuántas acciones compraste?'); return }
+      if (!Number.isFinite(usdTotal) || usdTotal <= 0) { setFormError('¿Cuánto invertiste en total (USD)?'); return }
+
+      const oldSp = stockPurchasesState.find(sp => sp.id === editId)
+      if (!oldSp) { setFormError('No se encontró la compra original.'); return }
+
+      setBusy(true)
+      const { data: posRow, error: posErr } = await supabase
+        .from('stock_positions')
+        .select('id, shares, avg_cost_usd, wallet_cost_usd, wallet_funded')
+        .eq('user_id', userId).eq('ticker', oldSp.ticker).single()
+      if (posErr || !posRow) { setBusy(false); setFormError(`No se encontró la posición de ${oldSp.ticker}.`); return }
+
+      const newTotalPaid = Math.round(usdTotal * 100) / 100
+      const newShares    = Math.round(shares * 1e6) / 1e6
+      const deltaCost    = newTotalPaid - Number(oldSp.total_paid_usd)
+      const deltaShares  = newShares - Number(oldSp.shares)
+      const posShares    = Math.round((Number(posRow.shares) + deltaShares) * 1e6) / 1e6
+
+      if (posShares <= 0) {
+        setBusy(false)
+        setFormError('La posición quedaría con 0 o menos acciones — ajusta esto desde Acciones en vez de acá.')
+        return
+      }
+      const posTotalCost = Number(posRow.avg_cost_usd) * Number(posRow.shares) + deltaCost
+      const newAvgCost   = posTotalCost / posShares
+      // wallet_cost_usd es acumulado, no está atado 1:1 a esta fila — se
+      // ajusta por el mismo delta solo si la posición ya estaba marcada como
+      // financiada por la billetera (mismo criterio que buyMorePosition).
+      const newWalletCost = posRow.wallet_funded
+        ? Math.max(0, Math.round((Number(posRow.wallet_cost_usd ?? 0) + deltaCost) * 100) / 100)
+        : Number(posRow.wallet_cost_usd ?? 0)
+
+      const spRow = { shares: newShares, total_paid_usd: newTotalPaid, purchase_date: form.date, notes: form.notes.trim() || null }
+      const { error: spErr } = await supabase.from('stock_purchases')
+        .update(spRow).eq('id', editId).eq('user_id', userId)
+      if (spErr) { setBusy(false); setFormError(spErr.message); return }
+
+      const { error: posUpdErr } = await supabase.from('stock_positions').update({
+        shares: posShares, avg_cost_usd: newAvgCost,
+        wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
+        trail_stop_usd: null, updated_at: new Date().toISOString(),
+      }).eq('id', posRow.id).eq('user_id', userId)
+      if (posUpdErr) { setBusy(false); setFormError(posUpdErr.message); return }
+
+      setBusy(false)
+      setStockPurchasesState(prev => prev.map(sp => sp.id === editId ? { ...sp, ...spRow } : sp))
+      setShowForm(false)
+      router.refresh()   // refleja el nuevo costo promedio en Acciones
       return
     }
 
@@ -218,7 +304,8 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     pnlPct: number | null
     ticker: string | null         // solo ventas/compras con detalle de acción
     shares: number | null
-    row:   UsdPurchase | null     // solo filas de billetera son editables/eliminables
+    row:      UsdPurchase | null   // filas de billetera (aporte/venta) — editables/eliminables
+    stockRow: StockPurchase | null // fila de compra de acciones — editable (no eliminable) acá
   }
   const salesByPurchaseId = new Map(sales.map(s => [s.usd_purchase_id, s]))
   const moves: Move[] = [
@@ -233,13 +320,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
             label: `Venta ${sale.ticker}`,
             sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
-            usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p,
+            usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p, stockRow: null,
           }
         }
         return {
           key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
           label: p.notes ?? 'Venta de acciones', sub: null,
-          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p,
+          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null,
         }
       }
       return {
@@ -249,14 +336,14 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
           p.notes,
         ].filter(Boolean).join(' · ') || null,
-        usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p,
+        usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null,
       }
     }),
-    ...stockPurchases.map<Move>(sp => ({
+    ...stockPurchasesState.map<Move>(sp => ({
       key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
       label: `Compra ${sp.ticker}`,
       sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
-      usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null,
+      usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null, stockRow: sp,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -292,7 +379,9 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
-                {editId ? (editKind === 'sell' ? 'Editar venta' : 'Editar aporte') : 'Nuevo aporte'}
+                {editId
+                  ? (editKind === 'sell' ? 'Editar venta' : editKind === 'compra' ? `Editar compra ${editTicker ?? ''}` : 'Editar aporte')
+                  : 'Nuevo aporte'}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -320,6 +409,45 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                     {fmtUSD(parseFloat(form.usd) || 0)}
                   </span>
                 </div>
+              ) : editKind === 'compra' ? (
+                <>
+                  <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface-2)' }}>
+                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                      Ticker
+                    </span>
+                    <span className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{editTicker}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Acciones
+                      </label>
+                      <input
+                        type="text" inputMode="decimal" placeholder="3,446295"
+                        value={form.shares}
+                        onChange={e => setForm(f => ({ ...f, shares: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                        className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Invertido (USD)
+                      </label>
+                      <input
+                        type="text" inputMode="decimal" placeholder="300,00"
+                        value={form.usd}
+                        onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                        className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                    Esto recalcula el costo promedio de tu posición en {editTicker}. El ticker no se puede cambiar acá.
+                  </p>
+                </>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -430,8 +558,11 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       {(() => {
         const m = detailKey ? moves.find(mv => mv.key === detailKey) ?? null : null
         if (!m) return null
-        // aporte y venta se pueden editar (venta: solo fecha/nota, ver save()) — compra no, se gestiona en Acciones
-        const canEdit   = m.row !== null
+        // aporte y venta se pueden editar (venta: solo fecha/nota, ver save());
+        // compra también, desde ago 2026 (monto/acciones/fecha, ver save()).
+        // Eliminar sigue solo para aporte/venta — borrar una compra suelta
+        // podría dejar la posición con acciones/costo inconsistentes.
+        const canEdit   = m.type === 'compra' ? m.stockRow !== null : m.row !== null
         const canDelete = m.row !== null
         const iconBg    = m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)'
         const iconColor = m.type === 'compra' ? 'var(--primary)' : 'var(--mint)'
@@ -514,20 +645,20 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   )}
                 </div>
 
-                {m.row !== null && (
+                {(m.row !== null || m.stockRow !== null) && (
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
                       Nota
                     </p>
-                    <p className="text-sm" style={{ color: m.row?.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
-                      {m.row?.notes || 'Sin nota — agrégala al editar.'}
+                    <p className="text-sm" style={{ color: (m.row?.notes ?? m.stockRow?.notes) ? 'var(--ink-2)' : 'var(--ink-3)' }}>
+                      {m.row?.notes ?? m.stockRow?.notes ?? 'Sin nota — agrégala al editar.'}
                     </p>
                   </div>
                 )}
 
                 {m.type === 'compra' && (
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-                    Esta compra se gestiona desde <strong style={{ color: 'var(--ink-2)' }}>Acciones</strong> — ahí puedes editarla, venderla o eliminarla.
+                    Para vender esta posición o eliminar esta compra, usa <strong style={{ color: 'var(--ink-2)' }}>Acciones</strong>.
                   </p>
                 )}
 
@@ -578,7 +709,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   </button>
                   {canEdit && (
                     <button
-                      onClick={() => { setDetailKey(null); setConfirmDelete(false); openEdit(m.row!) }}
+                      onClick={() => { setDetailKey(null); setConfirmDelete(false); m.type === 'compra' ? openEditStockPurchase(m.stockRow!) : openEdit(m.row!) }}
                       className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
                     >
