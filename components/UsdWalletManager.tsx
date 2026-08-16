@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
@@ -64,9 +65,20 @@ function fmtPct(n: number): string {
 
 export default function UsdWalletManager({ userId, initialPurchases, investedUsd, stockPurchases = [], sales = [] }: Props) {
   const supabase = createClient()
+  const router = useRouter()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
   const [editId,    setEditId]    = useState<string | null>(null)
+  // ago 2026 (Cas: "quiero poder editar desde la misma billetera, además
+  // editar la fecha"): antes solo los aportes eran editables — las ventas
+  // solo se podían eliminar. Ahora también se puede editar la fecha (y nota)
+  // de una venta, pero NO el monto/ganancia: esos números están atados a la
+  // fila de stock_sales que registró la venta real, y desacoplarlos del
+  // monto rompería el costo base de la posición. `editSaleId` guarda esa
+  // fila enlazada para mantener sale_date sincronizada en las dos tablas —
+  // sin esto, la fecha quedaría distinta en Ventas/benchmark vs. la billetera.
+  const [editKind,  setEditKind]  = useState<'deposit' | 'sell'>('deposit')
+  const [editSaleId, setEditSaleId] = useState<string | null>(null)
   const [form,      setForm]      = useState<FormState>(emptyForm())
   const [formError, setFormError] = useState('')
   const [busy,      setBusy]      = useState(false)
@@ -111,10 +123,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function openAdd() {
-    setEditId(null); setForm(emptyForm()); setFormError(''); setShowForm(true)
+    setEditId(null); setEditKind('deposit'); setEditSaleId(null)
+    setForm(emptyForm()); setFormError(''); setShowForm(true)
   }
   function openEdit(p: UsdPurchase) {
     setEditId(p.id)
+    setEditKind(p.kind === 'sell' ? 'sell' : 'deposit')
+    setEditSaleId(p.kind === 'sell' ? (sales.find(s => s.usd_purchase_id === p.id)?.id ?? null) : null)
     setForm({
       date:  p.purchase_date,
       clp:   String(p.total_paid_clp ?? ''),
@@ -125,11 +140,36 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   }
 
   async function save() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) { setFormError('Fecha inválida'); return }
+
+    // Editar venta: solo fecha y nota. El monto/ganancia quedan atados a la
+    // fila real de la venta (stock_sales) — cambiar ese número acá lo
+    // desincronizaría de las acciones/costo base que realmente se vendieron.
+    if (editId && editKind === 'sell') {
+      setBusy(true)
+      const row = { purchase_date: form.date, notes: form.notes.trim() || null }
+      const { error } = await supabase.from('usd_purchases')
+        .update(row).eq('id', editId).eq('user_id', userId)
+      if (error) { setBusy(false); setFormError(error.message); return }
+      // Mantener sale_date sincronizada — es la fecha que de verdad usan el
+      // benchmark vs SPY y el historial de Ventas (stock_sales.sale_date),
+      // no esta fila de billetera.
+      if (editSaleId) {
+        const { error: saleErr } = await supabase.from('stock_sales')
+          .update({ sale_date: form.date }).eq('id', editSaleId).eq('user_id', userId)
+        if (saleErr) { setBusy(false); setFormError(saleErr.message); return }
+      }
+      setBusy(false)
+      setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
+      setShowForm(false)
+      router.refresh()   // refleja la fecha nueva en Ventas/benchmark
+      return
+    }
+
     const clp = parseInt(form.clp.replace(/\D/g, '') || '0')
     const usd = parseFloat(form.usd.replace(',', '.'))
     if (!clp || clp < 1)                 { setFormError('¿Cuántos pesos pagaste en total? (comisión incluida)'); return }
     if (!Number.isFinite(usd) || usd <= 0) { setFormError('¿Cuántos dólares recibiste?'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) { setFormError('Fecha inválida'); return }
 
     setBusy(true)
     const row = {
@@ -154,11 +194,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       setPurchases(prev => [data as UsdPurchase, ...prev])
     }
     setShowForm(false)
+    router.refresh()
   }
 
   async function remove(p: UsdPurchase) {
     setPurchases(prev => prev.filter(x => x.id !== p.id))
     await supabase.from('usd_purchases').delete().eq('id', p.id).eq('user_id', userId)
+    router.refresh()
   }
 
   // ── Cartola unificada: aportes y ventas ENTRAN, compras de acciones SALEN ──
@@ -250,7 +292,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
-                {editId ? 'Editar aporte' : 'Nuevo aporte'}
+                {editId ? (editKind === 'sell' ? 'Editar venta' : 'Editar aporte') : 'Nuevo aporte'}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -263,53 +305,72 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
             {/* Body */}
             <div className="px-5 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                    Pesos pagados (total)
-                  </label>
-                  <input
-                    type="text" inputMode="numeric" placeholder="950.000"
-                    value={fmtInputCLP(form.clp)}
-                    onChange={e => setForm(f => ({ ...f, clp: e.target.value.replace(/\D/g, '') }))}
-                    className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
-                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              {/* Editar venta: el monto/ganancia están atados a la venta real
+                  (stock_sales) — acá solo se cambian fecha y nota. Mostrar el
+                  monto como referencia de solo lectura, no como input. */}
+              {editKind === 'sell' ? (
+                <div
+                  className="px-4 py-2.5 rounded-xl flex items-center justify-between"
+                  style={{ background: 'var(--surface-2)' }}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
                     Dólares recibidos
-                  </label>
-                  <input
-                    type="text" inputMode="decimal" placeholder="1000,00"
-                    value={form.usd}
-                    onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
-                    className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
-                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
-                  />
+                  </span>
+                  <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
+                    {fmtUSD(parseFloat(form.usd) || 0)}
+                  </span>
                 </div>
-              </div>
-
-              {/* Tasa implícita en vivo: hace visible la comisión sin pedirla aparte */}
-              {(() => {
-                const clp = parseInt(form.clp || '0')
-                const usd = parseFloat(form.usd.replace(',', '.'))
-                if (!clp || !Number.isFinite(usd) || usd <= 0) return null
-                return (
-                  <div
-                    className="px-4 py-2.5 rounded-xl flex items-center gap-2"
-                    style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
-                  >
-                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
-                      Tasa implícita
-                    </span>
-                    <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
-                      {formatCLP(Math.round(clp / usd))}/USD
-                    </span>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Pesos pagados (total)
+                      </label>
+                      <input
+                        type="text" inputMode="numeric" placeholder="950.000"
+                        value={fmtInputCLP(form.clp)}
+                        onChange={e => setForm(f => ({ ...f, clp: e.target.value.replace(/\D/g, '') }))}
+                        className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Dólares recibidos
+                      </label>
+                      <input
+                        type="text" inputMode="decimal" placeholder="1000,00"
+                        value={form.usd}
+                        onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                        className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                      />
+                    </div>
                   </div>
-                )
-              })()}
+
+                  {/* Tasa implícita en vivo: hace visible la comisión sin pedirla aparte */}
+                  {(() => {
+                    const clp = parseInt(form.clp || '0')
+                    const usd = parseFloat(form.usd.replace(',', '.'))
+                    if (!clp || !Number.isFinite(usd) || usd <= 0) return null
+                    return (
+                      <div
+                        className="px-4 py-2.5 rounded-xl flex items-center gap-2"
+                        style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
+                      >
+                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
+                          Tasa implícita
+                        </span>
+                        <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
+                          {formatCLP(Math.round(clp / usd))}/USD
+                        </span>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
 
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
@@ -369,7 +430,8 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
       {(() => {
         const m = detailKey ? moves.find(mv => mv.key === detailKey) ?? null : null
         if (!m) return null
-        const canEdit   = m.type === 'aporte' && m.row !== null
+        // aporte y venta se pueden editar (venta: solo fecha/nota, ver save()) — compra no, se gestiona en Acciones
+        const canEdit   = m.row !== null
         const canDelete = m.row !== null
         const iconBg    = m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)'
         const iconColor = m.type === 'compra' ? 'var(--primary)' : 'var(--mint)'
@@ -452,7 +514,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   )}
                 </div>
 
-                {m.type === 'aporte' && (
+                {m.row !== null && (
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
                       Nota
