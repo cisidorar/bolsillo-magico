@@ -148,24 +148,6 @@ function convictionBadgeHtml(item: WeeklyTickerData): string {
   return `<span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:9px;margin-left:5px">${parts.join('&nbsp;')}</span>`
 }
 
-// "Relevante" (ago 2026, a pedido de Cas: "no es necesario saber info de
-// todas las que sigo") = tiene posición real, O el rating técnico dice algo
-// accionable, O la convicción de la app dice algo accionable aunque el
-// rating técnico diga neutral (mismo caso NVDA de arriba), O reporta
-// resultados dentro de 7 días. Todo lo demás (no tengo, rating neutral,
-// convicción neutral/evitar, sin catalizador cerca) es ruido de fondo que no
-// vale la pena leer cada semana — se cuenta pero no se muestra.
-function isRelevant(item: WeeklyTickerData): boolean {
-  if (item.owned) return true
-  if (item.ratingLabel !== 'neutral') return true
-  if (item.convictionTier === 'compra' || item.convictionTier === 'compra_fuerte' || item.convictionTier === 'venta') return true
-  if (item.nextEarningsDate) {
-    const days = Math.round((new Date(item.nextEarningsDate + 'T12:00:00').getTime() - Date.now()) / 86_400_000)
-    if (days >= 0 && days <= 7) return true
-  }
-  return false
-}
-
 // ── Contexto macro: mismas fórmulas que lib/yield-curve.ts y lib/yoy-change.ts
 // del monorepo Next — se reimplementan acá porque la Edge Function (Deno) no
 // puede importar código de app/lib directamente. Si esas fórmulas cambian,
@@ -504,36 +486,19 @@ function tickerRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
   </td></tr>`
 }
 
-// ago 2026 (Cas: "itera y busca mejorar, para una persona que no tiene
-// muchos conocimientos, algo ocupada" — leyendo un correo con 20 fichas de
-// ticker, la mayoría "Neutral — esperar"): las posiciones en cartera SIEMPRE
-// entraban a la lista completa (isRelevant), aunque no hubiera nada nuevo que
-// decir — alguien apurado tenía que leer 20 párrafos técnicos para encontrar
-// las 3 que sí importaban. Ahora solo las que tienen algo nuevo (rating no
-// neutral, o un gatillo esta semana) reciben la ficha completa; el resto — tu
-// cartera sin sorpresas — va en una lista de una línea (ticker + precio), no
-// en un párrafo de análisis técnico.
+// ago 2026 (Cas, primera vuelta: "itera y busca mejorar, para una persona
+// que no tiene muchos conocimientos, algo ocupada"; segunda vuelta, más
+// tajante: "no quiero que me llegue la informacion de todas las acciones que
+// sigo, solamente me interesa saber de ellas si se mueven o si hay
+// oportunidades"): la primera iteración todavía mandaba TODO lo que tenías
+// en cartera, aunque fuera en una lista compacta de una línea — Cas dejó
+// claro que ni eso quiere. Ahora el filtro es uno solo, sin excepción para
+// "lo tengo": ¿se movió esta semana (gatillo técnico nuevo) o hay una
+// oportunidad (rating no neutral, que es lo mismo que dice mustBuy/mustSell)?
+// Si no, ni entra a la lista ni al conteo de "sin novedad" con fichas — solo
+// se cuenta como número, no se nombra ticker por ticker.
 function hasNews(item: WeeklyTickerData): boolean {
   return item.ratingLabel !== 'neutral' || item.weekSignals.length > 0
-}
-
-function quietRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
-  return `
-  <tr><td style="padding:9px 2px;border-bottom:1px solid #EEF1F6">
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-      <tr>
-        <td style="width:22px;vertical-align:middle">${tickerIcon(item.ticker, info.domain, 22)}</td>
-        <td style="padding-left:8px;vertical-align:middle">
-          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:#0E2A52">${item.ticker}</span>
-          ${item.owned ? ' <span style="font-size:9px;font-weight:800;color:#2B7CF6">· EN CARTERA</span>' : ''}
-        </td>
-        <td align="right" style="vertical-align:middle;white-space:nowrap">
-          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:#8B9AB0;font-variant-numeric:tabular-nums">${fmtUSD(item.price)}</span>
-          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:600;color:#B7C2D6"> · sin cambios</span>
-        </td>
-      </tr>
-    </table>
-  </td></tr>`
 }
 
 function weeklyReportEmailHtml({
@@ -572,33 +537,28 @@ function weeklyReportEmailHtml({
     </table>`
   ) : ''
 
-  // Ago 2026, a pedido de Cas ("no es necesario saber info de todas las que
-  // sigo"): antes se mostraban TODOS los tickers seguidos, la mayoría en
-  // "Neutral — esperar" sin nada nuevo que decir — el correo se sentía largo
-  // sin ser útil. Ahora solo entran los relevantes (ver isRelevant); el resto
-  // se cuenta, no se calla.
-  const relevantItems = payload.items.filter(isRelevant)
-  const quietCount    = payload.items.length - relevantItems.length
+  // ago 2026 (Cas: "solamente me interesa saber de ellas si se mueven o si
+  // hay oportunidades"): un solo filtro, sin excepción para "la tengo en
+  // cartera" — ver hasNews arriba. Todo lo que no se movió ni es oportunidad
+  // se cuenta (quietCount) pero no se nombra ticker por ticker, ni siquiera
+  // en una línea compacta.
+  const shownItems = payload.items.filter(hasNews)
+  const quietCount = payload.items.length - shownItems.length
+  const rowsHtml    = shownItems.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
 
   // Veredicto "sí o sí" — se calcula una vez acá para poder: (1) pasarlo a
   // verdictBlockHtml, (2) decidir si decisionBlockHtml debe omitirse (ver
   // comentario ahí), y (3) armar el resumen de "cuánto hay que leer" de abajo.
+  // buys/sells son siempre un subconjunto de shownItems (mustBuy/mustSell
+  // exigen ratingLabel no neutral, que ya es la condición de hasNews).
   const buys  = payload.items.filter(mustBuy).sort((a, b) => b.convictionScore - a.convictionScore).slice(0, 3)
   const sells = payload.items.filter(mustSell).sort((a, b) => a.convictionScore - b.convictionScore).slice(0, 3)
 
-  // Dentro de lo relevante: separar lo que tiene algo nuevo que decir (ficha
-  // completa) de lo que sigue igual (una línea) — ver hasNews arriba.
-  const actionItems = relevantItems.filter(hasNews)
-  const quietItems   = relevantItems.filter(item => !hasNews(item))
-  const rowsHtml      = actionItems.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
-  const quietRowsHtml = quietItems.map(item => quietRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
-
   // Resumen para alguien apurado (Cas: "algo ocupada"): un vistazo dice si
   // hoy hay algo que decidir o si puede saltar directo al final.
-  const attentionCount = new Set([...buys, ...sells, ...actionItems].map(i => i.ticker)).size
-  const summaryText = attentionCount === 0
-    ? 'Esta semana no hay nada urgente — tu cartera sigue igual que la semana pasada.'
-    : `Esta semana hay ${attentionCount} cosa${attentionCount !== 1 ? 's' : ''} que vale la pena revisar — el resto de tu cartera sigue sin cambios.`
+  const summaryText = shownItems.length === 0
+    ? 'Esta semana no hay nada urgente — nada de lo que sigues se movió ni tiene una oportunidad nueva.'
+    : `Esta semana hay ${shownItems.length} cosa${shownItems.length !== 1 ? 's' : ''} que vale la pena revisar — el resto sigue igual que la semana pasada.`
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -639,17 +599,9 @@ function weeklyReportEmailHtml({
           ${rowsHtml}
         </table>` : ''}
 
-        ${quietRowsHtml ? `
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
-          <tr><td style="padding-bottom:6px">
-            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:800;color:#8B9AB0">Sin cambios esta semana</span>
-          </td></tr>
-          ${quietRowsHtml}
-        </table>` : ''}
-
         ${quietCount > 0 ? `
         <p style="margin:12px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">
-          ${quietCount} más sin novedad esta semana (sin posición, rating neutral y sin catalizador cerca) — no se muestran acá.
+          ${quietCount} más sin novedad esta semana (ni se movieron ni tienen una oportunidad nueva) — no se muestran acá, ni siquiera en cartera.
         </p>` : ''}
 
         ${payload.skippedTickers.length > 0 ? `
