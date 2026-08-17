@@ -1053,32 +1053,39 @@ export default function Radar({
                     </div>
                     {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
                   </div>
-                  {/* Mockup de Cas (ago 2026): valor arriba, cambio de HOY
-                      ($ + %) al medio, retorno total (%) abajo — todo en una
-                      sola columna a la derecha en vez de 3 columnas separadas.
-                      Ordenando por Distribución % (Cas: "quiero que cuando
-                      sea distribucion % por ejemplo solo muestre el
-                      porcentaje y nada mas") ese único número reemplaza todo
-                      el stack — mostrar valor/hoy/ganancia junto al % de
-                      distribución no aporta nada, son magnitudes distintas. */}
-                  <div className="text-right flex-shrink-0" style={{ minWidth: 110 }}>
-                    {sortKey === 'distPct' ? (
-                      <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {row.distPct !== null ? `${row.distPct.toFixed(1)}%` : '—'}
-                      </p>
-                    ) : (
-                      <>
-                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                          {fmtUSD(row.valueUsd)}
+                  {/* A pedido de Cas (ago 2026): "que salga a la derecha solo
+                      un numero y que sea el porcentaje, no cuatro numeros
+                      como sale ahora, lo mismo con todas las otras
+                      categorias" — antes solo Distribución % colapsaba a un
+                      único número; el resto (incluida Ganancia total %, el
+                      caso reportado con captura) seguía mostrando el stack
+                      completo de 3 líneas sin importar el criterio elegido.
+                      Ahora el número mostrado SIEMPRE es el mismo campo por
+                      el que se está ordenando — un solo criterio a la vista,
+                      no cuatro magnitudes distintas compitiendo. */}
+                  <div className="text-right flex-shrink-0" style={{ minWidth: 90 }}>
+                    {(() => {
+                      const value = row[SORT_FIELD[sortKey]]
+                      const isPct = sortKey === 'gainPct' || sortKey === 'dailyPct' || sortKey === 'distPct'
+                      const isSigned = sortKey === 'gainPct' || sortKey === 'gainUsd' || sortKey === 'dailyPct' || sortKey === 'dailyUsd'
+                      const color = value === null
+                        ? 'var(--ink-3)'
+                        : !isSigned
+                          ? 'var(--ink)'
+                          : value >= 0 ? 'var(--mint)' : 'var(--coral)'
+                      const text = value === null
+                        ? '—'
+                        : isPct
+                          ? fmtPct(value, isSigned)
+                          : sortKey === 'gainUsd' || sortKey === 'dailyUsd'
+                            ? fmtUSDSigned(value)
+                            : fmtUSD(value)
+                      return (
+                        <p className="text-base font-bold tabular-nums" style={{ color }}>
+                          {text}
                         </p>
-                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.dailyUsd === null ? 'var(--ink-3)' : row.dailyUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {row.dailyUsd !== null && row.dailyPct !== null ? `${fmtUSDSigned(row.dailyUsd)} · ${row.dailyPct >= 0 ? '+' : ''}${row.dailyPct.toFixed(1)}%` : '—'}
-                        </p>
-                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: row.gainPct === null ? 'var(--ink-3)' : row.gainPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                          {row.gainPct !== null ? fmtPct(row.gainPct) : '—'}
-                        </p>
-                      </>
-                    )}
+                      )
+                    })()}
                   </div>
                   <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                 </button>
