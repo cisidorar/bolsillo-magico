@@ -331,22 +331,34 @@ function weekAheadHtml(weekAhead: WeekAhead | null | undefined, items: WeeklyTic
 // estado; esto se moja. Umbrales deliberadamente altos — que casi siempre diga
 // "nada urgente" es la respuesta correcta y hace que cuando SÍ aparezca algo,
 // signifique algo.
-//   · Comprar: convicción compra_fuerte, o ≥75 sin estar en zona cara.
-//   · Vender: solo con posición real (no tiene sentido "vende" sobre algo que
-//     no tienes) y con la convicción de la app en venta — no basta el gatillo
-//     técnico suelto, que es mucho más ruidoso.
+//
+// ago 2026 (bug real, encontrado revisando una queja implícita de Cas —
+// "revisa si estas recomendaciones te hacen sentido" sobre un correo que
+// decía "Comprar sí o sí: SOXL" arriba y más abajo, en la ficha del mismo
+// SOXL, "Neutral — esperar"): `mustBuy`/`mustSell` solo miraban convictionTier
+// (score compuesto), nunca ratingLabel (la lectura técnica que sí se muestra
+// en la píldora de cada ticker) — así que un ticker con convicción alta pero
+// SIN gatillo técnico activo esta semana terminaba "comprar sí o sí" arriba y
+// "Neutral" en su propia ficha. Para alguien sin mucho conocimiento técnico
+// eso lee como que el correo se contradice a sí mismo. Ahora exige que ambas
+// lecturas — convicción Y técnica — apunten para el mismo lado; si no
+// coinciden, no es un "sí o sí", es como mucho una fila más abajo. Comprar
+// además exige que NO esté en zona "Cara" — recomendar comprar algo etiquetado
+// como caro en la misma ficha es la otra contradicción que confunde.
 function mustBuy(i: WeeklyTickerData): boolean {
+  if (i.ratingLabel !== 'compra' && i.ratingLabel !== 'compra_fuerte') return false
+  if (i.priceZone === 'caro') return false
   if (i.convictionTier === 'compra_fuerte') return true
-  return i.convictionScore >= 75 && i.priceZone !== 'caro' && i.convictionTier === 'compra'
+  return i.convictionScore >= 75 && i.convictionTier === 'compra'
 }
 function mustSell(i: WeeklyTickerData): boolean {
-  return i.owned && (i.convictionTier === 'venta' || i.ratingLabel === 'venta_fuerte')
+  if (!i.owned) return false
+  const technicalSell  = i.ratingLabel === 'venta' || i.ratingLabel === 'venta_fuerte'
+  const convictionSell = i.convictionTier === 'venta' || i.convictionTier === 'evitar'
+  return technicalSell && convictionSell
 }
 
-function verdictBlockHtml(items: WeeklyTickerData[]): string {
-  const buys  = items.filter(mustBuy).sort((a, b) => b.convictionScore - a.convictionScore).slice(0, 3)
-  const sells = items.filter(mustSell).sort((a, b) => a.convictionScore - b.convictionScore).slice(0, 3)
-
+function verdictBlockHtml(buys: WeeklyTickerData[], sells: WeeklyTickerData[]): string {
   if (buys.length === 0 && sells.length === 0) {
     return `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
@@ -418,10 +430,22 @@ function brandWordmark(siteUrl: string) {
   </table>`
 }
 
-function decisionBlockHtml(decision: DecisionPayload | null, infoMap: Map<string, TickerInfo>): string {
-  if (!decision) return ''
+// ago 2026 (misma revisión que mustBuy/mustSell arriba): "La compra de hoy"
+// viene de un cálculo DISTINTO (daily_decisions, un pick por día) al de
+// "Comprar sí o sí" de arriba (verdictBlockHtml, semanal). Cuando el veredicto
+// semanal ya tiene candidatos, mostrar ADEMÁS una recomendación diferente acá
+// abajo — con otro ticker, a veces con menos convicción — es la tercera forma
+// en que este correo terminaba diciéndose cosas distintas a sí mismo. Con
+// `hasVerdictBuys` en true, este bloque se omite entero: una sola respuesta a
+// "¿qué compro esta semana?", no dos.
+function decisionBlockHtml(decision: DecisionPayload | null, infoMap: Map<string, TickerInfo>, hasVerdictBuys: boolean, verdictEmpty: boolean): string {
+  if (!decision || hasVerdictBuys) return ''
   const isBuy = decision.ticker !== null && (decision.tier === 'compra' || decision.tier === 'compra_fuerte')
+  // Si el veredicto de arriba ya dijo "nada urgente" (sin compras NI ventas),
+  // repetir acá "la decisión de hoy: nada de tu lista" es la misma noticia dos
+  // veces en cajas distintas — se omite, el veredicto ya lo cubrió.
   if (!isBuy) {
+    if (verdictEmpty) return ''
     return `
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
       <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:16px;padding:16px 18px">
@@ -480,6 +504,38 @@ function tickerRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
   </td></tr>`
 }
 
+// ago 2026 (Cas: "itera y busca mejorar, para una persona que no tiene
+// muchos conocimientos, algo ocupada" — leyendo un correo con 20 fichas de
+// ticker, la mayoría "Neutral — esperar"): las posiciones en cartera SIEMPRE
+// entraban a la lista completa (isRelevant), aunque no hubiera nada nuevo que
+// decir — alguien apurado tenía que leer 20 párrafos técnicos para encontrar
+// las 3 que sí importaban. Ahora solo las que tienen algo nuevo (rating no
+// neutral, o un gatillo esta semana) reciben la ficha completa; el resto — tu
+// cartera sin sorpresas — va en una lista de una línea (ticker + precio), no
+// en un párrafo de análisis técnico.
+function hasNews(item: WeeklyTickerData): boolean {
+  return item.ratingLabel !== 'neutral' || item.weekSignals.length > 0
+}
+
+function quietRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
+  return `
+  <tr><td style="padding:9px 2px;border-bottom:1px solid #EEF1F6">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td style="width:22px;vertical-align:middle">${tickerIcon(item.ticker, info.domain, 22)}</td>
+        <td style="padding-left:8px;vertical-align:middle">
+          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:#0E2A52">${item.ticker}</span>
+          ${item.owned ? ' <span style="font-size:9px;font-weight:800;color:#2B7CF6">· EN CARTERA</span>' : ''}
+        </td>
+        <td align="right" style="vertical-align:middle;white-space:nowrap">
+          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:12px;font-weight:700;color:#8B9AB0;font-variant-numeric:tabular-nums">${fmtUSD(item.price)}</span>
+          <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:10px;font-weight:600;color:#B7C2D6"> · sin cambios</span>
+        </td>
+      </tr>
+    </table>
+  </td></tr>`
+}
+
 function weeklyReportEmailHtml({
   displayName, payload, infoMap, siteUrl, weekLabel,
 }: {
@@ -523,7 +579,26 @@ function weeklyReportEmailHtml({
   // se cuenta, no se calla.
   const relevantItems = payload.items.filter(isRelevant)
   const quietCount    = payload.items.length - relevantItems.length
-  const rowsHtml = relevantItems.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
+
+  // Veredicto "sí o sí" — se calcula una vez acá para poder: (1) pasarlo a
+  // verdictBlockHtml, (2) decidir si decisionBlockHtml debe omitirse (ver
+  // comentario ahí), y (3) armar el resumen de "cuánto hay que leer" de abajo.
+  const buys  = payload.items.filter(mustBuy).sort((a, b) => b.convictionScore - a.convictionScore).slice(0, 3)
+  const sells = payload.items.filter(mustSell).sort((a, b) => a.convictionScore - b.convictionScore).slice(0, 3)
+
+  // Dentro de lo relevante: separar lo que tiene algo nuevo que decir (ficha
+  // completa) de lo que sigue igual (una línea) — ver hasNews arriba.
+  const actionItems = relevantItems.filter(hasNews)
+  const quietItems   = relevantItems.filter(item => !hasNews(item))
+  const rowsHtml      = actionItems.map(item => tickerRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
+  const quietRowsHtml = quietItems.map(item => quietRowHtml(item, infoMap.get(item.ticker) ?? { name: null, domain: null })).join('')
+
+  // Resumen para alguien apurado (Cas: "algo ocupada"): un vistazo dice si
+  // hoy hay algo que decidir o si puede saltar directo al final.
+  const attentionCount = new Set([...buys, ...sells, ...actionItems].map(i => i.ticker)).size
+  const summaryText = attentionCount === 0
+    ? 'Esta semana no hay nada urgente — tu cartera sigue igual que la semana pasada.'
+    : `Esta semana hay ${attentionCount} cosa${attentionCount !== 1 ? 's' : ''} que vale la pena revisar — el resto de tu cartera sigue sin cambios.`
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -546,23 +621,30 @@ function weeklyReportEmailHtml({
         <p style="margin:10px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.7)">SEMANA DEL ${weekLabel}</p>
         <p style="margin:20px 0 0;font-family:Fredoka,system-ui,sans-serif;font-size:24px;font-weight:600;color:#ffffff;letter-spacing:0.2px">Tu informe semanal</p>
         <p style="margin:8px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:rgba(255,255,255,0.85);line-height:1.6">
-          Hola ${displayName} — qué hacer esta semana, qué catalizadores vienen, y cómo va tu cartera.
+          Hola ${displayName} — ${summaryText}
         </p>
       </td></tr>
 
       <tr><td style="padding:24px 32px 28px">
-        ${verdictBlockHtml(payload.items)}
+        ${verdictBlockHtml(buys, sells)}
         ${weekAheadHtml(payload.weekAhead, payload.items)}
+        ${decisionBlockHtml(payload.todayDecision, infoMap, buys.length > 0, buys.length === 0 && sells.length === 0)}
         ${benchmarkHtml}
-        ${macroContextHtml(payload.macro)}
-        ${decisionBlockHtml(payload.todayDecision, infoMap)}
 
         ${rowsHtml ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
           <tr><td style="padding-bottom:10px">
-            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📊 Lo relevante de tu watchlist esta semana</span>
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:800;color:#0E2A52">📊 Con novedad esta semana</span>
           </td></tr>
           ${rowsHtml}
+        </table>` : ''}
+
+        ${quietRowsHtml ? `
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
+          <tr><td style="padding-bottom:6px">
+            <span style="font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:800;color:#8B9AB0">Sin cambios esta semana</span>
+          </td></tr>
+          ${quietRowsHtml}
         </table>` : ''}
 
         ${quietCount > 0 ? `
@@ -574,6 +656,11 @@ function weeklyReportEmailHtml({
         <p style="margin:6px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">
           Sin historia suficiente todavía: ${payload.skippedTickers.join(', ')}
         </p>` : ''}
+
+        <!-- Contexto macro: el bloque con más jerga (curva de tasas, WTI,
+             inflación) — al final para quien lo quiera, no compite con lo
+             accionable de arriba. -->
+        ${macroContextHtml(payload.macro)}
 
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;margin-top:20px">
           <tr><td style="padding:14px 18px">
