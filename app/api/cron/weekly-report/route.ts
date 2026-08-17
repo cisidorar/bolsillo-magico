@@ -30,6 +30,13 @@ function mondayOf(dateStr: string): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** `dateStr` menos `days` días de calendario, como YYYY-MM-DD. */
+function daysAgo(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() - days)
+  return d.toISOString().slice(0, 10)
+}
+
 /** Última observación de una serie macro (las vienen ascendentes por fecha). */
 function latestValue(series: MacroSeriesData | null | undefined): number | null {
   if (!series || series.observations.length === 0) return null
@@ -69,6 +76,20 @@ function computeWeekAhead(macro: Record<string, MacroSeriesData | null>, todayCL
     impliedMoves: path?.impliedMoves ?? null,
     spreadBp:     path?.spreadBp ?? null,
   }
+}
+
+// ago 2026 (Cas: "me gustaria que diga cuanto es el aumento del porcentaje
+// la ganancia de la semana no en comparacion al mercado"): spyBenchmark es
+// acumulado desde el primer aporte y comparado contra SPY — no responde "¿me
+// fue bien ESTA semana?" en términos propios. weekReturn es la otra
+// pregunta: cuánto cambió el valor de la cartera en acciones en los últimos
+// 7 días, sin comparar contra nada. Aproximación con los shares ACTUALES
+// hacia atrás (mismo criterio que lib/portfolio-history.ts): no reconstruye
+// compras/ventas de la semana, solo el movimiento de precio.
+interface WeekReturn {
+  valueUsd: number
+  gainUsd:  number
+  gainPct:  number
 }
 
 interface DecisionRow {
@@ -189,24 +210,55 @@ export async function GET(request: Request) {
 
       const { items, skipped } = await computeWeeklyItems(supabase, tickers, ownedTickers, spyReturn6m)
 
+      // Precios de posiciones: se piden UNA vez y se reusan para spyBenchmark
+      // (acumulado vs SPY) y weekReturn (cambio propio de los últimos 7 días)
+      // — antes esta consulta vivía adentro del `if (deposits.length > 0)` de
+      // spyBenchmark, así que weekReturn (que no depende de aportes, solo de
+      // tener posiciones) no tenía de dónde sacar los precios.
+      const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker as string))]
+      const latestCloseByTicker = new Map<string, number>()
+      let weekReturn: WeekReturn | null = null
+
+      if (positionTickers.length > 0) {
+        const { data: priceRows } = await supabase
+          .from('price_history')
+          .select('ticker, date, close')
+          .in('ticker', positionTickers)
+          .order('date', { ascending: false })
+
+        const rowsByTicker = new Map<string, { date: string; close: number }[]>()
+        for (const row of priceRows ?? []) {
+          const t = row.ticker as string
+          if (!latestCloseByTicker.has(t)) latestCloseByTicker.set(t, Number(row.close))
+          if (!rowsByTicker.has(t)) rowsByTicker.set(t, [])
+          rowsByTicker.get(t)!.push({ date: row.date as string, close: Number(row.close) })
+        }
+
+        const weekAgoDate = daysAgo(todayCL, 7)
+        let valueNow = 0, valueWeekAgo = 0
+        for (const s of (stocks ?? [])) {
+          const t = s.ticker as string
+          const shares = Number(s.shares)
+          const nowClose = latestCloseByTicker.get(t)
+          // priceRows ya viene descendente por fecha — el primer cierre
+          // <= weekAgoDate es el más cercano hacia atrás desde esa fecha.
+          const weekAgoClose = (rowsByTicker.get(t) ?? []).find(r => r.date <= weekAgoDate)?.close ?? null
+          if (nowClose)            valueNow     += shares * nowClose
+          if (weekAgoClose !== null) valueWeekAgo += shares * weekAgoClose
+        }
+        weekReturn = valueWeekAgo > 0
+          ? { valueUsd: valueNow, gainUsd: valueNow - valueWeekAgo, gainPct: ((valueNow - valueWeekAgo) / valueWeekAgo) * 100 }
+          : null
+      }
+
       // Benchmark vs SPY — mismo cálculo que app/(dashboard)/inversiones/page.tsx
       // (ago 2026: flujo de caja por aporte a la billetera, no por compra/
       // venta de acción — ver comentario de metodología en lib/benchmark.ts)
       let spyBenchmark: SpyBenchmarkResult | null = null
       const deposits = (usdPurchases ?? []).filter(p => p.kind === 'deposit')
       if (deposits.length > 0) {
-        const positionTickers = [...new Set((stocks ?? []).map(s => s.ticker as string))]
-        const [{ data: spyRows }, { data: latestRows }] = await Promise.all([
-          supabase.from('price_history').select('date, close').eq('ticker', 'SPY').order('date', { ascending: true }),
-          positionTickers.length > 0
-            ? supabase.from('price_history').select('ticker, date, close').in('ticker', positionTickers).order('date', { ascending: false })
-            : Promise.resolve({ data: [] as { ticker: string; date: string; close: number }[] }),
-        ])
-        const latestCloseByTicker = new Map<string, number>()
-        for (const row of latestRows ?? []) {
-          const t = row.ticker as string
-          if (!latestCloseByTicker.has(t)) latestCloseByTicker.set(t, Number(row.close))
-        }
+        const { data: spyRows } = await supabase
+          .from('price_history').select('date, close').eq('ticker', 'SPY').order('date', { ascending: true })
         const cashFlows = deposits.map(p => ({ date: p.purchase_date as string, usd: Number(p.usd_amount) }))
         const walletUsdBase = (usdPurchases ?? []).reduce((s, p) => s + Number(p.usd_amount), 0)
         const investedUsd   = (stocks ?? []).reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
@@ -225,6 +277,7 @@ export async function GET(request: Request) {
         items,
         skippedTickers: skipped,
         spyBenchmark,
+        weekReturn,
         macro,
         weekAhead,
         todayDecision: decision ? {

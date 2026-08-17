@@ -104,10 +104,19 @@ interface WeekAhead {
   spreadBp:     number | null
 }
 
+// ago 2026 (Cas: "me gustaria que diga cuanto es el aumento del porcentaje
+// la ganancia de la semana no en comparacion al mercado"): cambio propio del
+// valor de la cartera en acciones en los últimos 7 días — sin comparar
+// contra SPY, que es lo que ya cubre spyBenchmark (y que además es
+// acumulado desde el primer aporte, no semanal). Opcional por el mismo
+// motivo que weekAhead: informes generados antes de este cambio no lo traen.
+interface WeekReturn { valueUsd: number; gainUsd: number; gainPct: number }
+
 interface WeeklyReportPayload {
   items:           WeeklyTickerData[]
   skippedTickers:  string[]
   spyBenchmark:    SpyBenchmarkResult | null
+  weekReturn?:     WeekReturn | null
   macro:           Partial<Record<string, MacroSeriesData | null>>
   weekAhead?:      WeekAhead | null   // opcional: informes generados antes de ago 2026 no lo traen
   todayDecision:   DecisionPayload | null
@@ -486,19 +495,22 @@ function tickerRowHtml(item: WeeklyTickerData, info: TickerInfo): string {
   </td></tr>`
 }
 
-// ago 2026 (Cas, primera vuelta: "itera y busca mejorar, para una persona
-// que no tiene muchos conocimientos, algo ocupada"; segunda vuelta, más
-// tajante: "no quiero que me llegue la informacion de todas las acciones que
-// sigo, solamente me interesa saber de ellas si se mueven o si hay
-// oportunidades"): la primera iteración todavía mandaba TODO lo que tenías
-// en cartera, aunque fuera en una lista compacta de una línea — Cas dejó
-// claro que ni eso quiere. Ahora el filtro es uno solo, sin excepción para
-// "lo tengo": ¿se movió esta semana (gatillo técnico nuevo) o hay una
-// oportunidad (rating no neutral, que es lo mismo que dice mustBuy/mustSell)?
-// Si no, ni entra a la lista ni al conteo de "sin novedad" con fichas — solo
-// se cuenta como número, no se nombra ticker por ticker.
+// ago 2026 (Cas, tres vueltas: 1) "itera y busca mejorar, para una persona
+// que no tiene muchos conocimientos, algo ocupada"; 2) más tajante: "no
+// quiero que me llegue la informacion de todas las acciones que sigo,
+// solamente me interesa saber de ellas si se mueven o si hay oportunidades";
+// 3) con capturas de MCD/IBM/UBER mostrando "Neutral — esperar" y aun así
+// apareciendo en la lista: "siento que esto no es tan relevante"): la v2
+// todavía dejaba pasar CUALQUIER gatillo técnico (`weekSignals.length > 0`),
+// aunque fuera una observación neutra ("atrapada en rango estrecho", "tocando
+// un piso que ya la frenó 8 veces") sin que el rating cambiara de opinión —
+// eso no es "se mueve" ni "hay oportunidad", es solo comentario de contexto.
+// Cada ticker que SÍ es una oportunidad real (rating compra/venta) ya entra
+// por `ratingLabel !== 'neutral'` sin necesitar la segunda condición — se
+// saca esa condición entera en vez de acotarla, porque no agregaba ningún
+// caso real que no estuviera ya cubierto.
 function hasNews(item: WeeklyTickerData): boolean {
-  return item.ratingLabel !== 'neutral' || item.weekSignals.length > 0
+  return item.ratingLabel !== 'neutral'
 }
 
 function weeklyReportEmailHtml({
@@ -536,6 +548,21 @@ function weeklyReportEmailHtml({
       </td></tr>
     </table>`
   ) : ''
+
+  // ago 2026 (Cas: "me gustaria que diga cuanto es el aumento del porcentaje
+  // la ganancia de la semana no en comparacion al mercado"): número propio,
+  // sin comparar contra nada — antes de spyBenchmark (que sí compara).
+  const weekReturnHtml = payload.weekReturn ? `
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
+    <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
+      <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU CARTERA ESTA SEMANA</p>
+      <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:${payload.weekReturn.gainUsd >= 0 ? '#1FBE8D' : '#FF6F61'}">
+        ${payload.weekReturn.gainUsd >= 0 ? '+' : ''}${fmtUSD(payload.weekReturn.gainUsd)}
+        <span style="font-size:12px;font-weight:700">(${payload.weekReturn.gainPct >= 0 ? '+' : ''}${payload.weekReturn.gainPct.toFixed(1)}%)</span>
+      </p>
+      <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. hace 7 días, con las acciones que tienes hoy</p>
+    </td></tr>
+  </table>` : ''
 
   // ago 2026 (Cas: "solamente me interesa saber de ellas si se mueven o si
   // hay oportunidades"): un solo filtro, sin excepción para "la tengo en
@@ -589,6 +616,7 @@ function weeklyReportEmailHtml({
         ${verdictBlockHtml(buys, sells)}
         ${weekAheadHtml(payload.weekAhead, payload.items)}
         ${decisionBlockHtml(payload.todayDecision, infoMap, buys.length > 0, buys.length === 0 && sells.length === 0)}
+        ${weekReturnHtml}
         ${benchmarkHtml}
 
         ${rowsHtml ? `
