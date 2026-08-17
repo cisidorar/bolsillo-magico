@@ -522,32 +522,13 @@ function weeklyReportEmailHtml({
   siteUrl:     string
   weekLabel:   string
 }): string {
-  // ago 2026 (Cas: "¿cómo le voy a ganar eso si yo he ingresado como 4000
-  // USD?"): `distorted` se trata igual que `degenerate` acá — con la sombra
-  // de SPY casi vaciada por una venta que le ganó por mucho al mercado, ni
-  // el % NI el $ son un veredicto confiable (antes solo se ocultaba el %,
-  // dejando "+US$3.744" como si fuera un dato limpio). Mismo criterio que
-  // components/PerformanceSection.tsx en la app.
-  const benchmarkHtml = payload.spyBenchmark ? (
-    (payload.spyBenchmark.degenerate || payload.spyBenchmark.distorted) ? `
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
-      <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
-        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
-        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;font-weight:700;color:#3D4C63">Comparación no confiable por ahora</p>
-        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0;line-height:1.5">Una venta reciente generó mucha más ganancia de la que un SPY equivalente habría dado — el punto de comparación quedó distorsionado. Se recupera solo con tus próximos movimientos.</p>
-      </td></tr>
-    </table>` : `
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:4px">
-      <tr><td bgcolor="#F5F7FA" style="background:#F5F7FA;border-radius:14px;padding:14px 16px">
-        <p style="margin:0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.3px;color:#8B9AB0">TU SEMANA VS. EL MERCADO</p>
-        <p style="margin:4px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:18px;font-weight:800;color:${payload.spyBenchmark.diffUsd >= 0 ? '#1FBE8D' : '#FF6F61'}">
-          ${payload.spyBenchmark.diffUsd >= 0 ? '+' : ''}${fmtUSD(payload.spyBenchmark.diffUsd)}
-          ${payload.spyBenchmark.diffPct !== null ? `<span style="font-size:12px;font-weight:700">(${payload.spyBenchmark.diffPct >= 0 ? '+' : ''}${payload.spyBenchmark.diffPct.toFixed(1)}%)</span>` : ''}
-        </p>
-        <p style="margin:2px 0 0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:11px;font-weight:500;color:#8B9AB0">vs. haber puesto la misma plata en SPY, mismas fechas</p>
-      </td></tr>
-    </table>`
-  ) : ''
+  // ago 2026 (Cas: "quita esto" sobre la card "Tu semana vs. el mercado" —
+  // +143,1% vs. SPY leído como un resultado extraño/poco creíble por lo
+  // grande del número, aun con el guardrail de `distorted`/`degenerate` ya
+  // puesto). Se saca del correo entero; weekReturn (más abajo) ya cubre la
+  // pregunta real de Cas — cuánto ganó su cartera esta semana — sin comparar
+  // contra nada. spyBenchmark se sigue calculando en route.ts (lo usa la app
+  // en /inversiones), solo se dejó de renderizar acá.
 
   // ago 2026 (Cas: "me gustaria que diga cuanto es el aumento del porcentaje
   // la ganancia de la semana no en comparacion al mercado"): número propio,
@@ -617,7 +598,6 @@ function weeklyReportEmailHtml({
         ${weekAheadHtml(payload.weekAhead, payload.items)}
         ${decisionBlockHtml(payload.todayDecision, infoMap, buys.length > 0, buys.length === 0 && sells.length === 0)}
         ${weekReturnHtml}
-        ${benchmarkHtml}
 
         ${rowsHtml ? `
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px">
