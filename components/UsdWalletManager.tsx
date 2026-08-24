@@ -167,27 +167,42 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   async function save() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) { setFormError('Fecha inválida'); return }
 
-    // Editar venta: solo fecha y nota. El monto/ganancia quedan atados a la
-    // fila real de la venta (stock_sales) — cambiar ese número acá lo
-    // desincronizaría de las acciones/costo base que realmente se vendieron.
+    // Editar venta: fecha, nota y ahora también el monto recibido (ago 2026,
+    // Cas: un error de tipeo en Vender dejó un monto absurdo y no había forma
+    // de corregirlo). Las acciones vendidas y el costo base NO se tocan acá
+    // — eso sigue viviendo en la venta real (stock_sales) y no cambia; solo
+    // se recalcula la ganancia/pérdida con el monto corregido.
     if (editId && editKind === 'sell') {
+      const usd = parseFloat(form.usd.replace(',', '.'))
+      if (!Number.isFinite(usd) || usd <= 0) { setFormError('¿Cuántos dólares recibiste realmente?'); return }
+
       setBusy(true)
-      const row = { purchase_date: form.date, notes: form.notes.trim() || null }
+      const proceeds = Math.round(usd * 100) / 100
+      const row = { usd_amount: proceeds, purchase_date: form.date, notes: form.notes.trim() || null }
       const { error } = await supabase.from('usd_purchases')
         .update(row).eq('id', editId).eq('user_id', userId)
       if (error) { setBusy(false); setFormError(error.message); return }
       // Mantener sale_date sincronizada — es la fecha que de verdad usan el
       // benchmark vs SPY y el historial de Ventas (stock_sales.sale_date),
-      // no esta fila de billetera.
+      // no esta fila de billetera. El monto corregido también se propaga a
+      // proceeds_usd/realized_pnl_usd — cost_basis_usd y shares_sold, que sí
+      // reflejan lo que realmente salió de la posición, quedan intactos.
       if (editSaleId) {
+        const sale = sales.find(s => s.id === editSaleId)
+        const costBasis = sale ? Number(sale.cost_basis_usd) : null
+        const realizedPnl = costBasis !== null ? Math.round((proceeds - costBasis) * 100) / 100 : undefined
         const { error: saleErr } = await supabase.from('stock_sales')
-          .update({ sale_date: form.date }).eq('id', editSaleId).eq('user_id', userId)
+          .update({
+            sale_date: form.date,
+            proceeds_usd: proceeds,
+            ...(realizedPnl !== undefined ? { realized_pnl_usd: realizedPnl } : {}),
+          }).eq('id', editSaleId).eq('user_id', userId)
         if (saleErr) { setBusy(false); setFormError(saleErr.message); return }
       }
       setBusy(false)
       setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
       setShowForm(false)
-      router.refresh()   // refleja la fecha nueva en Ventas/benchmark
+      router.refresh()   // refleja el monto/fecha nuevos en Ventas/benchmark
       return
     }
 
@@ -394,21 +409,45 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
             {/* Body */}
             <div className="px-5 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
-              {/* Editar venta: el monto/ganancia están atados a la venta real
-                  (stock_sales) — acá solo se cambian fecha y nota. Mostrar el
-                  monto como referencia de solo lectura, no como input. */}
+              {/* Editar venta (ago 2026, Cas: "quise vender walmart... se
+                  vendió mal" — un error de tipeo en Vender dejó el monto
+                  recibido en US$28.762 en vez de ~US$268, y esta pantalla no
+                  dejaba corregirlo: el campo se mostraba como texto de solo
+                  lectura y Guardar solo tocaba fecha/nota. Ahora el monto SÍ
+                  es editable — las acciones vendidas y el costo base
+                  (`cost_basis_usd`, lo que de verdad salió de la posición) NO
+                  cambian, así que no hay riesgo de desincronizar la posición;
+                  solo se recalcula la ganancia/pérdida realizada con el monto
+                  corregido, en usd_purchases Y en stock_sales a la vez. */}
               {editKind === 'sell' ? (
-                <div
-                  className="px-4 py-2.5 rounded-xl flex items-center justify-between"
-                  style={{ background: 'var(--surface-2)' }}
-                >
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
-                    Dólares recibidos
-                  </span>
-                  <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
-                    {fmtUSD(parseFloat(form.usd) || 0)}
-                  </span>
-                </div>
+                <>
+                  {editSaleId && (() => {
+                    const sale = sales.find(s => s.id === editSaleId)
+                    return sale ? (
+                      <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface-2)' }}>
+                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                          Vendiste
+                        </span>
+                        <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
+                          {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. {sale.ticker}
+                        </span>
+                      </div>
+                    ) : null
+                  })()}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Dólares recibidos
+                    </label>
+                    <input
+                      type="text" inputMode="decimal" placeholder="268,60"
+                      value={form.usd}
+                      onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                      className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                      style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                      autoFocus
+                    />
+                  </div>
+                </>
               ) : editKind === 'compra' ? (
                 <>
                   <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface-2)' }}>
