@@ -142,17 +142,22 @@ async function dbHistory7d(
   return data.map(r => Number(r.close)).reverse()   // oldest → newest
 }
 
-// ── Frankfurter (tipo de cambio, sin API key) ─────────────────────────────────
-
+// ── mindicador.cl (tipo de cambio, sin API key) ────────────────────────────────
+// ago 2026: antes usaba Frankfurter (tasas del BCE), que no publica CLP —
+// esta función siempre devolvía null y price_cache nunca tenía fila
+// 'USDCLP', dejando "Acciones no sumadas" pegado en Patrimonio sin importar
+// cuántas veces se reintentara. mindicador.cl/api/dolar (dólar observado,
+// Banco Central de Chile) sí cubre CLP y es el mismo proveedor sin API key
+// que ya usa lib/cl-indicators.ts para UF/IPC.
 async function fxUsdClp(): Promise<number | null> {
   try {
     const r = await fetch(
-      'https://api.frankfurter.app/latest?from=USD&to=CLP',
+      'https://mindicador.cl/api/dolar',
       { cache: 'no-store' },
     )
     if (!r.ok) return null
     const d = await r.json()
-    return (d.rates?.CLP as number) ?? null
+    return (d.serie?.[0]?.valor as number) ?? null
   } catch {
     return null
   }

@@ -208,14 +208,22 @@ function buildSignals(
 // /inversiones (vía /api/stock-price) — si el snapshot corre desde el cron
 // sin que nadie haya abierto la app ese día, usaba un FX potencialmente viejo
 // o inexistente y las acciones quedaban sin valorizar (stocksPriced=false).
-// Frankfurter no requiere API key (mismo proveedor que usa el fallback de
-// /api/stock-price), así que se puede refrescar acá de forma autocontenida.
+//
+// ago 2026 (Cas, "Acciones no sumadas" permanente en Patrimonio pese a
+// clickear "Actualizar precios ahora" una y otra vez): la causa real es que
+// Frankfurter usa las tasas de referencia del BCE, que NO publican CLP —
+// `d.rates?.CLP` siempre venía undefined, esta función (y su gemela en
+// /api/stock-price) llevaban desde que existen fallando en silencio y
+// price_cache nunca tuvo una fila 'USDCLP'. Se cambia a mindicador.cl/api/dolar
+// (dólar observado, Banco Central de Chile) — mismo proveedor sin API key que
+// ya usa lib/cl-indicators.ts para UF/IPC, y de paso es la tasa "oficial"
+// chilena en vez de una cruzada vía EUR.
 async function refreshUsdClp(supabase: SupabaseClient): Promise<void> {
   try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=CLP', { cache: 'no-store' })
+    const r = await fetch('https://mindicador.cl/api/dolar', { cache: 'no-store' })
     if (!r.ok) return
     const d = await r.json()
-    const price = d?.rates?.CLP as number | undefined
+    const price = d?.serie?.[0]?.valor as number | undefined
     if (!price) return
     const { error } = await supabase.from('price_cache').upsert(
       { ticker: 'USDCLP', price, change_pct: 0, name: 'USD/CLP', history7d: null, fetched_at: new Date().toISOString() },
