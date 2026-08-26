@@ -59,7 +59,7 @@ export default async function PresupuestoPage() {
   // Ventana de 6 meses para el ingreso promedio (P4: presupuesto derivado de meta de ahorro)
   const incomeWindowStart = new Date(year, month - 1 - 6, 1)
 
-  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }, { data: recentIncomes }, { data: savingsGoals }] = await Promise.all([
+  const [{ data: categories }, { data: budgets }, { data: lastPeriodExpenses }, { data: recurring }, { data: monthlyBudget }, { data: recentIncomes }, { data: savingsGoals }, { data: categoryInsights }] = await Promise.all([
     supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
     supabase.from('category_budgets').select('*').eq('user_id', user.id),
     supabase
@@ -84,6 +84,19 @@ export default async function PresupuestoPage() {
       .gte('year', incomeWindowStart.getFullYear()),
     // E3: metas de ahorro con nombre y fecha
     supabase.from('savings_goals').select('*').eq('user_id', user.id).eq('is_active', true).order('created_at'),
+    // ago 2026 (Cas: "que la sugerencia se pueda ver al momento de cambiar el
+    // presupuesto"): insights de IA de este mes que ya apuntan a una
+    // categoría concreta (generados en /analisis, ver monthly_insights.
+    // category_id) — se muestran acá mismo, junto al input real de esa
+    // categoría, en vez de solo en la card separada de "Oportunidades de
+    // mejora". "status" se filtra a 'active' porque "Marcar como único"
+    // en /analisis puede dejar insights viejos con otro status.
+    supabase
+      .from('monthly_insights')
+      .select('id, category_id, title, description, suggested_amount, action_label')
+      .eq('user_id', user.id).eq('month', month).eq('year', year)
+      .eq('status', 'active')
+      .not('category_id', 'is', null),
   ])
 
   // Mapa de gasto por categoría del período anterior
@@ -128,6 +141,22 @@ export default async function PresupuestoPage() {
   )
 
   const typedBudgets = (budgets ?? []) as CategoryBudget[]
+
+  // ago 2026 (Cas): mapa categoría → sugerencia de IA de este mes, para
+  // mostrarla junto al input real de esa categoría más abajo. Si por algún
+  // motivo hay más de un insight para la misma categoría (no debería, el
+  // prompt pide máximo 3 y distintas categorías), se queda con el primero —
+  // no hay un criterio de "más relevante" entre insights del mismo mes acá.
+  type CategoryInsight = { id: string; description: string; suggested_amount: number | null; action_label: string | null }
+  // Objeto plano, no Map — cruza el límite server→client component y tiene
+  // que ser serializable.
+  const insightByCategory: Record<string, CategoryInsight> = {}
+  for (const ins of (categoryInsights ?? []) as { id: string; category_id: string; description: string; suggested_amount: number | null; action_label: string | null }[]) {
+    if (!insightByCategory[ins.category_id]) {
+      insightByCategory[ins.category_id] = { id: ins.id, description: ins.description, suggested_amount: ins.suggested_amount, action_label: ins.action_label }
+    }
+  }
+
   const totalBudgeted = typedBudgets.reduce((s, b) => s + b.amount, 0)
   const budgetsWithLimit = typedBudgets.length
   const totalCategories = sortedCategories.length
@@ -225,6 +254,7 @@ export default async function PresupuestoPage() {
           userId={user.id}
           month={month}
           year={year}
+          insightByCategory={insightByCategory}
         />
 
         {/* Panel lateral — solo desktop */}

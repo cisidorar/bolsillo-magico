@@ -58,10 +58,19 @@ const INSIGHTS_SCHEMA = {
               'ignore',
             ],
           },
+          // ago 2026 (Cas: "que la sugerencia se pueda ver al momento de
+          // cambiar el presupuesto"): category_id enlaza el insight a una fila
+          // real de Presupuesto; suggested_amount es el monto que la
+          // descripción ya menciona en texto, ahora también estructurado para
+          // poder precargarlo en el input con un botón. Ambos null si el
+          // insight no es sobre una categoría/monto concretos.
+          category_id:      { type: ['string', 'null'] },
+          suggested_amount: { type: ['integer', 'null'] },
         },
         required: [
           'type', 'title', 'description', 'impact_amount',
           'severity', 'confidence', 'expense_ids', 'action_label', 'action',
+          'category_id', 'suggested_amount',
         ],
       },
     },
@@ -93,6 +102,7 @@ IMPORTANTE — qué NO reportar:
 - Materialidad: ignora excesos o hallazgos cuyo impact_amount sea menor al 3% de total_expense (o un monto pequeño en términos absolutos) — un presupuesto pasado por unos pocos miles de pesos no es un hallazgo, es ruido. Prefiere SIEMPRE el patrón con mayor impacto en pesos o mayor persistencia en el tiempo sobre uno trivial, aunque tengas que devolver menos de 3 oportunidades.
 - Un gasto grande que parezca excepcional (viaje, evento puntual, compra única — sobre todo si distorsiona el % de una categoría o aparece partido entre dos medios de pago) NO debe usarse como evidencia de que "la categoría está sobre presupuesto" ni de un patrón de comportamiento — repórtalo aparte como one_time_purchase (acción mark_as_one_time) y, si al excluirlo la categoría SÍ vuelve a estar dentro de presupuesto, dilo explícitamente en la descripción.
 - "excluded_this_month" trae los gastos que el usuario YA marcó como únicos este mes (ya están fuera de categories/top_expenses/merchants). Nunca los reportes de nuevo ni los cuentes como evidencia — si es útil, puedes mencionar de pasada que ya quedaron excluidos del análisis.
+- category_id / suggested_amount: cada categoría en categories[] trae su category_id (UUID exacto). Si el hallazgo es sobre UNA categoría específica y sugiere ajustar su presupuesto (budget_unrealistic, category_over_budget, budget_missing), copia ese category_id exacto en el campo category_id de la oportunidad y pon en suggested_amount el mismo monto que recomiendas en la descripción (número entero, sin decimales) — esto permite mostrar la sugerencia junto al campo real donde el usuario ajusta ese presupuesto. Para one_time_purchase (el monto sugerido sería "sin esta compra", no un presupuesto) y para cualquier otro tipo que no apunte a un presupuesto de categoría, deja ambos campos en null — no inventes un category_id ni un monto que no correspondan.
 
 PRIORIZA patrones de COMPORTAMIENTO que solo se ven cruzando meses — para eso recibes categories[].history_6m (serie mensual por categoría), merchants (gasto por comercio con promedio histórico) e intra_month (distribución del gasto dentro del mes):
 1. merchant_trend: un comercio/servicio específico que crece sostenido vs su promedio (ej. "Uber subió 41% vs tus 3 meses previos: 14 viajes por $86.000"). ANTES de reportarlo, descarta compras periódicas normales usando months_active_hist, window_months y typical_amount de ese comercio: si months_active_hist < window_months (no aparece todos los meses) y el monto de este mes está cerca (±30%) de typical_amount, es un ciclo de compra esperado (ej. comida de mascota cada 2 meses, mantención cada trimestre) — NO es una alza, no lo reportes como merchant_trend. Solo repórtalo si el monto por compra realmente subió respecto a typical_amount, o si months_active_hist llegó al máximo (compra todos los meses) y aun así el monto sigue subiendo.
@@ -427,6 +437,10 @@ export async function POST(request: Request) {
     // Collect valid expense IDs for later validation (A08) — solo los que
     // realmente se le mostraron a la IA (activeExpenses)
     const validExpenseIds = new Set(activeExpenses.map((e: any) => e.id as string))
+    // ago 2026: mismo criterio para category_id — solo aceptar UUIDs de
+    // categorías que realmente se le mostraron a la IA en categories[]
+    // (se completa más abajo, después de construir byCat).
+    let validCategoryIds = new Set<string>()
 
     const byCat: Record<string, { name: string; total: number; count: number; recurring: number; budget: number | null }> = {}
     for (const e of activeExpenses) {
@@ -437,6 +451,7 @@ export async function POST(request: Request) {
       byCat[catId].count++
       if (e.recurring_expense_id) byCat[catId].recurring += e.amount
     }
+    validCategoryIds = new Set(Object.keys(byCat).filter(id => id !== 'sin-categoria'))
 
     // ── A03/LLM01: Sanitize descriptions before sending to AI ────────────────
     // I1.4: 20 → 40 gastos visibles + resumen agregado de la cola larga, para
@@ -486,6 +501,14 @@ export async function POST(request: Request) {
       delta_vs_prev_pct:       totalPrev > 0 ? Math.round(((totalMonth - totalPrev) / totalPrev) * 100) : null,
       expense_count:           activeExpenses.length,
       categories: Object.entries(byCat).sort((a, b) => b[1].total - a[1].total).map(([catId, c]) => ({
+        // category_id: UUID exacto — para insights sobre esta categoría
+        // (budget_unrealistic/category_over_budget/budget_missing), devolver
+        // este mismo valor en el campo category_id de la oportunidad, así la
+        // sugerencia se puede mostrar junto al input real de esa categoría
+        // en Presupuesto (Cas: "que la sugerencia se pueda ver al momento de
+        // cambiar el presupuesto"). 'sin-categoria' no es un UUID real — si
+        // el hallazgo es sobre gastos sin categorizar, deja category_id null.
+        category_id:          catId === 'sin-categoria' ? null : catId,
         name:                 sanitize(c.name, 40),
         total:                c.total,
         count:                c.count,
@@ -685,7 +708,16 @@ export async function POST(request: Request) {
           : [],
         action_label:  op.action_label ? String(op.action_label).slice(0, 60) : 'Ver detalle',
         action:        op.action as string,
+        // A08: mismo whitelist que expense_ids — solo aceptar un category_id
+        // que realmente se le mostró a la IA en categories[]. suggested_amount
+        // solo se conserva si además hay un category_id válido (un monto
+        // sugerido sin categoría no tiene dónde mostrarse en Presupuesto).
+        category_id:   typeof op.category_id === 'string' && validCategoryIds.has(op.category_id)
+          ? op.category_id : null,
+        suggested_amount: typeof op.suggested_amount === 'number' && Number.isInteger(op.suggested_amount) && op.suggested_amount > 0
+          ? op.suggested_amount : null,
       }))
+      .map(op => ({ ...op, suggested_amount: op.category_id ? op.suggested_amount : null }))
 
     // ── 6. Guardar en Supabase ────────────────────────────────────────────────
     const { error: deleteError } = await supabase
@@ -710,6 +742,8 @@ export async function POST(request: Request) {
           severity:      op.severity,
           confidence:    op.confidence,
           expense_ids:   op.expense_ids,
+          category_id:      op.category_id,
+          suggested_amount: op.suggested_amount,
           action_label:  op.action_label,
           action:        op.action,
           expenses_hash: expensesHash,

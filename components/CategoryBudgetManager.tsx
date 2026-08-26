@@ -3,10 +3,17 @@
 import React, { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Check, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Check, RefreshCw, AlertTriangle, Lightbulb } from 'lucide-react'
 import { formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import type { Category, CategoryBudget } from '@/types'
+
+// ago 2026 (Cas: "que la sugerencia se pueda ver al momento de cambiar el
+// presupuesto") — insight de IA de este mes ya resuelto a una categoría
+// concreta, generado en app/api/analyze-month/route.ts (monthly_insights.
+// category_id/suggested_amount). Es un nudge accionable pero no urgente →
+// gold/chip, no banner (ver Alert Severity Hierarchy en CLAUDE.md).
+type CategoryInsight = { id: string; description: string; suggested_amount: number | null; action_label: string | null }
 
 interface Props {
   categories: Category[]
@@ -15,6 +22,7 @@ interface Props {
   userId: string
   month: number
   year: number
+  insightByCategory: Record<string, CategoryInsight>
 }
 
 type Row = {
@@ -50,7 +58,7 @@ function buildRows(categories: Category[], budgets: CategoryBudget[]): Row[] {
   }))
 }
 
-export default function CategoryBudgetManager({ categories, budgets, recurringByCategory, userId, month, year }: Props) {
+export default function CategoryBudgetManager({ categories, budgets, recurringByCategory, userId, month, year, insightByCategory }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [rows, setRows] = useState<Row[]>(() => buildRows(categories, budgets))
@@ -111,6 +119,18 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
     router.refresh()
   }
 
+  // ago 2026 (Cas): aplica de un click el monto que sugiere la IA — misma
+  // ruta que editar el input a mano (save), solo que el draft nuevo se pasa
+  // explícito porque updateRow es async (setState) y `rows` en este cierre
+  // todavía tendría el draft viejo si solo llamáramos a save(row).
+  async function applySuggestion(catId: string, amount: number) {
+    const draft = fmtDraft(amount)
+    const row = rows.find(r => r.category.id === catId)
+    if (!row) return
+    updateRow(catId, { draft })
+    await save({ ...row, draft })
+  }
+
   const totalBudgeted = rows.reduce((s, r) => s + (r.current ?? 0), 0)
   const withLimit = rows.filter(r => r.current !== null && r.current > 0).length
 
@@ -125,9 +145,11 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
           const hasBudget = row.current !== null && row.current > 0
           const recurringAmt = recurringByCategory[c.id] ?? 0
           const underBudget = hasBudget && recurringAmt > 0 && row.current! < recurringAmt
+          const insight = insightByCategory[c.id]
 
           return (
-            <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 relative">
+            <React.Fragment key={c.id}>
+            <div className="flex items-center gap-3 px-4 py-3.5 relative">
 
               {/* Left accent stripe when budget is set */}
               {hasBudget && (
@@ -204,6 +226,25 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
                 </div>
               </div>
             </div>
+
+            {/* Sugerencia de IA para esta categoría — gold/chip, nunca banner */}
+            {insight && (
+              <div className="px-4 pb-3 -mt-1">
+                <div className="flex items-start gap-1.5 text-[11px] rounded-lg px-2.5 py-2 bg-amber-50 border border-amber-200 text-amber-800">
+                  <Lightbulb className="w-3 h-3 flex-shrink-0 mt-0.5 text-amber-600" />
+                  <span className="flex-1 leading-snug">{insight.description}</span>
+                  {insight.suggested_amount != null && (
+                    <button
+                      onClick={() => applySuggestion(c.id, insight.suggested_amount!)}
+                      className="flex-shrink-0 font-bold underline decoration-dotted underline-offset-2 hover:opacity-70"
+                    >
+                      Usar {formatCLP(insight.suggested_amount)}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            </React.Fragment>
           )
         })}
       </div>
