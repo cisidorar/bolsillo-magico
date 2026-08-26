@@ -1,6 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
-import { computeAndSnapshotNetWorth, type NetWorthResult } from '@/lib/net-worth'
+import { computeAndSnapshotNetWorth, computeNetWorthWeeklyHistory, type NetWorthResult, type NetWorthHistoryPoint } from '@/lib/net-worth'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
@@ -661,6 +661,14 @@ export default async function AnalisisPage({
   // snapshot, que también corre a diario desde el cron) solo se hace ahí.
   if (isPatrimonio) {
     netWorth = await computeAndSnapshotNetWorth(supabase, user!.id, now, committedDebtTotal)
+  }
+
+  // ago 2026 (Cas: "que se viera la evolución por más meses") — curva
+  // semanal reconstruida desde el inicio real de los activos, en vez de
+  // depender solo de que pase un mes por punto (ver computeNetWorthWeeklyHistory).
+  let netWorthHistory: NetWorthHistoryPoint[] = []
+  if (isPatrimonio && netWorth) {
+    netWorthHistory = await computeNetWorthWeeklyHistory(supabase, user!.id, netWorth.current)
   }
 
   // ── B2/R3: Proyección de patrimonio a interés compuesto (solo pestaña
@@ -1733,6 +1741,7 @@ export default async function AnalisisPage({
               netWorth={netWorth}
               committedDebtTotal={committedDebtTotal}
               stockTickers={stockTickers}
+              netWorthHistory={netWorthHistory}
             />
           ) : (
             <div className="card text-center py-14 flex flex-col items-center gap-3">

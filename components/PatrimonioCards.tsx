@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
-import type { NetWorthResult } from '@/lib/net-worth'
+import type { NetWorthResult, NetWorthHistoryPoint } from '@/lib/net-worth'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 
@@ -50,6 +50,10 @@ interface Props {
   // ahora" del aviso de acciones no valorizadas (llama a /api/stock-price
   // directo, sin mandar a abrir Acciones y volver).
   stockTickers: string[]
+  // ago 2026: curva semanal reconstruida (computeNetWorthWeeklyHistory) —
+  // más rica que los snapshots mensuales cuando hay pocos meses de historia.
+  // Ver PatrimonioCards' nwPoints para el fallback a snapshots mensuales.
+  netWorthHistory: NetWorthHistoryPoint[]
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
@@ -106,6 +110,12 @@ function fmtMonths(v: number): string {
 }
 
 const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+
+/** 'YYYY-MM-DD' → '3 ago' — label corto para los puntos de la curva semanal reconstruida. */
+function fmtWeekLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`
+}
 
 /** Curva suave tipo Catmull-Rom → Bézier cúbica (se ve bien con 2 puntos —
  * queda una línea recta — y mejora sola a medida que se acumulan snapshots). */
@@ -188,7 +198,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal, stockTickers,
+  netWorth, committedDebtTotal, stockTickers, netWorthHistory,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -236,9 +246,15 @@ export default function PatrimonioCards({
 
   // F4: patrimonio neto
   const nw = netWorth && netWorth.current.total_clp > 0 ? netWorth : null
-  const nwPoints = nw
-    ? nw.snapshots.slice(-13).map(s => ({ label: MONTH_SHORT[s.month - 1], total: s.total_clp }))
-    : []
+  // ago 2026: preferir la curva semanal reconstruida (más rica dentro de la
+  // ventana real de datos) — cae a los snapshots mensuales solo si no hubo
+  // nada que reconstruir (ej. usuario recién llegado, sin ninguna cuenta/
+  // compra con fecha todavía).
+  const nwPoints = netWorthHistory.length >= 2
+    ? netWorthHistory.map(p => ({ label: fmtWeekLabel(p.date), total: p.total }))
+    : nw
+      ? nw.snapshots.slice(-13).map(s => ({ label: MONTH_SHORT[s.month - 1], total: s.total_clp }))
+      : []
   const nwPrev = nw && nw.snapshots.length >= 2 ? nw.snapshots[nw.snapshots.length - 2] : null
   const nwDelta = nw && nwPrev ? nw.current.total_clp - nwPrev.total_clp : null
   const nwDeltaPct = nwDelta !== null && nwPrev && nwPrev.total_clp > 0

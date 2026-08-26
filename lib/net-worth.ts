@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { billingPeriod } from './utils'
+import { fetchClDolarYear, type UsdClpObservation } from './cl-indicators'
 
 // ── F4: cálculo y snapshot de patrimonio neto ────────────────────────────────
 // Valoriza los tres tipos de activos y hace upsert del snapshot del mes actual.
@@ -34,19 +35,25 @@ export interface NetWorthResult {
   stocksPriced: boolean                // false = acciones valorizadas al costo (sin precio en caché)
 }
 
-/** Interés compuesto acumulado de cuenta de ahorro (misma fórmula que DepositManager). */
-function savingsEarned(balance: number, annualRate: number, startDate: string): number {
+/**
+ * Interés compuesto acumulado de cuenta de ahorro (misma fórmula que
+ * DepositManager). `asOf` (ms epoch, default ahora) permite evaluar el
+ * interés devengado a una fecha PASADA — lo usa computeNetWorthWeeklyHistory
+ * para reconstruir cuánto habría devengado la cuenta en cada punto de la
+ * curva, no solo hoy.
+ */
+function savingsEarned(balance: number, annualRate: number, startDate: string, asOf: number = Date.now()): number {
   const s    = new Date(startDate + 'T12:00:00')
-  const days = Math.max(0, Math.floor((Date.now() - s.getTime()) / 86_400_000))
+  const days = Math.max(0, Math.floor((asOf - s.getTime()) / 86_400_000))
   return Math.round(balance * (Math.pow(1 + annualRate / 100, days / 365) - 1))
 }
 
-/** Interés devengado lineal de depósito a plazo (misma fórmula que TermDepositManager). */
-function depositAccrued(amount: number, rate: number, startDate: string, maturityDate: string): number {
+/** Interés devengado lineal de depósito a plazo (misma fórmula que TermDepositManager). `asOf`: ver savingsEarned. */
+function depositAccrued(amount: number, rate: number, startDate: string, maturityDate: string, asOf: number = Date.now()): number {
   const start = new Date(startDate + 'T12:00:00').getTime()
   const end   = new Date(maturityDate + 'T12:00:00').getTime()
   const total = Math.round((end - start) / 86_400_000)
-  const gone  = Math.min(Math.max(Math.floor((Date.now() - start) / 86_400_000), 0), total)
+  const gone  = Math.min(Math.max(Math.floor((asOf - start) / 86_400_000), 0), total)
   const interest = Math.round(amount * (rate / 100))
   return total > 0 ? Math.round(interest * (gone / total)) : 0
 }
@@ -263,4 +270,195 @@ export async function computeAndSnapshotNetWorth(
   const snapshots = totalClp > 0 ? [...hist, current] : hist
 
   return { current, snapshots, stocksPriced }
+}
+
+// ── Evolución semanal reconstruida (ago 2026) ────────────────────────────────
+// Cas: "me gustaria que se viera la evolucion por mas meses". El histórico
+// REAL de snapshots mensuales solo tiene un punto por mes desde que existe
+// esta función (jul 2026) — y sus propios activos (ahorro, depósito,
+// acciones, billetera USD) tampoco existen antes de esa fecha, así que no
+// hay "más meses" que mostrar: no es un hueco de datos, es que el
+// patrimonio invertido recién empezó a existir. Lo que sí se puede hacer es
+// una curva más fina DENTRO de esa ventana real, reconstruida semana a
+// semana a partir de movimientos con fecha real en vez de esperar a que se
+// acumule un snapshot mensual por mes:
+//  - Acciones: shares acumuladas de stock_purchases/stock_sales hasta cada
+//    fecha × precio de cierre de price_history a esa fecha (o el costo
+//    promedio pagado hasta ahí, si aún no hay precio histórico) × USD/CLP
+//    histórico (mindicador.cl vía fetchClDolarYear).
+//  - Ahorro/depósitos: las mismas fórmulas de interés que ya usa el
+//    snapshot de HOY (savingsEarned/depositAccrued), evaluadas a cada fecha
+//    en vez de a "ahora". Asume que el saldo no tuvo depósitos/retiros sin
+//    registrar desde que se creó la cuenta — no hay un libro de movimientos,
+//    solo el saldo actual, así que es la mejor aproximación disponible (la
+//    misma que ya usa el cálculo de HOY, solo evaluada en el pasado).
+//  - Billetera USD: no existe un flag por compra de "se pagó con la
+//    billetera o con CLP externo", solo el total acumulado de hoy
+//    (`wallet_cost_usd` en stock_positions). Se asume orden cronológico
+//    (FIFO): las compras más antiguas consumen primero el cupo de la
+//    billetera, hasta llegar al total de hoy. Es una aproximación
+//    declarada, no un dato exacto — por eso el ÚLTIMO punto de la curva se
+//    fuerza a calzar exacto con `current` (mismo número que ya muestra el
+//    hero de arriba), la reconstrucción solo rellena los puntos intermedios.
+export interface NetWorthHistoryPoint {
+  date:  string  // YYYY-MM-DD (inicio de cada semana reconstruida)
+  total: number  // CLP
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
+/** Última observación de una serie ordenada ascendente con date <= `date` (null si `date` es anterior a toda la serie). */
+function latestAtOrBefore<T extends { date: string }>(series: T[], date: string): T | null {
+  let result: T | null = null
+  for (const obs of series) {
+    if (obs.date > date) break
+    result = obs
+  }
+  return result
+}
+
+export async function computeNetWorthWeeklyHistory(
+  supabase: SupabaseClient,
+  userId: string,
+  current: NetWorthSnapshot,
+): Promise<NetWorthHistoryPoint[]> {
+  const [{ data: savings }, { data: deposits }, { data: purchases }, { data: sales }, { data: usdRows }, { data: positions }] = await Promise.all([
+    supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
+    supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
+    supabase.from('stock_purchases').select('ticker, shares, total_paid_usd, purchase_date').eq('user_id', userId).order('purchase_date'),
+    supabase.from('stock_sales').select('ticker, shares_sold, sale_date').eq('user_id', userId).order('sale_date'),
+    supabase.from('usd_purchases').select('usd_amount, purchase_date').eq('user_id', userId).order('purchase_date'),
+    supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
+  ])
+
+  const savingsRows  = savings ?? []
+  const depositRows  = deposits ?? []
+  const purchaseRows = (purchases ?? []) as { ticker: string; shares: number; total_paid_usd: number; purchase_date: string }[]
+  const saleRows     = (sales ?? []) as { ticker: string; shares_sold: number; sale_date: string }[]
+  const usdMovements = (usdRows ?? []) as { usd_amount: number; purchase_date: string }[]
+  const positionRows = (positions ?? []) as { ticker: string; shares: number; avg_cost_usd: number; wallet_cost_usd: number | null }[]
+  const walletCostUsdFinal = positionRows.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
+
+  // Fecha de arranque real: la más antigua entre las 4 fuentes de activos.
+  // Sin ninguna, no hay nada que reconstruir (usuario sin activos todavía).
+  const candidateStarts = [
+    ...savingsRows.map(s => s.start_date),
+    ...depositRows.map(d => d.start_date),
+    ...purchaseRows.map(p => p.purchase_date),
+    ...usdMovements.map(u => u.purchase_date),
+  ].filter(Boolean) as string[]
+  if (candidateStarts.length === 0) return []
+  const startDate = [...candidateStarts].sort()[0]
+  const todayStr  = toDateStr(new Date())
+
+  // Reconciliación: posiciones que hoy tienen más shares que lo que suman
+  // sus stock_purchases/stock_sales (datos legacy, importados o editados a
+  // mano, de antes de que existiera este tracking) — sin esto, esas
+  // posiciones quedarían en $0 en TODA la curva reconstruida y solo
+  // aparecerían de golpe en el último punto (forzado a calzar con `current`),
+  // viéndose como un salto/glitch. Se trata el faltante como si existiera
+  // desde `startDate`, valorizado a su costo promedio actual.
+  const trackedShares = new Map<string, number>()
+  for (const p of purchaseRows) trackedShares.set(p.ticker, (trackedShares.get(p.ticker) ?? 0) + Number(p.shares))
+  for (const s of saleRows)     trackedShares.set(s.ticker, (trackedShares.get(s.ticker) ?? 0) - Number(s.shares_sold))
+  for (const pos of positionRows) {
+    const gap = Number(pos.shares) - (trackedShares.get(pos.ticker) ?? 0)
+    if (gap > 1e-6) {
+      purchaseRows.push({
+        ticker: pos.ticker, shares: gap, total_paid_usd: gap * Number(pos.avg_cost_usd ?? 0), purchase_date: startDate,
+      })
+    }
+  }
+  if (startDate >= todayStr) return []
+
+  // FIFO de financiamiento de la billetera — ver comentario de la función.
+  let walletBudgetLeft = walletCostUsdFinal
+  const walletFundedByPurchase = purchaseRows.map(p => {
+    const funded = Math.min(Number(p.total_paid_usd), Math.max(0, walletBudgetLeft))
+    walletBudgetLeft -= funded
+    return funded
+  })
+
+  // Precios históricos por ticker (price_history) — una sola consulta.
+  const tickers = [...new Set(purchaseRows.map(p => p.ticker))]
+  const { data: priceRows } = tickers.length > 0
+    ? await supabase.from('price_history').select('ticker, date, close').in('ticker', tickers).order('date')
+    : { data: [] as { ticker: string; date: string; close: number }[] }
+  const priceByTicker = new Map<string, { date: string; close: number }[]>()
+  for (const r of (priceRows ?? []) as { ticker: string; date: string; close: number }[]) {
+    if (!priceByTicker.has(r.ticker)) priceByTicker.set(r.ticker, [])
+    priceByTicker.get(r.ticker)!.push({ date: r.date, close: Number(r.close) })
+  }
+
+  // FX histórico USD/CLP — todos los años que cubre el rango (cache 24h c/u).
+  const startYear = Number(startDate.slice(0, 4))
+  const endYear   = Number(todayStr.slice(0, 4))
+  const years  = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
+  const fxByYear = await Promise.all(years.map(y => fetchClDolarYear(supabase, y)))
+  const fxSeries = fxByYear
+    .flatMap(s => s ?? [])
+    .sort((a, b) => a.date.localeCompare(b.date)) as UsdClpObservation[]
+
+  // Fechas semanales desde el inicio real hasta hoy (siempre termina en hoy).
+  const dates: string[] = []
+  let cursor = new Date(startDate + 'T12:00:00')
+  const todayDate = new Date(todayStr + 'T12:00:00')
+  let guard = 0
+  while (cursor < todayDate && guard < 120) {
+    dates.push(toDateStr(cursor))
+    cursor = new Date(cursor.getTime() + 7 * 86_400_000)
+    guard++
+  }
+  dates.push(todayStr)
+  if (dates.length < 2) return []
+
+  const points: NetWorthHistoryPoint[] = dates.map(D => {
+    const asOf = new Date(D + 'T12:00:00').getTime()
+    const fx = latestAtOrBefore(fxSeries, D)?.value ?? null
+
+    // Acciones: shares acumuladas a D × precio de cierre más reciente ≤ D
+    // (o el costo promedio pagado hasta D, si todavía no hay precio histórico).
+    let stocksClp = 0
+    if (fx !== null) {
+      for (const ticker of tickers) {
+        const bought = purchaseRows.filter(p => p.ticker === ticker && p.purchase_date <= D)
+        const sold   = saleRows.filter(s => s.ticker === ticker && s.sale_date <= D)
+        const shares = bought.reduce((s, p) => s + Number(p.shares), 0) - sold.reduce((s, r) => s + Number(r.shares_sold), 0)
+        if (shares <= 0) continue
+        const histPrice  = latestAtOrBefore(priceByTicker.get(ticker) ?? [], D)?.close
+        const boughtCost = bought.reduce((s, p) => s + Number(p.total_paid_usd), 0)
+        const boughtShs  = bought.reduce((s, p) => s + Number(p.shares), 0)
+        const price = histPrice ?? (boughtShs > 0 ? boughtCost / boughtShs : 0)
+        stocksClp += Math.round(shares * price * fx)
+      }
+    }
+
+    // Ahorro y depósitos: 0 si la cuenta/depósito todavía no existía a esa fecha.
+    const savingsClp = savingsRows
+      .filter(s => s.start_date <= D)
+      .reduce((s, a) => s + a.balance + savingsEarned(a.balance, Number(a.annual_rate), a.start_date, asOf), 0)
+    const depositsClp = depositRows
+      .filter(d => d.start_date <= D)
+      .reduce((s, d) => s + d.amount + depositAccrued(d.amount, Number(d.interest_rate), d.start_date, d.maturity_date, asOf), 0)
+
+    // Billetera USD: aportes + ventas acumulados a D, menos lo ya asignado a
+    // acciones a D según el FIFO de arriba.
+    let usdClp = 0
+    if (fx !== null) {
+      const movementsUsd = usdMovements.filter(u => u.purchase_date <= D).reduce((s, u) => s + Number(u.usd_amount), 0)
+      const openCostUsd  = purchaseRows.reduce((s, p, i) => p.purchase_date <= D ? s + walletFundedByPurchase[i] : s, 0)
+      usdClp = Math.round(Math.max(0, movementsUsd - openCostUsd) * fx)
+    }
+
+    return { date: D, total: stocksClp + savingsClp + depositsClp + usdClp }
+  })
+
+  // El último punto siempre calza exacto con el patrimonio ya calculado "en
+  // vivo" (mismo número que el hero de arriba) — la reconstrucción es
+  // aproximada, pero la cifra de hoy no debería depender de ella.
+  points[points.length - 1] = { date: todayStr, total: current.total_clp }
+
+  return points
 }

@@ -72,6 +72,34 @@ export async function fetchClUf(supabase: SupabaseClient): Promise<UfObservation
   })
 }
 
+export interface UsdClpObservation {
+  date:  string  // YYYY-MM-DD
+  value: number  // CLP por 1 USD (dólar observado)
+}
+
+/**
+ * ago 2026 (Cas: "que se viera la evolución por más meses" en Patrimonio) —
+ * serie histórica del dólar observado, un año completo por llamada.
+ * mindicador.cl/api/dolar/{year} trae ~250 observaciones (días hábiles) de
+ * ese año. Cache-first (24h) en price_cache con clave sintética
+ * `CL_DOLAR_{year}`, mismo patrón que IPC/UF. Usada por
+ * computeNetWorthWeeklyHistory (lib/net-worth.ts) para reconstruir el valor
+ * en CLP de acciones/billetera USD en fechas pasadas — NO reemplaza el
+ * USDCLP "de hoy" que cachea sync-prices, que sigue siendo la fuente para el
+ * patrimonio actual.
+ */
+export async function fetchClDolarYear(supabase: SupabaseClient, year: number): Promise<UsdClpObservation[] | null> {
+  return fetchCached(supabase, `CL_DOLAR_${year}`, async () => {
+    const res = await fetch(`https://mindicador.cl/api/dolar/${year}`, { cache: 'no-store' })
+    if (!res.ok) return null
+    const raw = await res.json() as MindicadorSerie<unknown>
+    const obs = (raw.serie ?? [])
+      .map(o => ({ date: o.fecha.slice(0, 10), value: o.valor }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    return obs.length > 0 ? obs : null
+  })
+}
+
 // ── Cálculos puros (deterministas, testeados) ────────────────────────────────
 
 /**
