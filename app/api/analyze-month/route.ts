@@ -101,7 +101,7 @@ PRIORIZA patrones de COMPORTAMIENTO que solo se ven cruzando meses — para eso 
 4. seasonal_pattern / habit_increase: categoría con deriva sostenida en history_6m (3+ meses subiendo), distinguiendo deriva real de un spike puntual.
 5. budget_unrealistic: categoría que lleva 3+ meses sobre el MISMO presupuesto — el problema es el presupuesto, sugiere monto realista (promedio 3m).
 6. frequent_small_expenses: la cola larga (small_expenses_summary) concentrada en un patrón identificable.
-7. one_time_purchase / unusual_spending: solo si distorsiona el mes de forma relevante Y no es obvio a simple vista.
+7. one_time_purchase / unusual_spending: solo si distorsiona el mes de forma relevante Y no es obvio a simple vista. La descripción SIEMPRE debe comparar contra el promedio de esa categoría en los meses previos, no solo contra el presupuesto: calcula el promedio de history_6m EXCLUYENDO el mes actual (el último elemento del array) y dilo explícito — ej. "tu categoría Tecnología promedió $45.000/mes en los últimos 5 meses; esta compra por sí sola es X veces ese promedio". Si history_6m no tiene meses previos con datos (todos en 0), omite la comparación en vez de inventar un promedio.
 
 Si "goal_context" viene con datos, además busca patrones de balance gasto/inversión/colchón:
 8. invest_goal_at_risk: el gasto de este mes (o su proyección) deja menos disponible del necesario para cumplir la meta de aporte mensual (goal_context.monthly_invest_goal vs goal_context.disposable_income).
