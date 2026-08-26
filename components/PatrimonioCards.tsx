@@ -107,28 +107,76 @@ function fmtMonths(v: number): string {
 
 const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 
+/** Curva suave tipo Catmull-Rom → Bézier cúbica (se ve bien con 2 puntos —
+ * queda una línea recta — y mejora sola a medida que se acumulan snapshots). */
+function smoothPath(xs: number[], ys: number[]): string {
+  let d = `M ${xs[0]},${ys[0]}`
+  for (let i = 0; i < xs.length - 1; i++) {
+    const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
+    const x1 = xs[i], y1 = ys[i]
+    const x2 = xs[i + 1], y2 = ys[i + 1]
+    const x3 = xs[i + 2] ?? x2, y3 = ys[i + 2] ?? y2
+    const c1x = x1 + (x2 - x0) / 6, c1y = y1 + (y2 - y0) / 6
+    const c2x = x2 - (x3 - x1) / 6, c2y = y2 - (y3 - y1) / 6
+    d += ` C ${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`
+  }
+  return d
+}
+
 /** Gráfico de área SVG del patrimonio neto (histórico de snapshots). */
 function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
-  const W = 560, H = 120, padX = 4, padTop = 10, padBot = 18
+  const W = 560, H = 148, padX = 8, padTop = 16, padBot = 24
   const n = points.length
   if (n < 2) return null
   const totals = points.map(p => p.total)
   const min = Math.min(...totals)
   const max = Math.max(...totals)
   const range = max - min || 1
+  const chartH = H - padTop - padBot
   const xs = points.map((_, i) => padX + (i / (n - 1)) * (W - padX * 2))
-  const ys = totals.map(t => padTop + (1 - (t - min) / range) * (H - padTop - padBot))
-  const line = xs.map((x, i) => `${x},${ys[i]}`).join(' ')
-  const area = `${padX},${H - padBot} ${line} ${W - padX},${H - padBot}`
+  const ys = totals.map(t => padTop + (1 - (t - min) / range) * chartH)
+  const linePath = smoothPath(xs, ys)
+  const areaPath = `${linePath} L ${xs[n - 1]},${H - padBot} L ${xs[0]},${H - padBot} Z`
+  // Mostrar mes bajo cada punto si hay pocos; si hay muchos, solo extremos + cada 3° para no amontonar texto
+  const showLabel = (i: number) => n <= 6 || i === 0 || i === n - 1 || i % 3 === 0
+  const trendUp = totals[n - 1] >= totals[0]
+  const lineColor = trendUp ? 'var(--primary)' : 'var(--coral)'
+  const gradId = 'nw-area-grad'
+
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
-      <polygon points={area} fill="var(--primary)" opacity="0.10" />
-      <polyline points={line} fill="none" stroke="var(--primary)" strokeWidth="2.5"
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Grillas horizontales de referencia (sin números — el hero de arriba ya da la cifra) */}
+      {[0.33, 0.66].map(f => (
+        <line key={f} x1={padX} y1={padTop + chartH * f} x2={W - padX} y2={padTop + chartH * f}
+          stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
+      ))}
+
+      <path d={areaPath} fill={`url(#${gradId})`} />
+      <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5"
         strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill="var(--primary)" />
-      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="7" fill="var(--primary)" opacity="0.2" />
-      <text x={padX} y={H - 4} fontSize="10" fontWeight="600" fill="var(--ink-3)">{points[0].label}</text>
-      <text x={W - padX} y={H - 4} fontSize="10" fontWeight="600" fill="var(--ink-3)" textAnchor="end">{points[n - 1].label}</text>
+
+      {/* Punto por mes — tenues en el trayecto, el actual destacado con halo */}
+      {xs.map((x, i) => {
+        const isLast = i === n - 1
+        if (isLast) return null
+        return <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={lineColor} opacity={i === 0 ? 0.85 : 0.45} />
+      })}
+      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="7" fill={lineColor} opacity="0.2" />
+      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill={lineColor} />
+
+      {points.map((p, i) => showLabel(i) && (
+        <text key={i} x={xs[i]} y={H - 6} fontSize="10" fontWeight="600" fill="var(--ink-3)"
+          textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ textTransform: 'capitalize' }}>
+          {p.label}
+        </text>
+      ))}
     </svg>
   )
 }
