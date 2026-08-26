@@ -366,6 +366,16 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   async function registerNow(item: RecurringExpense, e: React.MouseEvent) {
     e.stopPropagation()
     if (registerState[item.id]) return
+
+    // Guarda de última línea (ago 2026, Cas: "el refrigerador sigue
+    // cobrandose" — apareció un 4to cargo de una cuota ya completa 3/3). El
+    // botón ya está oculto para items completos vía `canRegister` más abajo,
+    // pero eso depende de que `item` (prop, puede quedar obsoleto si el
+    // usuario no refrescó) refleje el estado real — sin este chequeo acá
+    // adentro, cualquier desfase entre lo que ve la UI y la BD deja pasar un
+    // cobro de más en una cuota que ya terminó de pagarse.
+    if (item.total_installments != null && (item.paid_installments ?? 0) >= item.total_installments) return
+
     setRegisterState(prev => ({ ...prev, [item.id]: 'loading' }))
 
     // Fecha de hoy en hora Chile — no usar toISOString() (hora UTC del
@@ -381,6 +391,18 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       description:          item.name,
       date:                 dateStr,
     })
+
+    // Si esta cuota era la última, cerrar el plan igual que en auto-register.ts
+    // — sin esto, "Registrar ahora" podía dejar paid_installments desalineado
+    // del conteo real de gastos y is_active en true para un plan ya terminado.
+    if (item.total_installments != null) {
+      const newPaid = (item.paid_installments ?? 0) + 1
+      if (newPaid >= item.total_installments) {
+        await supabase.from('recurring_expenses').update({ paid_installments: newPaid, is_active: false }).eq('id', item.id)
+      } else {
+        await supabase.from('recurring_expenses').update({ paid_installments: newPaid }).eq('id', item.id)
+      }
+    }
 
     setRegisterState(prev => ({ ...prev, [item.id]: 'done' }))
     router.refresh()
