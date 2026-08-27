@@ -66,18 +66,30 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   // ── Registrar normales ───────────────────────────────────────────────────
   if (normalDue.length > 0) {
+    // Dedup por dos vías: (a) ya existe un gasto vinculado a este ítem
+    // recurrente este mes, o (b) el usuario ya lo registró a mano (sin
+    // vincular) con el mismo nombre y monto — evita duplicar cargos como
+    // "Netflix $18.770" cuando la persona lo anotó manualmente antes de que
+    // corriera el auto-registro.
     const { data: alreadyNormal } = await supabase
       .from('expenses')
-      .select('recurring_expense_id')
+      .select('recurring_expense_id, description, amount')
       .eq('user_id', user.id)
-      .not('recurring_expense_id', 'is', null)
       .gte('date', `${currentYear}-${monthStr}-01`)
       .lt('date',  `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
 
-    const registeredNormal = new Set((alreadyNormal ?? []).map(e => e.recurring_expense_id))
+    const registeredNormalIds = new Set(
+      (alreadyNormal ?? []).filter(e => e.recurring_expense_id).map(e => e.recurring_expense_id)
+    )
+    const registeredNormalKeys = new Set(
+      (alreadyNormal ?? [])
+        .filter(e => !e.recurring_expense_id)
+        .map(e => `${(e.description ?? '').trim().toLowerCase()}::${e.amount}`)
+    )
 
     const toInsert = normalDue
-      .filter(r => !registeredNormal.has(r.id))
+      .filter(r => !registeredNormalIds.has(r.id))
+      .filter(r => !registeredNormalKeys.has(`${r.name.trim().toLowerCase()}::${r.amount}`))
       .map(r => {
         const eff = effectiveDay(r.billing_day, currentYear, currentMonth)
         return {
