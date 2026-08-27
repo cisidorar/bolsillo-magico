@@ -9,7 +9,6 @@ import CalendarioPagos, { type RecurringWithRelations } from '@/components/Calen
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
 import FlujoCaja30d from '@/components/FlujoCaja30d'
 import ServiceLogo from '@/components/ServiceLogo'
-import { CircleDollarSign } from 'lucide-react'
 import Link from 'next/link'
 import type { RecurringExpense, PaymentMethod } from '@/types'
 
@@ -313,12 +312,7 @@ export default async function RecurrentesPage({
         <div className="rounded-3xl p-5 text-white mb-6 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                  <CircleDollarSign className="w-4 h-4 text-white" />
-                </div>
-                <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Carga mensual</p>
-              </div>
+              <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-2">Carga mensual</p>
               <p className="text-3xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
               <p className="text-[11px] text-white/60 mt-1.5">
                 {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
