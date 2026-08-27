@@ -6,11 +6,11 @@ import { useBackdropClose } from '@/components/useBackdropClose'
 import { formatCLP } from '@/lib/utils'
 import { extractPayslipDraft, savePayslip, type SavePayslipInput } from '@/app/actions/payslips'
 import type { BreakdownLine } from '@/lib/payslip-parser'
-import { Upload, X, Check, Plus, Trash2, FileText, Loader2, AlertTriangle } from 'lucide-react'
+import { Upload, X, Check, Plus, FileText, Loader2, AlertTriangle, SkipForward, PartyPopper } from 'lucide-react'
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-type Step = 'pick' | 'loading' | 'review' | 'saving' | 'error'
+type Step = 'pick' | 'loading' | 'review' | 'saving' | 'error' | 'summary'
 
 const inputBase: React.CSSProperties = {
   color:        'var(--ink)',
@@ -54,17 +54,6 @@ interface FormState {
   totalHaberes: number
   totalDescuentos: number
   liquido: number
-}
-
-function emptyForm(month: number, year: number): FormState {
-  return {
-    month, year,
-    employerName: '', employerRut: '', position: '', contractType: '',
-    contractStart: null, daysWorked: null, ufValue: null,
-    previsionLabel: '', saludLabel: '',
-    haberesImponibles: [], haberesNoImponibles: [], descuentosLegales: [], otrosDescuentos: [],
-    totalHaberes: 0, totalDescuentos: 0, liquido: 0,
-  }
 }
 
 function LineGroup({
@@ -137,16 +126,36 @@ export default function PayslipUploader() {
   const [form, setForm] = useState<FormState | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Cola para subir varias liquidaciones de una sentada (pedido de Cas, ago
+  // 2026: "si quiero subir 6 de golpe"). `queue` son los archivos que
+  // todavía no se procesan; `file` es el que está en pantalla ahora mismo.
+  // `total`/`savedCount`/`skippedCount` alimentan el progreso "2 de 6" y el
+  // resumen final.
+  const [queue, setQueue] = useState<File[]>([])
+  const [total, setTotal] = useState(0)
+  const [savedCount, setSavedCount] = useState(0)
+  const [skippedCount, setSkippedCount] = useState(0)
+  const [anySaved, setAnySaved] = useState(false)
+
+  const doneCount = savedCount + skippedCount
+  const isBatch   = total > 1
+
   function close() {
     setOpen(false)
     setStep('pick')
     setError('')
     setFile(null)
     setForm(null)
+    setQueue([])
+    setTotal(0)
+    setSavedCount(0)
+    setSkippedCount(0)
+    if (anySaved) router.refresh()
+    setAnySaved(false)
   }
   const backdropClose = useBackdropClose(close)
 
-  async function handleFile(f: File) {
+  async function processFile(f: File) {
     setFile(f)
     setStep('loading')
     setError('')
@@ -184,6 +193,31 @@ export default function PayslipUploader() {
       liquido:         d.liquido ?? 0,
     })
     setStep('review')
+  }
+
+  function startBatch(files: File[]) {
+    const pdfs = files.filter(f => f.type === 'application/pdf')
+    if (pdfs.length === 0) return
+    setTotal(pdfs.length)
+    setSavedCount(0)
+    setSkippedCount(0)
+    setQueue(pdfs.slice(1))
+    processFile(pdfs[0])
+  }
+
+  function advance() {
+    if (queue.length === 0) {
+      setStep('summary')
+      return
+    }
+    const [next, ...rest] = queue
+    setQueue(rest)
+    processFile(next)
+  }
+
+  function skipCurrent() {
+    setSkippedCount(c => c + 1)
+    advance()
   }
 
   async function confirmSave() {
@@ -224,9 +258,12 @@ export default function PayslipUploader() {
       return
     }
 
-    close()
-    router.refresh()
+    setAnySaved(true)
+    setSavedCount(c => c + 1)
+    advance()
   }
+
+  const headerTitle = isBatch ? `Subir liquidaciones (${Math.min(doneCount + 1, total)} de ${total})` : 'Subir liquidación'
 
   return (
     <>
@@ -252,7 +289,7 @@ export default function PayslipUploader() {
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Subir liquidación</h2>
+              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{headerTitle}</h2>
               <button
                 onClick={close}
                 className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
@@ -264,15 +301,16 @@ export default function PayslipUploader() {
 
             <div className="px-5 py-5 space-y-4">
 
-              {/* ── Paso 1: elegir archivo ── */}
+              {/* ── Paso 1: elegir archivo(s) ── */}
               {step === 'pick' && (
                 <div className="text-center py-6">
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="application/pdf"
+                    multiple
                     className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+                    onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length > 0) startBatch(files) }}
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
@@ -280,8 +318,8 @@ export default function PayslipUploader() {
                     style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
                   >
                     <FileText className="w-8 h-8" style={{ color: 'var(--primary)' }} />
-                    <span className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>Toca para elegir el PDF</span>
-                    <span className="text-xs">Liquidación de sueldo · máx. 8MB</span>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>Toca para elegir uno o varios PDF</span>
+                    <span className="text-xs">Liquidación de sueldo · máx. 8MB c/u</span>
                   </button>
                 </div>
               )}
@@ -299,12 +337,44 @@ export default function PayslipUploader() {
                 <div className="flex flex-col items-center gap-3 py-8 text-center">
                   <AlertTriangle className="w-7 h-7" style={{ color: 'var(--coral)' }} />
                   <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{error}</p>
+                  <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{file?.name}</p>
+                  <div className="flex gap-2 mt-2">
+                    {file && (
+                      <button
+                        onClick={() => processFile(file)}
+                        className="px-4 py-2 text-sm font-semibold rounded-xl border"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)' }}
+                      >
+                        Reintentar
+                      </button>
+                    )}
+                    {isBatch && (
+                      <button
+                        onClick={skipCurrent}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl"
+                        style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+                      >
+                        <SkipForward className="w-3.5 h-3.5" /> Saltar y seguir
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Resumen final (solo si eran varios) ── */}
+              {step === 'summary' && (
+                <div className="flex flex-col items-center gap-3 py-8 text-center">
+                  <PartyPopper className="w-7 h-7" style={{ color: 'var(--mint)' }} />
+                  <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                    {savedCount} liquidaci{savedCount === 1 ? 'ón' : 'ones'} guardada{savedCount === 1 ? '' : 's'}
+                    {skippedCount > 0 && <> · {skippedCount} saltada{skippedCount === 1 ? '' : 's'}</>}
+                  </p>
                   <button
-                    onClick={() => setStep('pick')}
-                    className="mt-2 px-4 py-2 text-sm font-semibold rounded-xl border"
-                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)' }}
+                    onClick={close}
+                    className="mt-1 px-5 py-2.5 text-sm font-bold rounded-xl"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                   >
-                    Intentar de nuevo
+                    Listo
                   </button>
                 </div>
               )}
@@ -404,11 +474,22 @@ export default function PayslipUploader() {
                   <div className="flex gap-3 pt-1">
                     <button
                       onClick={close}
-                      className="flex-1 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                      className="py-3 px-4 text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
                       Cancelar
                     </button>
+                    {isBatch && (
+                      <button
+                        onClick={skipCurrent}
+                        disabled={step === 'saving'}
+                        title="Saltar este archivo"
+                        className="py-3 px-3 text-sm font-semibold rounded-2xl border transition-colors disabled:opacity-50"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                      >
+                        <SkipForward className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={confirmSave}
                       disabled={step === 'saving'}
@@ -416,7 +497,7 @@ export default function PayslipUploader() {
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
                     >
                       <Check className="w-4 h-4" />
-                      {step === 'saving' ? 'Guardando…' : 'Guardar liquidación'}
+                      {step === 'saving' ? 'Guardando…' : isBatch ? `Guardar y seguir (${doneCount + 1}/${total})` : 'Guardar liquidación'}
                     </button>
                   </div>
                 </>
