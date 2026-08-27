@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: testEmail,
         subject: `Llevas el 80% de tu presupuesto de ${monthLabel} · Bolsillo Mágico`,
-        html: budgetEmailHtml({ displayName: 'Cas', alertType: 'budget_80', total: 850_000, budgetAmount: 1_000_000, pct: 85, remaining: 150_000, fmtCLP, siteUrl: SITE_URL, monthLabel }),
+        html: budgetEmailHtml({ displayName: 'Cas', alertType: 'budget_80', total: 850_000, budgetAmount: 1_000_000, pct: 85, remaining: 150_000, fmtCLP, siteUrl: SITE_URL, monthLabel, daysLeft: new Date(year, month, 0).getDate() - now.getDate() }),
       }),
     })
     return new Response(JSON.stringify({ test: true, ok: res.ok }), { headers: { 'Content-Type': 'application/json' } })
@@ -114,6 +114,8 @@ Deno.serve(async (req: Request) => {
     const monthName   = new Date(year, month - 1, 1)
       .toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
     const monthCap    = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+    // Día 0 del mes siguiente = último día del mes actual (truco estándar de Date)
+    const daysLeft    = new Date(year, month, 0).getDate() - now.getDate()
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -138,6 +140,7 @@ Deno.serve(async (req: Request) => {
           siteUrl: SITE_URL,
           monthLabel: monthCap,
           threshold,
+          daysLeft,
         }),
       }),
     })
@@ -190,6 +193,7 @@ function budgetEmailHtml({
   siteUrl,
   monthLabel,
   threshold = 80,
+  daysLeft,
 }: {
   displayName: string
   alertType: 'budget_80' | 'budget_100'
@@ -201,6 +205,7 @@ function budgetEmailHtml({
   siteUrl: string
   monthLabel: string
   threshold?: number
+  daysLeft: number
 }) {
   const isOver      = alertType === 'budget_100'
   const barPct      = Math.min(100, pct)
@@ -210,12 +215,12 @@ function budgetEmailHtml({
   const accentBdr   = isOver ? '#FAD3CF' : '#FBE6B5'
   const barColor    = isOver ? '#EF5B52' : '#F59E0B'
   const title       = isOver ? 'Superaste tu presupuesto' : `Llevas el ${threshold}% de tu presupuesto`
+  // Días que faltan para que cierre el mes — hoy mismo se cuenta como día 0
+  // faltante ("cierra hoy"), no como "queda 1 día", para no confundir.
+  const daysLeftLabel = daysLeft <= 0 ? 'el mes cierra hoy' : `quedan <strong>${daysLeft} día${daysLeft === 1 ? '' : 's'}</strong> para que cierre ${monthLabel.split(' ')[0]}`
   const subtitle    = isOver
-    ? `Ya gastaste <strong style="color:${accent}">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas.`
-    : `Te quedan <strong style="color:#2B7CF6">${fmtCLP(remaining)}</strong> para lo que resta del mes.`
-  const advice = isOver
-    ? 'Revisa tus categorías para entender dónde se fue el dinero y ajustar el próximo mes.'
-    : 'Todavía estás a tiempo de ajustar tus gastos antes de fin de mes.'
+    ? `Ya gastaste <strong style="color:${accent}">${fmtCLP(Math.abs(remaining))}</strong> más de lo que planeabas — ${daysLeftLabel}.`
+    : `Te quedan <strong style="color:#2B7CF6">${fmtCLP(remaining)}</strong> para lo que resta del mes — ${daysLeftLabel}.`
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -275,7 +280,6 @@ function budgetEmailHtml({
         </p>
         <p style="margin:0 0 28px;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
           ${subtitle}
-          ${advice}
         </p>
 
         <!-- BLOQUE DESTACADO azul — cifras principales -->
