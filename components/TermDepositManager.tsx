@@ -109,6 +109,12 @@ const emptyForm: FormState = {
   bank: '', amount: '', interestRate: '', startDate: todayStr(), termDays: '', maturityDate: '', renewable: false, notes: '',
 }
 
+// Estado del mini-form de renovación (solo lo que cambia entre ciclos)
+interface RenewState {
+  newRate:       string   // nueva tasa del período
+  compoundCapital: boolean  // true = capital + interés; false = solo capital
+}
+
 export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const supabase = createClient()
 
@@ -126,6 +132,11 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   // Ahora la fila abre este detalle de solo lectura; "Editar" es un botón
   // explícito ahí adentro.
   const [detailId,      setDetailId]      = useState<string | null>(null)
+  // Flujo de renovación: se abre desde el detalle de un depósito vencido
+  const [renewId,       setRenewId]       = useState<string | null>(null)
+  const [renewState,    setRenewState]    = useState<RenewState>({ newRate: '', compoundCapital: true })
+  const [renewSaving,   setRenewSaving]   = useState(false)
+  const [renewError,    setRenewError]    = useState('')
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const today    = todayStr()
@@ -220,6 +231,48 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     setDeletingId(null)
     cancelForm()
   }
+
+  // ── Renovación: nuevo ciclo con la tasa nueva ─────────────────────────────
+  function openRenew(d: TermDeposit) {
+    setRenewId(d.id)
+    setRenewState({ newRate: '', compoundCapital: true })
+    setRenewError('')
+    setDetailId(null)
+  }
+  function closeRenew() { setRenewId(null); setRenewError('') }
+
+  const renewBackdropClose = useBackdropClose(closeRenew)
+
+  const saveRenewal = useCallback(async () => {
+    const d = renewId ? deposits.find(x => x.id === renewId) ?? null : null
+    if (!d) return
+
+    const rate = parseFloat(renewState.newRate)
+    if (isNaN(rate) || rate <= 0) { setRenewError('Ingresa la nueva tasa del período'); return }
+
+    const prevInterest   = totalInterest(d)
+    const newAmount      = renewState.compoundCapital ? d.amount + prevInterest : d.amount
+    const prevDays       = daysBetween(d.start_date, d.maturity_date)
+    const newStartDate   = d.maturity_date
+    const newMaturityDate = addDaysStr(newStartDate, prevDays)
+
+    setRenewSaving(true); setRenewError('')
+    const payload = {
+      user_id:       userId,
+      bank:          d.bank,
+      amount:        newAmount,
+      interest_rate: rate,
+      start_date:    newStartDate,
+      maturity_date: newMaturityDate,
+      renewable:     d.renewable ?? false,
+      notes:         d.notes ?? null,
+    }
+    const { data, error } = await supabase.from('term_deposits').insert(payload).select().single()
+    setRenewSaving(false)
+    if (error) { setRenewError(error.message); return }
+    setDeposits(prev => [...prev, data as TermDeposit].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
+    closeRenew()
+  }, [renewId, renewState, deposits, userId, supabase])
 
   // ── Preview del interés en el formulario ─────────────────────────────────
   const previewAmount   = parseInt(form.amount.replace(/\D/g, '') || '0')
@@ -737,13 +790,23 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 >
                   Cerrar
                 </button>
-                <button
-                  onClick={() => { setDetailId(null); openEdit(d) }}
-                  className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
-                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
-                >
-                  Editar
-                </button>
+                {isMatured ? (
+                  <button
+                    onClick={() => openRenew(d)}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                  >
+                    Renovar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setDetailId(null); openEdit(d) }}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                  >
+                    Editar
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -815,6 +878,147 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Modal de renovación ──────────────────────────────────────────── */}
+      {(() => {
+        const d = renewId ? deposits.find(x => x.id === renewId) ?? null : null
+        if (!d) return null
+        const prevInterest    = totalInterest(d)
+        const prevDays        = daysBetween(d.start_date, d.maturity_date)
+        const newRate         = parseFloat(renewState.newRate) || 0
+        const newAmount       = renewState.compoundCapital ? d.amount + prevInterest : d.amount
+        const newMaturityDate = addDaysStr(d.maturity_date, prevDays)
+        const previewNewInterest = newRate > 0 ? Math.round(newAmount * (newRate / 100)) : null
+
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...renewBackdropClose}
+          >
+            <div
+              className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
+              style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div>
+                  <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Renovar depósito</h2>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{d.bank} · {prevDays} días · venció {fmtDateShort(d.maturity_date)}</p>
+                </div>
+                <button
+                  onClick={closeRenew}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
+
+                {/* Capital del nuevo ciclo */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    Capital del nuevo ciclo
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([
+                      { value: true,  label: `Capital + interés`,  sub: formatCLP(d.amount + prevInterest) },
+                      { value: false, label: 'Solo capital',        sub: formatCLP(d.amount) },
+                    ] as const).map(opt => {
+                      const sel = renewState.compoundCapital === opt.value
+                      return (
+                        <button
+                          key={String(opt.value)}
+                          type="button"
+                          onClick={() => setRenewState(s => ({ ...s, compoundCapital: opt.value }))}
+                          className="px-3 py-2.5 rounded-xl border text-left transition-all"
+                          style={{
+                            background:  sel ? 'var(--primary-soft)' : 'var(--surface-2)',
+                            borderColor: sel ? 'var(--primary)' : 'var(--border)',
+                          }}
+                        >
+                          <p className="text-xs font-semibold" style={{ color: sel ? 'var(--primary)' : 'var(--ink-2)' }}>{opt.label}</p>
+                          <p className="text-sm font-bold tabular-nums mt-0.5" style={{ color: sel ? 'var(--primary)' : 'var(--ink)' }}>{opt.sub}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Nueva tasa */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    Nueva tasa del período (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={renewState.newRate}
+                    onChange={e => setRenewState(s => ({ ...s, newRate: e.target.value }))}
+                    placeholder={`Anterior: ${fmtPct(d.interest_rate)}`}
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="w-full text-sm border px-4 py-3"
+                    style={inputBase}
+                    onFocus={focusOn} onBlur={focusOff}
+                    autoFocus
+                  />
+                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                    Tasa del ciclo anterior: {fmtPct(d.interest_rate)}
+                  </p>
+                </div>
+
+                {/* Preview nuevo ciclo */}
+                {previewNewInterest !== null && previewNewInterest > 0 && (
+                  <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Capital renovado</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(newAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Nuevo interés ({prevDays} días)</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(previewNewInterest)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Total al vencimiento</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(newAmount + previewNewInterest)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Vence</span>
+                      <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{fmtDateFull(newMaturityDate)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {renewError && (
+                  <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{renewError}</p>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={closeRenew}
+                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={saveRenewal}
+                    disabled={renewSaving}
+                    className="flex-1 py-2.5 text-sm font-bold rounded-xl disabled:opacity-50 transition-all active:scale-[.98]"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
+                  >
+                    {renewSaving ? 'Renovando…' : 'Confirmar renovación'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
     </div>
   )
