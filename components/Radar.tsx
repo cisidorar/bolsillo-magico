@@ -191,6 +191,11 @@ interface Props {
    *  del portafolio — acciones + billetera, guardada día a día por el cron
    *  desde que existe portfolio_snapshots. Solo se usa en view="mias". */
   portfolioSnapshots?: PortfolioSnapshotPoint[]
+  /** Serie acumulada de aportes a la billetera ("Depósitos") — segunda línea
+   *  de comparación en PortfolioValueChart (mockup Racional de Cas). Tiene
+   *  historia completa desde el primer depósito, a diferencia de
+   *  portfolioSnapshots que recién empezó a guardarse. */
+  depositsHistory?: PortfolioSnapshotPoint[]
   /** P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal)
    *  y lo ya depositado en la billetera USD este mes (CLP) — cierra el
    *  círculo sueldo → meta → compra que antes solo vivía en /inicio. */
@@ -202,7 +207,7 @@ export default function Radar({
   view, userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
   todayDecision = null, todaySignals = [], portfolioHistory = [],
-  portfolioSnapshots = [],
+  portfolioSnapshots = [], depositsHistory = [],
   monthlyInvestGoal = null, investedThisMonthClp = 0,
 }: Props) {
   const supabase = createClient()
@@ -1107,7 +1112,7 @@ export default function Radar({
           baja según el mercado. */}
       {positions.length > 0 && (
         <div className="mb-4">
-          <PortfolioValueChart points={portfolioSnapshots} />
+          <PortfolioValueChart points={portfolioSnapshots} depositsPoints={depositsHistory} />
         </div>
       )}
 

@@ -333,6 +333,21 @@ export default async function InversionesPage({ searchParams }: Props) {
     portfolioSnapshots = (snapRows ?? []).map(r => ({ date: r.snapshot_date as string, value: Number(r.total_usd) }))
   }
 
+  // Serie acumulada de aportes a la billetera ("Depósitos", pedido de Cas —
+  // gráfico tipo Racional con dos líneas: valor vs plata que has puesto). Se
+  // arma de los mismos usdPurchases ya traídos arriba, sin fetch aparte —
+  // a diferencia de portfolioSnapshots, esta SÍ tiene historia completa desde
+  // el primer depósito (no depende del cron nuevo).
+  let depositsHistory: { date: string; value: number }[] = []
+  if (needsRadarData && !isWatchlist) {
+    const deposits = (usdPurchases ?? [])
+      .filter(p => p.kind === 'deposit')
+      .map(p => ({ date: p.purchase_date as string, amount: Number(p.usd_amount) }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    let running = 0
+    depositsHistory = deposits.map(d => { running += d.amount; return { date: d.date, value: Math.round(running * 100) / 100 } })
+  }
+
   // ── "Tu semana" (P3, roadmap largo plazo) — reemplaza la pestaña Semanal
   // completa: esa vista duplicaba el Radar ticker por ticker con más jerga
   // (Fibonacci, POC). Lo único que aportaba y que Acciones no tenía — vs. el
@@ -514,6 +529,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
             portfolioHistory={portfolioHistory}
             portfolioSnapshots={portfolioSnapshots}
+            depositsHistory={depositsHistory}
             monthlyInvestGoal={monthlyInvestGoal}
             investedThisMonthClp={investedThisMonthClp}
           />
