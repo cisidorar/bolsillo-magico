@@ -20,6 +20,7 @@ import { computeHealthScore } from '@/lib/health-score'
 import { buildWealthProjectionTable } from '@/lib/wealth-projection'
 import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
+import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 
 export const revalidate = 0
 
@@ -2390,37 +2391,7 @@ export default async function AnalisisPage({
             </div>
 
             {/* Día de la semana */}
-            <div className="card p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cuándo gastas</p>
-                <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{monthName(month)}</span>
-              </div>
-              <div className="flex items-end gap-2" style={{ height: 110 }}>
-                {byWeekday.map((d, i) => {
-                  const h = d.total > 0 ? Math.max(Math.round((d.total / maxWeekday) * 74), 6) : 2
-                  const isPeak = i === peakDowIdx && d.total > 0
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                      <p className="text-[9px] font-bold tabular-nums whitespace-nowrap" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
-                        {d.total > 0 ? formatCLP(d.total) : ''}
-                      </p>
-                      <div className="w-full rounded-t-lg"
-                        style={{ height: h, background: isPeak ? 'var(--primary)' : d.total > 0 ? 'rgba(77,147,255,0.30)' : 'var(--border)' }} />
-                      <p className="text-[10px] font-semibold" style={{ color: isPeak ? 'var(--primary)' : 'var(--ink-3)' }}>
-                        {weekdayLabels[i]}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-              {byWeekday[peakDowIdx].total > 0 && (
-                <p className="text-[11px] mt-3 px-1" style={{ color: 'var(--ink-3)' }}>
-                  Tu día fuerte es el <span className="font-bold" style={{ color: 'var(--ink-2)' }}>{weekdayLabels[peakDowIdx]}</span>
-                  {' '}({formatCLP(byWeekday[peakDowIdx].total)} en {byWeekday[peakDowIdx].count} gasto{byWeekday[peakDowIdx].count !== 1 ? 's' : ''}).
-                  {weekendPct >= 30 && <> El fin de semana se lleva el {weekendPct}% del mes.</>}
-                </p>
-              )}
-            </div>
+            <WeekdayBreakdown expenses={selectedExpenses} monthLabel={monthName(month)} />
 
               </div>
             </details>
