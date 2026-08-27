@@ -95,6 +95,8 @@ export default async function HistorialPage({
   let totalPages = 1
   let billingHitLimit = false
   let prevBillingTotal = 0  // suma del estado de cuenta anterior (solo modo facturación)
+  let isOpenBillingStatement = false  // el período mostrado es el estado abierto ahora mismo (para el hint "· día N" y el corte pro-rata)
+  let billingDaysElapsed = 0          // Nº de día dentro del ciclo actual (solo si isOpenBillingStatement)
 
   if (isBilling) {
     const prev = prevMonth(month, year)
@@ -139,6 +141,23 @@ export default async function HistorialPage({
     // Advertir solo si el raw fetch llegó al límite Y los gastos filtrados son muchos (probablemente incompletos)
     billingHitLimit = all.length === 300 && expenses.length >= 100
 
+    // billing_day de la tarjeta de este período — mismo criterio que cardPeriods
+    // más abajo (primera tarjeta con gasto acá). Se usa para el corte pro-rata
+    // de la comparación contra el estado anterior.
+    const primaryBillingDay = expenses
+      .map(e => (e.payment_method as { billing_day?: number | null } | null)?.billing_day ?? null)
+      .find((bd): bd is number => bd !== null) ?? null
+
+    // ago 2026 (Cas: "compara contra la facturación del mismo día") — si el
+    // período mostrado es el estado ABIERTO ahora mismo (ej. recién cerró el
+    // anterior y este lleva 1 día acumulando), compararlo contra el estado
+    // anterior COMPLETO da un delta sin sentido (-81% con 1 solo gasto). Igual
+    // que "vs mes anterior" en la vista Compra (isCurrentMonth corta al mismo
+    // día), acá se corta el estado anterior al mismo Nº de día DENTRO DEL
+    // CICLO (no día calendario — los ciclos no siempre duran lo mismo).
+    isOpenBillingStatement = primaryBillingDay !== null
+      && (() => { const r = currentStatementRange(primaryBillingDay); return r.month === month && r.year === year })()
+
     // ── Estado de cuenta ANTERIOR — para "vs estado anterior" ────────────────
     // El período de facturación anterior puede comenzar hasta 31 días antes del
     // mes calendario anterior (ej. CMR bd=25: jul anterior = 25 jun – 24 jul).
@@ -147,6 +166,18 @@ export default async function HistorialPage({
     const prevBY  = month === 1 ? year - 1 : year
     const pbFetch = prevMonth(prevBM, prevBY)         // 2 meses antes del mes actual
     const pbEnd   = nextMonthOf(prevBM, prevBY)       // inicio del mes actual (exclusive)
+
+    // Fecha tope del estado anterior — solo si el actual sigue abierto: mismo
+    // Nº de día transcurrido desde el inicio de cada ciclo (día 1 = día de apertura).
+    let prevBillingCutoff: string | null = null
+    if (isOpenBillingStatement && primaryBillingDay !== null) {
+      const curStart  = billingPeriodRange(month, year, primaryBillingDay).start
+      billingDaysElapsed = Math.round((now.getTime() - new Date(curStart + 'T12:00:00').getTime()) / 86_400_000)
+      const prevStart = billingPeriodRange(prevBM, prevBY, primaryBillingDay).start
+      const cutoff    = new Date(new Date(prevStart + 'T12:00:00').getTime() + billingDaysElapsed * 86_400_000)
+      prevBillingCutoff = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
+    }
+
     let prevBQ = supabase
       .from('expenses')
       .select('amount, date, payment_method:payment_methods(billing_day)')
@@ -162,7 +193,9 @@ export default async function HistorialPage({
         const bd = e.payment_method?.billing_day ?? null
         if (!bd) return false
         const bp = billingPeriod(e.date, bd)
-        return bp.month === prevBM && bp.year === prevBY
+        if (bp.month !== prevBM || bp.year !== prevBY) return false
+        if (prevBillingCutoff !== null && e.date > prevBillingCutoff) return false
+        return true
       })
       .reduce((s, e) => s + e.amount, 0)
   } else {
@@ -338,9 +371,9 @@ export default async function HistorialPage({
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-400 font-medium leading-tight">
-                    vs anterior{isCurrentMonth && !isBilling ? ` · d${now.getDate()}` : ''}
+                    vs anterior{isCurrentMonth && !isBilling ? ` · d${now.getDate()}` : ''}{isBilling && isOpenBillingStatement ? ` · d${billingDaysElapsed + 1}` : ''}
                   </p>
-                  {isBilling || delta === null ? (
+                  {delta === null ? (
                     <p className="text-base font-extrabold text-gray-400">—</p>
                   ) : (
                     <>
@@ -397,7 +430,7 @@ export default async function HistorialPage({
                 }
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'vs estado anterior' : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
+                <p className="text-xs text-gray-400 font-medium">{isBilling ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}` : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
                 {delta === null ? (
                   <p className="text-2xl font-extrabold text-gray-400 leading-tight">—</p>
                 ) : (
