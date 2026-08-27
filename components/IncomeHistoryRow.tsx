@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP } from '@/lib/utils'
-import { CalendarDays, ChevronRight, X, Trash2, RefreshCw } from 'lucide-react'
+import { CalendarDays, ChevronRight, X, Trash2, RefreshCw, FileText } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import IncomeSheet from './IncomeSheet'
 import Sparkline from './Sparkline'
+import PayslipDetailSheet, { type PayslipData } from './PayslipDetailSheet'
 import type { IncomeData } from './IncomeMonthEditor'
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
   surplus:    number | null
   expense:    number
   sparkValues: number[]
+  payslip:    PayslipData | null
 }
 
 // ago 2026 (Cas: "quiero que ingresos... también sea la misma lógica, tocar
@@ -28,13 +30,14 @@ interface Props {
 // de solo lectura, con Eliminar (confirmación inline) y Editar (abre el
 // formulario real, IncomeSheet, ahora controlable desde afuera) en el footer.
 export default function IncomeHistoryRow({
-  userId, month, year, monthName, income, prevIncome, surplus, expense, sparkValues,
+  userId, month, year, monthName, income, prevIncome, surplus, expense, sparkValues, payslip,
 }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
   const [detailOpen, setDetailOpen]     = useState(false)
   const [formOpen,   setFormOpen]       = useState(false)
+  const [payslipOpen, setPayslipOpen]   = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting,   setDeleting]       = useState(false)
 
@@ -76,6 +79,9 @@ export default function IncomeHistoryRow({
         >
           {isReg ? 'Registrado' : 'Sin registrar'}
         </span>
+        {payslip && (
+          <FileText className="hidden sm:block w-3.5 h-3.5 shrink-0" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+        )}
 
         {/* Monto + surplus */}
         <div className="flex-1 min-w-0">
@@ -155,6 +161,18 @@ export default function IncomeHistoryRow({
                 </p>
               </div>
 
+              {payslip && (
+                <button
+                  onClick={() => { setDetailOpen(false); setPayslipOpen(true) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl border transition-colors"
+                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                >
+                  <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--primary)' }} />
+                  <span className="flex-1 text-left text-sm font-semibold" style={{ color: 'var(--ink)' }}>Ver liquidación de sueldo</span>
+                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+                </button>
+              )}
+
               {confirmDelete && (
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
                   <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
@@ -226,6 +244,17 @@ export default function IncomeHistoryRow({
         onOpenChange={setFormOpen}
         hideTrigger
       />
+
+      {payslip && (
+        <PayslipDetailSheet
+          month={month}
+          year={year}
+          monthName={monthName}
+          payslip={payslip}
+          isOpen={payslipOpen}
+          onOpenChange={setPayslipOpen}
+        />
+      )}
     </>
   )
 }

@@ -5,7 +5,9 @@ import { CalendarDays, TrendingUp, TrendingDown, Minus, AlertCircle } from 'luci
 import IncomeSheet from '@/components/IncomeSheet'
 import IncomeHistoryRow from '@/components/IncomeHistoryRow'
 import Sparkline from '@/components/Sparkline'
+import PayslipUploader from '@/components/PayslipUploader'
 import type { BreakdownItem, IncomeData } from '@/components/IncomeMonthEditor'
+import type { PayslipData } from '@/components/PayslipDetailSheet'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +30,7 @@ export default async function IngresosPage() {
   const rangeStart = `${oldest.year}-${String(oldest.month).padStart(2, '0')}-01`
   const rangeEnd   = `${curYear}-${String(curMonth).padStart(2, '0')}-31`
 
-  const [{ data: incomesRaw }, { data: expensesRaw }] = await Promise.all([
+  const [{ data: incomesRaw }, { data: expensesRaw }, { data: payslipsRaw }] = await Promise.all([
     supabase
       .from('incomes')
       .select('month, year, amount, description, breakdown')
@@ -42,6 +44,11 @@ export default async function IngresosPage() {
       .eq('user_id', user.id)
       .gte('date', rangeStart)
       .lte('date', rangeEnd),
+    supabase
+      .from('payslips')
+      .select('month, year, employer_name, employer_rut, position, contract_type, contract_start, days_worked, uf_value, prevision_label, salud_label, haberes_imponibles, haberes_no_imponibles, descuentos_legales, otros_descuentos, total_haberes, total_descuentos, liquido, pdf_path')
+      .eq('user_id', user.id)
+      .gte('year', oldest.year),
   ])
 
   const incomeMap: Record<string, IncomeData> = {}
@@ -50,6 +57,22 @@ export default async function IngresosPage() {
       amount:      inc.amount,
       description: inc.description ?? null,
       breakdown:   (inc.breakdown as BreakdownItem[]) ?? [],
+    }
+  }
+
+  const payslipMap: Record<string, PayslipData> = {}
+  for (const p of payslipsRaw ?? []) {
+    payslipMap[`${p.year}-${p.month}`] = {
+      employerName: p.employer_name, employerRut: p.employer_rut,
+      position: p.position, contractType: p.contract_type,
+      contractStart: p.contract_start, daysWorked: p.days_worked, ufValue: p.uf_value,
+      previsionLabel: p.prevision_label, saludLabel: p.salud_label,
+      haberesImponibles: p.haberes_imponibles ?? [],
+      haberesNoImponibles: p.haberes_no_imponibles ?? [],
+      descuentosLegales: p.descuentos_legales ?? [],
+      otrosDescuentos: p.otros_descuentos ?? [],
+      totalHaberes: p.total_haberes, totalDescuentos: p.total_descuentos, liquido: p.liquido,
+      pdfPath: p.pdf_path,
     }
   }
 
@@ -106,14 +129,17 @@ export default async function IngresosPage() {
             Registra tus ingresos mensuales variables y sigue su evolución.
           </p>
         </div>
-        <IncomeSheet
-          userId={user.id}
-          month={curMonth}
-          year={curYear}
-          current={curInc}
-          prevIncome={prevInc}
-          monthName={MONTH_NAMES[curMonth - 1]}
-        />
+        <div className="flex items-center gap-2">
+          <PayslipUploader />
+          <IncomeSheet
+            userId={user.id}
+            month={curMonth}
+            year={curYear}
+            current={curInc}
+            prevIncome={prevInc}
+            monthName={MONTH_NAMES[curMonth - 1]}
+          />
+        </div>
       </div>
 
       {/* ── 5 KPI cards ────────────────────────────────────────────────────── */}
@@ -284,6 +310,7 @@ export default async function IngresosPage() {
               surplus={surplus}
               expense={expense}
               sparkValues={sparkValues}
+              payslip={payslipMap[key] ?? null}
             />
           )
         })}
