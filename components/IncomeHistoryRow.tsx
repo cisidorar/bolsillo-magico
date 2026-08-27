@@ -8,7 +8,7 @@ import { CalendarDays, ChevronRight, X, Trash2, RefreshCw, FileText } from 'luci
 import { useBackdropClose } from '@/components/useBackdropClose'
 import IncomeSheet from './IncomeSheet'
 import Sparkline from './Sparkline'
-import PayslipDetailSheet, { type PayslipData } from './PayslipDetailSheet'
+import PayslipInlineDetail, { type PayslipData } from './PayslipDetailSheet'
 import type { IncomeData } from './IncomeMonthEditor'
 
 interface Props {
@@ -37,7 +37,6 @@ export default function IncomeHistoryRow({
 
   const [detailOpen, setDetailOpen]     = useState(false)
   const [formOpen,   setFormOpen]       = useState(false)
-  const [payslipOpen, setPayslipOpen]   = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting,   setDeleting]       = useState(false)
 
@@ -162,15 +161,7 @@ export default function IncomeHistoryRow({
               </div>
 
               {payslip && (
-                <button
-                  onClick={() => { setDetailOpen(false); setPayslipOpen(true) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl border transition-colors"
-                  style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                >
-                  <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--primary)' }} />
-                  <span className="flex-1 text-left text-sm font-semibold" style={{ color: 'var(--ink)' }}>Ver liquidación de sueldo</span>
-                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
-                </button>
+                <PayslipInlineDetail month={month} year={year} monthName={monthName} payslip={payslip} />
               )}
 
               {confirmDelete && (
@@ -244,17 +235,6 @@ export default function IncomeHistoryRow({
         onOpenChange={setFormOpen}
         hideTrigger
       />
-
-      {payslip && (
-        <PayslipDetailSheet
-          month={month}
-          year={year}
-          monthName={monthName}
-          payslip={payslip}
-          isOpen={payslipOpen}
-          onOpenChange={setPayslipOpen}
-        />
-      )}
     </>
   )
 }
