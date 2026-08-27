@@ -13,7 +13,7 @@ import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
 import InfoTap from '@/components/InfoTap'
-import { getExpenseIcon } from '@/lib/expense-icons'
+import ExpenseRowIcon from '@/components/ExpenseRowIcon'
 import Link from 'next/link'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
 
@@ -835,7 +835,6 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 typedExpenses.slice(0, 8).map((e, i) => {
-                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
                   const d = new Date(e.date + 'T12:00:00')
                   const now2 = new Date()
                   const isToday2    = e.date === now2.toISOString().split('T')[0]
@@ -850,12 +849,7 @@ export default async function DashboardPage() {
                       {e.category && (
                         <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70" style={{ background: e.category.color }} />
                       )}
-                      <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
-                        style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
-                      >
-                        <Icon className="w-3.5 h-3.5" style={{ color }} />
-                      </div>
+                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={32} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {e.description || e.category?.name || '—'}
@@ -1229,7 +1223,6 @@ export default async function DashboardPage() {
               </div>
               <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
                 {typedExpenses.slice(0, 6).map((e, i) => {
-                  const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
                   const d = new Date(e.date + 'T12:00:00')
                   const now2 = new Date()
                   const isToday2    = e.date === now2.toISOString().split('T')[0]
@@ -1239,10 +1232,7 @@ export default async function DashboardPage() {
                     <div key={e.id} className="flex items-center gap-3 px-4 py-3"
                       style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
                       {e.category && <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70" style={{ background: e.category.color }} />}
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
-                        style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}>
-                        <Icon className="w-4 h-4" style={{ color }} />
-                      </div>
+                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={36} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {e.description || e.category?.name || '—'}

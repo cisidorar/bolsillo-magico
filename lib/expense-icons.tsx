@@ -146,3 +146,76 @@ export function getExpenseIcon(description: string | null, categoryName: string 
   const key = (categoryName ?? '').toLowerCase().trim()
   return cat[key] ?? FALLBACK
 }
+
+// ── Logo de marca por descripción (pedido de Cas, ago 2026) ─────────────────
+// "Últimos gastos" mostraba siempre el ícono genérico de categoría (getExpenseIcon
+// de arriba), aunque la descripción nombrara una marca reconocible con logo
+// real disponible (Líder, Jumbo, Netflix…). Lista curada y conservadora — solo
+// cadenas grandes con dominio oficial conocido, para no arriesgar un logo mal
+// adivinado en una descripción ambigua (ej. "Kida urgencia", texto libre de
+// import CSV). Si no hay match, sigue cayendo al ícono genérico de siempre.
+const MERCHANT_DOMAINS: Array<{ re: RegExp; domain: string }> = [
+  // Supermercados
+  { re: /l[ií]der(?!azgo)/i,             domain: 'lider.cl' },
+  { re: /jumbo/i,                        domain: 'jumbo.cl' },
+  { re: /santa isabel/i,                 domain: 'santaisabel.cl' },
+  { re: /unimarc/i,                      domain: 'unimarc.cl' },
+  { re: /tottus/i,                       domain: 'tottus.cl' },
+  { re: /\backuenta\b/i,                 domain: 'acuenta.cl' },
+  { re: /\bekono\b/i,                    domain: 'ekono.cl' },
+  // Retail / tiendas
+  { re: /falabella/i,                    domain: 'falabella.com' },
+  { re: /\bripley\b/i,                   domain: 'ripley.cl' },
+  { re: /\bparis\b/i,                    domain: 'paris.cl' },
+  { re: /\bikea\b/i,                     domain: 'ikea.com' },
+  { re: /sodimac|homecenter/i,           domain: 'sodimac.cl' },
+  { re: /\beasy\b/i,                     domain: 'easy.cl' },
+  { re: /\bzara\b/i,                     domain: 'zara.com' },
+  { re: /\bh&m\b|hennes/i,               domain: 'hm.com' },
+  // Farmacias
+  { re: /cruz verde/i,                   domain: 'cruzverde.cl' },
+  { re: /salcobrand/i,                   domain: 'salcobrand.cl' },
+  { re: /ahumada/i,                      domain: 'farmaciasahumada.cl' },
+  // Streaming / suscripciones
+  { re: /netflix/i,                      domain: 'netflix.com' },
+  { re: /spotify/i,                      domain: 'spotify.com' },
+  { re: /disney\+?/i,                    domain: 'disneyplus.com' },
+  { re: /\bhbo\b|hbo ?max/i,             domain: 'hbomax.com' },
+  { re: /\byoutube\b/i,                  domain: 'youtube.com' },
+  { re: /amazon( prime)?/i,              domain: 'amazon.com' },
+  // Transporte
+  { re: /\buber\b/i,                     domain: 'uber.com' },
+  { re: /cabify/i,                       domain: 'cabify.com' },
+  { re: /\bdidi\b/i,                     domain: 'didiglobal.com' },
+  { re: /latam/i,                        domain: 'latamairlines.com' },
+  { re: /sky ?airline/i,                 domain: 'skyairline.com' },
+  // Bencina
+  { re: /\bcopec\b/i,                    domain: 'copec.cl' },
+  { re: /\bshell\b/i,                    domain: 'shell.cl' },
+  { re: /\bpetrobras\b/i,                domain: 'petrobras.cl' },
+  // Comida rápida / café
+  { re: /starbucks/i,                    domain: 'starbucks.cl' },
+  { re: /mc ?donald'?s/i,                domain: 'mcdonalds.cl' },
+  { re: /burger king/i,                  domain: 'burgerking.cl' },
+  { re: /\bdominos\b|domino'?s pizza/i,  domain: 'dominos.cl' },
+  // Telecom
+  { re: /movistar/i,                     domain: 'movistar.cl' },
+  { re: /\bentel\b/i,                    domain: 'entel.cl' },
+  { re: /\bclaro\b/i,                    domain: 'clarochile.cl' },
+  { re: /\bvtr\b/i,                      domain: 'vtr.com' },
+  // Tecnología
+  { re: /\bxiaomi\b/i,                   domain: 'mi.com' },
+  { re: /\bapple\b|iphone|macbook/i,     domain: 'apple.com' },
+  { re: /\bsamsung\b/i,                  domain: 'samsung.com' },
+]
+
+/** Dominio de marca reconocido en la descripción del gasto, o null si no hay
+ *  match confiable — solo se intenta ServiceLogo cuando hay dominio, nunca se
+ *  adivina "a ojo" desde texto libre ambiguo. */
+export function guessMerchantDomain(description: string | null): string | null {
+  if (!description) return null
+  for (const entry of MERCHANT_DOMAINS) {
+    if (entry.re.test(description)) return entry.domain
+  }
+  return null
+}
