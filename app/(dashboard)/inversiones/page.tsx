@@ -318,6 +318,21 @@ export default async function InversionesPage({ searchParams }: Props) {
     )
   }
 
+  // ── Curva diaria REAL del valor del portafolio (pedido de Cas, ago 2026) ──
+  // A diferencia de portfolioHistory (reconstrucción con las posiciones de
+  // HOY hacia atrás), esto lee valores guardados de verdad día a día por el
+  // cron (snapshotAllPortfolioValues en sync-prices) — solo tiene sentido en
+  // "Mis acciones", no en Watchlist.
+  let portfolioSnapshots: { date: string; value: number }[] = []
+  if (needsRadarData && !isWatchlist) {
+    const { data: snapRows } = await supabase
+      .from('portfolio_snapshots')
+      .select('snapshot_date, total_usd')
+      .eq('user_id', user.id)
+      .order('snapshot_date', { ascending: true })
+    portfolioSnapshots = (snapRows ?? []).map(r => ({ date: r.snapshot_date as string, value: Number(r.total_usd) }))
+  }
+
   // ── "Tu semana" (P3, roadmap largo plazo) — reemplaza la pestaña Semanal
   // completa: esa vista duplicaba el Radar ticker por ticker con más jerga
   // (Fibonacci, POC). Lo único que aportaba y que Acciones no tenía — vs. el
@@ -498,6 +513,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             todayDecision={(todayDecisionRow ?? null) as TodayDecision | null}
             todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
             portfolioHistory={portfolioHistory}
+            portfolioSnapshots={portfolioSnapshots}
             monthlyInvestGoal={monthlyInvestGoal}
             investedThisMonthClp={investedThisMonthClp}
           />

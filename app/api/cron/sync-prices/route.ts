@@ -319,6 +319,78 @@ async function snapshotAllNetWorths(supabase: SupabaseClient): Promise<{ ok: num
   return { ok, failed }
 }
 
+// ── Curva diaria del valor de la cartera (pedido de Cas, ago 2026) ──────────
+// A diferencia de computePortfolioHistory (lib/portfolio-history.ts), que
+// RECONSTRUYE el pasado con las posiciones de HOY hacia atrás, esto guarda el
+// valor REAL del día: posiciones al cierre de HOY + saldo de billetera
+// disponible HOY. Mismo cálculo que "Valor del portafolio"/"Billetera" en
+// Radar.tsx (portfolioValueUsd = totalValueUsd + max(0, walletAvailable)) —
+// portado acá porque ese cálculo vive en un client component con `quotes` en
+// vivo, y el cron necesita la versión server-side con el cierre del día.
+// Corre solo en días hábiles NYSE (después del sync de precios de este mismo
+// run, así `price_history` ya tiene el cierre de hoy) — no tiene sentido
+// duplicar el mismo punto en fines de semana/feriados, cuando nada cambió.
+async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTickers: string[]): Promise<{ ok: number; failed: number }> {
+  const [{ data: posRows }, { data: usdRows }] = await Promise.all([
+    supabase.from('stock_positions').select('user_id, ticker, shares, avg_cost_usd, wallet_cost_usd'),
+    supabase.from('usd_purchases').select('user_id, usd_amount'),
+  ])
+  const positions = (posRows ?? []) as { user_id: string; ticker: string; shares: number; avg_cost_usd: number; wallet_cost_usd: number | null }[]
+  if (positions.length === 0) return { ok: 0, failed: 0 }
+
+  const userIds = [...new Set(positions.map(p => p.user_id))]
+
+  // Cierre más reciente por ticker — ya sincronizado arriba en este mismo run,
+  // se lee de price_history en vez de price_cache porque este último solo se
+  // actualiza para tickers en watchlist (computeDailySignals), no para todas
+  // las posiciones de todos los usuarios.
+  const { data: priceRows } = await supabase
+    .from('price_history')
+    .select('ticker, date, close')
+    .in('ticker', syncedTickers)
+    .order('date', { ascending: false })
+  const priceByTicker = new Map<string, number>()
+  for (const r of (priceRows ?? []) as { ticker: string; close: number }[]) {
+    if (!priceByTicker.has(r.ticker)) priceByTicker.set(r.ticker, Number(r.close))
+  }
+
+  const walletByUser = new Map<string, number>()
+  for (const r of (usdRows ?? []) as { user_id: string; usd_amount: number }[]) {
+    walletByUser.set(r.user_id, (walletByUser.get(r.user_id) ?? 0) + Number(r.usd_amount))
+  }
+
+  const { dateStr: today } = getNowChile()
+  const rows: { user_id: string; snapshot_date: string; stocks_value_usd: number; wallet_usd: number; total_usd: number }[] = []
+  let failed = 0
+
+  for (const userId of userIds) {
+    try {
+      const userPositions = positions.filter(p => p.user_id === userId)
+      const stocksValueUsd = userPositions.reduce((s, p) => s + Number(p.shares) * (priceByTicker.get(p.ticker) ?? Number(p.avg_cost_usd)), 0)
+      const fundedCostUsd  = userPositions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
+      const walletUsdBase  = walletByUser.get(userId) ?? 0
+      const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
+      const walletUsd = Math.max(0, walletAvailable ?? 0)
+      rows.push({
+        user_id: userId,
+        snapshot_date: today,
+        stocks_value_usd: Math.round(stocksValueUsd * 100) / 100,
+        wallet_usd:       Math.round(walletUsd * 100) / 100,
+        total_usd:        Math.round((stocksValueUsd + walletUsd) * 100) / 100,
+      })
+    } catch (err) {
+      failed++
+      console.error(`[sync-prices] portfolio snapshot falló para user ${userId}:`, err)
+    }
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase.from('portfolio_snapshots').upsert(rows, { onConflict: 'user_id,snapshot_date' })
+    if (error) { console.error('[sync-prices] portfolio_snapshots upsert error:', error.message); return { ok: 0, failed: rows.length } }
+  }
+  return { ok: rows.length, failed }
+}
+
 // ── Trailing stop por posición (ratchet: solo sube) ─────────────────────────
 // El alarm del análisis se recalcula cada día y puede BAJAR si bajan sus
 // insumos (soportes/SMA50/chandelier). Para proteger ganancias de verdad, el
@@ -707,6 +779,11 @@ export async function GET(request: Request) {
     const failed = results.filter(r => r.source === null)
     console.log(`[sync-prices] ${ok}/${tickers.length} ok`, failed.map(f => `${f.ticker}: ${f.reasons.join('·')}`))
 
+    // Curva diaria del valor de la cartera (pedido de Cas, ago 2026) — corre
+    // para TODOS los usuarios con posiciones, no solo los que tienen
+    // watchlist, así que va independiente del gate de computeDailySignals.
+    const portfolioSnapshots = await snapshotAllPortfolioValues(supabase, tickers)
+
     // Señales del digest diario — solo tiene sentido si hay favoritos con historia
     const digest = wl && wl.length > 0 ? await computeDailySignals(supabase) : { signals: 0, targetsReached: 0, decisions: 0 }
 
@@ -738,6 +815,7 @@ export async function GET(request: Request) {
       fomcEmail,
       trailingStops,
       netWorthSnapshots,
+      portfolioSnapshots,
       fomcAlert,
     })
   } catch (err) {

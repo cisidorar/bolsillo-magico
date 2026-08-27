@@ -28,6 +28,7 @@ import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import type { PortfolioPoint } from '@/lib/portfolio-history'
+import PortfolioValueChart, { type PortfolioSnapshotPoint } from '@/components/PortfolioValueChart'
 
 // ── U4 (roadmap UX): "Radar" — un solo mundo para posiciones y favoritos.
 // Reemplaza StockPositionManager.tsx + WatchlistPanel.tsx: antes eran dos
@@ -186,6 +187,10 @@ interface Props {
   /** W3 (roadmap de vista, fase 2): evolución del valor de la cartera —
    *  computado server-side con price_history + shares actuales. */
   portfolioHistory?: PortfolioPoint[]
+  /** Ago 2026 (pedido de Cas): curva diaria REAL (no reconstruida) del valor
+   *  del portafolio — acciones + billetera, guardada día a día por el cron
+   *  desde que existe portfolio_snapshots. Solo se usa en view="mias". */
+  portfolioSnapshots?: PortfolioSnapshotPoint[]
   /** P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal)
    *  y lo ya depositado en la billetera USD este mes (CLP) — cierra el
    *  círculo sueldo → meta → compra que antes solo vivía en /inicio. */
@@ -197,6 +202,7 @@ export default function Radar({
   view, userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
   todayDecision = null, todaySignals = [], portfolioHistory = [],
+  portfolioSnapshots = [],
   monthlyInvestGoal = null, investedThisMonthClp = 0,
 }: Props) {
   const supabase = createClient()
@@ -1092,6 +1098,16 @@ export default function Radar({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Curva diaria REAL del valor del portafolio (pedido de Cas, ago 2026):
+          acciones + billetera, guardado día a día por el cron desde hoy —
+          antes solo había fotos del instante, sin forma de ver cómo sube o
+          baja según el mercado. */}
+      {positions.length > 0 && (
+        <div className="mb-4">
+          <PortfolioValueChart points={portfolioSnapshots} />
         </div>
       )}
 
