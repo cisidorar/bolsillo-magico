@@ -278,8 +278,9 @@ export default async function RecurrentesPage({
     totalInstallments: r.total_installments,
     paidInstallments: r.paid_installments ?? 0,
     isActive: r.is_active,
+    billingDay: r.billing_day ?? null,
   }))
-  const committedMonths = buildCommittedTimeline(committedItems, month, year, 6)
+  const committedMonths = buildCommittedTimeline(committedItems, month, year, 6, [], todayDate)
 
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8">

@@ -17,6 +17,10 @@ export interface CommittedTimelineItem {
   totalInstallments: number | null
   paidInstallments: number
   isActive: boolean
+  /** Día del mes en que se cobra (1–31). Necesario para saber si el cargo
+   *  del mes actual ya pasó (billingDay <= todayDay) — en ese caso, los
+   *  cargos restantes empiezan el mes siguiente, no este mes. */
+  billingDay?: number | null
 }
 
 export interface ReleasingItem {
@@ -60,6 +64,7 @@ export function buildCommittedTimeline(
   startYear: number,
   horizonMonths = 12,
   statements: CommittedStatement[] = [],
+  todayDay = 1,
 ): CommittedMonth[] {
   const months: CommittedMonth[] = []
   for (let i = 0; i < horizonMonths; i++) {
@@ -81,10 +86,13 @@ export function buildCommittedTimeline(
     }
 
     if (item.totalInstallments !== null) {
-      // En cuotas: quedan (total - pagadas) meses, empezando este mes.
+      // En cuotas: quedan (total - pagadas) meses.
+      // Si el billing_day del mes actual ya pasó (ej. hoy=26, billing_day=24),
+      // el cargo de este mes ya ocurrió → los restantes empiezan el mes siguiente.
       const remaining = Math.max(0, item.totalInstallments - item.paidInstallments)
-      const lastIdx = remaining - 1
-      for (let i = 0; i < remaining && i < months.length; i++) {
+      const offset = (item.billingDay != null && item.billingDay <= todayDay) ? 1 : 0
+      const lastIdx = offset + remaining - 1
+      for (let i = offset; i < offset + remaining && i < months.length; i++) {
         months[i].total += item.amount
       }
       if (remaining > 0 && lastIdx < months.length) {
