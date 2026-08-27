@@ -4,6 +4,7 @@ import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult, NetWorthHistoryPoint } from '@/lib/net-worth'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
+import PatrimonioDetailSheet from './PatrimonioDetailSheet'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -109,7 +110,7 @@ function fmtMonths(v: number): string {
   return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+export const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 
 /** 'YYYY-MM-DD' → '3 ago' — label corto para los puntos de la curva semanal reconstruida. */
 function fmtWeekLabel(dateStr: string): string {
@@ -140,8 +141,9 @@ function fmtAxisY(v: number): string {
   return `$${Math.round(v)}`
 }
 
-/** Gráfico de área SVG del patrimonio neto (histórico de snapshots). */
-function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
+/** Gráfico de área SVG del patrimonio neto (histórico de snapshots). Exportado
+ * para reusarse más grande dentro de PatrimonioDetailSheet. */
+export function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
   // W grande → tipografía no se agiganta al estirarse en desktop (~1100px real → escala ≈1).
   // H=380 → a 1100px de ancho el SVG mide ~350px de alto, llenando la card junto con el panel izquierdo.
   const W = 1200, H = 380
@@ -315,9 +317,7 @@ export default function PatrimonioCards({
                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Todo lo que tienes invertido y ahorrado, sumado</p>
               </div>
             </div>
-            <Link href="/inversiones" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
-              Ver
-            </Link>
+            <PatrimonioDetailSheet netWorthPoints={nwPoints} snapshots={nw.snapshots} current={nw.current} />
           </div>
 
           <div className="lg:grid lg:gap-6 lg:items-start space-y-4 lg:space-y-0" style={{ gridTemplateColumns: '260px 1fr' }}>
