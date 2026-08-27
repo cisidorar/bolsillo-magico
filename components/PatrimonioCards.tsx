@@ -133,11 +133,19 @@ function smoothPath(xs: number[], ys: number[]): string {
   return d
 }
 
+/** Formato abreviado para el eje Y (valores CLP grandes). */
+function fmtAxisY(v: number): string {
+  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+  if (Math.abs(v) >= 1_000)    return `$${Math.round(v / 1_000)}k`
+  return `$${Math.round(v)}`
+}
+
 /** Gráfico de área SVG del patrimonio neto (histórico de snapshots). */
 function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
-  // viewBox ancho para que la tipografía no se agigante al estirarse en desktop.
-  // A ~1100px de ancho real: 1100/1200 × 13 ≈ 12px — tamaño correcto.
-  const W = 1200, H = 148, padX = 12, padTop = 16, padBot = 24
+  // W grande → tipografía no se agiganta al estirarse en desktop (~1100px real → escala ≈1).
+  // H=380 → a 1100px de ancho el SVG mide ~350px de alto, llenando la card junto con el panel izquierdo.
+  const W = 1200, H = 380
+  const padLeft = 68, padRight = 12, padTop = 16, padBot = 28
   const n = points.length
   if (n < 2) return null
   const totals = points.map(p => p.total)
@@ -145,15 +153,16 @@ function NetWorthChart({ points }: { points: { label: string; total: number }[] 
   const max = Math.max(...totals)
   const range = max - min || 1
   const chartH = H - padTop - padBot
-  const xs = points.map((_, i) => padX + (i / (n - 1)) * (W - padX * 2))
+  const chartW = W - padLeft - padRight
+  const xs = points.map((_, i) => padLeft + (i / (n - 1)) * chartW)
   const ys = totals.map(t => padTop + (1 - (t - min) / range) * chartH)
   const linePath = smoothPath(xs, ys)
   const areaPath = `${linePath} L ${xs[n - 1]},${H - padBot} L ${xs[0]},${H - padBot} Z`
-  // Mostrar mes bajo cada punto si hay pocos; si hay muchos, solo extremos + cada 3° para no amontonar texto
   const showLabel = (i: number) => n <= 6 || i === 0 || i === n - 1 || i % 3 === 0
   const trendUp = totals[n - 1] >= totals[0]
   const lineColor = trendUp ? 'var(--primary)' : 'var(--coral)'
   const gradId = 'nw-area-grad'
+  const gridFracs = [0.15, 0.4, 0.65, 0.9]
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
@@ -164,11 +173,21 @@ function NetWorthChart({ points }: { points: { label: string; total: number }[] 
         </linearGradient>
       </defs>
 
-      {/* Grillas horizontales de referencia (sin números — el hero de arriba ya da la cifra) */}
-      {[0.33, 0.66].map(f => (
-        <line key={f} x1={padX} y1={padTop + chartH * f} x2={W - padX} y2={padTop + chartH * f}
-          stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
-      ))}
+      {/* Grillas horizontales con valor del eje Y */}
+      {gridFracs.map(f => {
+        const yPos  = padTop + chartH * f
+        const value = min + (1 - f) * range
+        return (
+          <g key={f}>
+            <line x1={padLeft} y1={yPos} x2={W - padRight} y2={yPos}
+              stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
+            <text x={padLeft - 8} y={yPos + 4} fontSize="10" fontWeight="500"
+              fill="var(--ink-3)" textAnchor="end">
+              {fmtAxisY(value)}
+            </text>
+          </g>
+        )
+      })}
 
       <path d={areaPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5"
@@ -176,16 +195,17 @@ function NetWorthChart({ points }: { points: { label: string; total: number }[] 
 
       {/* Punto por mes — tenues en el trayecto, el actual destacado con halo */}
       {xs.map((x, i) => {
-        const isLast = i === n - 1
-        if (isLast) return null
+        if (i === n - 1) return null
         return <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={lineColor} opacity={i === 0 ? 0.85 : 0.45} />
       })}
       <circle cx={xs[n - 1]} cy={ys[n - 1]} r="7" fill={lineColor} opacity="0.2" />
       <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill={lineColor} />
 
+      {/* Eje X */}
       {points.map((p, i) => showLabel(i) && (
-        <text key={i} x={xs[i]} y={H - 6} fontSize="10" fontWeight="600" fill="var(--ink-3)"
-          textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ textTransform: 'capitalize' }}>
+        <text key={i} x={xs[i]} y={H - 10} fontSize="10" fontWeight="600" fill="var(--ink-3)"
+          textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+          style={{ textTransform: 'capitalize' }}>
           {p.label}
         </text>
       ))}
