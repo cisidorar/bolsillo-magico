@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult, NetWorthHistoryPoint } from '@/lib/net-worth'
+import type { PortfolioPoint } from '@/lib/portfolio-history'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
@@ -55,6 +56,11 @@ interface Props {
   // más rica que los snapshots mensuales cuando hay pocos meses de historia.
   // Ver PatrimonioCards' nwPoints para el fallback a snapshots mensuales.
   netWorthHistory: NetWorthHistoryPoint[]
+  // ago 2026: curva diaria del valor de la cartera de acciones (posiciones
+  // actuales × precio de cierre histórico) — para responder "¿suben o bajan
+  // mis acciones según el mercado?", algo que el patrimonio total no puede
+  // mostrar porque mezcla depósitos/ahorro/dólares en tránsito.
+  stockPortfolioHistory: PortfolioPoint[]
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
@@ -222,7 +228,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal, stockTickers, netWorthHistory,
+  netWorth, committedDebtTotal, stockTickers, netWorthHistory, stockPortfolioHistory,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -317,7 +323,12 @@ export default function PatrimonioCards({
                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Todo lo que tienes invertido y ahorrado, sumado</p>
               </div>
             </div>
-            <PatrimonioDetailSheet netWorthPoints={nwPoints} snapshots={nw.snapshots} current={nw.current} />
+            <PatrimonioDetailSheet
+              netWorthPoints={nwPoints}
+              snapshots={nw.snapshots}
+              current={nw.current}
+              stockPortfolioHistory={stockPortfolioHistory}
+            />
           </div>
 
           <div className="lg:grid lg:gap-6 lg:items-start space-y-4 lg:space-y-0" style={{ gridTemplateColumns: '260px 1fr' }}>

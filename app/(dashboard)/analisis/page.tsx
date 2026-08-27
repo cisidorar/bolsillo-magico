@@ -1,6 +1,7 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
 import { computeAndSnapshotNetWorth, computeNetWorthWeeklyHistory, type NetWorthResult, type NetWorthHistoryPoint } from '@/lib/net-worth'
+import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
 import { getCategoryIcon } from '@/lib/category-icons'
 import MonthNav from '@/components/MonthNav'
 import Link from 'next/link'
@@ -690,6 +691,29 @@ export default async function AnalisisPage({
     const { data: posRows } = await supabase
       .from('stock_positions').select('ticker').eq('user_id', user!.id)
     stockTickers = [...new Set((posRows ?? []).map(r => r.ticker as string))]
+  }
+
+  // Curva diaria del valor de la cartera de acciones (pedido de Cas, ago 2026):
+  // el patrimonio total mezcla acciones + depósitos + ahorro + dólares en
+  // tránsito (la billetera USD sube/baja cada mes según cuándo compra dólares
+  // para invertir, no refleja rendimiento), así que no sirve para ver si las
+  // acciones suben o bajan según el mercado. Esta curva usa las posiciones
+  // ACTUALES (shares de hoy) valorizadas día a día con price_history — misma
+  // aproximación honesta que ya usa /inversiones (ver lib/portfolio-history.ts).
+  let stockPortfolioHistory: PortfolioPoint[] = []
+  if (isPatrimonio) {
+    const { data: posForHistory } = await supabase
+      .from('stock_positions').select('ticker, shares').eq('user_id', user!.id)
+    const historyTickers = [...new Set((posForHistory ?? []).map(r => r.ticker as string))]
+    if (historyTickers.length > 0) {
+      const { data: priceRows } = await supabase
+        .from('price_history').select('ticker, date, close')
+        .in('ticker', historyTickers)
+      stockPortfolioHistory = computePortfolioHistory(
+        (priceRows ?? []).map(r => ({ ticker: r.ticker as string, date: r.date as string, close: Number(r.close) })),
+        (posForHistory ?? []).map(r => ({ ticker: r.ticker as string, shares: Number(r.shares) })),
+      )
+    }
   }
 
   // Primer mes futuro donde bajan los fijos (terminan cuotas → se libera plata).
@@ -1742,6 +1766,7 @@ export default async function AnalisisPage({
               committedDebtTotal={committedDebtTotal}
               stockTickers={stockTickers}
               netWorthHistory={netWorthHistory}
+              stockPortfolioHistory={stockPortfolioHistory}
             />
           ) : (
             <div className="card text-center py-14 flex flex-col items-center gap-3">
