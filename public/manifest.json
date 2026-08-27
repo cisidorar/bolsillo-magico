@@ -9,7 +9,7 @@
   "theme_color": "#1B6DD4",
   "icons": [
     {
-      "src": "/camapana.png",
+      "src": "/bolsillo-magico-icono-invertido.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
