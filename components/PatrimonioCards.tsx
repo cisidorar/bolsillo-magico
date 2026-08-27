@@ -135,7 +135,9 @@ function smoothPath(xs: number[], ys: number[]): string {
 
 /** Gráfico de área SVG del patrimonio neto (histórico de snapshots). */
 function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
-  const W = 560, H = 148, padX = 8, padTop = 16, padBot = 24
+  // viewBox ancho para que la tipografía no se agigante al estirarse en desktop.
+  // A ~1100px de ancho real: 1100/1200 × 13 ≈ 12px — tamaño correcto.
+  const W = 1200, H = 148, padX = 12, padTop = 16, padBot = 24
   const n = points.length
   if (n < 2) return null
   const totals = points.map(p => p.total)
@@ -182,7 +184,7 @@ function NetWorthChart({ points }: { points: { label: string; total: number }[] 
       <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill={lineColor} />
 
       {points.map((p, i) => showLabel(i) && (
-        <text key={i} x={xs[i]} y={H - 6} fontSize="10" fontWeight="600" fill="var(--ink-3)"
+        <text key={i} x={xs[i]} y={H - 6} fontSize="13" fontWeight="600" fill="var(--ink-3)"
           textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ textTransform: 'capitalize' }}>
           {p.label}
         </text>
