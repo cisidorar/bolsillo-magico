@@ -29,6 +29,17 @@ function fmtDateLong(dateStr: string): string {
   })
 }
 
+// '28 jul' — para la fila "Plazo" (mismo formato corto que usa TermDepositManager en la app)
+function fmtDateShort(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86_400_000)
+}
+
 Deno.serve(async (req: Request) => {
   const url  = new URL(req.url)
   let body: Record<string, unknown> = {}
@@ -52,6 +63,8 @@ Deno.serve(async (req: Request) => {
           bank: 'Banco de Chile',
           amount: 335_000,
           interest: 1_139,
+          rate: 0.34,
+          startDate: '2026-07-28',
           maturityDate: today,
           renewable: true,
           siteUrl: SITE_URL,
@@ -67,7 +80,7 @@ Deno.serve(async (req: Request) => {
   // Depósitos que vencen hoy
   const { data: deposits, error: dErr } = await supabase
     .from('term_deposits')
-    .select('id, user_id, bank, amount, interest_rate, maturity_date, renewable')
+    .select('id, user_id, bank, amount, interest_rate, start_date, maturity_date, renewable')
     .eq('maturity_date', today)
 
   if (dErr) return new Response(JSON.stringify({ error: dErr.message }), { status: 500 })
@@ -118,6 +131,8 @@ Deno.serve(async (req: Request) => {
           bank: deposit.bank,
           amount: deposit.amount,
           interest,
+          rate: deposit.interest_rate,
+          startDate: deposit.start_date,
           maturityDate: deposit.maturity_date,
           renewable: deposit.renewable ?? false,
           siteUrl: SITE_URL,
@@ -162,6 +177,8 @@ function depositMaturityHtml({
   bank,
   amount,
   interest,
+  rate,
+  startDate,
   maturityDate,
   renewable,
   siteUrl,
@@ -170,16 +187,23 @@ function depositMaturityHtml({
   bank: string
   amount: number
   interest: number
+  rate: number
+  startDate: string
   maturityDate: string
   renewable: boolean
   siteUrl: string
 }) {
   const total        = amount + interest
-  const dateLabel    = fmtDateLong(maturityDate)
-  // Mint para "buenas noticias" — el depósito llegó a término, hay plata lista
-  const accent       = '#1FBE8D'
-  const accentBg     = '#EDFAF5'
-  const accentBorder = '#A8EDD8'
+  const dateLabel     = fmtDateLong(maturityDate)
+  const termDays      = daysBetween(startDate, maturityDate)
+  // Azul — mismo tono que el bloque destacado del correo de presupuesto
+  // (pedido de Cas, ago 2026: "quiero ese display en el celeste de bolsillo
+  // mágico como el de 80% de presupuesto"). El mint queda solo para el signo
+  // "+" del interés ganado (positivo dentro del bloque azul), igual que
+  // "Retorno total" en el hero de Mis acciones (Radar.tsx).
+  const accent        = '#2B7CF6'
+  const renewBg       = '#EDFAF5'
+  const renewBorder   = '#A8EDD8'
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -195,9 +219,10 @@ function depositMaturityHtml({
     @media (prefers-color-scheme: dark) {
       .bm-page    { background:#E8EFF8 !important; }
       .bm-card    { background:#ffffff !important; }
-      .bm-header  { background:#1FBE8D !important; }
-      .bm-amount  { background:#0A1F44 !important; }
-      .bm-tip     { background:#EDFAF5 !important; border-color:#A8EDD8 !important; }
+      .bm-header  { background:${accent} !important; }
+      .bm-amount  { background:${accent} !important; }
+      .bm-detail  { background:#ffffff !important; border-color:#E4EAF3 !important; }
+      .bm-renew   { background:${renewBg} !important; border-color:${renewBorder} !important; }
       .bm-cta     { background:#1B6DD4 !important; color:#ffffff !important; }
       .bm-footer  { background:#0E2A52 !important; }
       .bm-footer-link  { color:#9FB5D4 !important; }
@@ -214,7 +239,7 @@ function depositMaturityHtml({
     <table width="600" cellpadding="0" cellspacing="0" role="presentation" class="bm-card" bgcolor="#ffffff"
       style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
 
-      <!-- ENCABEZADO mint -->
+      <!-- ENCABEZADO azul -->
       <tr><td class="bm-header" bgcolor="${accent}" style="background:${accent};padding:36px 40px 32px;text-align:center">
         <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
         <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
@@ -240,26 +265,26 @@ function depositMaturityHtml({
         </p>
 
         <!-- BLOQUE resumen de plata -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-amount" bgcolor="#0A1F44"
-          style="background:#0A1F44;border-radius:20px;margin-bottom:24px">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-amount" bgcolor="${accent}"
+          style="background:${accent};border-radius:20px;margin-bottom:20px">
           <tr><td style="padding:28px 32px">
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td style="text-align:left">
-                  <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px">Capital invertido</p>
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Capital invertido</p>
                   <p style="margin:0;font-size:24px;font-weight:800;color:#ffffff;font-variant-numeric:tabular-nums">${fmtCLP(amount)}</p>
                 </td>
                 <td style="text-align:right">
-                  <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:rgba(31,190,141,0.8);text-transform:uppercase;letter-spacing:1.5px">Interés ganado</p>
-                  <p style="margin:0;font-size:24px;font-weight:800;color:#1FBE8D;font-variant-numeric:tabular-nums">+${fmtCLP(interest)}</p>
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Interés ganado</p>
+                  <p style="margin:0;font-size:24px;font-weight:800;color:#7EEBC7;font-variant-numeric:tabular-nums">+${fmtCLP(interest)}</p>
                 </td>
               </tr>
             </table>
-            <div style="border-top:1px solid rgba(255,255,255,0.1);margin:20px 0"></div>
+            <div style="border-top:1px solid rgba(255,255,255,0.18);margin:20px 0"></div>
             <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
               <tr>
                 <td>
-                  <p style="margin:0;font-size:12px;font-weight:700;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px">Total disponible</p>
+                  <p style="margin:0;font-size:12px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Total disponible</p>
                 </td>
                 <td style="text-align:right">
                   <p style="margin:0;font-size:32px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;font-variant-numeric:tabular-nums">${fmtCLP(total)}</p>
@@ -269,31 +294,53 @@ function depositMaturityHtml({
           </td></tr>
         </table>
 
-        <!-- TIP: renovar o retirar -->
-        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-tip" bgcolor="${accentBg}"
-          style="background:${accentBg};border:1.5px solid ${accentBorder};border-radius:16px;margin-bottom:28px">
-          <tr><td style="padding:18px 20px">
-            <table cellpadding="0" cellspacing="0" role="presentation">
-              <tr>
-                <td style="width:32px;vertical-align:top;padding-top:2px">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="${accent}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="10" cy="10" r="8"/>
-                    <path d="M10 6v4l3 3"/>
-                  </svg>
-                </td>
-                <td style="padding-left:12px;vertical-align:top">
-                  <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0E2A52">
-                    ${renewable ? '¿Renovar o retirar?' : '¿Qué hago con el dinero?'}
-                  </p>
-                  <p style="margin:0;font-size:13px;font-weight:500;color:#5B6B82;line-height:1.6">
-                    ${renewable
-                      ? 'Este depósito está marcado como renovable. Abre la app, toca el depósito en "Vencidos" y usa el botón <strong>Renovar</strong> para ingresar la nueva tasa que te ofreció el banco.'
-                      : 'Abre la app para registrar lo que hagas con este dinero — retiro, reinversión o un nuevo depósito con la tasa actualizada.'}
-                  </p>
-                </td>
-              </tr>
+        <!-- DETALLE: institución / tasa / plazo -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-detail" bgcolor="#ffffff"
+          style="background:#ffffff;border:1.5px solid #E4EAF3;border-radius:16px;margin-bottom:20px">
+          <tr><td style="padding:6px 20px">
+            <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+              <tr><td style="padding:14px 0;border-bottom:1px solid #EEF2F8">
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
+                  <td style="font-size:13px;font-weight:600;color:#5B6B82">Institución</td>
+                  <td style="text-align:right;font-size:14px;font-weight:800;color:#0E2A52">${bank}</td>
+                </tr></table>
+              </td></tr>
+              <tr><td style="padding:14px 0;border-bottom:1px solid #EEF2F8">
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
+                  <td style="font-size:13px;font-weight:600;color:#5B6B82">Tasa del período</td>
+                  <td style="text-align:right;font-size:14px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${rate.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td>
+                </tr></table>
+              </td></tr>
+              <tr><td style="padding:14px 0">
+                <table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr>
+                  <td style="font-size:13px;font-weight:600;color:#5B6B82">Plazo</td>
+                  <td style="text-align:right;font-size:14px;font-weight:800;color:#0E2A52;font-variant-numeric:tabular-nums">${termDays} días · ${fmtDateShort(startDate)} → ${fmtDateShort(maturityDate)}</td>
+                </tr></table>
+              </td></tr>
             </table>
           </td></tr>
+        </table>
+
+        <!-- ¿QUÉ QUIERES HACER? — Renovar / Retirar -->
+        <p style="margin:0 0 10px;font-size:15px;font-weight:800;color:#0E2A52">¿Qué quieres hacer?</p>
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:28px">
+          <tr>
+            ${renewable ? `
+            <td width="50%" valign="top" class="bm-renew" bgcolor="${renewBg}"
+              style="background:${renewBg};border:1.5px solid ${renewBorder};border-radius:16px;padding:16px" >
+              <p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0E2A52">↻ Renovar</p>
+              <p style="margin:0;font-size:12px;font-weight:500;color:#5B6B82;line-height:1.5">Reinvierte el total con la nueva tasa que te ofrezca el banco.</p>
+            </td>
+            <td width="12"></td>
+            <td width="50%" valign="top" style="border:1.5px solid #E4EAF3;border-radius:16px;padding:16px">
+              <p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0E2A52">↓ Retirar</p>
+              <p style="margin:0;font-size:12px;font-weight:500;color:#5B6B82;line-height:1.5">Mueve los ${fmtCLP(total)} a tu cuenta de ahorro o gasto.</p>
+            </td>` : `
+            <td width="100%" valign="top" style="border:1.5px solid #E4EAF3;border-radius:16px;padding:16px">
+              <p style="margin:0 0 6px;font-size:14px;font-weight:800;color:#0E2A52">↓ Retirar</p>
+              <p style="margin:0;font-size:12px;font-weight:500;color:#5B6B82;line-height:1.5">Este depósito no está marcado como renovable. Mueve los ${fmtCLP(total)} a tu cuenta de ahorro o gasto, o crea un depósito nuevo con la tasa que te ofrezca el banco.</p>
+            </td>`}
+          </tr>
         </table>
 
         <!-- CTA -->
