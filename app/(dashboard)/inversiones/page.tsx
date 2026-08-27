@@ -10,7 +10,6 @@ import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
 import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
-import PerformanceSection from '@/components/PerformanceSection'
 import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
@@ -502,9 +501,6 @@ export default async function InversionesPage({ searchParams }: Props) {
             monthlyInvestGoal={monthlyInvestGoal}
             investedThisMonthClp={investedThisMonthClp}
           />
-          <div className="mt-6">
-            <PerformanceSection sales={(sales ?? []) as StockSale[]} spyBenchmark={spyBenchmark} purchases={(purchases ?? []) as StockPurchase[]} />
-          </div>
           <div className="mt-4">
             <WeekSnapshotCard
               spyBenchmark={spyBenchmark}
