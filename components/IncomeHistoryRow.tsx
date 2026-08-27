@@ -7,7 +7,6 @@ import { formatCLP } from '@/lib/utils'
 import { CalendarDays, ChevronRight, X, Trash2, RefreshCw, FileText } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import IncomeSheet from './IncomeSheet'
-import Sparkline from './Sparkline'
 import PayslipInlineDetail, { type PayslipData } from './PayslipDetailSheet'
 import type { IncomeData } from './IncomeMonthEditor'
 
@@ -20,7 +19,6 @@ interface Props {
   prevIncome: IncomeData | null   // para "copiar mes anterior" al registrar uno faltante
   surplus:    number | null
   expense:    number
-  sparkValues: number[]
   payslip:    PayslipData | null
 }
 
@@ -30,7 +28,7 @@ interface Props {
 // de solo lectura, con Eliminar (confirmación inline) y Editar (abre el
 // formulario real, IncomeSheet, ahora controlable desde afuera) en el footer.
 export default function IncomeHistoryRow({
-  userId, month, year, monthName, income, prevIncome, surplus, expense, sparkValues, payslip,
+  userId, month, year, monthName, income, prevIncome, surplus, expense, payslip,
 }: Props) {
   const router   = useRouter()
   const supabase = createClient()
@@ -95,11 +93,6 @@ export default function IncomeHistoryRow({
               {' '}· {surplus >= 0 ? '' : '−'}{Math.abs(Math.round((surplus / prevIncome.amount) * 100))}% del sueldo
             </p>
           )}
-        </div>
-
-        {/* Sparkline */}
-        <div className="hidden md:block shrink-0">
-          <Sparkline values={sparkValues} positive={isReg} />
         </div>
 
         <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />

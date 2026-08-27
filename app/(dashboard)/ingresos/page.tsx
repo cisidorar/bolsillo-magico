@@ -291,13 +291,6 @@ export default async function IngresosPage() {
           const expense = expenseMap[key] ?? 0
           const surplus = prevInc ? prevInc.amount - expense : null
 
-          const sparkValues: number[] = []
-          for (let i = 5; i >= 0; i--) {
-            let m = month - i, y = year
-            if (m <= 0) { m += 12; y -= 1 }
-            sparkValues.push(incomeMap[`${y}-${m}`]?.amount ?? 0)
-          }
-
           return (
             <IncomeHistoryRow
               key={key}
@@ -309,7 +302,6 @@ export default async function IngresosPage() {
               prevIncome={prevInc}
               surplus={surplus}
               expense={expense}
-              sparkValues={sparkValues}
               payslip={payslipMap[key] ?? null}
             />
           )
