@@ -152,6 +152,24 @@ select cron.schedule(
   $$
 );
 
+-- 8. Aviso de vencimiento de depósito a plazo — todos los días a las 9:25 AM CLT.
+--    Detecta term_deposits donde maturity_date = hoy (hora Chile) y manda el correo
+--    al usuario para que renueve o retire. Idempotente por depósito (notification_log).
+select cron.schedule(
+  'notify-deposit-maturity-daily',
+  '25 12 * * *',   -- 12:25 UTC = 09:25 CLT
+  $$
+  select net.http_post(
+    url     := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-deposit-maturity',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer <SERVICE_ROLE>',
+      'Content-Type',  'application/json'
+    ),
+    body    := '{}'::jsonb
+  ) as result;
+  $$
+);
+
 -- ── Verificar que quedaron creados ────────────────────────────────────────────
 -- select jobname, schedule, command, active from cron.job;
 
@@ -163,3 +181,4 @@ select cron.schedule(
 -- select cron.unschedule('notify-watchlist-digest-daily');
 -- select cron.unschedule('notify-weekly-report-monday');
 -- select cron.unschedule('notify-fomc-reminder-daily');
+-- select cron.unschedule('notify-deposit-maturity-daily');
