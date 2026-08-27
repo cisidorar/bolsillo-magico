@@ -212,6 +212,13 @@ export default async function RecurrentesPage({
   }
 
   ongoingItems.forEach(r => {
+    // Los gastos pagados con tarjeta de crédito NO generan una salida de caja
+    // el día que se cobran a la tarjeta — la salida real ocurre cuando vence
+    // el estado de cuenta (evento type:'card' que ya se agrega más abajo).
+    // Mostrarlos dos veces (cargo individual + estado) sobreestimaba el gasto
+    // y generaba alertas de flujo negativo falsas (ej. Spotify en CMR).
+    if ((r.payment_method as { card_type?: string } | null)?.card_type === 'credit') return
+
     // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
     // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
     // billing_day y seguía apareciendo en el flujo de caja como si fuera a
