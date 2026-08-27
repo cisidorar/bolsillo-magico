@@ -399,7 +399,7 @@ export default async function CategoriaDetallePage({
                       </span>
                       <div className="w-full flex-1 flex items-end">
                         <div
-                          className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(43,124,246,0.35)]' : isCurrent ? 'bar-current' : 'bar-inactive'}`}
+                          className={`w-full rounded-t-lg transition-all ${isSelected ? 'shadow-[0_4px_12px_rgba(43,124,246,0.35)]' : isCurrent ? 'bar-today' : 'bar-inactive'}`}
                           style={{
                             height: `${h}px`,
                             ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}),

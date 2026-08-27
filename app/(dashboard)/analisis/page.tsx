@@ -2291,7 +2291,7 @@ export default async function AnalisisPage({
                           const isSelected = m.key === selectedKey
                           const isCurrent  = m.key === currentKey
                           const barPx      = m.total > 0 ? Math.max(6, Math.round((m.total / maxMonth) * BAR_H)) : 3
-                          const barClass   = isSelected ? '' : isCurrent ? 'bar-current' : 'bar-inactive'
+                          const barClass   = isSelected ? '' : isCurrent ? 'bar-today' : 'bar-inactive'
                           const [mYear, mMonth] = m.key.split('-').map(Number)
                           return (
                             <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`}

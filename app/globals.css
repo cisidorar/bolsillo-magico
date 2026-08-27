@@ -402,6 +402,11 @@
 .dark .bar-inactive { background-color: var(--surface-2); }
 .bar-current  { background-color: var(--primary); }
 .dark .bar-current  { background-color: var(--primary); }
+/* Mes de hoy quando NO es el mes seleccionado — un tinte más pálido que
+   var(--primary), para no confundirse visualmente con la barra realmente
+   seleccionada (que usa el azul sólido + glow). */
+.bar-today    { background-color: color-mix(in srgb, var(--primary) 35%, var(--surface-2)); }
+.dark .bar-today { background-color: color-mix(in srgb, var(--primary) 35%, var(--surface-2)); }
 .bar-weekend  { background-color: color-mix(in srgb, var(--primary) 60%, transparent); }
 .dark .bar-weekend  { background-color: color-mix(in srgb, var(--primary) 50%, var(--surface)); }
 
