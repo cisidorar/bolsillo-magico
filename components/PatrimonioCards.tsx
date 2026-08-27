@@ -184,7 +184,7 @@ function NetWorthChart({ points }: { points: { label: string; total: number }[] 
       <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill={lineColor} />
 
       {points.map((p, i) => showLabel(i) && (
-        <text key={i} x={xs[i]} y={H - 6} fontSize="13" fontWeight="600" fill="var(--ink-3)"
+        <text key={i} x={xs[i]} y={H - 6} fontSize="10" fontWeight="600" fill="var(--ink-3)"
           textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'} style={{ textTransform: 'capitalize' }}>
           {p.label}
         </text>
