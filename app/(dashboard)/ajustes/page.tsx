@@ -142,6 +142,7 @@ export default async function AjustesPage() {
               notifyRecurring={profile?.notify_recurring ?? true}
               notifyWatchlistDigest={profile?.notify_watchlist_target ?? true}
               notifyWeeklyReport={profile?.notify_weekly_report ?? true}
+              notifyDepositMaturity={profile?.notify_deposit_maturity ?? true}
               budgetAlertPct={profile?.budget_alert_pct ?? 80}
               billingAlertDays={profile?.billing_alert_days ?? 2}
               status={notifStatus}
