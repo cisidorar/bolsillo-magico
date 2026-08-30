@@ -19,6 +19,17 @@ export interface CommitMonth {
   total: number
 }
 
+// ago 2026 (Cas: "que se vea la cuenta con intereses y el DAP") — cada cuenta
+// de ahorro y cada depósito a plazo por separado, en vez de un solo total
+// "Ahorros líquidos" sin decir de dónde sale. `liquid=false` (DAP vigente,
+// aún no vence) se muestra igual pero no suma a totalSavings/monthsCovered.
+export interface EmergencyFundItem {
+  label:  string   // nombre de la cuenta o banco del depósito
+  amount: number   // capital + interés devengado a hoy
+  liquid: boolean  // false = DAP vigente, bloqueado hasta el vencimiento
+  note?:  string   // ej. "vence en 8 días"
+}
+
 interface Props {
   ratePoints: RatePoint[]          // 12 puntos, más antiguo → más reciente
   currentRate: number | null       // % del mes seleccionado
@@ -27,6 +38,7 @@ interface Props {
   avg12: number | null             // promedio 12 meses completados
   totalSavings: number             // CLP líquidos en cuentas de ahorro
   savingsCount: number             // nº de cuentas de ahorro
+  emergencyFundItems: EmergencyFundItem[]  // desglose por cuenta/depósito
   avgMonthlyExpense: number | null // gasto promedio mensual (meses completados)
   monthsCovered: number | null     // totalSavings / avgMonthlyExpense
   monthLabel: string               // 'Julio'
@@ -223,7 +235,7 @@ export function NetWorthChart({ points }: { points: { label: string; total: numb
 
 export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12,
-  totalSavings, savingsCount, avgMonthlyExpense, monthsCovered,
+  totalSavings, savingsCount, emergencyFundItems, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
@@ -415,10 +427,10 @@ export default function PatrimonioCards({
         </div>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+      <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
 
         {/* ── Card 1: Tasa de ahorro ─────────────────────────────────────── */}
-        <div className="card p-4 lg:p-5">
+        <div className="card p-4 lg:p-5 h-full flex flex-col">
           {/* Header dentro de la card */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
@@ -520,7 +532,7 @@ export default function PatrimonioCards({
         </div>
 
         {/* ── Card 2: Fondo de emergencia ────────────────────────────────── */}
-        <div className="card p-4 lg:p-5">
+        <div className="card p-4 lg:p-5 h-full flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -574,12 +586,16 @@ export default function PatrimonioCards({
 
               {/* Detalle — filas inset */}
               <div className="space-y-2 mt-3">
-                <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
-                    Ahorros líquidos · {savingsCount} cuenta{savingsCount !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(totalSavings)}</p>
-                </div>
+                {emergencyFundItems.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-2xl px-3 py-2.5"
+                    style={{ background: 'var(--surface-2)', opacity: item.liquid ? 1 : 0.6 }}>
+                    <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
+                      {item.label}
+                      {item.note && <span className="ml-1.5" style={{ color: 'var(--ink-3)' }}>· {item.note}</span>}
+                    </p>
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(item.amount)}</p>
+                  </div>
+                ))}
                 <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                   <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Gasto promedio mensual</p>
                   <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>

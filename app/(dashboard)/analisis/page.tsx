@@ -22,6 +22,7 @@ import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import { earnedSoFar } from '@/lib/savings-accounts'
+import { earnedToDate, daysToMaturity } from '@/lib/term-deposits'
 
 export const revalidate = 0
 
@@ -72,7 +73,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: maturedDepositsRaw }, { data: profileRow }, { data: usdDepositsRaw }, { data: monthReviewRaw }] = await Promise.all([
+  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: depositsRaw }, { data: profileRow }, { data: usdDepositsRaw }, { data: monthReviewRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -137,7 +138,7 @@ export default async function AnalisisPage({
     // Saldos líquidos en cuentas de ahorro
     supabase
       .from('savings_accounts')
-      .select('balance, annual_rate, start_date')
+      .select('name, balance, annual_rate, start_date')
       .eq('user_id', user!.id),
     // Recurrentes activos para deuda comprometida a futuro (F3) y proyección
     // consciente del calendario (id: para saber si ya se registró este mes)
@@ -146,13 +147,14 @@ export default async function AnalisisPage({
       .select('id, amount, billing_month, total_installments, paid_installments')
       .eq('user_id', user!.id)
       .eq('is_active', true),
-    // Depósitos a plazo VENCIDOS: en la práctica son líquidos (rescatables),
-    // así que cuentan como fondo de emergencia igual que los ahorros (F2)
+    // Todos los depósitos a plazo (Cas: "que se vea también el DAP" en el
+    // fondo de emergencia) — los VENCIDOS son líquidos en la práctica
+    // (rescatables) y cuentan igual que los ahorros (F2); los vigentes se
+    // muestran igual, pero no suman al total líquido hasta que venzan.
     supabase
       .from('term_deposits')
-      .select('amount, interest_rate, start_date, maturity_date')
-      .eq('user_id', user!.id)
-      .lt('maturity_date', getNowChile().dateStr),
+      .select('bank, amount, interest_rate, start_date, maturity_date')
+      .eq('user_id', user!.id),
     // Meta mensual de aporte a inversión (Fase A1/A2 del asesor financiero)
     supabase.from('profiles').select('monthly_invest_goal').eq('id', user!.id).maybeSingle(),
     // Aportes a la billetera USD (kind='deposit') de los últimos ~13 meses,
@@ -570,12 +572,32 @@ export default async function AnalisisPage({
   // Incluye el interés devengado (misma fórmula que lib/net-worth.ts) — antes
   // solo sumaba el balance crudo, así que esta tarjeta mostraba un número
   // distinto al "Ahorro" de Patrimonio neto (confuso: dos cifras de lo mismo).
-  const savingsBalances  = ((savingsRaw ?? []) as { balance: number; annual_rate: number; start_date: string }[])
-    .map(s => s.balance + earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
-  const maturedDepositsLiquid = ((maturedDepositsRaw ?? []) as { amount: number; interest_rate: number }[])
-    .map(d => d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)))
+  const emergencyTodayStr = getNowChile().dateStr
+  const savingsRows = (savingsRaw ?? []) as { name: string; balance: number; annual_rate: number; start_date: string }[]
+  const depositRows = (depositsRaw ?? []) as { bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[]
+
+  const savingsBalances = savingsRows.map(s => s.balance + earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
+  const maturedDeposits = depositRows.filter(d => d.maturity_date < emergencyTodayStr)
+  const pendingDeposits = depositRows.filter(d => d.maturity_date >= emergencyTodayStr)
+  const maturedDepositsLiquid = maturedDeposits.map(d => d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)))
   const totalSavings     = savingsBalances.reduce((s, v) => s + v, 0)
     + maturedDepositsLiquid.reduce((s, v) => s + v, 0)
+
+  // Cas (ago 2026): "que se vea la cuenta con intereses y el DAP" — antes la
+  // tarjeta solo mostraba un total combinado sin decir de dónde salía. Ahora
+  // se lista cada cuenta/depósito por separado; los DAP vigentes se muestran
+  // igual (con lo devengado a hoy) pero no suman al total líquido hasta que
+  // venzan — mezclar plata bloqueada con líquida inflaría el indicador.
+  const emergencyFundItems = [
+    ...savingsRows.map((s, i) => ({ label: s.name || 'Cuenta de ahorro', amount: savingsBalances[i], liquid: true })),
+    ...maturedDeposits.map((d, i) => ({ label: d.bank || 'Depósito a plazo', amount: maturedDepositsLiquid[i], liquid: true, note: 'vencido' })),
+    ...pendingDeposits.map(d => ({
+      label: d.bank || 'Depósito a plazo',
+      amount: d.amount + earnedToDate(d, emergencyTodayStr),
+      liquid: false,
+      note: `vence en ${daysToMaturity(d, emergencyTodayStr)} días`,
+    })),
+  ]
   const completedExpenses: number[] = []
   for (let i = 1; i <= 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -1754,6 +1776,7 @@ export default async function AnalisisPage({
               avg12={rateAvg12}
               totalSavings={totalSavings}
               savingsCount={savingsBalances.length + maturedDepositsLiquid.length}
+              emergencyFundItems={emergencyFundItems}
               avgMonthlyExpense={avgMonthlyExpense}
               monthsCovered={monthsCovered}
               monthLabel={monthName(month)}
