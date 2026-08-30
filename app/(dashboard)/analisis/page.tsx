@@ -21,6 +21,7 @@ import { buildWealthProjectionTable } from '@/lib/wealth-projection'
 import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
+import { earnedSoFar } from '@/lib/savings-accounts'
 
 export const revalidate = 0
 
@@ -136,7 +137,7 @@ export default async function AnalisisPage({
     // Saldos líquidos en cuentas de ahorro
     supabase
       .from('savings_accounts')
-      .select('balance')
+      .select('balance, annual_rate, start_date')
       .eq('user_id', user!.id),
     // Recurrentes activos para deuda comprometida a futuro (F3) y proyección
     // consciente del calendario (id: para saber si ya se registró este mes)
@@ -566,7 +567,11 @@ export default async function AnalisisPage({
   // Fondo de emergencia: ahorros líquidos / gasto promedio de meses completados.
   // Los depósitos a plazo ya VENCIDOS son líquidos en la práctica (rescatables)
   // así que suman igual que una cuenta de ahorro: capital + interés total devengado.
-  const savingsBalances  = ((savingsRaw ?? []) as { balance: number }[]).map(s => s.balance)
+  // Incluye el interés devengado (misma fórmula que lib/net-worth.ts) — antes
+  // solo sumaba el balance crudo, así que esta tarjeta mostraba un número
+  // distinto al "Ahorro" de Patrimonio neto (confuso: dos cifras de lo mismo).
+  const savingsBalances  = ((savingsRaw ?? []) as { balance: number; annual_rate: number; start_date: string }[])
+    .map(s => s.balance + earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
   const maturedDepositsLiquid = ((maturedDepositsRaw ?? []) as { amount: number; interest_rate: number }[])
     .map(d => d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)))
   const totalSavings     = savingsBalances.reduce((s, v) => s + v, 0)
