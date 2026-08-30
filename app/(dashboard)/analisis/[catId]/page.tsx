@@ -327,7 +327,7 @@ export default async function CategoriaDetallePage({
       </div>
 
       {/* ── Contenido principal ─────────────────────────────────────────── */}
-      <div className="px-4 lg:px-8 pt-4 lg:grid lg:grid-cols-[1fr_320px] lg:gap-6 lg:items-start">
+      <div className={`px-4 lg:px-8 pt-4 ${isAnual ? '' : 'lg:grid lg:grid-cols-[1fr_320px] lg:gap-6 lg:items-start'}`}>
 
         {/* Lista de gastos */}
         <div>
