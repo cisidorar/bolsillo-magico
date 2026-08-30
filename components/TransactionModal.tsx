@@ -29,6 +29,16 @@ function fmtPct(n: number, showSign = true): string {
   const s = Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   return showSign ? (n >= 0 ? `+${s}%` : `-${s}%`) : `${s}%`
 }
+// Cas (ago 2026): quiere poder dejar registrada una compra planificada a
+// futuro (comprar más de una posición) sin tener que volver ese día — antes
+// el date picker topaba en hoy. Un año de margen alcanza para planificar sin
+// abrir la puerta a fechas absurdas. Solo aplica a compras: vender algo a
+// futuro no tiene sentido (no hay precio que confirmar todavía).
+function maxFutureStr(): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
 
 const inputBase: React.CSSProperties = {
   color:       'var(--ink)',
@@ -578,7 +588,7 @@ export default function TransactionModal({
                     <div>
                       <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
                       <input type="date" value={buyDate} onChange={e => setBuyDate(e.target.value)}
-                        max={new Date().toISOString().slice(0, 10)}
+                        max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>

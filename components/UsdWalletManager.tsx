@@ -42,6 +42,15 @@ interface FormState { date: string; clp: string; usd: string; notes: string; sha
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
+// Cas (ago 2026): quiere poder dejar registrado un aporte planificado a
+// futuro (ej. "el 15 voy a mandar plata a la billetera") sin tener que
+// volver ese día — antes el date picker topaba en hoy. Un año de margen es
+// suficiente para planificar sin abrir la puerta a fechas absurdas.
+function maxFutureStr(): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + 1)
+  return d.toISOString().slice(0, 10)
+}
 const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '', shares: '' })
 
 function fmtUSD(n: number): string {
@@ -544,7 +553,7 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   Fecha
                 </label>
                 <input
-                  type="date" value={form.date} max={todayStr()}
+                  type="date" value={form.date} max={maxFutureStr()}
                   onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                   className="w-full text-sm border px-4 py-3 outline-none"
                   style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
