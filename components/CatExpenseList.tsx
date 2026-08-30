@@ -24,25 +24,30 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
   const router = useRouter()
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
 
+  let globalIdx = -1
+
   return (
     <>
-      <div className={compact ? 'divide-y divide-gray-50 dark:divide-[#1a2744]' : 'space-y-4'}>
+      <div className={compact ? '' : 'space-y-4'}>
         {groups.map(({ date, label, dayTotal, expenses }) => (
           <div key={date}>
             {!compact && (
               <div className="flex items-center justify-between mb-2 px-1">
-                <p className="text-xs font-bold text-gray-400 capitalize">{label}</p>
-                <p className="text-xs font-bold text-gray-500 tabular-nums">{formatCLP(dayTotal)}</p>
+                <p className="text-xs font-bold capitalize" style={{ color: 'var(--ink-3)' }}>{label}</p>
+                <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(dayTotal)}</p>
               </div>
             )}
-            <div className={compact ? '' : 'card divide-y divide-gray-50 overflow-hidden'}>
-              {expenses.map(e => {
+            <div className={compact ? '' : 'card overflow-hidden'}>
+              {expenses.map((e, i) => {
+                globalIdx++
+                const isFirst = compact ? globalIdx === 0 : i === 0
                 const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, categoryName)
                 return (
                   <button
                     key={e.id}
                     onClick={() => setEditingExpense(e)}
-                    className="flex items-center gap-3 px-4 py-3.5 w-full text-left hover:bg-gray-50/60 active:bg-brand-50/40 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3.5 w-full text-left transition-colors hover:bg-[var(--surface-2)]"
+                    style={{ borderTop: isFirst ? undefined : '1px solid var(--border)' }}
                   >
                     <div
                       className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -51,14 +56,14 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                       <Icon className="w-4 h-4" style={{ color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
+                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
                         {e.description || categoryName}
                       </p>
                       {e.payment_method && (
-                        <p className="text-xs text-gray-400">{e.payment_method.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{e.payment_method.name}</p>
                       )}
                     </div>
-                    <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
+                    <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                       {formatCLP(e.amount)}
                     </p>
                   </button>

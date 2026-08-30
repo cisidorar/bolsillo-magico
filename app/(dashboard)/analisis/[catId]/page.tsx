@@ -335,24 +335,27 @@ export default async function CategoriaDetallePage({
             /* Modo anual: grupos por mes */
             anualMonthGroups.length === 0 ? (
               <div className="card text-center py-14">
-                <p className="text-sm font-bold text-gray-500">Sin gastos en {year}</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--ink-3)' }}>Sin gastos en {year}</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {anualMonthGroups.map(mg => (
                   <div key={mg.monthNum} className="card overflow-hidden">
                     {/* Encabezado del mes */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50 dark:border-[#1a2744]">
+                    <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
                       <div className="flex items-center gap-2">
-                        <CalendarDays className="w-4 h-4 text-brand-400" />
-                        <span className="text-sm font-bold text-gray-800 dark:text-gray-100">{mg.monthLabel}</span>
+                        <CalendarDays className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                        <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{mg.monthLabel}</span>
                         {anualPeakMonth?.monthNum === mg.monthNum && (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500">
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}
+                          >
                             <ArrowUp className="w-2.5 h-2.5" />pico
                           </span>
                         )}
                       </div>
-                      <span className="text-sm font-bold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(mg.total)}</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(mg.total)}</span>
                     </div>
                     {/* Gastos del mes */}
                     <CatExpenseList groups={mg.groups} categoryName={category.name} compact />
@@ -364,8 +367,8 @@ export default async function CategoriaDetallePage({
             /* Modo mensual: lista normal */
             groups.length === 0 ? (
               <div className="card text-center py-14">
-                <p className="text-sm font-bold text-gray-500">Sin gastos en {monthName(month)}</p>
-                <p className="text-xs text-gray-400 mt-1">Navega a otro mes con las flechas del header</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--ink-3)' }}>Sin gastos en {monthName(month)}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Navega a otro mes con las flechas del header</p>
               </div>
             ) : (
               <CatExpenseList groups={groups} categoryName={category.name} />
@@ -377,10 +380,10 @@ export default async function CategoriaDetallePage({
         {!isAnual && (
           <div className="hidden lg:block">
             <div className="card p-4">
-              <p className="text-sm font-bold text-gray-700 mb-3">Tendencia 6 meses</p>
+              <p className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Tendencia 6 meses</p>
 
               {maxMonth > 1 && (
-                <p className="text-[9px] text-gray-300 font-medium tabular-nums mb-1">
+                <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
                   {formatCLP(maxMonth)}
                 </p>
               )}
@@ -394,7 +397,10 @@ export default async function CategoriaDetallePage({
                   const href = `/analisis/${catId}?month=${mMonth}&year=${mYear}${viewParam}`
                   return (
                     <Link key={m.key} href={href} className="flex-1 flex flex-col items-center gap-1 group">
-                      <span className={`text-[9px] tabular-nums leading-none font-semibold whitespace-nowrap ${isSelected ? 'text-brand-700' : 'text-gray-400'}`}>
+                      <span
+                        className="text-[9px] tabular-nums leading-none font-semibold whitespace-nowrap"
+                        style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}
+                      >
                         {m.total > 0 ? formatCLP(m.total) : ''}
                       </span>
                       <div className="w-full flex-1 flex items-end">
@@ -409,7 +415,7 @@ export default async function CategoriaDetallePage({
                       </div>
                       <span
                         className="text-[10px] capitalize leading-none font-semibold"
-                        style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : '#9CA3AF' }}
+                        style={{ color: isSelected ? 'var(--primary)' : isCurrent ? '#4D8FFF' : 'var(--ink-3)' }}
                       >
                         {m.label}
                       </span>
@@ -419,9 +425,9 @@ export default async function CategoriaDetallePage({
               </div>
 
               {avgMonthly > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between">
-                  <p className="text-[11px] text-gray-400">Promedio mensual</p>
-                  <p className="text-[11px] font-bold text-gray-700 tabular-nums">{formatCLP(avgMonthly)}</p>
+                <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Promedio mensual</p>
+                  <p className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(avgMonthly)}</p>
                 </div>
               )}
             </div>
