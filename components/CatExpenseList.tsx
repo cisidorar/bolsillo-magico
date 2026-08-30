@@ -97,6 +97,15 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                 globalIdx++
                 const isFirst = compact ? globalIdx === 0 : i === 0
                 const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, categoryName)
+                // Mismo criterio que el detalle: si el ítem recurrente ya
+                // trae un dominio curado (o la descripción coincide con uno
+                // conocido), mostrar el logo real de la marca en vez del
+                // ícono genérico — antes la fila nunca lo intentaba y
+                // siempre caía al ícono de categoría (ej. el de "recurrente").
+                const recurringDomain = e.recurring_expense?.domain
+                const descDomain = e.description ? detectDomain(e.description) : null
+                const logoDomain = recurringDomain ?? descDomain
+                const logoName = e.recurring_expense?.name ?? e.description ?? categoryName
                 return (
                   <button
                     key={e.id}
@@ -104,12 +113,16 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                     className="flex items-center gap-3 px-4 py-3.5 w-full text-left transition-colors hover:bg-[var(--surface-2)] group"
                     style={{ borderTop: isFirst ? undefined : '1px solid var(--border)' }}
                   >
-                    <div
-                      className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
-                    >
-                      <Icon className="w-4 h-4" style={{ color }} />
-                    </div>
+                    {logoDomain ? (
+                      <ServiceLogo domain={logoDomain} name={logoName} size={36} className="flex-shrink-0" />
+                    ) : (
+                      <div
+                        className="cat-icon-bg w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
+                      >
+                        <Icon className="w-4 h-4" style={{ color }} />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
                         {e.description || categoryName}
