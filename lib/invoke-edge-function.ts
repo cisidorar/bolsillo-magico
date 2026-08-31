@@ -30,26 +30,27 @@ export async function invokeEdgeFunction(
   supabaseUrl:  string,
   serviceKey:   string,
   functionName: string,
-  { timeoutMs = 20_000 }: { timeoutMs?: number } = {},
+  { timeoutMs = 20_000, body: requestBody }: { timeoutMs?: number; body?: unknown } = {},
 ): Promise<EdgeInvokeResult> {
   try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+    const res: Response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
       method:  'POST',
       headers: {
         'Authorization': `Bearer ${serviceKey}`,
         'Content-Type':  'application/json',
       },
+      body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
       signal: AbortSignal.timeout(timeoutMs),
     })
 
-    const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    const responseBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
 
     if (!res.ok) {
-      console.error(`[edge/${functionName}] error HTTP ${res.status}:`, body)
-      return { ok: false, body }
+      console.error(`[edge/${functionName}] error HTTP ${res.status}:`, responseBody)
+      return { ok: false, body: responseBody }
     }
-    console.log(`[edge/${functionName}] ok:`, body)
-    return { ok: true, body }
+    console.log(`[edge/${functionName}] ok:`, responseBody)
+    return { ok: true, body: responseBody }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[edge/${functionName}] no alcanzó a enviarse:`, message)

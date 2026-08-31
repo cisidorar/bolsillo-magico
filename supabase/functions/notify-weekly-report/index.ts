@@ -665,7 +665,16 @@ function weeklyReportEmailHtml({
 
 Deno.serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
-  const weekStart = mondayOfCL()
+  // ago 2026: preferir el weekStart que manda el cron (ya calculado, mismo
+  // momento en que escribió weekly_reports) — mondayOfCL() acá es solo un
+  // fallback para invocación manual sin body. Dos implementaciones de "lunes
+  // de esta semana en Chile" corriendo por separado se desincronizaron al
+  // menos una vez y se comieron el correo sin ningún error visible.
+  let weekStart = mondayOfCL()
+  try {
+    const body = await req.json()
+    if (body?.weekStart) weekStart = body.weekStart
+  } catch { /* sin body (invocación manual) — usar mondayOfCL() */ }
 
   const { data: rows, error } = await supabase
     .from('weekly_reports')

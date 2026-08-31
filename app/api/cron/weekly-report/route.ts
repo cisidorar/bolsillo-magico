@@ -310,8 +310,18 @@ export async function GET(request: Request) {
   // esa tabla, así que llamarla antes mandaría el informe de la semana pasada.
   // Ver lib/invoke-edge-function.ts — esta llamada faltaba por completo y el
   // correo semanal nunca se envió, pese a que el informe se generaba bien.
+  //
+  // ago 2026 (bug encontrado: 2 semanas seguidas sin correo, sin error visible
+  // en ningún lado): la Edge Function recalculaba el lunes "de nuevo" con su
+  // propia función mondayOfCL(), independiente de la de acá — a las 01:00 UTC
+  // ambas caen del mismo lado casi siempre, pero son dos implementaciones
+  // distintas (una con aritmética de fecha simple, otra con toLocaleString)
+  // y bastaba con desincronizarse un run para que la Edge Function buscara un
+  // week_start que esta corrida nunca escribió: 0 filas, 0 correos, sin log
+  // de error porque técnicamente no fue un error. Ahora se le pasa el
+  // weekStart ya calculado — no hay margen para que discrepen.
   const reportEmail = ok > 0
-    ? await invokeEdgeFunction(url, key, 'notify-weekly-report')
+    ? await invokeEdgeFunction(url, key, 'notify-weekly-report', { body: { weekStart } })
     : { ok: true, body: { skipped: 'ningún informe generado esta semana' } }
 
   return NextResponse.json({ users: userIds.length, ok, failed, weekStart, reportEmail })
