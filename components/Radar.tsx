@@ -900,25 +900,34 @@ export default function Radar({
                 )}
               </div>
             </div>
-            <div className="border-t grid grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="px-4 py-3 min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-lg font-bold tabular-nums truncate" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
+            {/* ago 2026 (Cas: "itera y mejora esta vista mobile"): en mobile
+                el grid de 3 columnas dejaba ~80px por celda — montos como
+                "$4.743,xx" no cabían y truncate los cortaba con "…" (CLAUDE.md:
+                nunca truncar montos). Ahora en mobile cada stat es una fila
+                completa (label izquierda, monto derecha, mismo patrón que la
+                card "Rendimiento" de al lado) — sin límite de ancho real. El
+                grid de 3 columnas original se mantiene igual en sm+. */}
+            <div className="border-t divide-y divide-white/15 sm:divide-y-0 grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-sm sm:text-lg font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
               </div>
-              <div className="px-4 py-3 min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
-                <p className="text-lg font-bold tabular-nums truncate" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                  {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
-                </p>
-                {hasQ && (
-                  <p className="text-xs font-bold tabular-nums truncate" style={{ color: totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61' }}>
-                    {fmtPct(totalReturnPct)}
+              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <div className="text-right sm:text-left">
+                  <p className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                    {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
                   </p>
-                )}
+                  {hasQ && (
+                    <p className="text-xs font-bold tabular-nums" style={{ color: totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61' }}>
+                      {fmtPct(totalReturnPct)}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="px-4 py-3 min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
-                <p className="text-lg font-bold tabular-nums truncate" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
+              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-sm sm:text-lg font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
                   {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
                 </p>
               </div>
