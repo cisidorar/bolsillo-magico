@@ -57,21 +57,17 @@ function periodCutoff(period: Period, todayStr: string): string {
   return d.toISOString().split('T')[0]
 }
 
-/** Valor acumulado conocido en `dateStr` o antes (para arrancar la línea
- *  escalonada de Depósitos con el saldo correcto, aunque el último aporte
- *  haya sido antes del inicio de la ventana visible). */
-function valueAsOf(points: PortfolioSnapshotPoint[], dateStr: string): number {
-  let v = 0
-  for (const p of points) { if (p.date <= dateStr) v = p.value; else break }
-  return v
-}
-
 export default function PortfolioValueChart({
   points,
-  depositsPoints,
+  investedPoints,
 }: {
   points: PortfolioSnapshotPoint[]
-  depositsPoints: PortfolioSnapshotPoint[]
+  /** sep 2026 (Cas: "la línea gris fuera lo invertido"): antes esto eran los
+   *  aportes acumulados a la billetera, dibujados como escalera. Ahora es una
+   *  serie diaria — costo de las posiciones + efectivo en billetera — que sale
+   *  del mismo snapshot que la línea de valor, así que se dibuja igual (línea
+   *  angular, no escalonada) y la brecha entre ambas ES la ganancia. */
+  investedPoints: PortfolioSnapshotPoint[]
 }) {
   const [period, setPeriod] = useState<Period>('month')
 
@@ -98,12 +94,19 @@ export default function PortfolioValueChart({
   const delta = first !== null && last !== null ? last - first : null
   const deltaPct = delta !== null && first && first > 0 ? Math.round((delta / first) * 1000) / 10 : null
 
-  // ── Línea de Depósitos: escalonada, arranca con el acumulado a la fecha de
-  // corte (aunque el último aporte sea anterior) y se extiende plana hasta hoy.
-  const depositsEvents = depositsPoints.filter(p => p.date > cutoff && p.date <= today)
-  const depositsStart = valueAsOf(depositsPoints, cutoff)
-  const depositsStairs: PortfolioSnapshotPoint[] = [{ date: cutoff, value: depositsStart }, ...depositsEvents]
-  const hasDeposits = depositsPoints.length > 0
+  // ── Línea de Invertido: misma cadencia diaria que la de valor, así que se
+  // recorta igual. Solo se dibuja en los días donde hay dato (las filas
+  // anteriores a sep 2026 no tienen costo guardado y quedan fuera).
+  const investedShown = investedPoints.filter(p => p.date >= cutoff && p.date <= today)
+  const hasInvested = investedShown.length >= 2
+  // Ganancia = lo que vale hoy menos lo que costó. Las dos series incluyen el
+  // efectivo de la billetera, así que se cancela y la resta es exactamente el
+  // resultado no realizado de las acciones.
+  const investedLast = investedShown[investedShown.length - 1]?.value ?? null
+  const gain    = hasInvested && last !== null && investedLast !== null ? last - investedLast : null
+  const gainPct = gain !== null && investedLast && investedLast > 0
+    ? Math.round((gain / investedLast) * 1000) / 10
+    : null
 
   const W = 1200, H = 300
   const padLeft = 56, padRight = 12, padTop = 16, padBot = 26
@@ -115,7 +118,7 @@ export default function PortfolioValueChart({
   // Escala Y compartida entre ambas líneas
   const allValues = [
     ...valueShown.map(p => p.value),
-    ...(hasDeposits ? depositsStairs.map(p => p.value) : []),
+    ...(hasInvested ? investedShown.map(p => p.value) : []),
   ]
   const min = Math.min(...allValues)
   const max = Math.max(...allValues)
@@ -128,26 +131,17 @@ export default function PortfolioValueChart({
   const valuePath = valueXs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${valueYs[i].toFixed(1)}`).join(' ')
   const areaPath = `${valuePath} L ${valueXs[valueXs.length - 1].toFixed(1)},${H - padBot} L ${valueXs[0].toFixed(1)},${H - padBot} Z`
 
-  // Línea de depósitos — escalonada, extendida plana hasta hoy
-  let depositsPath = ''
-  if (hasDeposits) {
-    const segs: string[] = []
-    for (let i = 0; i < depositsStairs.length; i++) {
-      const p = depositsStairs[i]
-      const x = xOf(p.date), y = yOf(p.value)
-      if (i === 0) { segs.push(`M ${x.toFixed(1)},${y.toFixed(1)}`); continue }
-      const prevY = yOf(depositsStairs[i - 1].value)
-      segs.push(`L ${x.toFixed(1)},${prevY.toFixed(1)}`)  // horizontal hasta la fecha del nuevo aporte
-      segs.push(`L ${x.toFixed(1)},${y.toFixed(1)}`)       // salto vertical al nuevo acumulado
-    }
-    const lastVal = depositsStairs[depositsStairs.length - 1].value
-    segs.push(`L ${xOf(today).toFixed(1)},${yOf(lastVal).toFixed(1)}`)  // plano hasta hoy
-    depositsPath = segs.join(' ')
-  }
+  // Línea de invertido — angular como la de valor (ya no es una escalera de
+  // aportes puntuales, sino una serie diaria del costo de la cartera)
+  const investedPath = hasInvested
+    ? investedShown
+        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(p.date).toFixed(1)},${yOf(p.value).toFixed(1)}`)
+        .join(' ')
+    : ''
 
   const trendUp = delta === null || delta >= 0
   const lineColor = trendUp ? 'var(--mint)' : 'var(--coral)'
-  const depositsColor = 'var(--ink-3)'
+  const investedColor = 'var(--ink-3)'
   const gridFracs = [0.2, 0.5, 0.8]
   const xLabelDates = [cutoff, today]
 
@@ -173,14 +167,23 @@ export default function PortfolioValueChart({
         )}
       </div>
 
-      {hasDeposits && (
-        <div className="flex items-center gap-4 mb-3">
+      {hasInvested && (
+        <div className="flex items-center gap-4 flex-wrap mb-3">
           <span className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: 'var(--ink-2)' }}>
             <span className="w-2 h-2 rounded-full" style={{ background: lineColor }} /> Valor
           </span>
           <span className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-            <span className="w-2 h-2 rounded-full" style={{ background: depositsColor }} /> Depósitos
+            <span className="w-2 h-2 rounded-full" style={{ background: investedColor }} /> Invertido {investedLast !== null && fmtUSD(investedLast)}
           </span>
+          {/* La brecha entre las dos líneas, dicha en palabras — es el punto
+              del gráfico y antes había que estimarla a ojo. */}
+          {gain !== null && (
+            <span className="text-[11px] font-bold tabular-nums"
+              style={{ color: gain >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+              {gain >= 0 ? 'Ganancia' : 'Pérdida'} {fmtUSD(Math.abs(gain))}
+              {gainPct !== null && ` (${gain >= 0 ? '+' : '−'}${Math.abs(gainPct)}%)`}
+            </span>
+          )}
         </div>
       )}
 
@@ -228,8 +231,8 @@ export default function PortfolioValueChart({
           })}
 
           <path d={areaPath} fill="url(#portfolio-value-grad)" />
-          {hasDeposits && (
-            <path d={depositsPath} fill="none" stroke={depositsColor} strokeWidth="1.5" strokeLinejoin="round" opacity="0.7" />
+          {hasInvested && (
+            <path d={investedPath} fill="none" stroke={investedColor} strokeWidth="1.5" strokeLinejoin="round" opacity="0.7" />
           )}
           <path d={valuePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
 

@@ -324,29 +324,36 @@ export default async function InversionesPage({ searchParams }: Props) {
   // cron (snapshotAllPortfolioValues en sync-prices) — solo tiene sentido en
   // "Mis acciones", no en Watchlist.
   let portfolioSnapshots: { date: string; value: number }[] = []
+  let investedHistory:    { date: string; value: number }[] = []
   if (needsRadarData && !isWatchlist) {
     const { data: snapRows } = await supabase
       .from('portfolio_snapshots')
-      .select('snapshot_date, total_usd')
+      .select('snapshot_date, total_usd, wallet_usd, cost_basis_usd')
       .eq('user_id', user.id)
       .order('snapshot_date', { ascending: true })
     portfolioSnapshots = (snapRows ?? []).map(r => ({ date: r.snapshot_date as string, value: Number(r.total_usd) }))
+
+    // sep 2026 (Cas: "la línea gris fuera lo invertido y la verde estuviera
+    // acorde a las ganancias respecto a eso"): la gris pasa de ser los
+    // aportes acumulados a la billetera a ser el COSTO de lo que tienes.
+    // Se le suma el efectivo de la billetera para que las dos líneas midan
+    // lo mismo — así la brecha entre gris y verde es exactamente la ganancia
+    // no realizada, y el número grande sigue siendo el patrimonio completo
+    // (acciones + efectivo) en vez de bajar al valor de las acciones solas.
+    // Se saltan las filas anteriores a la migración (cost_basis_usd null).
+    investedHistory = (snapRows ?? [])
+      .filter(r => r.cost_basis_usd !== null)
+      .map(r => ({
+        date:  r.snapshot_date as string,
+        value: Math.round((Number(r.cost_basis_usd) + Number(r.wallet_usd)) * 100) / 100,
+      }))
   }
 
-  // Serie acumulada de aportes a la billetera ("Depósitos", pedido de Cas —
-  // gráfico tipo Racional con dos líneas: valor vs plata que has puesto). Se
-  // arma de los mismos usdPurchases ya traídos arriba, sin fetch aparte —
-  // a diferencia de portfolioSnapshots, esta SÍ tiene historia completa desde
-  // el primer depósito (no depende del cron nuevo).
-  let depositsHistory: { date: string; value: number }[] = []
-  if (needsRadarData && !isWatchlist) {
-    const deposits = (usdPurchases ?? [])
-      .filter(p => p.kind === 'deposit')
-      .map(p => ({ date: p.purchase_date as string, amount: Number(p.usd_amount) }))
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    let running = 0
-    depositsHistory = deposits.map(d => { running += d.amount; return { date: d.date, value: Math.round(running * 100) / 100 } })
-  }
+  // sep 2026: acá vivía `depositsHistory` — la serie acumulada de aportes a la
+  // billetera, que era la línea gris del gráfico. Se reemplazó por
+  // `investedHistory` (arriba), porque los aportes no son "lo invertido":
+  // incluyen plata que sigue en efectivo, así que la brecha contra la línea
+  // verde no era la ganancia sino ganancia + efectivo sin usar.
 
   // ── "Tu semana" (P3, roadmap largo plazo) — reemplaza la pestaña Semanal
   // completa: esa vista duplicaba el Radar ticker por ticker con más jerga
@@ -537,7 +544,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             todaySignals={(todaySignalRows ?? []) as TodaySignal[]}
             portfolioHistory={portfolioHistory}
             portfolioSnapshots={portfolioSnapshots}
-            depositsHistory={depositsHistory}
+            investedHistory={investedHistory}
             monthlyInvestGoal={monthlyInvestGoal}
             investedThisMonthClp={investedThisMonthClp}
           />

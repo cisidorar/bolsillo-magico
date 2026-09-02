@@ -360,13 +360,19 @@ async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTicker
   }
 
   const { dateStr: today } = getNowChile()
-  const rows: { user_id: string; snapshot_date: string; stocks_value_usd: number; wallet_usd: number; total_usd: number }[] = []
+  const rows: { user_id: string; snapshot_date: string; stocks_value_usd: number; wallet_usd: number; total_usd: number; cost_basis_usd: number }[] = []
   let failed = 0
 
   for (const userId of userIds) {
     try {
       const userPositions = positions.filter(p => p.user_id === userId)
       const stocksValueUsd = userPositions.reduce((s, p) => s + Number(p.shares) * (priceByTicker.get(p.ticker) ?? Number(p.avg_cost_usd)), 0)
+      // sep 2026 (Cas: "me gustaría que la línea gris fuera lo invertido"): lo
+      // que costaron las posiciones abiertas hoy. Se guarda día a día porque
+      // NO se puede reconstruir hacia atrás — hay posiciones legacy sin fila
+      // en stock_purchases, así que sumar compras menos ventas da muy por
+      // debajo del costo real (ver la migración 20260903).
+      const costBasisUsd   = userPositions.reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
       const fundedCostUsd  = userPositions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
       const walletUsdBase  = walletByUser.get(userId) ?? 0
       const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
@@ -377,6 +383,7 @@ async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTicker
         stocks_value_usd: Math.round(stocksValueUsd * 100) / 100,
         wallet_usd:       Math.round(walletUsd * 100) / 100,
         total_usd:        Math.round((stocksValueUsd + walletUsd) * 100) / 100,
+        cost_basis_usd:   Math.round(costBasisUsd * 100) / 100,
       })
     } catch (err) {
       failed++
