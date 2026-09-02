@@ -883,11 +883,16 @@ export default function Radar({
               proporcional (flex-grow) solo importa en desktop (flex-row),
               donde el alto nunca fue el problema. */}
           <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 auto' }}>
+            {/* sep 2026 (Cas: "en ahorro y en mis acciones hay diferentes
+                tamaños de letras" — eligió parejar Mis acciones al tamaño de
+                Ahorro y depósitos): esta tipografía ahora replica la escala de
+                StatHeroRow.tsx (label text-[10px], valor text-3xl lg:text-4xl
+                font-extrabold) en vez del text-6xl que tenía antes. */}
             <div className="px-5 pt-5 pb-4">
-              <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <p className="text-6xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
+                  <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
                     {/* ago 2026 (Cas: "aqui sigue sin salir la suma de los
                         dolares" — el headline mostraba solo el valor de las
                         posiciones, sin el efectivo de la billetera, aunque
@@ -897,11 +902,11 @@ export default function Radar({
                         el valor total = posiciones + efectivo disponible. */}
                     {hasQ ? fmtUSD(portfolioValueUsd) : fmtUSD(totalCostUsd + Math.max(0, walletAvailable ?? 0))}
                   </p>
-                  <span className="text-lg font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
+                  <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
                 </div>
                 {hasQ && (
-                  <p className="flex items-center gap-1 text-base font-bold" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
-                    {dailyChangeUsd >= 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                  <p className="flex items-center gap-1 text-xs font-bold" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                    {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
                     {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
                   </p>
                 )}
@@ -922,13 +927,13 @@ export default function Radar({
                 mismo tono azulado que la tarjeta en vez de un gris genérico. */}
             <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-sm sm:text-lg font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
-                  <p className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                     {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
                   </p>
                   {hasQ && (
@@ -939,8 +944,8 @@ export default function Radar({
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
-                <p className="text-sm sm:text-lg font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
+                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
                   {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
                 </p>
               </div>
