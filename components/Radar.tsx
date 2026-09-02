@@ -835,7 +835,12 @@ export default function Radar({
           })()}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
+        {/* sep 2026 (Cas: "quiero esta barra pegada a la izquierda"): el
+            `ml-auto` empujaba este grupo al borde derecho cuando el texto de
+            estado ocupa su propia fila en mobile (flex-wrap) y este grupo
+            queda solo en la fila siguiente — con justify-between del padre,
+            un único item sin ml-auto ya cae al borde izquierdo por defecto. */}
+        <div className="flex items-center gap-2 shrink-0">
           <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
