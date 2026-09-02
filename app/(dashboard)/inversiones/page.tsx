@@ -448,9 +448,13 @@ export default async function InversionesPage({ searchParams }: Props) {
               propio, porque ahora conviven en la misma pantalla. */}
           {/* sep 2026 (Cas: "el toggle aun no aparece a la izquierda" —
               mismo ajuste aplicado en Radar.tsx y UsdWalletManager, para que
-              las 4 pestañas de /inversiones se comporten igual): sin botón al
-              lado en esta vista, así que justify-start alcanza. */}
-          <div className="flex items-center justify-start mb-4">
+              las 4 pestañas de /inversiones se comporten igual): a la
+              izquierda en mobile y al borde derecho en sm+, mismo criterio y
+              mismo breakpoint que las otras tres vistas (Cas, ronda 2: "para
+              la version escritorio esto este a la derecha congruente en las 4
+              vistas del toggle"). Acá no hay botón al lado, así que el toggle
+              viaja solo. */}
+          <div className="flex items-center justify-start sm:justify-end mb-4">
             <InversionesToggle active="ahorro" />
           </div>
           <RentaFijaSummary

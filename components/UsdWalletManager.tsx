@@ -452,8 +452,15 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           la izquierda"): este header vive en un componente aparte de Radar.tsx
           (Mis acciones/Watchlist), con su propio `justify-end` que pegaba
           todo a la derecha — mismo ajuste que ahí: toggle al borde izquierdo,
-          Aporte al borde derecho. */}
-      <div className="flex items-center justify-between gap-2 mb-3">
+          Aporte al borde derecho.
+          sep 2026, ronda 2 (Cas: "para la version escritorio esto este a la
+          derecha congruente en las 4 vistas del toggle"): en mobile se
+          mantiene repartido (justify-between), pero en sm+ el grupo se junta
+          al borde derecho igual que en Mis acciones/Watchlist — ahí el toggle
+          ya quedaba a la derecha por el justify-between del top bar, así que
+          separado a lo ancho acá rompía la congruencia entre pestañas. Mismo
+          breakpoint (sm) que usa Radar.tsx para no desalinearse en tablet. */}
+      <div className="flex items-center justify-between sm:justify-end gap-2 mb-3">
         <InversionesToggle active="billetera" />
         <button
           onClick={openAdd}
