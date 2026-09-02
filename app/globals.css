@@ -97,14 +97,6 @@
 @layer utilities {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
 
-  /* Hero */
-  .hero-gradient {
-    background: #4D93FF;
-  }
-  .dark .hero-gradient {
-    background: #2256C8;
-  }
-
   /* Nav */
   .glass-nav {
     background: rgba(255, 255, 255, 0.94);
@@ -129,6 +121,20 @@
     border-radius: 18px;
     background-color: var(--bg);
     border: 1.5px solid var(--border);
+  }
+
+  /* Hero — DEBE ir después de .card: ambas fijan background con la misma
+     especificidad (una clase), y elementos como el hero de "Mis acciones"
+     usan className="card ... hero-gradient" juntas. Antes .hero-gradient
+     estaba definida ANTES de .card en el archivo, así que .card ganaba la
+     cascada y el hero quedaba con el fondo gris normal en vez del azul —
+     bug real reportado por Cas (mobile: la tarjeta "Valor del portafolio"
+     no se veía, solo quedaban sus bordes). */
+  .hero-gradient {
+    background: #4D93FF;
+  }
+  .dark .hero-gradient {
+    background: #2256C8;
   }
 
   /* FAB */
