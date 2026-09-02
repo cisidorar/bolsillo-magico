@@ -16,6 +16,25 @@ export const metadata: Metadata = {
   },
   description: 'Uso personal.',
   manifest: '/manifest.json',
+  // sep 2026 (Cas: "el icono es la version blanca" al crear el acceso directo
+  // desde Chrome en Android): el manifest apuntaba al PNG *invertido* (fondo
+  // blanco), de 128px y marcado "any maskable" a la vez. Tres problemas
+  // juntos: (1) el ícono equivocado, (2) 128px queda por debajo del mínimo
+  // que Chrome pide para instalar (192) y lo obliga a escalar, y (3)
+  // "maskable" hace que Android recorte ~20% del borde y rellene las esquinas
+  // transparentes — por eso además se veía blanco alrededor. Ahora van
+  // separados: "any" con las esquinas redondeadas propias, y "maskable"
+  // full-bleed con el arte encogido para sobrevivir el recorte.
+  //
+  // apple-touch-icon va acá y no en el manifest porque iOS lo ignora: usa
+  // este <link>, y sin transparencia (si la hay, pone negro detrás).
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Bolsillo Mágico' },
   // A2 (roadmap uso personal, jul 2026): la app dejó de ser pública — que
   // desaparezca de buscadores. robots.ts ya bloquea todo el rastreo; esto
