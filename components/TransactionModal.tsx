@@ -342,7 +342,12 @@ export default function TransactionModal({
       await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
       setPositions(prev => prev.filter(p => p.id !== pos.id))
     } else {
-      const remainingShares = Math.round((pos.shares - sharesSold) * 10000) / 10000
+      // 1e6, no 1e4 (sep 2026): stock_positions.shares guarda 6 decimales y
+      // los brókers de fracciones dan cantidades como 3,746878 — redondear a
+      // 4 decimales acá borraba dos dígitos reales en cada venta parcial
+      // (caso visto: 4,708856 − 1,410437 quedó en 3,2984 en vez de 3,298419).
+      // Se nota al revertir una venta: las acciones no vuelven al valor exacto.
+      const remainingShares = Math.round((pos.shares - sharesSold) * 1e6) / 1e6
       // El costo financiado por billetera se reduce en proporción a lo vendido
       const newWalletCost = Math.round(Number(pos.wallet_cost_usd ?? 0) * (remainingShares / pos.shares) * 100) / 100
       await supabase.from('stock_positions')

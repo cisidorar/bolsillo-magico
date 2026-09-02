@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName } from '@/lib/utils'
-import { Plus, Trash2, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info, ChevronRight, Undo2 } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPurchase, StockSale } from '@/app/(dashboard)/inversiones/page'
 
@@ -313,6 +313,77 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     router.refresh()
   }
 
+  /**
+   * Revierte una venta de acciones por completo (sep 2026, a pedido de Cas:
+   * "me gustaría que se cambiara el basurero por revertir venta").
+   *
+   * Antes el basurero llamaba a `remove()`, que borra SOLO la fila de la
+   * billetera. Una venta toca tres cosas a la vez, así que eso dejaba los
+   * datos rotos: los USD salían del saldo, pero las acciones NO volvían a la
+   * posición y la ganancia/pérdida realizada quedaba huérfana en el historial
+   * de Ventas (la FK es ON DELETE SET NULL, así que la fila de stock_sales
+   * sobrevivía). Resultado: menos acciones de las que tienes y una pérdida
+   * que nunca ocurrió. Revertir deshace las tres juntas.
+   */
+  async function revertSale(walletRow: UsdPurchase, sale: StockSale) {
+    setBusy(true)
+
+    // 1. Devolver las acciones a la posición.
+    const { data: posRow } = await supabase
+      .from('stock_positions')
+      .select('id, shares, avg_cost_usd, wallet_cost_usd')
+      .eq('user_id', userId).eq('ticker', sale.ticker)
+      .maybeSingle()
+
+    const sharesSold = Number(sale.shares_sold)
+    const costBasis  = Number(sale.cost_basis_usd)
+
+    if (posRow) {
+      // Venta parcial: la posición sigue viva, solo hay que sumarle de vuelta.
+      // wallet_cost_usd se había escalado por (restantes/total) al vender —
+      // acá se aplica el inverso exacto para volver al valor original.
+      const cur       = Number(posRow.shares)
+      const curWallet = Number(posRow.wallet_cost_usd ?? 0)
+      const newShares = Math.round((cur + sharesSold) * 1e6) / 1e6
+      const newWallet = curWallet > 0 && cur > 0
+        ? Math.round(curWallet * (newShares / cur) * 100) / 100
+        : curWallet
+      await supabase.from('stock_positions').update({
+        shares:          newShares,
+        wallet_cost_usd: newWallet,
+        wallet_funded:   newWallet > 0,
+        // El trailing se recalcula solo en el próximo cron; dejarlo con el
+        // valor de una posición que ya no es la misma daría una alarma falsa.
+        trail_stop_usd:  null,
+        updated_at:      new Date().toISOString(),
+      }).eq('id', posRow.id).eq('user_id', userId)
+    } else {
+      // Venta total: la posición se había borrado, hay que recrearla. El costo
+      // promedio se reconstruye exacto desde la venta (cost_basis / acciones);
+      // wallet_cost_usd no quedó guardado en ninguna parte, así que se asume
+      // financiada por la billetera (el caso normal desde que existe). Si era
+      // una posición legacy, corrígelo con "Editar posición" en Acciones.
+      await supabase.from('stock_positions').insert({
+        user_id:         userId,
+        ticker:          sale.ticker,
+        shares:          sharesSold,
+        avg_cost_usd:    Math.round((costBasis / sharesSold) * 100) / 100,
+        wallet_cost_usd: Math.round(costBasis * 100) / 100,
+        wallet_funded:   true,
+      })
+    }
+
+    // 2. Borrar la ganancia/pérdida realizada del historial de Ventas.
+    await supabase.from('stock_sales').delete().eq('id', sale.id).eq('user_id', userId)
+
+    // 3. Sacar los USD de la billetera.
+    setPurchases(prev => prev.filter(x => x.id !== walletRow.id))
+    await supabase.from('usd_purchases').delete().eq('id', walletRow.id).eq('user_id', userId)
+
+    setBusy(false)
+    router.refresh()
+  }
+
   // ── Cartola unificada: aportes y ventas ENTRAN, compras de acciones SALEN ──
   // Cada venta se enriquece con su detalle (ticker, acciones, costo base,
   // ganancia/pérdida) uniendo la fila 'sell' de la billetera con stock_sales
@@ -330,6 +401,9 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
     shares: number | null
     row:      UsdPurchase | null   // filas de billetera (aporte/venta) — editables/eliminables
     stockRow: StockPurchase | null // fila de compra de acciones — editable (no eliminable) acá
+    // Venta con detalle enlazado: necesario para "Revertir venta", que tiene
+    // que devolver las acciones a la posición además de borrar la fila.
+    sale:     StockSale | null
   }
   const salesByPurchaseId = new Map(sales.map(s => [s.usd_purchase_id, s]))
   const moves: Move[] = [
@@ -344,13 +418,13 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
             key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
             label: `Venta ${sale.ticker}`,
             sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
-            usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p, stockRow: null,
+            usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p, stockRow: null, sale,
           }
         }
         return {
           key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
           label: p.notes ?? 'Venta de acciones', sub: null,
-          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null,
+          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null, sale: null,
         }
       }
       return {
@@ -360,14 +434,14 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
           p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
           p.notes,
         ].filter(Boolean).join(' · ') || null,
-        usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null,
+        usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null, sale: null,
       }
     }),
     ...stockPurchasesState.map<Move>(sp => ({
       key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
       label: `Compra ${sp.ticker}`,
       sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
-      usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null, stockRow: sp,
+      usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null, stockRow: sp, sale: null,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -715,11 +789,31 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                   </p>
                 )}
 
+                {/* sep 2026 (Cas: "me gustaría que se cambiara el basurero
+                    por revertir venta"): una venta no es un movimiento suelto
+                    que se pueda borrar — toca tres tablas a la vez. Cuando la
+                    fila es una venta con detalle enlazado, la acción deja de
+                    llamarse "Eliminar" y pasa a ser "Revertir venta", con el
+                    resumen explícito de lo que se va a deshacer. El resto de
+                    los movimientos (aportes) mantiene el borrado simple. */}
                 {confirmDelete && (
                   <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
-                    <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-                      ¿Eliminar este movimiento?
-                    </p>
+                    {m.sale ? (
+                      <>
+                        <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                          ¿Revertir esta venta? Se deshace todo junto:
+                        </p>
+                        <ul className="text-xs space-y-1" style={{ color: 'var(--ink-2)' }}>
+                          <li>· Vuelven {Number(m.sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de {m.sale.ticker} a tu posición</li>
+                          <li>· Salen {fmtUSD(Number(m.row!.usd_amount))} de la billetera</li>
+                          <li>· Se borra la {Number(m.sale.realized_pnl_usd) >= 0 ? 'ganancia' : 'pérdida'} de {fmtUSD(Math.abs(Number(m.sale.realized_pnl_usd)))} del historial de Ventas</li>
+                        </ul>
+                      </>
+                    ) : (
+                      <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                        ¿Eliminar este movimiento?
+                      </p>
+                    )}
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setConfirmDelete(false)}
@@ -729,12 +823,17 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
                         Cancelar
                       </button>
                       <button
-                        onClick={() => { remove(m.row!); closeDetail() }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl"
+                        disabled={busy}
+                        onClick={() => {
+                          if (m.sale) revertSale(m.row!, m.sale)
+                          else remove(m.row!)
+                          closeDetail()
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-60"
                         style={{ background: 'var(--coral)', color: 'white' }}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Eliminar
+                        {m.sale ? <Undo2 className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        {m.sale ? 'Revertir venta' : 'Eliminar'}
                       </button>
                     </div>
                   </div>
@@ -743,15 +842,30 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
 
               {!confirmDelete && (
                 <div className="border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                  {/* En una venta el ícono deja de ser un basurero: no estás
+                      borrando un registro, estás deshaciendo una operación
+                      que movió acciones y plata. Icono + etiqueta explícitos
+                      para que no se confunda con "eliminar la fila". */}
                   {canDelete && (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"
-                      style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
-                      aria-label="Eliminar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    m.sale ? (
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        className="h-11 px-3.5 flex items-center justify-center gap-1.5 rounded-2xl border shrink-0 text-sm font-semibold transition-colors"
+                        style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                      >
+                        <Undo2 className="w-4 h-4" />
+                        Revertir
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDelete(true)}
+                        className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"
+                        style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                        aria-label="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )
                   )}
                   <button
                     onClick={closeDetail}
