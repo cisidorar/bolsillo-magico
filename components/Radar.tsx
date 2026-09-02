@@ -912,12 +912,18 @@ export default function Radar({
                 completa (label izquierda, monto derecha, mismo patrón que la
                 card "Rendimiento" de al lado) — sin límite de ancho real. El
                 grid de 3 columnas original se mantiene igual en sm+. */}
-            <div className="border-t divide-y divide-white/15 sm:divide-y-0 grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
+            {/* sep 2026 (Cas: "quita esas lineas negras y grises"): la clase
+                `divide-white/15` de Tailwind no estaba pintando blanco
+                translúcido sobre el azul de la card — salía gris/negro. Ahora
+                las líneas entre filas van con el mismo estilo inline
+                (rgba blanco 15%) que ya usa el borde superior, así quedan del
+                mismo tono azulado que la tarjeta en vez de un gris genérico. */}
+            <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
                 <p className="text-sm sm:text-lg font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
               </div>
-              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
+              <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[11px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
                   <p className="text-sm sm:text-lg font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
