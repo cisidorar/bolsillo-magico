@@ -2,15 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { billingPeriodRange, currentStatementRange, getNowChile } from '@/lib/utils'
+import { monthlyDueDates, annualDueDates, effectiveDay, CATCHUP_MONTHS } from '@/lib/recurring-due'
 import { cookies } from 'next/headers'
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate()
-}
-
-function effectiveDay(billingDay: number, year: number, month: number): number {
-  return Math.min(billingDay, daysInMonth(year, month))
-}
 
 export async function runAutoRegister(): Promise<{ registered: string[] }> {
   const supabase = await createClient()
@@ -25,24 +18,45 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   if (cookieStore.has(cookieKey)) return { registered: [] }
 
-  const monthStr     = String(currentMonth).padStart(2, '0')
   const nextMonth    = currentMonth === 12 ? 1  : currentMonth + 1
   const nextYear     = currentMonth === 12 ? currentYear + 1 : currentYear
 
   const { data: autoRecurring } = await supabase
     .from('recurring_expenses')
-    .select('id, amount, category_id, payment_method_id, billing_day, billing_month, name, total_installments, paid_installments')
+    .select('id, amount, category_id, payment_method_id, billing_day, billing_month, name, total_installments, paid_installments, created_at')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .eq('auto_register', true)
 
+  // Inicio de la ventana de catch-up (ver lib/recurring-due.ts): las consultas
+  // de dedup de más abajo tienen que abarcarla completa, no solo el mes en curso.
+  const catchupStart = (() => {
+    let m = currentMonth - CATCHUP_MONTHS, y = currentYear
+    while (m <= 0) { m += 12; y -= 1 }
+    return `${y}-${String(m).padStart(2, '0')}-01`
+  })()
+
   // ── Gastos normales (sin cuotas, sin cobro anual) ────────────────────────
-  // Se registran cuando hoy >= billing_day del mes actual.
+  // sep 2026 (bug reportado por Cas: "por qué no está registrado el gasto
+  // recurrente spotify 29 de agosto"): antes esto solo miraba el mes
+  // calendario en curso (`eff <= todayDay` con currentMonth), y como el
+  // auto-registro corre ÚNICAMENTE al abrir la app, un cobro de fin de mes
+  // caía en un hueco permanente si la persona no abría la app entre el día
+  // del cobro y el cierre del mes. Caso real: Spotify cobra el 29, Cas usó
+  // la app por última vez el 27 de agosto y volvió el 2 de septiembre — al
+  // volver, `29 <= 2` era falso y agosto ya no se recuperaba nunca.
+  //
+  // Ahora se revisan también los meses ya cerrados dentro de una ventana
+  // acotada, y cada cobro se registra con SU fecha real (no la de hoy), que
+  // es lo que mantiene coherente el historial y el período de facturación de
+  // la tarjeta.
   const normalItems = (autoRecurring ?? []).filter(r => r.total_installments == null && r.billing_month == null)
-  const normalDue   = normalItems.filter(r => {
-    const eff = effectiveDay(r.billing_day, currentYear, currentMonth)
-    return eff <= todayDay
-  })
+  const normalDue: { r: (typeof normalItems)[number]; date: string }[] = []
+  for (const r of normalItems) {
+    for (const due of monthlyDueDates({ billingDay: r.billing_day }, todayStr, r.created_at)) {
+      normalDue.push({ r, date: due.date })
+    }
+  }
 
   // ── Cuotas con auto_register ─────────────────────────────────────────────
   // Se registran al INICIO del período de facturación: el día siguiente al billing_day.
@@ -67,41 +81,47 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
   // ── Registrar normales ───────────────────────────────────────────────────
   if (normalDue.length > 0) {
     // Dedup por dos vías: (a) ya existe un gasto vinculado a este ítem
-    // recurrente este mes, o (b) el usuario ya lo registró a mano (sin
+    // recurrente ese mes, o (b) el usuario ya lo registró a mano (sin
     // vincular) con el mismo nombre y monto — evita duplicar cargos como
     // "Netflix $18.770" cuando la persona lo anotó manualmente antes de que
     // corriera el auto-registro.
+    //
+    // Las dos claves llevan el MES adentro (sep 2026, junto con el catch-up):
+    // antes bastaba "existe un gasto de este recurrente" porque la ventana era
+    // un solo mes; ahora que se miran varios, sin el mes en la clave un cobro
+    // ya registrado en julio bloquearía el de agosto.
     const { data: alreadyNormal } = await supabase
       .from('expenses')
-      .select('recurring_expense_id, description, amount')
+      .select('recurring_expense_id, description, amount, date')
       .eq('user_id', user.id)
-      .gte('date', `${currentYear}-${monthStr}-01`)
+      .gte('date', catchupStart)
       .lt('date',  `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`)
 
+    const ym = (date: string) => date.slice(0, 7)
+
     const registeredNormalIds = new Set(
-      (alreadyNormal ?? []).filter(e => e.recurring_expense_id).map(e => e.recurring_expense_id)
+      (alreadyNormal ?? [])
+        .filter(e => e.recurring_expense_id)
+        .map(e => `${e.recurring_expense_id}::${ym(e.date as string)}`)
     )
     const registeredNormalKeys = new Set(
       (alreadyNormal ?? [])
         .filter(e => !e.recurring_expense_id)
-        .map(e => `${(e.description ?? '').trim().toLowerCase()}::${e.amount}`)
+        .map(e => `${(e.description ?? '').trim().toLowerCase()}::${e.amount}::${ym(e.date as string)}`)
     )
 
     const toInsert = normalDue
-      .filter(r => !registeredNormalIds.has(r.id))
-      .filter(r => !registeredNormalKeys.has(`${r.name.trim().toLowerCase()}::${r.amount}`))
-      .map(r => {
-        const eff = effectiveDay(r.billing_day, currentYear, currentMonth)
-        return {
-          user_id:              user.id,
-          amount:               r.amount,
-          category_id:          r.category_id,
-          payment_method_id:    r.payment_method_id,
-          recurring_expense_id: r.id,
-          description:          r.name,
-          date: `${currentYear}-${monthStr}-${String(eff).padStart(2, '0')}`,
-        }
-      })
+      .filter(({ r, date }) => !registeredNormalIds.has(`${r.id}::${ym(date)}`))
+      .filter(({ r, date }) => !registeredNormalKeys.has(`${r.name.trim().toLowerCase()}::${r.amount}::${ym(date)}`))
+      .map(({ r, date }) => ({
+        user_id:              user.id,
+        amount:               r.amount,
+        category_id:          r.category_id,
+        payment_method_id:    r.payment_method_id,
+        recurring_expense_id: r.id,
+        description:          r.name,
+        date,
+      }))
 
     if (toInsert.length > 0) {
       // upsert ignoreDuplicates: si otra pestaña ganó la carrera, no aborta el
@@ -151,29 +171,32 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
   }
 
   // ── Gastos anuales ───────────────────────────────────────────────────────
-  // Se registran UNA VEZ en el año calendario cuando hoy es el día de cobro
-  // dentro del mes configurado en billing_month.
+  // Se registran UNA VEZ en el año calendario, en el día de cobro del mes
+  // configurado en billing_month.
+  //
+  // sep 2026: mismo hueco que los normales, pero peor — antes exigía
+  // `currentMonth === bm`, o sea que la app tenía que abrirse DENTRO del mes
+  // del cobro anual o ese año se perdía entero. Ahora annualDueDates aplica
+  // la misma ventana de catch-up que los mensuales.
   const annualItems = (autoRecurring ?? []).filter(r =>
     r.total_installments == null && r.billing_month != null
   )
 
   for (const r of annualItems) {
-    const bm  = r.billing_month as number
-    // Solo actuar si hoy está en el mes correcto
-    if (currentMonth !== bm) continue
+    const due = annualDueDates(
+      { billingDay: r.billing_day, billingMonth: r.billing_month },
+      todayStr,
+      r.created_at,
+    )[0]
+    if (!due) continue
 
-    const eff = effectiveDay(r.billing_day, currentYear, bm)
-    if (todayDay < eff) continue  // el día aún no llegó
-
-    const dateStr = `${currentYear}-${String(bm).padStart(2, '0')}-${String(eff).padStart(2, '0')}`
-
-    // Dedup por año calendario: ¿ya existe este gasto en este año?
+    // Dedup por año calendario: ¿ya existe este gasto en ese año?
     const { data: existingAnnual } = await supabase
       .from('expenses')
       .select('id')
       .eq('recurring_expense_id', r.id)
-      .gte('date', `${currentYear}-01-01`)
-      .lte('date', `${currentYear}-12-31`)
+      .gte('date', `${due.year}-01-01`)
+      .lte('date', `${due.year}-12-31`)
       .limit(1)
 
     if (existingAnnual && existingAnnual.length > 0) continue
@@ -185,7 +208,7 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
       payment_method_id:    r.payment_method_id,
       recurring_expense_id: r.id,
       description:          r.name,
-      date:                 dateStr,
+      date:                 due.date,
     })
 
     if (!error) insertedNames.push(r.name)
