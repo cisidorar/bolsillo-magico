@@ -1,0 +1,28 @@
+-- ── Fix: cron (service_role) sin permiso de escritura en dos tablas ─────────
+-- Cas: "sigue sin ver el grafico" (Evolución del portafolio en Mis acciones,
+-- siempre vacío desde que existe portfolio_snapshots, 27 ago).
+--
+-- Causa real: la migración de portfolio_snapshots (20260827_portfolio_
+-- snapshots.sql) solo dejó `ENABLE ROW LEVEL SECURITY` + una policy de
+-- SELECT para el usuario dueño — nunca un GRANT de tabla a service_role.
+-- service_role tiene BYPASSRLS (confirmado: rolbypassrls=true), pero eso
+-- solo salta las policies de RLS — el GRANT a nivel de tabla es una capa
+-- de permisos SEPARADA en Postgres, y sin ella cualquier rol (incluido
+-- service_role) recibe "permission denied for table X" al intentar
+-- escribir, sin importar RLS. Confirmado en los logs de Vercel: el cron
+-- corría y calculaba las filas bien, pero el upsert moría en el permiso
+-- ANTES de escribir nada — 4 ocurrencias, 27 ago → 1 sep, una por cada
+-- día hábil NYSE desde que la tabla existe.
+--
+-- Mismo bug, silencioso, en net_worth_snapshots (5 jul): ahí quedaba
+-- encubierto porque el usuario autenticado SÍ tenía GRANT (la página
+-- /analisis re-escribe el mes en curso en cada visita), pero el cron
+-- (snapshotAllNetWorths, pensado para correr TODOS los días sin depender
+-- de que alguien abra la app — ver comentario "P1/F4" en sync-prices/
+-- route.ts) fallaba en silencio de la misma forma.
+--
+-- Este GRANT ya se aplicó directo en producción (ejecutado vía SQL) —
+-- este archivo solo documenta el cambio para que el historial de
+-- migraciones coincida con el estado real de la base.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.portfolio_snapshots TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.net_worth_snapshots TO service_role;
