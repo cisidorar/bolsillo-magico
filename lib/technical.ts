@@ -91,6 +91,15 @@ export interface TechnicalAnalysis {
   buy:          BuyTranche[]           // plan de compra por tramos; [] = sin zona de compra hoy
   sell:         SellTranche[]          // plan de salida por tramos si tienes la posición
   sellPlan:     string                 // el porqué del plan de salida, en una frase
+  // sep 2026 (Cas: "itera sobre esta recomendacion", caso SOXL): sellPlan
+  // cierra con "si vas ganando… ; si vas perdiendo…" porque analyze() NO
+  // conoce el costo del usuario (ver comentario en el bloque que lo arma).
+  // Pero la app SÍ lo conoce en el detalle del ticker — leer las dos ramas y
+  // tener que ubicarse solo/a en cuál aplica es trabajo que la app puede
+  // hacer por ti. Acá van las dos ramas por separado, para que quien tenga
+  // el dato muestre solo la que corresponde; sellPlan queda intacto como
+  // fallback (correo/cron, o posiciones sin costo conocido).
+  sellPlanSplit: { base: string; winning: string; losing: string } | null
   alarm:        number | null          // precio de alarma de salida (estructurado, para mostrar distancia)
   priceZone:    PriceZone | null       // P1: "¿es buen precio hoy?" en una palabra — null si la tendencia no está a favor
   buyZone:      number | null          // P2: precio de la zona de retroceso razonable (mismo que arma buy[]/entryPlan), para fijar una alerta sin parsear texto
@@ -1039,6 +1048,10 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   })()
   let sell: SellTranche[]
   let sellPlan: string
+  // Ver el comentario del campo en TechnicalAnalysis: solo los dos casos que
+  // hoy cierran con "si vas ganando… / si vas perdiendo…" lo llenan; el
+  // resto queda en null porque su texto no depende de tu costo.
+  let sellPlanSplit: TechnicalAnalysis['sellPlanSplit'] = null
   // Alarma estructurada (mismo precio que va en el texto de los tramos):
   // permite mostrar "a X% de la alarma" en tablas sin parsear strings
   let alarm: number | null = null
@@ -1052,6 +1065,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     // el trim de hotZone de abajo (a pedido de Cas, ago 2026: quería un
     // "rojo ultra fuerte" bien diferenciado del "vende una parte pero
     // mantén para largo plazo").
+    sellPlanSplit = {
+      base:    'Vende: la tendencia de largo plazo se dio vuelta — esto ya no es "aguanta, es de largo plazo", técnicamente no hay razón para seguir adentro.',
+      winning: 'Vas ganando: vende ahora y protege esa ganancia antes de que se achique.',
+      losing:  'Vas perdiendo: no esperes a "quedar a mano" — ahí es donde más plata se pierde. Salir con esta pérdida y poner esa plata en algo con tendencia a favor recupera más rápido que esperar a que ESTA vuelva.',
+    }
     sellPlan = 'Vende: la tendencia de largo plazo se dio vuelta — esto ya no es "aguanta, es de largo plazo", técnicamente no hay razón para seguir adentro. Si vas ganando, vende ahora y protege esa ganancia antes de que se achique; si vas perdiendo, no esperes a "quedar a mano" — ahí es donde más plata se pierde.'
   } else if (hotZone) {
     sell = exitRef !== null
@@ -1066,6 +1084,11 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
     // esto NO es señal de salida — deja explícito que la tendencia de fondo
     // sigue viva y la posición de largo plazo no cambia, para que no se
     // confunda con el caso de arriba (tendencia realmente dada vuelta).
+    sellPlanSplit = {
+      base:    'Vende una parte para asegurar la ganancia — no es señal de salida, la tendencia de fondo sigue viva: es solo un respiro después de una subida fuerte, y estas zonas calientes suelen tener caídas violentas.',
+      winning: 'Vas ganando: esa parte protege ganancia real. Deja correr el resto con la alarma puesta — tu posición de largo plazo sigue en pie.',
+      losing:  'Vas perdiendo: esa parte achica el golpe si la caída sigue. Deja correr el resto con la alarma puesta — tu posición de largo plazo sigue en pie.',
+    }
     sellPlan = 'Vende una parte para asegurar la ganancia — no es señal de salida, la tendencia de fondo sigue viva: es solo un respiro después de una subida fuerte, y estas zonas calientes suelen tener caídas violentas. Si vas ganando, esa parte protege ganancia real; si vas perdiendo, achica el golpe. Deja correr el resto con la alarma puesta — tu posición de largo plazo sigue en pie.'
     alarm = exitRef
   } else if (inSqueeze && supRef) {
@@ -1095,7 +1118,7 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   }
 
   return {
-    price, asOf, verdict, entryPlan, buy, sell, sellPlan, alarm, priceZone, buyZone: pullbackRef, rating,
+    price, asOf, verdict, entryPlan, buy, sell, sellPlan, sellPlanSplit, alarm, priceZone, buyZone: pullbackRef, rating,
     trend: { aboveSma200, weeksInState, sma200Rising, sma200, distPct },
     rsi14, atr14, atrPct, divergence, macdCross, volumeSignal: volSignal,
     supportLevels, resistanceLevels,

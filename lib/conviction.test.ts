@@ -14,7 +14,7 @@ function rating(overrides: Partial<TechnicalRating> = {}): TechnicalRating {
 function baseAnalysis(overrides: Partial<TechnicalAnalysis> = {}): TechnicalAnalysis {
   return {
     price: 100, asOf: '2025-06-01',
-    verdict: 'x', entryPlan: 'x', buy: [], sell: [], sellPlan: 'x',
+    verdict: 'x', entryPlan: 'x', buy: [], sell: [], sellPlan: 'x', sellPlanSplit: null,
     alarm: 95, priceZone: 'justo', buyZone: null, rating: rating(),
     trend: { aboveSma200: true, weeksInState: 10, sma200Rising: true, sma200: 90, distPct: 11 },
     rsi14: 55, atr14: 2, atrPct: 2, divergence: null, macdCross: null, volumeSignal: null,

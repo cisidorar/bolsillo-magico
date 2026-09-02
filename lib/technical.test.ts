@@ -224,6 +224,22 @@ describe('tendencia bajista', () => {
     expect(a.sellPlan.toLowerCase()).toContain('si vas ganando')
   })
 
+  // sep 2026 (Cas: "itera sobre esta recomendacion"): sellPlan tiene que
+  // seguir cubriendo los dos casos porque analyze() no conoce el costo — el
+  // correo y el cron lo usan tal cual. Pero además expone las ramas por
+  // separado para que la app, que SÍ conoce la posición, muestre solo la que
+  // aplica en vez de hacer que el usuario se ubique en un texto con "si…/si…".
+  it('expone las ramas de ganancia/pérdida por separado para personalizar', () => {
+    expect(a.sellPlanSplit).not.toBeNull()
+    expect(a.sellPlanSplit!.base).toMatch(/^Vende/)
+    expect(a.sellPlanSplit!.winning.toLowerCase()).toContain('vas ganando')
+    expect(a.sellPlanSplit!.losing.toLowerCase()).toContain('vas perdiendo')
+    // Ninguna rama puede traer el "si …" condicional: son excluyentes, ya
+    // resueltas — si volviera, la app mostraría de nuevo las dos lecturas.
+    expect(a.sellPlanSplit!.winning.toLowerCase()).not.toContain('si vas')
+    expect(a.sellPlanSplit!.losing.toLowerCase()).not.toContain('si vas')
+  })
+
   it('nunca lee Compra bajo el promedio largo', () => {
     expect(['compra', 'compra_fuerte']).not.toContain(a.rating.label)
   })

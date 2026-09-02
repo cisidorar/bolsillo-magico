@@ -385,8 +385,29 @@ export default function TechnicalDetail({
   // en general?", no "¿qué hago con mi posición hoy?" — para eso ya existe
   // a.sellPlan (lib/technical.ts), calculado junto con el tramo `sell` que
   // originó sellNow, así que describe exactamente esta situación.
+  // sep 2026 (Cas: "itera sobre esta recomendacion", caso SOXL en pérdida):
+  // a.sellPlan cierra con las DOS ramas ("si vas ganando…; si vas
+  // perdiendo…") porque analyze() no conoce tu costo — pero acá sí lo
+  // conocemos (position.avgCost), así que leer ambas y ubicarte solo/a en
+  // cuál te toca es trabajo que la app puede hacer por ti. Con posición
+  // registrada se muestra únicamente la rama que aplica, con el monto real
+  // en juego; sin posición (o sin el split) cae al texto genérico de antes.
+  const sellPlanPersonal = (() => {
+    if (!position || !a.sellPlanSplit) return a.sellPlan
+    const px      = livePrice ?? a.price
+    const value   = position.shares * px
+    const cost    = position.shares * position.avgCost
+    const pnl     = value - cost
+    const winning = pnl >= 0
+    const branch  = winning ? a.sellPlanSplit.winning : a.sellPlanSplit.losing
+    // El monto concreto en juego — "vas perdiendo" en abstracto pesa menos
+    // que "llevas -$101,29 en esta posición".
+    const amount = `${winning ? 'Ganancia' : 'Pérdida'} de ${fmtUSD(Math.abs(pnl))} sobre ${fmtUSD(cost)} invertidos.`
+    return `${a.sellPlanSplit.base} ${branch} ${amount}`
+  })()
+
   const rationale = sellNow
-    ? a.sellPlan
+    ? sellPlanPersonal
     : buyTierNoTrigger
     ? `Buena evidencia en general (${conviction.score}/100), pero sin gatillo de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
     : conviction.verdict
@@ -601,7 +622,7 @@ export default function TechnicalDetail({
       </button>
       {showWhy && (
         <p className="text-xs leading-relaxed rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-          {position ? a.sellPlan : a.entryPlan}
+          {position ? sellPlanPersonal : a.entryPlan}
         </p>
       )}
       {!position && (
@@ -655,7 +676,7 @@ export default function TechnicalDetail({
                 )
               })}
             </div>
-            <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.sellPlan}</p>
+            <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{sellPlanPersonal}</p>
             {/* Trailing persistido (ratchet del cron): si quedó por sobre el alarm del día, manda él */}
             {rawPosition?.trail_stop_usd != null && Number(rawPosition.trail_stop_usd) > (a.alarm ?? -Infinity) + 0.005 && (
               <p className="text-[11px] font-semibold mt-1.5" style={{ color: 'var(--gold)' }}>
