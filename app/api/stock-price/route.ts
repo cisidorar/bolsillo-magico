@@ -99,11 +99,17 @@ async function fhQuote(
 // su gestora en vez de Finnhub. Agregar acá cualquier ETF nuevo que se siga
 // mostrando sin logo.
 const ETF_OVERRIDES: Record<string, { name: string; domain: string }> = {
-  SPY:  { name: 'SPDR S&P 500 ETF Trust',                        domain: 'ssga.com'     },
-  QQQ:  { name: 'Invesco QQQ Trust',                              domain: 'invesco.com'  },
-  IBIT: { name: 'iShares Bitcoin Trust',                          domain: 'ishares.com'  },
-  SOXL: { name: 'Direxion Daily Semiconductor Bull 3X Shares',    domain: 'direxion.com' },
-  KORU: { name: 'Direxion Daily South Korea Bull 3X Shares',      domain: 'direxion.com' },
+  SPY:  { name: 'SPDR S&P 500 ETF Trust',                        domain: 'ssga.com'              },
+  QQQ:  { name: 'Invesco QQQ Trust',                              domain: 'invesco.com'           },
+  IBIT: { name: 'iShares Bitcoin Trust',                          domain: 'ishares.com'           },
+  SOXL: { name: 'Direxion Daily Semiconductor Bull 3X Shares',    domain: 'direxion.com'          },
+  KORU: { name: 'Direxion Daily South Korea Bull 3X Shares',      domain: 'direxion.com'          },
+  // sep 2026 (Cas: "estos etf no tienen imagen"): AVUV, IEFA, VOO y XLE
+  // aparecían con la insignia de la letra y con el ticker como nombre.
+  VOO:  { name: 'Vanguard S&P 500 ETF',                           domain: 'vanguard.com'          },
+  AVUV: { name: 'Avantis U.S. Small Cap Value ETF',               domain: 'avantisinvestors.com'  },
+  IEFA: { name: 'iShares Core MSCI EAFE ETF',                     domain: 'ishares.com'           },
+  XLE:  { name: 'Energy Select Sector SPDR Fund',                 domain: 'ssga.com'              },
 }
 
 async function resolveProfile(ticker: string, key: string): Promise<{ name: string | null; domain: string | null }> {
