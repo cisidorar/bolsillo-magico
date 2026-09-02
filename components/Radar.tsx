@@ -1077,12 +1077,29 @@ export default function Radar({
               const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
               const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold)'
               const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
+              // sep 2026 (Cas: "en el correo no se ve tan grave como se
+              // muestra en la pagina" — el correo del digest manda una caja
+              // completa con "SEÑAL DE VENTA" + el motivo técnico; esta fila
+              // compacta de Mis acciones solo tenía el chip "Sal ya" sin
+              // ningún motivo, mismo ticker/mismo día, dos niveles de alarma
+              // distintos). Se agrega el motivo corto (mismo criterio que
+              // signalDetail() del cron: primer gatillo coral, o el primero
+              // coral si ninguno es "trigger") debajo del ticker, solo para
+              // el caso más serio (trendReversed) — no para el trim táctico.
+              const sellReason = trendReversed && typeof a === 'object'
+                ? (a.signals.find(s => s.trigger && s.tone === 'coral')?.title
+                    ?? a.signals.find(s => s.tone === 'coral')?.title
+                    ?? null)
+                : null
               return (
                 <button
                   key={row.ticker}
                   onClick={() => openDetail(row.ticker)}
                   className="w-full flex items-center gap-3 px-4 lg:px-5 py-3.5 text-left transition-colors hover:bg-black/5"
-                  style={sellNow ? { background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)' } : undefined}
+                  style={sellNow ? {
+                    background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)',
+                    borderLeft: trendReversed ? '3px solid var(--coral)' : undefined,
+                  } : undefined}
                 >
                   <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={36} fallbackColor={avatarColor(row.ticker)} />
                   <div className="flex-1 min-w-0">
@@ -1094,7 +1111,11 @@ export default function Radar({
                         </span>
                       )}
                     </div>
-                    {q?.name && <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
+                    {sellReason ? (
+                      <p className="text-[11px] truncate font-semibold" style={{ color: 'var(--coral)' }}>{sellReason}</p>
+                    ) : q?.name ? (
+                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>
+                    ) : null}
                   </div>
                   {/* A pedido de Cas (ago 2026): "que salga a la derecha solo
                       un numero y que sea el porcentaje, no cuatro numeros
