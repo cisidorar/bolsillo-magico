@@ -446,7 +446,11 @@ export default async function InversionesPage({ searchParams }: Props) {
           {/* A1 (roadmap ahorro+depósitos): el toggle vive UNA sola vez acá
               — DepositManager y TermDepositManager ya no dibujan el suyo
               propio, porque ahora conviven en la misma pantalla. */}
-          <div className="flex items-center justify-end mb-4">
+          {/* sep 2026 (Cas: "el toggle aun no aparece a la izquierda" —
+              mismo ajuste aplicado en Radar.tsx y UsdWalletManager, para que
+              las 4 pestañas de /inversiones se comporten igual): sin botón al
+              lado en esta vista, así que justify-start alcanza. */}
+          <div className="flex items-center justify-start mb-4">
             <InversionesToggle active="ahorro" />
           </div>
           <RentaFijaSummary

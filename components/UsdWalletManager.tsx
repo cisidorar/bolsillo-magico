@@ -374,7 +374,12 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      <div className="flex items-center justify-end gap-2 shrink-0 mb-3">
+      {/* sep 2026 (Cas: "en la parte de billetera el toggle aun no aparece a
+          la izquierda"): este header vive en un componente aparte de Radar.tsx
+          (Mis acciones/Watchlist), con su propio `justify-end` que pegaba
+          todo a la derecha — mismo ajuste que ahí: toggle al borde izquierdo,
+          Aporte al borde derecho. */}
+      <div className="flex items-center justify-between gap-2 mb-3">
         <InversionesToggle active="billetera" />
         <button
           onClick={openAdd}
