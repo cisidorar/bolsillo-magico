@@ -46,8 +46,8 @@ function SheetRow({ row, onClose }: { row: Row; onClose: () => void }) {
       className="flex items-center gap-4 px-4 py-3.5 transition-colors active:bg-black/5"
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: row.bg }}
+        className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ '--cat-bg': row.bg, '--cat-color': row.color } as React.CSSProperties}
       >
         <Icon className="w-5 h-5" style={{ color: row.color }} />
       </div>
