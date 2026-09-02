@@ -866,7 +866,16 @@ export default function Radar({
           existe) por dos cards a lo ancho de la página. */}
       {positions.length > 0 && (
         <div className="flex flex-col lg:flex-row gap-4 mb-4">
-          <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 0' }}>
+          {/* ago 2026 (bug reportado por Cas, mobile: la tarjeta se veía como
+              dos líneas finas sin contenido): flex-basis 0 + overflow-hidden
+              en un flex-col sin alto fijo colapsa el alto del item a 0 (el
+              "tamaño mínimo automático" de un flex item con overflow≠visible
+              es 0, no el de su contenido) — el borde de arriba y abajo quedan
+              superpuestos y se ven como una línea. flex-basis 'auto' deja que
+              el contenido real determine el alto mínimo; el crecimiento
+              proporcional (flex-grow) solo importa en desktop (flex-row),
+              donde el alto nunca fue el problema. */}
+          <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 auto' }}>
             <div className="px-5 pt-5 pb-4">
               <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
@@ -919,7 +928,7 @@ export default function Radar({
           {/* Card "Rendimiento" — no realizado / realizado / vs SPY / mejor
               posición, antes repartido entre "Mi rendimiento" y el KPI
               colapsable de la columna sticky que ya no existe. */}
-          <div className="card overflow-hidden" style={{ flex: '2 1 0' }}>
+          <div className="card overflow-hidden" style={{ flex: '2 1 auto' }}>
             <div className="px-5 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
               <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Rendimiento</p>
             </div>
