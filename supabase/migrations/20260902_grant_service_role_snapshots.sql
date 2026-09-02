@@ -21,8 +21,18 @@
 -- de que alguien abra la app — ver comentario "P1/F4" en sync-prices/
 -- route.ts) fallaba en silencio de la misma forma.
 --
+-- Segunda vuelta del mismo bug (Cas: "sigue sin salir" — con el cron ya
+-- arreglado y una fila insertada a mano, el gráfico seguía mostrando el
+-- estado vacío): faltaba el GRANT de SELECT al rol `authenticated`
+-- también. La policy de RLS ("select own portfolio snapshots") deja
+-- pasar la fila, pero sin el GRANT de tabla el query del usuario en
+-- /inversiones moría con el mismo "permission denied" — no es un
+-- problema de service_role vs authenticated, es que la migración
+-- original nunca otorgó privilegios de tabla a NINGÚN rol.
+--
 -- Este GRANT ya se aplicó directo en producción (ejecutado vía SQL) —
 -- este archivo solo documenta el cambio para que el historial de
 -- migraciones coincida con el estado real de la base.
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.portfolio_snapshots TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.net_worth_snapshots TO service_role;
+GRANT SELECT ON public.portfolio_snapshots TO authenticated;
