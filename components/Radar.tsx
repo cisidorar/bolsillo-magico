@@ -835,12 +835,14 @@ export default function Radar({
           })()}
         </div>
 
-        {/* sep 2026 (Cas: "quiero esta barra pegada a la izquierda"): el
-            `ml-auto` empujaba este grupo al borde derecho cuando el texto de
-            estado ocupa su propia fila en mobile (flex-wrap) y este grupo
-            queda solo en la fila siguiente — con justify-between del padre,
-            un único item sin ml-auto ya cae al borde izquierdo por defecto. */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* sep 2026 (Cas: "esa barra a la izquierda y agregar a la derecha"):
+            antes toggle + Agregar iban juntos en un mismo grupo shrink-0 (los
+            dos quedaban pegados a la izquierda tras sacar el ml-auto). Ahora
+            el grupo ocupa todo el ancho disponible con justify-between:
+            toggle al borde izquierdo, Agregar al borde derecho — en sm+
+            comparte fila con el texto de estado gracias al mismo
+            justify-between del padre. */}
+        <div className="flex items-center justify-between gap-2 flex-1 sm:flex-initial min-w-0">
           <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
