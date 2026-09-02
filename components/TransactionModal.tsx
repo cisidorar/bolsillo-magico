@@ -32,8 +32,15 @@ function fmtPct(n: number, showSign = true): string {
 // Cas (ago 2026): quiere poder dejar registrada una compra planificada a
 // futuro (comprar más de una posición) sin tener que volver ese día — antes
 // el date picker topaba en hoy. Un año de margen alcanza para planificar sin
-// abrir la puerta a fechas absurdas. Solo aplica a compras: vender algo a
-// futuro no tiene sentido (no hay precio que confirmar todavía).
+// abrir la puerta a fechas absurdas.
+//
+// sep 2026 (Cas: "quiero poder fijar la venta para mañana"): ahora también
+// aplica a ventas. El comentario original decía que vender a futuro "no tiene
+// sentido porque no hay precio que confirmar" — pero el precio lo escribe la
+// persona igual (campo PRECIO DE VENTA), que es exactamente lo que pasa
+// cuando dejas una orden puesta en el bróker para el día siguiente. Ojo: la
+// venta se aplica de inmediato a la posición y a la billetera aunque la
+// fecha sea futura — la fecha es contable, no programa nada.
 function maxFutureStr(): string {
   const d = new Date()
   d.setFullYear(d.getFullYear() + 1)
@@ -718,7 +725,7 @@ export default function TransactionModal({
                     <div>
                       <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
                       <input type="date" value={sellDate} onChange={e => setSellDate(e.target.value)}
-                        max={new Date().toISOString().slice(0, 10)}
+                        max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
