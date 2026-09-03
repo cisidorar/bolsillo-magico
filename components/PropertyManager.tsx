@@ -176,6 +176,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [aseoForm, setAseoForm]   = useState(false)
   const [leaseForm, setLeaseForm] = useState(false)
   const [billUploader, setBillUploader] = useState(false)
+  const [divForm, setDivForm]     = useState(false)
+  const [utilsForm, setUtilsForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
   const [busy, setBusy]           = useState(false)
   const [error, setError]         = useState<string | null>(null)
@@ -187,6 +189,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const chargeBackdrop = useBackdropClose(() => setChargeForm(null))
   const aseoBackdrop   = useBackdropClose(() => setAseoForm(false))
   const leaseBackdrop  = useBackdropClose(() => setLeaseForm(false))
+  const divBackdrop    = useBackdropClose(() => setDivForm(false))
+  const utilsBackdrop  = useBackdropClose(() => setUtilsForm(false))
   const payBackdrop    = useBackdropClose(() => setPayFor(null))
 
   async function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
@@ -388,7 +392,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
           />
 
-          <PropertyCard property={property} onEdit={() => setPropForm(true)} />
+          <PropertyCard property={property} onEdit={() => setPropForm(true)}
+                        onAddMortgage={() => setDivForm(true)}
+                        onAddUtilities={() => setUtilsForm(true)} />
         </div>
       ) : (
         // ── Cobros ────────────────────────────────────────────────────────
@@ -486,6 +492,22 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           onDelete={lease ? async () => {
             if (await run(() => deleteLease(lease.id))) setLeaseForm(false)
           } : undefined}
+        />
+      )}
+
+      {divForm && (
+        <MortgageForm
+          property={property} busy={busy} error={error} backdrop={divBackdrop}
+          onCancel={() => setDivForm(false)}
+          onSave={async input => { if (await run(() => saveProperty(input, property.id))) setDivForm(false) }}
+        />
+      )}
+
+      {utilsForm && (
+        <UtilityAccountsForm
+          property={property} busy={busy} error={error} backdrop={utilsBackdrop}
+          onCancel={() => setUtilsForm(false)}
+          onSave={async input => { if (await run(() => saveProperty(input, property.id))) setUtilsForm(false) }}
         />
       )}
 
@@ -814,7 +836,12 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
   )
 }
 
-function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => void }) {
+function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
+  property: Property
+  onEdit: () => void
+  onAddMortgage: () => void
+  onAddUtilities: () => void
+}) {
   const missingDiv = !property.mortgage_amount
   const missingUtils = !property.electricity_client_id && !property.water_client_id
   return (
@@ -851,25 +878,23 @@ function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => 
         )}
       </dl>
 
-      {/* Nudges: aparecen solo si faltan datos — llevan al mismo formulario de edición */}
-      {(missingDiv || missingUtils) && (
-        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border)' }}>
-          {missingDiv && (
-            <button onClick={onEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-              <Plus className="w-3.5 h-3.5" /> Agregar dividendo
-            </button>
-          )}
-          {missingUtils && (
-            <button onClick={onEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-              <Plus className="w-3.5 h-3.5" /> Agregar cuentas de servicios
-            </button>
-          )}
-        </div>
-      )}
+      {/* Siempre visibles: si el dato está, el chip pasa de "Agregar" a
+          "Editar" — antes desaparecía y no había forma de corregirlo sin
+          abrir el formulario completo. */}
+      <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border)' }}>
+        <button onClick={onAddMortgage}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          {missingDiv ? <Plus className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+          {missingDiv ? 'Agregar dividendo' : 'Dividendo'}
+        </button>
+        <button onClick={onAddUtilities}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          {missingUtils ? <Plus className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+          {missingUtils ? 'Agregar cuentas de servicios' : 'Cuentas de servicios'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -995,11 +1020,6 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
   const [region, setRegion]       = useState(property?.region ?? '')
   const [comuna, setComuna]   = useState(property?.comuna ?? '')
   const [rol, setRol]         = useState(property?.rol_sii ?? '')
-  const [divAmt, setDivAmt]   = useState(property?.mortgage_amount?.toString() ?? '')
-  const [divDay, setDivDay]   = useState(property?.mortgage_due_day?.toString() ?? '')
-  const [divAcc, setDivAcc]   = useState(property?.mortgage_account_label ?? '')
-  const [elecId, setElecId]   = useState(property?.electricity_client_id ?? '')
-  const [waterId, setWaterId] = useState(property?.water_client_id ?? '')
 
   const comunasDeRegion = region ? (REGIONES_COMUNAS[region] ?? []) : []
 
@@ -1023,12 +1043,13 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           unitNumber: propType === 'departamento' ? (unitNum || null) : null,
           address: address || null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
-          // En creación estos van vacíos — se agregan desde la ficha después
-          mortgageAmount: divAmt ? Number(divAmt.replace(/\D/g, '')) : null,
-          mortgageDueDay: divDay ? Number(divDay) : null,
-          mortgageAccountLabel: divAcc || null,
-          electricityClientId: elecId || null,
-          waterClientId: waterId || null,
+          // Dividendo y cuentas de servicio tienen su propio formulario —
+          // acá solo se pasan por para no borrarlos al editar lo básico.
+          mortgageAmount: property?.mortgage_amount ?? null,
+          mortgageDueDay: property?.mortgage_due_day ?? null,
+          mortgageAccountLabel: property?.mortgage_account_label ?? null,
+          electricityClientId: property?.electricity_client_id ?? null,
+          waterClientId: property?.water_client_id ?? null,
         })
       }}>
         {/* ── Datos básicos — siempre visibles ─────────────────── */}
@@ -1085,48 +1106,6 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
                  onChange={e => setRol(e.target.value)} placeholder="20304050" />
         </Field>
 
-        {/* ── Secciones extra — solo en edición ───────────────── */}
-        {property && (<>
-          <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
-            <p className="text-xs font-bold pt-3 mb-3" style={{ color: 'var(--ink-2)' }}>Dividendo</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Monto mensual">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none" style={{ color: 'var(--ink-3)' }}>$</span>
-                <input
-                  className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
-                  value={fmtClpInput(divAmt)} inputMode="numeric"
-                  onChange={e => setDivAmt(e.target.value.replace(/\D/g, ''))}
-                  placeholder="580.000"
-                />
-              </div>
-            </Field>
-            <Field label="Día de cobro">
-              <input className={inputCls} style={inputStyle} value={divDay} inputMode="numeric"
-                     onChange={e => setDivDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="15" />
-            </Field>
-          </div>
-          <Field label="Banco" hint="Solo un rótulo. No guardamos números de cuenta.">
-            <select className={inputCls} style={inputStyle} value={divAcc} onChange={e => setDivAcc(e.target.value)}>
-              <option value="">Sin especificar</option>
-              {BANCOS_CHILE.map(b => <option key={b} value={`Cta cte ${b}`}>{b}</option>)}
-            </select>
-          </Field>
-
-          <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
-            <p className="text-xs font-bold pt-3 mb-1" style={{ color: 'var(--ink-2)' }}>Cuentas de servicios</p>
-            <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>Para futura descarga automática de boletas</p>
-          </div>
-          <Field label="Número de cliente Enel">
-            <input className={inputCls} style={inputStyle} value={elecId}
-                   onChange={e => setElecId(e.target.value)} placeholder="4521083-2" />
-          </Field>
-          <Field label="Número de cliente Aguas Andinas">
-            <input className={inputCls} style={inputStyle} value={waterId}
-                   onChange={e => setWaterId(e.target.value)} placeholder="1847362-5" />
-          </Field>
-        </>)}
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions
@@ -1471,6 +1450,129 @@ function LeaseForm({ lease, propertyId, busy, error, backdrop, onCancel, onSave,
           busy={busy} onCancel={onCancel} submitLabel="Guardar"
           danger={onDelete ? { label: 'Eliminar contrato', onClick: onDelete } : undefined}
         />
+      </form>
+    </Modal>
+  )
+}
+
+// ── Formularios enfocados ───────────────────────────────────────────────────
+//
+// Dividendo y cuentas de servicio viven en modales propios en vez de dentro
+// del formulario de la propiedad: para llenar dos campos no vale la pena
+// scrollear doce. Ambos guardan con saveProperty pasando por los valores que
+// no editan, así ninguno pisa lo que cargó el otro.
+
+/** Datos base compartidos: lo que un form enfocado NO toca pero debe conservar. */
+function baseInput(property: Property) {
+  return {
+    alias:        property.alias,
+    propertyType: property.property_type,
+    unitNumber:   property.unit_number,
+    address:      property.address,
+    region:       property.region,
+    comuna:       property.comuna,
+    rolSii:       property.rol_sii,
+  }
+}
+
+function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
+  property: Property
+  busy: boolean
+  error: string | null
+  backdrop: Backdrop
+  onCancel: () => void
+  onSave: (input: Parameters<typeof saveProperty>[0]) => void
+}) {
+  const [amt, setAmt] = useState(property.mortgage_amount?.toString() ?? '')
+  const [day, setDay] = useState(property.mortgage_due_day?.toString() ?? '')
+  const [acc, setAcc] = useState(property.mortgage_account_label ?? '')
+
+  return (
+    <Modal title="Dividendo" backdrop={backdrop} onCancel={onCancel}>
+      <form onSubmit={e => {
+        e.preventDefault()
+        onSave({
+          ...baseInput(property),
+          mortgageAmount: amt ? Number(amt.replace(/\D/g, '')) : null,
+          mortgageDueDay: day ? Number(day) : null,
+          mortgageAccountLabel: acc || null,
+          electricityClientId: property.electricity_client_id,
+          waterClientId:       property.water_client_id,
+        })
+      }}>
+        <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
+          Se descuenta solo de tu cuenta. Con esto cargado se generan los cobros de cada mes.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Monto mensual">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                    style={{ color: 'var(--ink-3)' }}>$</span>
+              <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                     value={fmtClpInput(amt)} inputMode="numeric" autoFocus
+                     onChange={e => setAmt(e.target.value.replace(/\D/g, ''))} placeholder="580.000" />
+            </div>
+          </Field>
+          <Field label="Día de cobro">
+            <input className={inputCls} style={inputStyle} value={day} inputMode="numeric"
+                   onChange={e => setDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="15" />
+          </Field>
+        </div>
+
+        <Field label="Banco" hint="Solo un rótulo. No guardamos números de cuenta.">
+          <select className={inputCls} style={inputStyle} value={acc} onChange={e => setAcc(e.target.value)}>
+            <option value="">Sin especificar</option>
+            {BANCOS_CHILE.map(b => <option key={b} value={`Cta cte ${b}`}>{b}</option>)}
+          </select>
+        </Field>
+
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
+      </form>
+    </Modal>
+  )
+}
+
+function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave }: {
+  property: Property
+  busy: boolean
+  error: string | null
+  backdrop: Backdrop
+  onCancel: () => void
+  onSave: (input: Parameters<typeof saveProperty>[0]) => void
+}) {
+  const [elec, setElec]   = useState(property.electricity_client_id ?? '')
+  const [water, setWater] = useState(property.water_client_id ?? '')
+
+  return (
+    <Modal title="Cuentas de servicios" backdrop={backdrop} onCancel={onCancel}>
+      <form onSubmit={e => {
+        e.preventDefault()
+        onSave({
+          ...baseInput(property),
+          mortgageAmount:       property.mortgage_amount,
+          mortgageDueDay:       property.mortgage_due_day,
+          mortgageAccountLabel: property.mortgage_account_label,
+          electricityClientId: elec || null,
+          waterClientId:       water || null,
+        })
+      }}>
+        <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
+          Los números que aparecen en tus boletas. Sirven para identificar el suministro.
+        </p>
+
+        <Field label="Número de cliente Enel">
+          <input className={inputCls} style={inputStyle} value={elec} autoFocus
+                 onChange={e => setElec(e.target.value)} placeholder="4521083-2" />
+        </Field>
+        <Field label="Número de cliente Aguas Andinas">
+          <input className={inputCls} style={inputStyle} value={water}
+                 onChange={e => setWater(e.target.value)} placeholder="1847362-5" />
+        </Field>
+
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
   )
