@@ -105,11 +105,13 @@ interface Props {
 }
 
 const STATUS_STYLE: Record<ChargeStatus, { label: string; color: string; bg: string }> = {
-  paid:     { label: 'Pagado',    color: '#0F9D6E', bg: '#E6FAF3' },
-  partial:  { label: 'Parcial',   color: '#B45309', bg: '#FFF7ED' },
-  overdue:  { label: 'Vencido',   color: '#DC2626', bg: '#FEF2F2' },
-  due_soon: { label: 'Por vencer',color: '#B45309', bg: '#FFF7ED' },
-  pending:  { label: 'Pendiente', color: '#64748B', bg: '#F1F5F9' },
+  // Tokens del tema, no hex: en dark el fondo se mezcla con --surface y el
+  // texto sigue legible. Un hex claro fijo dejaba el texto invisible en dark.
+  paid:     { label: 'Pagado',    color: 'var(--mint)',  bg: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' },
+  partial:  { label: 'Parcial',   color: 'var(--gold)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
+  overdue:  { label: 'Vencido',   color: 'var(--coral)', bg: 'color-mix(in srgb, var(--coral) 14%, var(--surface))' },
+  due_soon: { label: 'Por vencer',color: 'var(--gold)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
+  pending:  { label: 'Pendiente', color: 'var(--ink-3)', bg: 'var(--surface-2)' },
 }
 
 const KIND_OPTIONS = [
@@ -173,7 +175,7 @@ export default function PropertyManager({ property, charges, today, view }: Prop
         <div className="card p-8 text-center">
           <div
             className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-            style={{ background: '#FFF7ED' }}
+            style={{ background: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' }}
           >
             <Building2 className="w-7 h-7" style={{ color: '#D97706' }} />
           </div>
@@ -207,6 +209,9 @@ export default function PropertyManager({ property, charges, today, view }: Prop
   const ownerCharges  = charges.filter(c => c.responsible === 'owner')
   const tenantCharges = charges.filter(c => c.responsible === 'tenant')
 
+  // Un solo token por estado — el hero deriva fondo, borde e ícono de acá.
+  const tone = health.ok ? 'var(--mint)' : health.overdue.length > 0 ? 'var(--coral)' : 'var(--gold)'
+
   return (
     <>
       {view === 'estado' ? (
@@ -218,22 +223,22 @@ export default function PropertyManager({ property, charges, today, view }: Prop
           <div
             className="card p-6"
             style={{
-              background: health.ok ? '#E6FAF3' : health.overdue.length > 0 ? '#FEF2F2' : '#FFF7ED',
-              borderColor: health.ok ? '#A7E8D0' : health.overdue.length > 0 ? '#FCA5A5' : '#FDE68A',
+              background: `color-mix(in srgb, ${tone} 12%, var(--surface))`,
+              borderColor: `color-mix(in srgb, ${tone} 35%, transparent)`,
             }}
           >
             <div className="flex items-start gap-4">
               <div
                 className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(255,255,255,0.7)' }}
+                style={{ background: `color-mix(in srgb, ${tone} 20%, var(--surface))` }}
               >
                 {health.ok
-                  ? <CircleCheck className="w-6 h-6" style={{ color: '#0F9D6E' }} />
-                  : <AlertTriangle className="w-6 h-6" style={{ color: health.overdue.length > 0 ? '#DC2626' : '#B45309' }} />}
+                  ? <CircleCheck className="w-6 h-6" style={{ color: tone }} />
+                  : <AlertTriangle className="w-6 h-6" style={{ color: tone }} />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
-                   style={{ color: health.ok ? '#0F9D6E' : health.overdue.length > 0 ? '#DC2626' : '#B45309' }}>
+                   style={{ color: tone }}>
                   {property.alias}
                 </p>
                 <h2 className="text-2xl font-extrabold leading-tight mb-1"
@@ -245,7 +250,7 @@ export default function PropertyManager({ property, charges, today, view }: Prop
                           ? 'cosa pendiente' : 'cosas pendientes'}`}
                 </h2>
                 {health.debtTotal > 0 && (
-                  <p className="text-sm font-semibold" style={{ color: '#DC2626' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--coral)' }}>
                     Deuda viva: {formatCLP(health.debtTotal)}
                   </p>
                 )}
@@ -380,7 +385,7 @@ export default function PropertyManager({ property, charges, today, view }: Prop
       )}
 
       {error && (
-        <p className="text-sm mt-4 px-1" style={{ color: '#DC2626' }}>{error}</p>
+        <p className="text-sm mt-4 px-1" style={{ color: 'var(--coral)' }}>{error}</p>
       )}
 
       {/* ── Modales ────────────────────────────────────────────────────── */}
@@ -440,9 +445,9 @@ function AlertBlock({ tone, title, subtitle, items, today, onPay }: {
   today: string
   onPay: (c: Charge) => void
 }) {
-  const color = tone === 'coral' ? '#DC2626' : '#B45309'
-  const bg    = tone === 'coral' ? '#FEF2F2' : '#FFF7ED'
-  const brd   = tone === 'coral' ? '#FCA5A5' : '#FDE68A'
+  const color = tone === 'coral' ? 'var(--coral)' : 'var(--gold)'
+  const bg    = `color-mix(in srgb, ${color} 12%, var(--surface))`
+  const brd   = `color-mix(in srgb, ${color} 35%, transparent)`
 
   return (
     <div className="card p-4" style={{ background: bg, borderColor: brd }}>
@@ -473,7 +478,7 @@ function AlertBlock({ tone, title, subtitle, items, today, onPay }: {
               <button
                 onClick={() => onPay(c)}
                 className="text-xs font-bold px-2.5 py-1 rounded-lg"
-                style={{ background: 'rgba(255,255,255,0.8)', color }}
+                style={{ background: 'var(--surface)', color }}
               >
                 {c.direction === 'in' ? 'Cobré' : 'Pagué'}
               </button>
@@ -554,7 +559,7 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
 
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm font-bold whitespace-nowrap"
-                     style={{ color: c.direction === 'in' ? '#0F9D6E' : 'var(--ink)' }}>
+                     style={{ color: c.direction === 'in' ? 'var(--mint)' : 'var(--ink)' }}>
                     {c.direction === 'in' ? '+' : ''}{formatCLP(chargeTotal(c))}
                   </p>
                 </div>
@@ -572,7 +577,7 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
                     <button
                       onClick={() => onPay(c)} disabled={busy}
                       title={c.direction === 'in' ? 'Marcar cobrado' : 'Marcar pagado'}
-                      className="p-1.5 rounded-lg" style={{ color: '#0F9D6E' }}
+                      className="p-1.5 rounded-lg" style={{ color: 'var(--mint)' }}
                     >
                       <Check className="w-4 h-4" strokeWidth={2.5} />
                     </button>
@@ -588,7 +593,7 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
                     onClick={() => { if (confirm('¿Eliminar este cobro?')) onDelete(c) }}
                     disabled={busy}
                     title="Eliminar"
-                    className="p-1.5 rounded-lg" style={{ color: '#DC2626' }}
+                    className="p-1.5 rounded-lg" style={{ color: 'var(--coral)' }}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -739,7 +744,7 @@ function Actions({ busy, onCancel, submitLabel, danger }: {
         <button
           type="button"
           onClick={() => { if (confirm('¿Seguro? Esto borra también todos sus cobros.')) danger.onClick() }}
-          className="p-2.5 rounded-xl" style={{ color: '#DC2626' }}
+          className="p-2.5 rounded-xl" style={{ color: 'var(--coral)' }}
           title={danger.label}
         >
           <Trash2 className="w-4 h-4" />
@@ -918,7 +923,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           </Field>
         </>)}
 
-        {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions
           busy={busy} onCancel={onCancel} submitLabel={property ? 'Guardar' : 'Crear propiedad'}
           danger={onDelete ? { label: 'Eliminar propiedad', onClick: onDelete } : undefined}
@@ -1020,7 +1025,7 @@ function ChargeForm({ charge, propertyId, busy, error, backdrop, onCancel, onSav
                  onChange={e => setNotes(e.target.value)} placeholder="Opcional" />
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
@@ -1061,7 +1066,7 @@ function AseoForm({ propertyId, busy, error, backdrop, onCancel, onGenerate }: {
                  onChange={e => setBase(e.target.value.replace(/\D/g, ''))} placeholder="14330" />
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Generar" />
       </form>
     </Modal>
@@ -1107,7 +1112,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
                  onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} />
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel={isIncome ? 'Registrar' : 'Pagar'} />
       </form>
     </Modal>
