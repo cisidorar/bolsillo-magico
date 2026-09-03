@@ -30,6 +30,7 @@ const ROUTE_TAB_MAP: { prefix: string; tab: string }[] = [
   { prefix: '/ingresos',     tab: '/ajustes'   },
   { prefix: '/inversiones',  tab: '/ajustes'   },
   { prefix: '/recurrentes',  tab: '/ajustes'   },
+  { prefix: '/propiedad',    tab: '/ajustes'   },
   { prefix: '/cuenta',       tab: '/historial' },
   { prefix: '/analisis',     tab: '/analisis'  },
   { prefix: '/historial',    tab: '/historial' },

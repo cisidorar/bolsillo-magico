@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings, Calculator,
+  Building2,
   type LucideIcon,
 } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -32,6 +33,9 @@ const financeRows: Row[] = [
 ]
 
 const otherRows: Row[] = [
+  // Propiedad va acá y no en financeRows a propósito: no son tus finanzas
+  // personales, es el chequeo de un mundo aparte que no se mezcla con ellas.
+  { href: '/propiedad',   icon: Building2,  color: '#D97706', bg: '#FFF7ED', title: 'Propiedad',      subtitle: 'Arriendo, dividendo y cuentas' },
   { href: '/presupuesto', icon: Target,     color: '#2B7CF6', bg: '#EEF4FF', title: 'Límite mensual', subtitle: 'Tu presupuesto del mes' },
   { href: '/categorias',  icon: Tag,        color: '#7C3AED', bg: '#F5F3FF', title: 'Categorías',     subtitle: 'Organiza tus gastos' },
   { href: '/metodos',     icon: CreditCard, color: '#16A34A', bg: '#F0FDF4', title: 'Métodos de pago', subtitle: 'Cuentas y tarjetas' },

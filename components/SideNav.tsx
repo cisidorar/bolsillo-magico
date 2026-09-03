@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Calculator } from 'lucide-react'
+import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Calculator, Building2 } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import AffordabilitySheet from './AffordabilitySheet'
@@ -15,6 +15,9 @@ const navItems = [
   { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
   { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones'  },
   { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
+  // Va al final del bloque justo porque es un mundo aparte: arriba están tus
+  // finanzas, Propiedad es el chequeo del depto en arriendo y no se mezcla.
+  { href: '/propiedad',    icon: Building2,  label: 'Propiedad'    },
   { href: '/ajustes',      icon: Settings,   label: 'Ajustes'      },
 ]
 
