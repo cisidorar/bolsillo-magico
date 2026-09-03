@@ -769,6 +769,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
 }) {
   const [propType, setPropType]   = useState<string>(property?.property_type ?? '')
   const [unitNum, setUnitNum]     = useState(property?.unit_number ?? '')
+  const [address, setAddress]     = useState(property?.address ?? '')
   const [region, setRegion]       = useState(property?.region ?? '')
   const [comuna, setComuna]   = useState(property?.comuna ?? '')
   const [rol, setRol]         = useState(property?.rol_sii ?? '')
@@ -798,7 +799,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           alias: autoAlias || (property?.alias ?? 'Propiedad'),
           propertyType: (propType || null) as 'departamento' | 'casa' | 'otro' | null,
           unitNumber: propType === 'departamento' ? (unitNum || null) : null,
-          address: null, region: region || null,
+          address: address || null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
           // En creación estos van vacíos — se agregan desde la ficha después
           mortgageAmount: divAmt ? Number(divAmt.replace(/\D/g, '')) : null,
@@ -835,6 +836,10 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
                    onChange={e => setUnitNum(e.target.value.replace(/\D/g, ''))} placeholder="42" />
           </Field>
         )}
+        <Field label="Dirección">
+          <input className={inputCls} style={inputStyle} value={address}
+                 onChange={e => setAddress(e.target.value)} placeholder="Av. Providencia 1234" />
+        </Field>
         <Field label="Región">
           <select className={inputCls} style={inputStyle} value={region} onChange={e => handleRegion(e.target.value)}>
             <option value="">Selecciona una región…</option>
