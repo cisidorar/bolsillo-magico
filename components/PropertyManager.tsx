@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, AlertTriangle, Clock, CalendarDays, Trash2,
-  Pencil, X, CircleCheck, Undo2, Sparkles, Info,
+  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -21,6 +21,7 @@ import {
   nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
 } from '@/lib/lease'
 import type { IpcObservation } from '@/lib/cl-indicators'
+import UtilityBillUploader from '@/components/UtilityBillUploader'
 
 export interface Property {
   id: string
@@ -174,6 +175,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [chargeForm, setChargeForm] = useState<Charge | 'new' | null>(null)
   const [aseoForm, setAseoForm]   = useState(false)
   const [leaseForm, setLeaseForm] = useState(false)
+  const [billUploader, setBillUploader] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
   const [busy, setBusy]           = useState(false)
   const [error, setError]         = useState<string | null>(null)
@@ -236,6 +238,19 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
   const ownerCharges  = charges.filter(c => c.responsible === 'owner')
   const tenantCharges = charges.filter(c => c.responsible === 'tenant')
+
+  // Consumos anteriores por servicio, más reciente primero — alimentan la
+  // detección de saltos del uploader. Se leen de las notas del cobro porque
+  // el consumo no es un campo de property_charges: es dato de la boleta, no
+  // de la obligación.
+  const priorConsumption = useMemo(() => {
+    const pick = (k: string) => charges
+      .filter(c => c.kind === k && c.notes)
+      .map(c => Number(c.notes!.match(/consumo[:\s]*(\d+)/i)?.[1] ?? 0))
+      .filter(n => n > 0)
+      .slice(0, 6)
+    return { electricity: pick('electricity'), water: pick('water') }
+  }, [charges])
 
   // Un solo token por estado — el hero deriva fondo, borde e ícono de acá.
   const tone = health.ok ? 'var(--mint)' : health.overdue.length > 0 ? 'var(--coral)' : 'var(--gold)'
@@ -387,6 +402,13 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
               <Plus className="w-4 h-4" strokeWidth={2.5} /> Agregar cobro
             </button>
             <button
+              onClick={() => setBillUploader(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+            >
+              <Upload className="w-4 h-4" /> Subir boleta
+            </button>
+            <button
               onClick={() => setAseoForm(true)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
               style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
@@ -464,6 +486,14 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           onDelete={lease ? async () => {
             if (await run(() => deleteLease(lease.id))) setLeaseForm(false)
           } : undefined}
+        />
+      )}
+
+      {billUploader && (
+        <UtilityBillUploader
+          propertyId={property.id}
+          priorConsumption={priorConsumption}
+          onClose={() => setBillUploader(false)}
         />
       )}
 

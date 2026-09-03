@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { aseoDueDates, aseoRef } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
+import { extractText } from 'unpdf'
+import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
 
 // ── P1 (PLAN_PROPIEDAD): CRUD de la propiedad y su ledger de obligaciones ────
 // Mundo aparte por decisión D1: nada de esto escribe en expenses ni en incomes.
@@ -402,4 +404,118 @@ export async function generateLeaseCharges(
 
   revalidatePath('/propiedad')
   return { ok: true, created: rows.length }
+}
+
+// ── P3: boletas de luz y agua ───────────────────────────────────────────────
+
+export type UtilityBillDraft = ParsedUtilityBill
+
+/**
+ * Paso 1: extrae texto del PDF y lo parsea. NO guarda nada.
+ *
+ * El resultado va a un formulario editable — mismo patrón que
+ * extractPayslipDraft. Un parser que falla degrada a carga manual, nunca a un
+ * dato inventado en la base.
+ */
+export async function extractUtilityBillDraft(
+  formData: FormData,
+): Promise<{ ok: true; draft: UtilityBillDraft } | { ok: false; error: string }> {
+  const { user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { ok: false, error: 'No se recibió el archivo' }
+  if (file.type !== 'application/pdf') return { ok: false, error: 'El archivo debe ser un PDF' }
+  if (file.size > 8 * 1024 * 1024) return { ok: false, error: 'El PDF es muy grande (máx. 8MB)' }
+
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const { text } = await extractText(bytes, { mergePages: true })
+    if (!text || text.trim().length < 20) {
+      return { ok: false, error: 'No se pudo leer texto del PDF (¿es escaneado?)' }
+    }
+    return { ok: true, draft: parseUtilityBill(text) }
+  } catch {
+    return { ok: false, error: 'No se pudo leer el PDF. Intenta con otro archivo.' }
+  }
+}
+
+export interface SaveUtilityBillInput {
+  propertyId:  string
+  kind:        'electricity' | 'water'
+  amount:      number
+  dueDate:     string
+  consumption: number | null
+  externalRef: string | null
+  notes:       string | null
+}
+
+/**
+ * Paso 2: guarda el cobro ya confirmado y archiva el PDF original.
+ *
+ * `responsible: 'tenant'` por contrato — estas boletas las paga Bruno, así que
+ * no suman a la deuda de Cas. Aparecen igual porque su mora es causal de
+ * término, y porque un salto de consumo en un depto donde no vives suele ser
+ * una filtración: la cañería sí es plata suya.
+ *
+ * Si el PDF no se puede subir, el cobro se guarda igual. Perder el archivo es
+ * molesto; perder el registro del cobro es peor.
+ */
+export async function saveUtilityBill(
+  input: SaveUtilityBillInput,
+  formData: FormData | null,
+): Promise<Result> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+  if (!input.dueDate) return { ok: false, error: 'Falta la fecha de vencimiento' }
+  if (input.amount <= 0) return { ok: false, error: 'Indica el monto de la boleta' }
+
+  const year  = Number(input.dueDate.slice(0, 4))
+  const month = Number(input.dueDate.slice(5, 7))
+
+  let documentPath: string | null = null
+  const file = formData?.get('file')
+  if (file instanceof File && file.size > 0) {
+    const path = `${user.id}/${input.propertyId}/${input.kind}-${year}-${String(month).padStart(2, '0')}.pdf`
+    const { error: upErr } = await supabase.storage
+      .from('property-docs')
+      .upload(path, file, { upsert: true, contentType: 'application/pdf' })
+    if (!upErr) documentPath = path
+  }
+
+  // El consumo va en las notas y no en columna propia a propósito: es dato de
+  // la boleta, no de la obligación. property_charges modela "cuánto debo y
+  // cuándo", y una columna de kWh solo tendría sentido en 2 de sus 11 tipos.
+  // El formato es estable para que la detección de saltos lo pueda releer.
+  const consumoNote = input.consumption
+    ? `Consumo: ${input.consumption} ${input.kind === 'electricity' ? 'kWh' : 'm³'}`
+    : null
+  const notes = [consumoNote, input.notes?.trim() || null].filter(Boolean).join(' · ') || null
+
+  const { error } = await supabase.from('property_charges').insert({
+    user_id:       user.id,
+    property_id:   input.propertyId,
+    kind:          input.kind,
+    direction:     'out',
+    due_date:      input.dueDate,
+    amount:        Math.round(input.amount),
+    responsible:   'tenant',
+    external_ref:  input.externalRef?.trim() || null,
+    document_path: documentPath,
+    notes,
+    period_year:   year,
+    period_month:  month,
+  })
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/propiedad')
+  return { ok: true }
+}
+
+/** URL firmada (5 min) para abrir una boleta archivada. */
+export async function getPropertyDocUrl(path: string): Promise<string | null> {
+  const { supabase, user } = await currentUser()
+  if (!user) return null
+  const { data } = await supabase.storage.from('property-docs').createSignedUrl(path, 300)
+  return data?.signedUrl ?? null
 }
