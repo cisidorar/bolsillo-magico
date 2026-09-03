@@ -360,10 +360,17 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                 </div>
               )}
 
-              {/* Fecha de inicio */}
+              {/* Fecha del saldo */}
+              {/* sep 2026 (Cas cuadró su Copec Pay contra la cartola real y no
+                  daba): decía "Fecha de inicio", que se lee como "cuándo abrí
+                  la cuenta" — pero la app la usa como "desde cuándo vale el
+                  saldo que escribiste" para devengar el interés. Cas puso el
+                  1 de julio cuando el saldo era del 7: seis días de interés de
+                  más, $1.734 inflados. La etiqueta ahora pregunta lo que de
+                  verdad necesita saber. */}
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  Fecha de inicio
+                  ¿De qué día es ese saldo?
                 </label>
                 <input
                   type="date"
@@ -374,6 +381,9 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   style={inputBase}
                   onFocus={focusOn} onBlur={focusOff}
                 />
+                <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+                  El día en que viste ese monto en la app del banco — desde ahí se calcula el interés.
+                </p>
               </div>
 
               {/* Nota */}
