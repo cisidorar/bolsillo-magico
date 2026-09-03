@@ -32,7 +32,7 @@ export default async function PropiedadPage({
   // soporta, no hay que rehacer nada.
   const { data: properties } = await supabase
     .from('properties')
-    .select('id, alias, address, comuna, rol_sii, mortgage_amount, mortgage_due_day, mortgage_account_label')
+    .select('id, alias, address, region, comuna, rol_sii, mortgage_amount, mortgage_due_day, mortgage_account_label, electricity_client_id, water_client_id')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .order('created_at', { ascending: true })

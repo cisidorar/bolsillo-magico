@@ -10,11 +10,14 @@ import { aseoDueDates, aseoRef } from '@/lib/property-charges'
 export interface PropertyInput {
   alias:                string
   address:              string | null
+  region:               string | null
   comuna:               string | null
   rolSii:               string | null
   mortgageAmount:       number | null
   mortgageDueDay:       number | null
   mortgageAccountLabel: string | null
+  electricityClientId:  string | null
+  waterClientId:        string | null
 }
 
 type Result = { ok: true; id?: string } | { ok: false; error: string }
@@ -34,11 +37,14 @@ export async function saveProperty(input: PropertyInput, id?: string): Promise<R
     user_id:                user.id,
     alias:                  input.alias.trim(),
     address:                input.address?.trim() || null,
+    region:                 input.region?.trim() || null,
     comuna:                 input.comuna?.trim() || null,
     rol_sii:                input.rolSii?.trim() || null,
     mortgage_amount:        input.mortgageAmount || null,
     mortgage_due_day:       input.mortgageDueDay || null,
     mortgage_account_label: input.mortgageAccountLabel?.trim() || null,
+    electricity_client_id:  input.electricityClientId?.trim() || null,
+    water_client_id:        input.waterClientId?.trim() || null,
     updated_at:             new Date().toISOString(),
   }
 
