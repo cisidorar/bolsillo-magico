@@ -361,14 +361,26 @@ export default function Radar({
   // ventas registradas, de cualquier ticker, en un solo lugar y ordenadas
   // (antes solo se veían por ticker, adentro del detalle de cada uno, o
   // agregadas en PerformanceSection sin el detalle operación por operación).
-  type Operation = { id: string; type: 'buy' | 'sell'; ticker: string; date: string; shares: number; amountUsd: number }
+  //
+  // sep 2026 (Cas: "cuando toco uno de los registros quiero que salga por
+  // cuánto se vendió y todo eso, además de cuánto se ganó o perdió"): tocar
+  // una fila abría el análisis técnico del ticker, que no dice nada de ESA
+  // operación. Ahora cada fila carga su fila de origen (`sale`/`purchase`)
+  // para poder abrir el detalle de la operación misma.
+  type Operation = {
+    id: string; type: 'buy' | 'sell'; ticker: string; date: string
+    shares: number; amountUsd: number
+    sale?: StockSale; purchase?: StockPurchase
+  }
   const operations: Operation[] = [
-    ...purchases.map(p => ({ id: `buy-${p.id}`, type: 'buy' as const, ticker: p.ticker, date: p.purchase_date, shares: p.shares, amountUsd: -Number(p.total_paid_usd) })),
-    ...sales.map(s => ({ id: `sell-${s.id}`, type: 'sell' as const, ticker: s.ticker, date: s.sale_date, shares: s.shares_sold, amountUsd: Number(s.proceeds_usd) })),
+    ...purchases.map(p => ({ id: `buy-${p.id}`, type: 'buy' as const, ticker: p.ticker, date: p.purchase_date, shares: p.shares, amountUsd: -Number(p.total_paid_usd), purchase: p })),
+    ...sales.map(s => ({ id: `sell-${s.id}`, type: 'sell' as const, ticker: s.ticker, date: s.sale_date, shares: s.shares_sold, amountUsd: Number(s.proceeds_usd), sale: s })),
   ].sort((a, b) => b.date.localeCompare(a.date))
   const [showOpsHistory, setShowOpsHistory] = useState(false)
   const OPS_PAGE = 10
   const [opsShown, setOpsShown] = useState(OPS_PAGE)
+  const [opDetail, setOpDetail] = useState<Operation | null>(null)
+  const opDetailBackdropClose = useBackdropClose(() => setOpDetail(null))
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
@@ -1197,7 +1209,7 @@ export default function Radar({
                 {operations.slice(0, opsShown).map(op => (
                   <button
                     key={op.id}
-                    onClick={() => openDetail(op.ticker)}
+                    onClick={() => setOpDetail(op)}
                     className="w-full flex items-center gap-3 px-4 lg:px-5 py-2.5 text-left transition-colors hover:bg-black/5"
                   >
                     <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
@@ -1233,6 +1245,160 @@ export default function Radar({
           )}
         </div>
       )}
+
+      {/* ── Detalle de una operación (sep 2026, a pedido de Cas) ───────────── */}
+      {/* "cuando toco uno de los registros quiero que salga por cuánto se
+          vendió y todo eso, además de cuánto se ganó o perdió". Antes tocar
+          una fila abría el análisis técnico del ticker — información sobre la
+          acción HOY, no sobre esa operación. */}
+      {opDetail && (() => {
+        const op    = opDetail
+        const isSell = op.type === 'sell'
+        const total  = Math.abs(op.amountUsd)
+        // Precio unitario: se deriva del total, no se guarda aparte — así
+        // siempre cuadra con el monto aunque la operación se haya editado.
+        const unit   = op.shares > 0 ? total / op.shares : null
+
+        const s = op.sale
+        const pnl    = s ? Number(s.realized_pnl_usd) : null
+        const cost   = s ? Number(s.cost_basis_usd)   : null
+        const pnlPct = pnl !== null && cost && cost > 0 ? (pnl / cost) * 100 : null
+        const costUnit = s && op.shares > 0 && cost !== null ? cost / op.shares : null
+
+        // Para una COMPRA no hay ganancia realizada, pero sí se puede decir
+        // cuánto valen hoy esas acciones — que es la pregunta equivalente.
+        const live = quotes[op.ticker]?.price ?? null
+        const nowValue = !isSell && live !== null ? op.shares * live : null
+        const unrealized = nowValue !== null ? nowValue - total : null
+        const unrealizedPct = unrealized !== null && total > 0 ? (unrealized / total) * 100 : null
+
+        const Row = ({ label, value, color }: { label: string; value: string; color?: string }) => (
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>{label}</p>
+            <p className="text-sm font-extrabold tabular-nums text-right" style={{ color: color ?? 'var(--ink)' }}>{value}</p>
+          </div>
+        )
+
+        return (
+          <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }}
+            {...opDetailBackdropClose}>
+            <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden flex flex-col" style={{ background: 'var(--surface)', maxHeight: '88dvh' }}>
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{ background: isSell ? 'rgba(31,190,141,0.14)' : 'rgba(43,124,246,0.14)' }}>
+                  {isSell
+                    ? <DollarSign className="w-5 h-5" style={{ color: 'var(--mint)' }} />
+                    : <Plus className="w-5 h-5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-bold leading-tight" style={{ color: 'var(--ink)' }}>
+                    {isSell ? 'Venta' : 'Compra'} de {op.ticker}
+                  </h2>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{fmtAsOfDay(op.date)}</p>
+                </div>
+                <button onClick={() => setOpDetail(null)} aria-label="Cerrar"
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-2 overflow-y-auto">
+                <Row label="Acciones" value={op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} />
+                {unit !== null && (
+                  <Row label={isSell ? 'Precio de venta' : 'Precio de compra'} value={`${fmtUSD(unit)} por acción`} />
+                )}
+                <Row
+                  label={isSell ? 'Total recibido' : 'Total pagado'}
+                  value={fmtUSD(total)}
+                  color={isSell ? 'var(--mint)' : undefined}
+                />
+
+                {isSell && cost !== null && (
+                  <>
+                    <div className="pt-2 pb-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                        Lo que te habían costado
+                      </p>
+                    </div>
+                    {costUnit !== null && <Row label="Precio de compra promedio" value={`${fmtUSD(costUnit)} por acción`} />}
+                    <Row label="Costo total" value={fmtUSD(cost)} />
+                    {pnl !== null && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-2xl"
+                        style={{
+                          background: pnl >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)',
+                          border: `1px solid ${pnl >= 0 ? 'rgba(31,190,141,0.25)' : 'rgba(255,111,97,0.25)'}`,
+                        }}>
+                        <p className="text-xs font-bold" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {pnl >= 0 ? 'Ganancia' : 'Pérdida'}
+                        </p>
+                        <p className="text-base font-extrabold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                          {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* En una compra la pregunta equivalente a "cuánto ganaste" es
+                    cuánto valen hoy esas acciones. Solo si hay cotización. */}
+                {!isSell && nowValue !== null && unrealized !== null && (
+                  <>
+                    <div className="pt-2 pb-1">
+                      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                        Cómo va hoy
+                      </p>
+                    </div>
+                    <Row label="Valen hoy" value={fmtUSD(nowValue)} />
+                    <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-2xl"
+                      style={{
+                        background: unrealized >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)',
+                        border: `1px solid ${unrealized >= 0 ? 'rgba(31,190,141,0.25)' : 'rgba(255,111,97,0.25)'}`,
+                      }}>
+                      <p className="text-xs font-bold" style={{ color: unrealized >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {unrealized >= 0 ? 'Ganancia' : 'Pérdida'} sin realizar
+                      </p>
+                      <p className="text-base font-extrabold tabular-nums" style={{ color: unrealized >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        {fmtUSDSigned(unrealized)}{unrealizedPct !== null && ` (${fmtPct(unrealizedPct)})`}
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* D5: con qué lectura se decidió esta compra — se guarda al
+                    registrarla, es memoria de la decisión, no del precio. */}
+                {!isSell && op.purchase?.conviction_score != null && (
+                  <p className="text-[11px] leading-relaxed px-1 pt-1" style={{ color: 'var(--ink-3)' }}>
+                    La compraste con una lectura de {Math.round(op.purchase.conviction_score)}/100
+                    {op.purchase.conviction_tier && ` (${op.purchase.conviction_tier.replace('_', ' ')})`}
+                    {op.purchase.had_entry_trigger === false && ', sin gatillo de entrada ese día'}.
+                  </p>
+                )}
+                {(op.sale?.notes || op.purchase?.notes) && (
+                  <p className="text-[11px] leading-relaxed px-1 pt-1" style={{ color: 'var(--ink-3)' }}>
+                    {op.sale?.notes ?? op.purchase?.notes}
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t px-5 py-3 flex items-center gap-2" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <button onClick={() => setOpDetail(null)}
+                  className="flex-1 py-3 text-sm font-semibold rounded-2xl border"
+                  style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                  Cerrar
+                </button>
+                <button onClick={() => { setOpDetail(null); openDetail(op.ticker) }}
+                  className="flex-1 py-3 text-sm font-bold rounded-2xl transition-all active:scale-[.98]"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}>
+                  Ver {op.ticker}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       </>
       )}
 
