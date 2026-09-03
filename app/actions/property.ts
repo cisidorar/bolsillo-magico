@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { aseoDueDates, aseoRef } from '@/lib/property-charges'
+import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 
 // ── P1 (PLAN_PROPIEDAD): CRUD de la propiedad y su ledger de obligaciones ────
 // Mundo aparte por decisión D1: nada de esto escribe en expenses ni en incomes.
@@ -233,6 +234,166 @@ export async function generateAseoCharges(
       period_month: Number(r.dueDate.slice(5, 7)),
       notes:        'Generado automáticamente — reemplaza la referencia por el N° de giro real',
     }))
+
+  if (rows.length === 0) return { ok: true, created: 0 }
+
+  const { error } = await supabase.from('property_charges').insert(rows)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/propiedad')
+  return { ok: true, created: rows.length }
+}
+
+// ── P2: contrato de arriendo ────────────────────────────────────────────────
+
+export interface LeaseInput {
+  propertyId:        string
+  tenantName:        string
+  tenantEmail:       string | null
+  tenantPhone:       string | null
+  startDate:         string
+  endDate:           string | null
+  noticeDays:        number
+  rentAmount:        number
+  rentDueDay:        number
+  lateFeePerDay:     number | null
+  terminationDays:   number | null
+  adjustmentKind:    'ipc' | 'uf' | 'none'
+  adjustmentMonths:  number | null
+  lastAdjustmentDate: string | null
+  depositAmount:     number | null
+  notes:             string | null
+}
+
+export async function saveLease(input: LeaseInput, id?: string): Promise<Result> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+  if (!input.tenantName.trim()) return { ok: false, error: 'Falta el nombre del arrendatario' }
+  if (!input.startDate) return { ok: false, error: 'Falta la fecha de inicio' }
+  if (input.rentAmount <= 0) return { ok: false, error: 'La renta debe ser mayor que cero' }
+
+  const row = {
+    user_id:              user.id,
+    property_id:          input.propertyId,
+    tenant_name:          input.tenantName.trim(),
+    tenant_email:         input.tenantEmail?.trim() || null,
+    tenant_phone:         input.tenantPhone?.trim() || null,
+    start_date:           input.startDate,
+    end_date:             input.endDate || null,
+    notice_days:          input.noticeDays || 60,
+    rent_amount:          Math.round(input.rentAmount),
+    rent_due_day:         input.rentDueDay,
+    late_fee_per_day:     input.lateFeePerDay ?? null,
+    termination_days:     input.terminationDays ?? null,
+    adjustment_kind:      input.adjustmentKind,
+    adjustment_months:    input.adjustmentKind === 'none' ? null : input.adjustmentMonths,
+    // Sin base explícita el reajuste se cuenta desde el inicio del contrato.
+    last_adjustment_date: input.lastAdjustmentDate || input.startDate,
+    deposit_amount:       input.depositAmount ?? null,
+    notes:                input.notes?.trim() || null,
+    updated_at:           new Date().toISOString(),
+  }
+
+  const { data, error } = id
+    ? await supabase.from('lease_contracts').update(row).eq('id', id).eq('user_id', user.id).select('id').single()
+    : await supabase.from('lease_contracts').insert(row).select('id').single()
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/propiedad')
+  return { ok: true, id: data?.id }
+}
+
+export async function deleteLease(id: string): Promise<Result> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const { error } = await supabase.from('lease_contracts').delete().eq('id', id).eq('user_id', user.id)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/propiedad')
+  return { ok: true }
+}
+
+/**
+ * Genera los cobros mensuales de arriendo y dividendo desde el inicio del
+ * contrato hasta el mes en curso.
+ *
+ * Dos decisiones que cambian lo que ves en pantalla:
+ *
+ * - El **arriendo nace impago** (`paid_date: null`). Es plata que tiene que
+ *   llegar; darla por recibida sin que Cas la confirme sería mentir sobre el
+ *   estado de la propiedad.
+ * - El **dividendo nace pagado pero sin confirmar** (D2 del plan): se descuenta
+ *   solo de la cuenta corriente, así que decir "impago" sería falso. Pero que
+ *   el banco lo haya cobrado es un supuesto hasta mirar la cartola — por eso
+ *   `confirmed: false` y el chip de "revisar" en la UI.
+ *
+ * Idempotente por `external_ref`, igual que generateAseoCharges: correrlo dos
+ * veces no duplica y sirve para rellenar meses faltantes.
+ */
+export async function generateLeaseCharges(
+  propertyId: string,
+  today: string,
+): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const [{ data: lease }, { data: prop }] = await Promise.all([
+    supabase.from('lease_contracts')
+      .select('start_date, end_date, notice_days, rent_amount, rent_due_day, late_fee_per_day, termination_days, adjustment_kind, adjustment_months, last_adjustment_date')
+      .eq('user_id', user.id).eq('property_id', propertyId).eq('is_active', true).maybeSingle(),
+    supabase.from('properties')
+      .select('mortgage_amount, mortgage_due_day')
+      .eq('user_id', user.id).eq('id', propertyId).single(),
+  ])
+
+  if (!lease) return { ok: false, error: 'Primero registra el contrato de arriendo' }
+
+  const { data: existing } = await supabase
+    .from('property_charges')
+    .select('external_ref')
+    .eq('user_id', user.id).eq('property_id', propertyId)
+    .in('kind', ['rent', 'mortgage'])
+
+  const taken = new Set((existing ?? []).map(r => r.external_ref))
+  const periods = rentPeriodsToGenerate(lease as LeaseLike, today)
+  const rows: Record<string, unknown>[] = []
+
+  for (const { year, month } of periods) {
+    const rRef = rentRef(year, month)
+    if (!taken.has(rRef)) {
+      rows.push({
+        user_id: user.id, property_id: propertyId,
+        kind: 'rent', direction: 'in',
+        due_date: rentDueDate(lease as LeaseLike, year, month),
+        amount: lease.rent_amount,
+        responsible: 'owner', external_ref: rRef,
+        period_year: year, period_month: month,
+      })
+    }
+
+    // El dividendo solo se genera si la propiedad tiene monto y día cargados.
+    const mRef = mortgageRef(year, month)
+    if (prop?.mortgage_amount && prop.mortgage_due_day && !taken.has(mRef)) {
+      const lastDay = new Date(year, month, 0).getDate()
+      const day = Math.min(prop.mortgage_due_day, lastDay)
+      const dueDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      // Solo lo damos por cobrado si la fecha ya pasó — un dividendo que vence
+      // en tres semanas no se descontó todavía.
+      const yaVencio = dueDate <= today
+      rows.push({
+        user_id: user.id, property_id: propertyId,
+        kind: 'mortgage', direction: 'out',
+        due_date: dueDate,
+        amount: prop.mortgage_amount,
+        responsible: 'owner', external_ref: mRef,
+        period_year: year, period_month: month,
+        auto_debit: true,
+        paid_date: yaVencio ? dueDate : null,
+        paid_amount: yaVencio ? prop.mortgage_amount : null,
+        confirmed: false,
+      })
+    }
+  }
 
   if (rows.length === 0) return { ok: true, created: 0 }
 

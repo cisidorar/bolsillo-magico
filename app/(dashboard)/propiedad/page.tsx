@@ -2,7 +2,8 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getNowChile } from '@/lib/utils'
 import PropiedadToggle, { type PropiedadView } from '@/components/PropiedadToggle'
-import PropertyManager, { type Property, type Charge } from '@/components/PropertyManager'
+import PropertyManager, { type Property, type Charge, type Lease } from '@/components/PropertyManager'
+import { fetchClIpcSeries } from '@/lib/cl-indicators'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +52,20 @@ export default async function PropiedadPage({
 
   const charges = (chargesRaw ?? []) as Charge[]
 
+  // Contrato + IPC en paralelo. La serie de IPC alimenta el aviso de reajuste;
+  // si mindicador.cl falla queda null y la tarjeta simplemente no muestra el
+  // monto sugerido — nunca rompe la página.
+  const [leaseRes, ipcSeries] = property
+    ? await Promise.all([
+        supabase.from('lease_contracts')
+          .select('id, tenant_name, tenant_email, tenant_phone, start_date, end_date, notice_days, rent_amount, rent_due_day, late_fee_per_day, termination_days, adjustment_kind, adjustment_months, last_adjustment_date, deposit_amount, notes')
+          .eq('user_id', user.id).eq('property_id', property.id).eq('is_active', true).maybeSingle(),
+        fetchClIpcSeries(supabase),
+      ])
+    : [{ data: null }, null]
+
+  const lease = (leaseRes.data ?? null) as Lease | null
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
@@ -67,7 +82,8 @@ export default async function PropiedadPage({
         El chequeo del departamento en arriendo. No se mezcla con tus gastos.
       </p>
 
-      <PropertyManager property={property} charges={charges} today={today} view={view} />
+      <PropertyManager property={property} charges={charges} lease={lease}
+                       ipcSeries={ipcSeries} today={today} view={view} />
     </div>
   )
 }

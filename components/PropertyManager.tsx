@@ -15,7 +15,12 @@ import {
 import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
+  saveLease, deleteLease, generateLeaseCharges,
 } from '@/app/actions/property'
+import {
+  nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
+} from '@/lib/lease'
+import type { IpcObservation } from '@/lib/cl-indicators'
 
 export interface Property {
   id: string
@@ -97,9 +102,30 @@ export interface Charge {
   period_year: number | null
 }
 
+export interface Lease {
+  id: string
+  tenant_name: string
+  tenant_email: string | null
+  tenant_phone: string | null
+  start_date: string
+  end_date: string | null
+  notice_days: number
+  rent_amount: number
+  rent_due_day: number
+  late_fee_per_day: number | null
+  termination_days: number | null
+  adjustment_kind: 'ipc' | 'uf' | 'none'
+  adjustment_months: number | null
+  last_adjustment_date: string | null
+  deposit_amount: number | null
+  notes: string | null
+}
+
 interface Props {
   property: Property | null
   charges: Charge[]
+  lease: Lease | null
+  ipcSeries: IpcObservation[] | null
   today: string
   view: 'estado' | 'cobros'
 }
@@ -142,11 +168,12 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-export default function PropertyManager({ property, charges, today, view }: Props) {
+export default function PropertyManager({ property, charges, lease, ipcSeries, today, view }: Props) {
   const router = useRouter()
   const [propForm, setPropForm]   = useState(false)
   const [chargeForm, setChargeForm] = useState<Charge | 'new' | null>(null)
   const [aseoForm, setAseoForm]   = useState(false)
+  const [leaseForm, setLeaseForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
   const [busy, setBusy]           = useState(false)
   const [error, setError]         = useState<string | null>(null)
@@ -157,6 +184,7 @@ export default function PropertyManager({ property, charges, today, view }: Prop
   const propBackdrop   = useBackdropClose(() => setPropForm(false))
   const chargeBackdrop = useBackdropClose(() => setChargeForm(null))
   const aseoBackdrop   = useBackdropClose(() => setAseoForm(false))
+  const leaseBackdrop  = useBackdropClose(() => setLeaseForm(false))
   const payBackdrop    = useBackdropClose(() => setPayFor(null))
 
   async function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
@@ -339,6 +367,12 @@ export default function PropertyManager({ property, charges, today, view }: Prop
             </div>
           )}
 
+          <LeaseCard
+            lease={lease} ipcSeries={ipcSeries} today={today} busy={busy}
+            onEdit={() => setLeaseForm(true)}
+            onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
+          />
+
           <PropertyCard property={property} onEdit={() => setPropForm(true)} />
         </div>
       ) : (
@@ -419,6 +453,17 @@ export default function PropertyManager({ property, charges, today, view }: Prop
             if (!res.ok) { setError(res.error); return }
             router.refresh(); setAseoForm(false)
           }}
+        />
+      )}
+
+      {leaseForm && (
+        <LeaseForm
+          lease={lease} propertyId={property.id} busy={busy} error={error} backdrop={leaseBackdrop}
+          onCancel={() => setLeaseForm(false)}
+          onSave={async input => { if (await run(() => saveLease(input, lease?.id))) setLeaseForm(false) }}
+          onDelete={lease ? async () => {
+            if (await run(() => deleteLease(lease.id))) setLeaseForm(false)
+          } : undefined}
         />
       )}
 
@@ -608,6 +653,136 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
 }
 
 // ── Ficha de la propiedad ───────────────────────────────────────────────────
+
+// ── El contrato ─────────────────────────────────────────────────────────────
+
+/**
+ * Muestra el contrato y, sobre todo, las tres cosas que se pierden por olvido:
+ * cuándo toca reajustar, cuándo hay que avisar si no se renueva, y si faltan
+ * meses de arriendo por generar.
+ */
+function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
+  lease: Lease | null
+  ipcSeries: IpcObservation[] | null
+  today: string
+  busy: boolean
+  onEdit: () => void
+  onGenerate: () => void
+}) {
+  if (!lease) {
+    return (
+      <div className="card p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+               style={{ background: 'var(--surface-2)' }}>
+            <CalendarDays className="w-5 h-5" style={{ color: 'var(--ink-3)' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold mb-0.5" style={{ color: 'var(--ink)' }}>Sin contrato registrado</p>
+            <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>
+              Con el contrato cargado se generan solos los arriendos de cada mes y te aviso del reajuste.
+            </p>
+            <button onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <Plus className="w-3.5 h-3.5" /> Agregar contrato
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const l = lease as unknown as LeaseLike
+  const nextAdj = nextAdjustmentDate(l)
+  const adjDays = nextAdj ? daysBetween(today, nextAdj) : null
+  // El reajuste se avisa con 45 días: el IPC de noviembre se publica ~8 dic,
+  // así que avisar el 1 de diciembre no serviría de nada — hay que tener el
+  // dato antes de emitir el cobro del mes.
+  const adjSoon = adjDays !== null && adjDays <= 45 && adjDays >= 0
+  const adjusted = adjSoon && ipcSeries ? computeAdjustedRent(l, ipcSeries, nextAdj!) : null
+
+  const notice = noticeDeadline(l)
+  const noticeDays = notice ? daysBetween(today, notice) : null
+  const noticeSoon = noticeDays !== null && noticeDays <= 30 && noticeDays >= 0
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>El contrato</h3>
+          <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--ink-3)' }}>{lease.tenant_name}</p>
+        </div>
+        <button onClick={onEdit} className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>
+          Editar
+        </button>
+      </div>
+
+      <dl className="space-y-1.5 text-sm">
+        <Row label="Arriendo" value={`${formatCLP(lease.rent_amount)} · día ${lease.rent_due_day}`} />
+        {lease.late_fee_per_day && (
+          <Row label="Multa por atraso" value={`${formatCLP(lease.late_fee_per_day)} por día`} />
+        )}
+        {nextAdj && (
+          <Row label="Próximo reajuste" value={`${fmtDate(nextAdj)}${
+            lease.adjustment_months ? ` · IPC ${lease.adjustment_months}m` : ''}`} />
+        )}
+      </dl>
+
+      {/* Reajuste — gold, es accionable pero no urgente (UX5) */}
+      {adjSoon && (
+        <div className="mt-3 p-3 rounded-xl flex items-start gap-2"
+             style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+          <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <div className="min-w-0">
+            <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+              Toca reajustar {adjDays === 0 ? 'hoy' : `en ${adjDays} ${adjDays === 1 ? 'día' : 'días'}`}
+            </p>
+            {adjusted && !adjusted.floored && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                Con el IPC del período la renta sube a {formatCLP(adjusted.newRent)}
+                {' '}(+{formatCLP(adjusted.delta)}, {adjusted.pctApplied.toFixed(1)}%)
+              </p>
+            )}
+            {adjusted?.floored && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                El IPC del período fue negativo — la renta se mantiene en {formatCLP(lease.rent_amount)}.
+              </p>
+            )}
+            {!adjusted && (
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                El IPC del período todavía no se publica.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Aviso de no renovación */}
+      {noticeSoon && (
+        <div className="mt-2 p-3 rounded-xl flex items-start gap-2"
+             style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+            Si no quieres renovar, el plazo para avisar vence el {fmtDate(notice!)}
+            {' '}({noticeDays === 0 ? 'hoy' : `en ${noticeDays} días`}).
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+        <button onClick={onGenerate} disabled={busy}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+          <Sparkles className="w-3.5 h-3.5" /> Generar arriendos y dividendos al día
+        </button>
+        <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+          Crea los meses que falten desde el inicio del contrato. Correrlo dos veces no duplica.
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => void }) {
   const missingDiv = !property.mortgage_amount
@@ -1114,6 +1289,158 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel={isIncome ? 'Registrar' : 'Pagar'} />
+      </form>
+    </Modal>
+  )
+}
+
+// ── Formulario del contrato ─────────────────────────────────────────────────
+
+function LeaseForm({ lease, propertyId, busy, error, backdrop, onCancel, onSave, onDelete }: {
+  lease: Lease | null
+  propertyId: string
+  busy: boolean
+  error: string | null
+  backdrop: Backdrop
+  onCancel: () => void
+  onSave: (input: Parameters<typeof saveLease>[0]) => void
+  onDelete?: () => void
+}) {
+  const [name, setName]       = useState(lease?.tenant_name ?? '')
+  const [email, setEmail]     = useState(lease?.tenant_email ?? '')
+  const [phone, setPhone]     = useState(lease?.tenant_phone ?? '')
+  const [start, setStart]     = useState(lease?.start_date ?? '')
+  const [end, setEnd]         = useState(lease?.end_date ?? '')
+  const [notice, setNotice]   = useState(String(lease?.notice_days ?? 60))
+  const [rent, setRent]       = useState(lease?.rent_amount?.toString() ?? '')
+  const [dueDay, setDueDay]   = useState(String(lease?.rent_due_day ?? 5))
+  const [fee, setFee]         = useState(lease?.late_fee_per_day?.toString() ?? '')
+  const [termDays, setTerm]   = useState(lease?.termination_days?.toString() ?? '')
+  const [adjKind, setAdjKind] = useState<'ipc' | 'uf' | 'none'>(lease?.adjustment_kind ?? 'ipc')
+  const [adjMonths, setAdjM]  = useState(String(lease?.adjustment_months ?? 6))
+  const [deposit, setDep]     = useState(lease?.deposit_amount?.toString() ?? '')
+
+  return (
+    <Modal title={lease ? 'Editar contrato' : 'Nuevo contrato'} backdrop={backdrop} onCancel={onCancel}>
+      <form onSubmit={e => {
+        e.preventDefault()
+        onSave({
+          propertyId,
+          tenantName: name, tenantEmail: email || null, tenantPhone: phone || null,
+          startDate: start, endDate: end || null,
+          noticeDays: Number(notice || 60),
+          rentAmount: Number(rent.replace(/\D/g, '') || 0),
+          rentDueDay: Number(dueDay || 5),
+          lateFeePerDay: fee ? Number(fee.replace(/\D/g, '')) : null,
+          terminationDays: termDays ? Number(termDays) : null,
+          adjustmentKind: adjKind,
+          adjustmentMonths: adjKind === 'none' ? null : Number(adjMonths || 6),
+          lastAdjustmentDate: lease?.last_adjustment_date ?? null,
+          depositAmount: deposit ? Number(deposit.replace(/\D/g, '')) : null,
+          notes: null,
+        })
+      }}>
+        <Field label="Arrendatario">
+          <input className={inputCls} style={inputStyle} value={name} required
+                 onChange={e => setName(e.target.value)} placeholder="Nombre completo" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Email">
+            <input className={inputCls} style={inputStyle} value={email} type="email"
+                   onChange={e => setEmail(e.target.value)} placeholder="opcional" />
+          </Field>
+          <Field label="Teléfono">
+            <input className={inputCls} style={inputStyle} value={phone}
+                   onChange={e => setPhone(e.target.value)} placeholder="opcional" />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Inicio">
+            <input className={inputCls} style={inputStyle} value={start} type="date" required
+                   onChange={e => setStart(e.target.value)} />
+          </Field>
+          <Field label="Término" hint="Vacío = indefinido">
+            <input className={inputCls} style={inputStyle} value={end} type="date"
+                   onChange={e => setEnd(e.target.value)} />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Renta mensual">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                    style={{ color: 'var(--ink-3)' }}>$</span>
+              <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                     value={fmtClpInput(rent)} inputMode="numeric" required
+                     onChange={e => setRent(e.target.value.replace(/\D/g, ''))} placeholder="335.000" />
+            </div>
+          </Field>
+          <Field label="Día de pago" hint="1 a 28">
+            <input className={inputCls} style={inputStyle} value={dueDay} inputMode="numeric"
+                   onChange={e => setDueDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="5" />
+          </Field>
+        </div>
+
+        <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs font-bold pt-3 mb-3" style={{ color: 'var(--ink-2)' }}>Reajuste</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tipo">
+            <select className={inputCls} style={inputStyle} value={adjKind}
+                    onChange={e => setAdjKind(e.target.value as 'ipc' | 'uf' | 'none')}>
+              <option value="ipc">Por IPC</option>
+              <option value="uf">En UF</option>
+              <option value="none">Sin reajuste</option>
+            </select>
+          </Field>
+          {adjKind !== 'none' && (
+            <Field label="Cada cuántos meses">
+              <input className={inputCls} style={inputStyle} value={adjMonths} inputMode="numeric"
+                     onChange={e => setAdjM(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="6" />
+            </Field>
+          )}
+        </div>
+
+        <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs font-bold pt-3 mb-3" style={{ color: 'var(--ink-2)' }}>Cláusulas de mora</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Multa por día">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                    style={{ color: 'var(--ink-3)' }}>$</span>
+              <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                     value={fmtClpInput(fee)} inputMode="numeric"
+                     onChange={e => setFee(e.target.value.replace(/\D/g, ''))} placeholder="5.000" />
+            </div>
+          </Field>
+          <Field label="Días para término" hint="Mora que habilita fin de contrato">
+            <input className={inputCls} style={inputStyle} value={termDays} inputMode="numeric"
+                   onChange={e => setTerm(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="30" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Garantía">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                    style={{ color: 'var(--ink-3)' }}>$</span>
+              <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                     value={fmtClpInput(deposit)} inputMode="numeric"
+                     onChange={e => setDep(e.target.value.replace(/\D/g, ''))} placeholder="335.000" />
+            </div>
+          </Field>
+          <Field label="Días de aviso" hint="Para no renovar">
+            <input className={inputCls} style={inputStyle} value={notice} inputMode="numeric"
+                   onChange={e => setNotice(e.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="60" />
+          </Field>
+        </div>
+
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        <Actions
+          busy={busy} onCancel={onCancel} submitLabel="Guardar"
+          danger={onDelete ? { label: 'Eliminar contrato', onClick: onDelete } : undefined}
+        />
       </form>
     </Modal>
   )

@@ -19,6 +19,13 @@ export default function Loading() {
         </div>
       </div>
 
+      {/* contrato */}
+      <div className="card p-4 mb-5 space-y-2">
+        <div className="h-4 w-28 rounded" style={{ background: 'var(--surface-2)' }} />
+        <div className="h-3 w-40 rounded" style={{ background: 'var(--surface-2)' }} />
+        <div className="h-3 w-52 rounded" style={{ background: 'var(--surface-2)' }} />
+      </div>
+
       <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="px-4 py-4 flex items-center gap-3">
