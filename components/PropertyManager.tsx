@@ -236,7 +236,7 @@ export default function PropertyManager({ property, charges, today, view }: Prop
                    style={{ color: health.ok ? '#0F9D6E' : health.overdue.length > 0 ? '#DC2626' : '#B45309' }}>
                   {property.alias}
                 </p>
-                <h2 className="text-2xl lg:text-3xl font-extrabold leading-tight mb-1"
+                <h2 className="text-2xl font-extrabold leading-tight mb-1"
                     style={{ color: 'var(--ink)' }}>
                   {health.ok
                     ? 'Todo al día'
@@ -254,7 +254,20 @@ export default function PropertyManager({ property, charges, today, view }: Prop
                     Próximo: {KIND_LABEL[next.kind ?? ''] ?? next.kind} · {relativeDue(next.due_date, today)}
                   </p>
                 )}
+                {health.ok && !next && (
+                  <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Sin cobros pendientes registrados</p>
+                )}
               </div>
+              {/* Stat derecho — solo en desktop si hay dividendo */}
+              {property.mortgage_amount && (
+                <div className="hidden lg:flex flex-col items-end flex-shrink-0 ml-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--ink-3)' }}>Dividendo</p>
+                  <p className="text-xl font-extrabold" style={{ color: 'var(--ink)' }}>{formatCLP(property.mortgage_amount)}</p>
+                  {property.mortgage_due_day && (
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>día {property.mortgage_due_day} c/mes</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -610,9 +623,8 @@ function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => 
               : 'Casa'} />
         )}
         {property.address && <Row label="Dirección" value={property.address} />}
-        {(property.comuna || property.region) && (
-          <Row label="Comuna" value={[property.comuna, property.region].filter(Boolean).join(', ')} />
-        )}
+        {property.region && <Row label="Región" value={property.region} />}
+        {property.comuna && <Row label="Comuna" value={property.comuna} />}
         {property.rol_sii && <Row label="ROL" value={property.rol_sii} />}
         {property.mortgage_amount && (
           <Row label="Dividendo" value={`${formatCLP(property.mortgage_amount)}${
