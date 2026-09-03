@@ -10,29 +10,12 @@ import StatHeroRow from '@/components/StatHeroRow'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity,
 } from '@/lib/term-deposits'
+import { CL_INSTITUTIONS, domainFromBankName } from '@/lib/cl-banks'
 import type { TermDeposit } from '@/app/(dashboard)/inversiones/page'
 
-// ── Dominio por nombre de banco ───────────────────────────────────────────────
-function domainFromBankName(name: string): string | null {
-  const n = name.toLowerCase()
-  if (n.includes('banco estado') || n.includes('bancoestado')) return 'bancoestado.cl'
-  if (n.includes('santander'))     return 'santander.cl'
-  if (n.includes('bci'))           return 'bci.cl'
-  if (n.includes('falabella'))     return 'falabella.com'
-  if (n.includes('ripley'))        return 'ripley.cl'
-  if (n.includes('scotiabank'))    return 'scotiabank.cl'
-  if (n.includes('bice'))          return 'bice.cl'
-  if (n.includes('itaú') || n.includes('itau')) return 'itau.cl'
-  if (n.includes('chile'))         return 'bancochile.cl'
-  if (n.includes('security'))      return 'bancosecurity.cl'
-  if (n.includes('coopeuch'))      return 'coopeuch.cl'
-  if (n.includes('consorcio'))     return 'bancoconsorcio.cl'
-  if (n.includes('internacional')) return 'bancointernacional.cl'
-  if (n.includes('tenpo'))         return 'tenpo.app'
-  if (n.includes('mercado pago') || n.includes('mercadopago')) return 'mercadopago.com'
-  if (n.includes('fintual'))       return 'fintual.com'
-  return null
-}
+// El mapa de dominios y la lista de instituciones viven juntos en
+// lib/cl-banks.ts (sep 2026) — antes el mapa estaba acá suelto y el campo era
+// texto libre sin sugerencias, así que había dos cosas que mantener a mano.
 
 function avatarColor(name: string): string {
   const palette = ['#2B7CF6','#1FBE8D','#FF6F61','#FFC23C','#A78BFA','#F472B6','#34D399','#FB923C']
@@ -426,17 +409,28 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Banco o institución
                 </label>
+                {/* sep 2026 (Cas: "aquí en banco debería desplegar y mostrar
+                    los bancos de chile"): datalist en vez de un <select>
+                    porque el campo tiene que seguir aceptando cualquier cosa
+                    — cooperativas chicas, una caja, "el colchón". La lista
+                    sugiere mientras escribes y filtra sola; elegir una opción
+                    garantiza además que el logo salga bien (mismo archivo
+                    resuelve nombre → dominio). */}
                 <input
                   type="text"
+                  list="cl-institutions"
                   value={form.bank}
                   onChange={e => setForm(f => ({ ...f, bank: e.target.value }))}
-                  placeholder="ej: BancoEstado, Santander, BCI"
+                  placeholder="Elige o escribe — ej: Banco de Chile, Coopeuch"
                   maxLength={60}
                   className="w-full text-sm border px-4 py-3"
                   style={inputBase}
                   onFocus={focusOn} onBlur={focusOff}
                   autoFocus
                 />
+                <datalist id="cl-institutions">
+                  {CL_INSTITUTIONS.map(i => <option key={i.domain} value={i.name} />)}
+                </datalist>
               </div>
 
               {/* Monto + Interés */}
