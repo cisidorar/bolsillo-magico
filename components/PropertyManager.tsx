@@ -132,6 +132,8 @@ interface Props {
   ipcSeries: IpcObservation[] | null
   today: string
   view: 'estado' | 'cobros'
+  /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
+  openNew?: boolean
 }
 
 const STATUS_STYLE: Record<ChargeStatus, { label: string; color: string; bg: string }> = {
@@ -172,9 +174,12 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-export default function PropertyManager({ property, charges, lease, ipcSeries, today, view }: Props) {
+export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew }: Props) {
   const router = useRouter()
-  const [propForm, setPropForm]   = useState(false)
+  // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
+  // Property es edición. Antes era boolean y no podía distinguir los dos casos
+  // — con varias propiedades, "agregar" habría abierto el form de la actual.
+  const [propForm, setPropForm]   = useState<Property | 'new' | null>(openNew ? 'new' : null)
   const [chargeForm, setChargeForm] = useState<Charge | 'new' | null>(null)
   const [aseoForm, setAseoForm]   = useState(false)
   const [leaseForm, setLeaseForm] = useState(false)
@@ -188,13 +193,21 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const health = useMemo(() => propertyHealth(charges, today), [charges, today])
   const next   = useMemo(() => nextDue(charges, today), [charges, today])
 
-  const propBackdrop   = useBackdropClose(() => setPropForm(false))
+  const propBackdrop   = useBackdropClose(() => closePropForm())
   const chargeBackdrop = useBackdropClose(() => setChargeForm(null))
   const aseoBackdrop   = useBackdropClose(() => setAseoForm(false))
   const leaseBackdrop  = useBackdropClose(() => setLeaseForm(false))
   const divBackdrop    = useBackdropClose(() => setDivForm(false))
   const utilsBackdrop  = useBackdropClose(() => setUtilsForm(false))
   const payBackdrop    = useBackdropClose(() => setPayFor(null))
+
+  // Cerrar el form limpia ?nueva=1 de la URL. Sin esto, el router.refresh()
+  // que dispara cualquier guardado volvería a montar el manager con openNew
+  // en true y el modal reaparecería solo.
+  function closePropForm() {
+    setPropForm(null)
+    if (openNew) router.replace(property ? `/propiedad?prop=${property.id}` : '/propiedad')
+  }
 
   async function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true); setError(null)
@@ -224,7 +237,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             cuentas y derechos de aseo. No se mezcla con tus gastos personales.
           </p>
           <button
-            onClick={() => setPropForm(true)}
+            onClick={() => setPropForm('new')}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold active:scale-[.98] transition-transform"
             style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
@@ -235,8 +248,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         {propForm && (
           <PropertyForm
             property={null} busy={busy} error={error} backdrop={propBackdrop}
-            onCancel={() => setPropForm(false)}
-            onSave={async input => { if (await run(() => saveProperty(input))) setPropForm(false) }}
+            onCancel={closePropForm}
+            onSave={async input => { if (await run(() => saveProperty(input))) closePropForm() }}
           />
         )}
       </>
@@ -261,6 +274,17 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
   // Un solo token por estado — el hero deriva fondo, borde e ícono de acá.
   const tone = health.ok ? 'var(--mint)' : health.overdue.length > 0 ? 'var(--coral)' : 'var(--gold)'
+
+  // Desglose de la severidad. "4 cosas pendientes" no distingue entre cuatro
+  // vencidas y cuatro que vencen la próxima semana — son situaciones muy
+  // distintas y el eyebrow es donde cabe esa diferencia sin agregar una fila.
+  const heroEyebrow = health.ok
+    ? 'Al día'
+    : [
+        health.overdue.length      > 0 ? `${health.overdue.length} vencido${health.overdue.length === 1 ? '' : 's'}` : null,
+        health.dueSoon.length      > 0 ? `${health.dueSoon.length} por vencer` : null,
+        health.tenantOverdue.length > 0 ? `${health.tenantOverdue.length} del arrendatario` : null,
+      ].filter(Boolean).join(' · ')
 
   return (
     <>
@@ -287,9 +311,12 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                   : <AlertTriangle className="w-6 h-6" style={{ color: tone }} />}
               </div>
               <div className="flex-1 min-w-0">
+                {/* El eyebrow ya no repite la dirección — eso vive en el H1 de
+                    la página. Acá va el desglose de la severidad, que es la
+                    información que el titular grande no alcanza a dar. */}
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
                    style={{ color: tone }}>
-                  {property.alias}
+                  {heroEyebrow}
                 </p>
                 <h2 className="text-2xl font-extrabold leading-tight mb-1"
                     style={{ color: 'var(--ink)' }}>
@@ -313,13 +340,26 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                   <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Sin cobros pendientes registrados</p>
                 )}
               </div>
-              {/* Stat derecho — solo en desktop si hay dividendo */}
-              {property.mortgage_amount && (
-                <div className="hidden lg:flex flex-col items-end flex-shrink-0 ml-4">
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--ink-3)' }}>Dividendo</p>
-                  <p className="text-xl font-extrabold" style={{ color: 'var(--ink)' }}>{formatCLP(property.mortgage_amount)}</p>
-                  {property.mortgage_due_day && (
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>día {property.mortgage_due_day} c/mes</p>
+              {/* Stats de plata — entra el arriendo, sale el dividendo. Los dos
+                  juntos porque la pregunta natural es si uno cubre al otro; por
+                  separado obligan a buscar el otro número en la página. */}
+              {(lease || property.mortgage_amount) && (
+                <div className="hidden lg:flex items-start gap-6 flex-shrink-0 ml-4">
+                  {lease && (
+                    <div className="flex flex-col items-end">
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--ink-3)' }}>Arriendo</p>
+                      <p className="text-xl font-extrabold" style={{ color: 'var(--mint)' }}>{formatCLP(lease.rent_amount)}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>día {lease.rent_due_day} c/mes</p>
+                    </div>
+                  )}
+                  {property.mortgage_amount && (
+                    <div className="flex flex-col items-end">
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--ink-3)' }}>Dividendo</p>
+                      <p className="text-xl font-extrabold" style={{ color: 'var(--ink)' }}>{formatCLP(property.mortgage_amount)}</p>
+                      {property.mortgage_due_day && (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>día {property.mortgage_due_day} c/mes</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -395,7 +435,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
           />
 
-          <PropertyCard property={property} onEdit={() => setPropForm(true)}
+          <PropertyCard property={property} onEdit={() => setPropForm(property)}
                         onAddMortgage={() => setDivForm(true)}
                         onAddUtilities={() => setUtilsForm(true)} />
         </div>
@@ -461,10 +501,16 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
       {/* ── Modales ────────────────────────────────────────────────────── */}
       {propForm && (
         <PropertyForm
-          property={property} busy={busy} error={error} backdrop={propBackdrop}
-          onCancel={() => setPropForm(false)}
-          onSave={async input => { if (await run(() => saveProperty(input, property.id))) setPropForm(false) }}
-          onDelete={async () => { if (await run(() => deleteProperty(property.id))) setPropForm(false) }}
+          property={propForm === 'new' ? null : propForm}
+          busy={busy} error={error} backdrop={propBackdrop}
+          onCancel={closePropForm}
+          onSave={async input => {
+            const id = propForm === 'new' ? undefined : propForm.id
+            if (await run(() => saveProperty(input, id))) closePropForm()
+          }}
+          onDelete={propForm === 'new' ? undefined : async () => {
+            if (await run(() => deleteProperty(property.id))) closePropForm()
+          }}
         />
       )}
 
@@ -861,16 +907,10 @@ function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
           Editar
         </button>
       </div>
+      {/* Tipo, dirección, región y comuna ya no van acá: viven en el H1 y su
+          bajada. Esta tarjeta quedó con lo administrativo — lo que necesitas
+          tener a mano para pagar algo o llamar a una empresa. */}
       <dl className="space-y-1.5 text-sm">
-        {property.property_type && (
-          <Row label="Tipo"
-            value={property.property_type === 'departamento'
-              ? `Departamento${property.unit_number ? ` ${property.unit_number}` : ''}`
-              : 'Casa'} />
-        )}
-        {property.address && <Row label="Dirección" value={property.address} />}
-        {property.region && <Row label="Región" value={property.region} />}
-        {property.comuna && <Row label="Comuna" value={property.comuna} />}
         {property.rol_sii && <Row label="ROL" value={property.rol_sii} />}
         {property.contribuciones_status && (
           <Row label="Contribuciones"
