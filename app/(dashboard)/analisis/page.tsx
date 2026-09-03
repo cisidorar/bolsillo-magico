@@ -22,7 +22,8 @@ import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import { earnedSoFar } from '@/lib/savings-accounts'
-import { earnedToDate, daysToMaturity } from '@/lib/term-deposits'
+import { earnedToDate } from '@/lib/term-deposits'
+import { countsAsEmergencyFund, emergencyFundNote } from '@/lib/emergency-fund'
 
 export const revalidate = 0
 
@@ -576,26 +577,46 @@ export default async function AnalisisPage({
   const savingsRows = (savingsRaw ?? []) as { name: string; balance: number; annual_rate: number; start_date: string }[]
   const depositRows = (depositsRaw ?? []) as { bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[]
 
-  const savingsBalances = savingsRows.map(s => s.balance + earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
-  const maturedDeposits = depositRows.filter(d => d.maturity_date < emergencyTodayStr)
-  const pendingDeposits = depositRows.filter(d => d.maturity_date >= emergencyTodayStr)
-  const maturedDepositsLiquid = maturedDeposits.map(d => d.amount + Math.round(d.amount * (Number(d.interest_rate) / 100)))
-  const totalSavings     = savingsBalances.reduce((s, v) => s + v, 0)
-    + maturedDepositsLiquid.reduce((s, v) => s + v, 0)
+  const savingsInterest = savingsRows.map(s => earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
+  const savingsBalances = savingsRows.map((s, i) => s.balance + savingsInterest[i])
 
   // Cas (ago 2026): "que se vea la cuenta con intereses y el DAP" — antes la
-  // tarjeta solo mostraba un total combinado sin decir de dónde salía. Ahora
-  // se lista cada cuenta/depósito por separado; los DAP vigentes se muestran
-  // igual (con lo devengado a hoy) pero no suman al total líquido hasta que
-  // venzan — mezclar plata bloqueada con líquida inflaría el indicador.
+  // tarjeta solo mostraba un total combinado sin decir de dónde salía.
+  //
+  // sep 2026 (Cas: "no coincide el fondo de emergencia, no veo que crezca y
+  // hay dap"): hasta acá los DAP VIGENTES se listaban en gris pero no sumaban,
+  // con el criterio de que era plata bloqueada. Demasiado estricto: sus dos
+  // depósitos vencían en 4 y 34 días, y un depósito a un mes sí es fondo de
+  // emergencia. El corte ahora va por horizonte, no por "vencido o no"
+  // (lib/emergency-fund.ts): cuenta lo que puedas tener en la mano dentro de
+  // 90 días. Con eso pasó de 1,7 meses cubiertos sobre $1,8M a reflejar los
+  // $2,6M que de verdad tiene disponibles.
+  const depositsWithInterest = depositRows.map(d => ({
+    d,
+    interest: earnedToDate(d, emergencyTodayStr),
+    counts:   countsAsEmergencyFund(d, emergencyTodayStr),
+  }))
+
+  const totalSavings = savingsBalances.reduce((s, v) => s + v, 0)
+    + depositsWithInterest.filter(x => x.counts).reduce((s, x) => s + x.d.amount + x.interest, 0)
+
+  // Cuánto de ese total es interés ya ganado — sin esto la tarjeta se veía
+  // congelada aunque el dinero rinda todos los días (Cas: "no veo que crezca").
+  const emergencyInterestEarned = savingsInterest.reduce((s, v) => s + v, 0)
+    + depositsWithInterest.filter(x => x.counts).reduce((s, x) => s + x.interest, 0)
+
   const emergencyFundItems = [
-    ...savingsRows.map((s, i) => ({ label: s.name || 'Cuenta de ahorro', amount: savingsBalances[i], liquid: true })),
-    ...maturedDeposits.map((d, i) => ({ label: d.bank || 'Depósito a plazo', amount: maturedDepositsLiquid[i], liquid: true, note: 'vencido' })),
-    ...pendingDeposits.map(d => ({
-      label: d.bank || 'Depósito a plazo',
-      amount: d.amount + earnedToDate(d, emergencyTodayStr),
-      liquid: false,
-      note: `vence en ${daysToMaturity(d, emergencyTodayStr)} días`,
+    ...savingsRows.map((s, i) => ({
+      label: s.name || 'Cuenta de ahorro',
+      amount: savingsBalances[i],
+      liquid: true,
+      note: savingsInterest[i] > 0 ? `+${formatCLP(savingsInterest[i])} de interés` : undefined,
+    })),
+    ...depositsWithInterest.map(({ d, interest, counts }) => ({
+      label:  d.bank || 'Depósito a plazo',
+      amount: d.amount + interest,
+      liquid: counts,
+      note:   emergencyFundNote(d, emergencyTodayStr),
     })),
   ]
   const completedExpenses: number[] = []
@@ -752,7 +773,7 @@ export default async function AnalisisPage({
   }
 
   const showPatrimonio = ratePoints.some(p => p.rate !== null) || surplusPct !== null
-    || savingsBalances.length > 0 || maturedDepositsLiquid.length > 0
+    || savingsBalances.length > 0 || depositsWithInterest.length > 0
     || activeRecurring.length > 0 || (netWorth !== null && netWorth.current.total_clp > 0)
 
   // UX: no mostrar meses vacíos al inicio del gráfico — con poca historia el chart
@@ -1775,8 +1796,9 @@ export default async function AnalisisPage({
               avg6={rateAvg6}
               avg12={rateAvg12}
               totalSavings={totalSavings}
-              savingsCount={savingsBalances.length + maturedDepositsLiquid.length}
+              savingsCount={savingsBalances.length + depositsWithInterest.filter(x => x.counts).length}
               emergencyFundItems={emergencyFundItems}
+              emergencyInterestEarned={emergencyInterestEarned}
               avgMonthlyExpense={avgMonthlyExpense}
               monthsCovered={monthsCovered}
               monthLabel={monthName(month)}

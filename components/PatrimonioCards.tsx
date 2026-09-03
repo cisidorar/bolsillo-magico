@@ -21,13 +21,17 @@ export interface CommitMonth {
 
 // ago 2026 (Cas: "que se vea la cuenta con intereses y el DAP") — cada cuenta
 // de ahorro y cada depósito a plazo por separado, en vez de un solo total
-// "Ahorros líquidos" sin decir de dónde sale. `liquid=false` (DAP vigente,
-// aún no vence) se muestra igual pero no suma a totalSavings/monthsCovered.
+// "Ahorros líquidos" sin decir de dónde sale.
+//
+// sep 2026: `liquid` ya NO significa "está vencido" sino "cuenta como fondo
+// de emergencia" — un DAP que vence dentro de 90 días sí cuenta (ver
+// lib/emergency-fund.ts). Solo los de plazo largo quedan atenuados y fuera
+// del total.
 export interface EmergencyFundItem {
   label:  string   // nombre de la cuenta o banco del depósito
   amount: number   // capital + interés devengado a hoy
-  liquid: boolean  // false = DAP vigente, bloqueado hasta el vencimiento
-  note?:  string   // ej. "vence en 8 días"
+  liquid: boolean  // false = fuera del horizonte, no suma a monthsCovered
+  note?:  string   // ej. "vence en 8 días", "+$18.110 de interés"
 }
 
 interface Props {
@@ -39,6 +43,8 @@ interface Props {
   totalSavings: number             // CLP líquidos en cuentas de ahorro
   savingsCount: number             // nº de cuentas de ahorro
   emergencyFundItems: EmergencyFundItem[]  // desglose por cuenta/depósito
+  /** Interés ya devengado del fondo — para que se vea que crece (sep 2026). */
+  emergencyInterestEarned: number
   avgMonthlyExpense: number | null // gasto promedio mensual (meses completados)
   monthsCovered: number | null     // totalSavings / avgMonthlyExpense
   monthLabel: string               // 'Julio'
@@ -235,7 +241,7 @@ export function NetWorthChart({ points }: { points: { label: string; total: numb
 
 export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12,
-  totalSavings, savingsCount, emergencyFundItems, avgMonthlyExpense, monthsCovered,
+  totalSavings, savingsCount, emergencyFundItems, emergencyInterestEarned, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
@@ -596,6 +602,18 @@ export default function PatrimonioCards({
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(item.amount)}</p>
                   </div>
                 ))}
+                {/* sep 2026 (Cas: "no veo que crezca"): el fondo rinde todos
+                    los días pero la tarjeta se veía congelada — solo mostraba
+                    saldos. Acá va cuánto de ese total ya es interés ganado. */}
+                {emergencyInterestEarned > 0 && (
+                  <div className="flex items-center justify-between rounded-2xl px-3 py-2.5"
+                    style={{ background: 'rgba(31,190,141,0.08)' }}>
+                    <p className="text-xs font-semibold" style={{ color: 'var(--mint)' }}>Interés ganado hasta hoy</p>
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--mint)' }}>
+                      +{formatCLP(emergencyInterestEarned)}
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                   <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Gasto promedio mensual</p>
                   <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
