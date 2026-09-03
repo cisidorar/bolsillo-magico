@@ -20,6 +20,8 @@ import {
 export interface Property {
   id: string
   alias: string
+  property_type: 'departamento' | 'casa' | 'otro' | null
+  unit_number: string | null
   address: string | null
   region: string | null
   comuna: string | null
@@ -599,6 +601,12 @@ function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => 
         </button>
       </div>
       <dl className="space-y-1.5 text-sm">
+        {property.property_type && (
+          <Row label="Tipo"
+            value={property.property_type === 'departamento'
+              ? `Departamento${property.unit_number ? ` · ${property.unit_number}` : ''}`
+              : property.property_type === 'casa' ? 'Casa' : 'Otro'} />
+        )}
         {property.address && <Row label="Dirección" value={property.address} />}
         {(property.comuna || property.region) && (
           <Row label="Comuna" value={[property.comuna, property.region].filter(Boolean).join(', ')} />
@@ -737,9 +745,11 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
   onSave: (input: Parameters<typeof saveProperty>[0]) => void
   onDelete?: () => void
 }) {
-  const [alias, setAlias]     = useState(property?.alias ?? '')
-  const [address, setAddress] = useState(property?.address ?? '')
-  const [region, setRegion]   = useState(property?.region ?? '')
+  const [alias, setAlias]         = useState(property?.alias ?? '')
+  const [propType, setPropType]   = useState<string>(property?.property_type ?? '')
+  const [unitNum, setUnitNum]     = useState(property?.unit_number ?? '')
+  const [address, setAddress]     = useState(property?.address ?? '')
+  const [region, setRegion]       = useState(property?.region ?? '')
   const [comuna, setComuna]   = useState(property?.comuna ?? '')
   const [rol, setRol]         = useState(property?.rol_sii ?? '')
   const [divAmt, setDivAmt]   = useState(property?.mortgage_amount?.toString() ?? '')
@@ -760,7 +770,10 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
       <form onSubmit={e => {
         e.preventDefault()
         onSave({
-          alias, address: address || null, region: region || null,
+          alias,
+          propertyType: (propType || null) as 'departamento' | 'casa' | 'otro' | null,
+          unitNumber: propType === 'departamento' ? (unitNum || null) : null,
+          address: address || null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
           mortgageAmount: divAmt ? Number(divAmt.replace(/\D/g, '')) : null,
           mortgageDueDay: divDay ? Number(divDay) : null,
@@ -773,6 +786,32 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           <input className={inputCls} style={inputStyle} value={alias} required
                  onChange={e => setAlias(e.target.value)} placeholder="Depto Santa Victoria" />
         </Field>
+        <Field label="Tipo de propiedad">
+          <div className="flex gap-2">
+            {(['departamento', 'casa', 'otro'] as const).map(t => (
+              <button
+                key={t} type="button"
+                onClick={() => { setPropType(t); if (t !== 'departamento') setUnitNum('') }}
+                className="flex-1 py-2 rounded-xl text-xs font-semibold border transition-all capitalize"
+                style={propType === t ? {
+                  background: 'var(--primary-soft)', color: 'var(--primary)',
+                  borderColor: 'var(--primary)',
+                } : {
+                  background: 'var(--surface)', color: 'var(--ink-2)',
+                  borderColor: 'var(--border)',
+                }}
+              >
+                {t === 'departamento' ? 'Depto' : t === 'casa' ? 'Casa' : 'Otro'}
+              </button>
+            ))}
+          </div>
+        </Field>
+        {propType === 'departamento' && (
+          <Field label="Número / piso">
+            <input className={inputCls} style={inputStyle} value={unitNum}
+                   onChange={e => setUnitNum(e.target.value)} placeholder="Ej. 921, piso 9" />
+          </Field>
+        )}
         <Field label="Dirección">
           <input className={inputCls} style={inputStyle} value={address}
                  onChange={e => setAddress(e.target.value)} placeholder="Santa Victoria 562, depto 921" />

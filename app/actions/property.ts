@@ -9,6 +9,8 @@ import { aseoDueDates, aseoRef } from '@/lib/property-charges'
 
 export interface PropertyInput {
   alias:                string
+  propertyType:         'departamento' | 'casa' | 'otro' | null
+  unitNumber:           string | null
   address:              string | null
   region:               string | null
   comuna:               string | null
@@ -36,6 +38,8 @@ export async function saveProperty(input: PropertyInput, id?: string): Promise<R
   const row = {
     user_id:                user.id,
     alias:                  input.alias.trim(),
+    property_type:          input.propertyType || null,
+    unit_number:            input.unitNumber?.trim() || null,
     address:                input.address?.trim() || null,
     region:                 input.region?.trim() || null,
     comuna:                 input.comuna?.trim() || null,
