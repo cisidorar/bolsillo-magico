@@ -18,6 +18,8 @@ export interface PropertyInput {
   region:               string | null
   comuna:               string | null
   rolSii:               string | null
+  contribucionesStatus: 'afecto' | 'exento' | null
+  aseoBilling:          'included' | 'separate' | 'exempt' | null
   mortgageAmount:       number | null
   mortgageDueDay:       number | null
   mortgageAccountLabel: string | null
@@ -47,6 +49,8 @@ export async function saveProperty(input: PropertyInput, id?: string): Promise<R
     region:                 input.region?.trim() || null,
     comuna:                 input.comuna?.trim() || null,
     rol_sii:                input.rolSii?.trim() || null,
+    contribuciones_status:  input.contribucionesStatus || null,
+    aseo_billing:           input.aseoBilling || null,
     mortgage_amount:        input.mortgageAmount || null,
     mortgage_due_day:       input.mortgageDueDay || null,
     mortgage_account_label: input.mortgageAccountLabel?.trim() || null,

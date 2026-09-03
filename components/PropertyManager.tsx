@@ -22,6 +22,7 @@ import {
 } from '@/lib/lease'
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
+import { suggestUtilities } from '@/lib/cl-utilities'
 
 export interface Property {
   id: string
@@ -32,6 +33,8 @@ export interface Property {
   region: string | null
   comuna: string | null
   rol_sii: string | null
+  contribuciones_status: 'afecto' | 'exento' | null
+  aseo_billing: 'included' | 'separate' | 'exempt' | null
   mortgage_amount: number | null
   mortgage_due_day: number | null
   mortgage_account_label: string | null
@@ -414,13 +417,18 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             >
               <Upload className="w-4 h-4" /> Subir boleta
             </button>
-            <button
-              onClick={() => setAseoForm(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
-            >
-              <Sparkles className="w-4 h-4" /> Generar aseo del año
-            </button>
+            {/* Solo si la municipalidad los cobra aparte: en una propiedad
+                afecta el aseo viene dentro del giro de contribuciones y
+                generarlo acá sería duplicar un cobro que ya existe. */}
+            {property.aseo_billing === 'separate' && (
+              <button
+                onClick={() => setAseoForm(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
+                style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+              >
+                <Sparkles className="w-4 h-4" /> Generar aseo del año
+              </button>
+            )}
           </div>
 
           <ChargeList
@@ -842,6 +850,7 @@ function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
   onAddMortgage: () => void
   onAddUtilities: () => void
 }) {
+  const sug = suggestUtilities(property.region, property.comuna)
   const missingDiv = !property.mortgage_amount
   const missingUtils = !property.electricity_client_id && !property.water_client_id
   return (
@@ -863,6 +872,16 @@ function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
         {property.region && <Row label="Región" value={property.region} />}
         {property.comuna && <Row label="Comuna" value={property.comuna} />}
         {property.rol_sii && <Row label="ROL" value={property.rol_sii} />}
+        {property.contribuciones_status && (
+          <Row label="Contribuciones"
+               value={property.contribuciones_status === 'afecto' ? 'Afecta' : 'Exenta'} />
+        )}
+        {property.aseo_billing && (
+          <Row label="Derechos de aseo"
+               value={property.aseo_billing === 'separate' ? 'Se cobran aparte'
+                    : property.aseo_billing === 'included' ? 'En las contribuciones'
+                    : 'Exenta'} />
+        )}
         {property.mortgage_amount && (
           <Row label="Dividendo" value={`${formatCLP(property.mortgage_amount)}${
             property.mortgage_due_day ? ` · día ${property.mortgage_due_day}` : ''}`} />
@@ -871,10 +890,10 @@ function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
           <Row label="Se carga a" value={property.mortgage_account_label} />
         )}
         {property.electricity_client_id && (
-          <Row label="NHE (luz)" value={property.electricity_client_id} />
+          <Row label={sug?.electricity.name ?? 'Luz'} value={property.electricity_client_id} />
         )}
         {property.water_client_id && (
-          <Row label="Nº cliente (agua)" value={property.water_client_id} />
+          <Row label={sug?.water.name ?? 'Agua'} value={property.water_client_id} />
         )}
       </dl>
 
@@ -1020,6 +1039,8 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
   const [region, setRegion]       = useState(property?.region ?? '')
   const [comuna, setComuna]   = useState(property?.comuna ?? '')
   const [rol, setRol]         = useState(property?.rol_sii ?? '')
+  const [contrib, setContrib] = useState<string>(property?.contribuciones_status ?? '')
+  const [aseo, setAseo]       = useState<string>(property?.aseo_billing ?? '')
 
   const comunasDeRegion = region ? (REGIONES_COMUNAS[region] ?? []) : []
 
@@ -1043,6 +1064,8 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           unitNumber: propType === 'departamento' ? (unitNum || null) : null,
           address: address || null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
+          contribucionesStatus: (contrib || null) as 'afecto' | 'exento' | null,
+          aseoBilling: (aseo || null) as 'included' | 'separate' | 'exempt' | null,
           // Dividendo y cuentas de servicio tienen su propio formulario —
           // acá solo se pasan por para no borrarlos al editar lo básico.
           mortgageAmount: property?.mortgage_amount ?? null,
@@ -1105,6 +1128,44 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           <input className={inputCls} style={inputStyle} value={rol}
                  onChange={e => setRol(e.target.value)} placeholder="20304050" />
         </Field>
+
+        <Field label="Contribuciones">
+          <div className="flex gap-2">
+            {([['afecto', 'Paga'], ['exento', 'Exenta']] as const).map(([v, label]) => (
+              <button key={v} type="button"
+                onClick={() => {
+                  setContrib(v)
+                  // Regla del SII: si es exenta no hay giro de contribuciones y
+                  // la municipalidad cobra el aseo aparte. Si es afecta, el aseo
+                  // suele venir dentro del mismo giro. Es solo un default —
+                  // queda editable abajo.
+                  setAseo(v === 'exento' ? 'separate' : 'included')
+                }}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold border transition-all"
+                style={contrib === v ? {
+                  background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)',
+                } : { background: 'var(--surface)', color: 'var(--ink-2)', borderColor: 'var(--border)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {contrib && (
+          <Field label="Derechos de aseo"
+                 hint={aseo === 'separate'
+                   ? 'La municipalidad los cobra en giros aparte — se pueden generar acá.'
+                   : aseo === 'included'
+                   ? 'Vienen dentro del giro de contribuciones, no se registran aparte.'
+                   : 'La propiedad no paga aseo.'}>
+            <select className={inputCls} style={inputStyle} value={aseo}
+                    onChange={e => setAseo(e.target.value)}>
+              <option value="separate">Se cobran aparte (municipalidad)</option>
+              <option value="included">Vienen en las contribuciones</option>
+              <option value="exempt">Exenta de aseo</option>
+            </select>
+          </Field>
+        )}
 
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
@@ -1472,6 +1533,8 @@ function baseInput(property: Property) {
     region:       property.region,
     comuna:       property.comuna,
     rolSii:       property.rol_sii,
+    contribucionesStatus: property.contribuciones_status,
+    aseoBilling:          property.aseo_billing,
   }
 }
 
@@ -1545,6 +1608,10 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
   const [elec, setElec]   = useState(property.electricity_client_id ?? '')
   const [water, setWater] = useState(property.water_client_id ?? '')
 
+  // La empresa se deduce de la comuna: el agua está concesionada por
+  // territorio, así que "Aguas Andinas" solo es correcto en parte de Santiago.
+  const sug = suggestUtilities(property.region, property.comuna)
+
   return (
     <Modal title="Cuentas de servicios" backdrop={backdrop} onCancel={onCancel}>
       <form onSubmit={e => {
@@ -1559,14 +1626,27 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
         })
       }}>
         <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
-          Los números que aparecen en tus boletas. Sirven para identificar el suministro.
+          {sug
+            ? `Según la comuna, tus servicios son ${sug.electricity.name} y ${sug.water.name}.`
+            : 'Los números que aparecen en tus boletas.'}
         </p>
 
-        <Field label="Número de cliente Enel">
+        {sug && !sug.confident && (
+          <div className="flex items-start gap-2 p-3 rounded-xl mb-4"
+               style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+            <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+              En {property.comuna} la concesión está repartida entre empresas — confirma
+              cuál aparece en tu boleta.
+            </p>
+          </div>
+        )}
+
+        <Field label={sug ? `Número de cliente ${sug.electricity.name}` : 'Número de cliente (luz)'}>
           <input className={inputCls} style={inputStyle} value={elec} autoFocus
                  onChange={e => setElec(e.target.value)} placeholder="4521083-2" />
         </Field>
-        <Field label="Número de cliente Aguas Andinas">
+        <Field label={sug ? `Número de cliente ${sug.water.name}` : 'Número de cliente (agua)'}>
           <input className={inputCls} style={inputStyle} value={water}
                  onChange={e => setWater(e.target.value)} placeholder="1847362-5" />
         </Field>
