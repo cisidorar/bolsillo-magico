@@ -9,6 +9,12 @@ interface Props {
   size?: number
   className?: string
   fallbackColor?: string   // color de marca para el fallback
+  /** sep 2026 (Cas: "mejora la calidad del icono del banco de chile"): exige
+   *  un mínimo de resolución. Si el mejor ícono disponible no llega, el proxy
+   *  responde 404 y se dibuja el monograma en vez de estirar un favicon de
+   *  16px. Caso real: Banco de Chile solo publica 16×16 — no hay fuente mejor
+   *  que traer, así que la única forma de que se vea bien es no usarlo. */
+  minPx?: number
 }
 
 function nameColor(name: string): string {
@@ -18,22 +24,24 @@ function nameColor(name: string): string {
   return palette[Math.abs(hash) % palette.length]
 }
 
-function logoUrl(domain: string): string {
-  return `/api/logo?domain=${encodeURIComponent(domain)}`
+function logoUrl(domain: string, minPx?: number): string {
+  const q = new URLSearchParams({ domain })
+  if (minPx) q.set('minPx', String(minPx))
+  return `/api/logo?${q}`
 }
 
-export default function ServiceLogo({ domain, name, size = 36, className, fallbackColor }: Props) {
+export default function ServiceLogo({ domain, name, size = 36, className, fallbackColor, minPx }: Props) {
   const [confirmedUrl, setConfirmedUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!domain) { setConfirmedUrl(null); return }
-    const url = logoUrl(domain)
+    const url = logoUrl(domain, minPx)
     const img = new window.Image()
     img.onload = () => setConfirmedUrl(url)
     img.onerror = () => setConfirmedUrl(null)
     img.src = url
     return () => { img.onload = null; img.onerror = null }
-  }, [domain])
+  }, [domain, minPx])
 
   const baseClass = `rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center ${className ?? ''}`
 

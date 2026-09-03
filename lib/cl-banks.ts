@@ -18,33 +18,48 @@
 export interface ClInstitution {
   name:   string
   domain: string
+  /** Color corporativo — para el monograma cuando no hay logo nítido.
+   *  sep 2026: varios bancos chilenos (Banco de Chile entre ellos) solo
+   *  publican un favicon de 16px, así que estirarlo a 40px se ve sucio. En
+   *  esos casos se dibuja la inicial sobre este color en vez del logo
+   *  borroso — se ve intencional y a escala. Es solo un color, no reproduce
+   *  la marca. */
+  color:  string
 }
 
 export const CL_INSTITUTIONS: ClInstitution[] = [
   // Bancos (nómina CMF)
-  { name: 'Banco de Chile',        domain: 'bancochile.cl'         },
-  { name: 'BancoEstado',           domain: 'bancoestado.cl'        },
-  { name: 'Banco Santander',       domain: 'santander.cl'          },
-  { name: 'Bci',                   domain: 'bci.cl'                },
-  { name: 'Scotiabank Chile',      domain: 'scotiabank.cl'         },
-  { name: 'Banco Itaú',            domain: 'itau.cl'               },
-  { name: 'Banco BICE',            domain: 'bice.cl'               },
-  { name: 'Banco Security',        domain: 'bancosecurity.cl'      },
-  { name: 'Banco Falabella',       domain: 'falabella.com'         },
-  { name: 'Banco Ripley',          domain: 'ripley.cl'             },
-  { name: 'Banco Consorcio',       domain: 'bancoconsorcio.cl'     },
-  { name: 'Banco Internacional',   domain: 'bancointernacional.cl' },
-  { name: 'Banco BTG Pactual',     domain: 'btgpactual.cl'         },
-  { name: 'HSBC Chile',            domain: 'hsbc.cl'               },
-  { name: 'Banco Tanner',          domain: 'tanner.cl'             },
+  { name: 'Banco de Chile',        domain: 'bancochile.cl',         color: '#0B2C6F' },
+  { name: 'BancoEstado',           domain: 'bancoestado.cl',        color: '#F58220' },
+  { name: 'Banco Santander',       domain: 'santander.cl',          color: '#EC0000' },
+  { name: 'Bci',                   domain: 'bci.cl',                color: '#0033A0' },
+  { name: 'Scotiabank Chile',      domain: 'scotiabank.cl',         color: '#EC111A' },
+  { name: 'Banco Itaú',            domain: 'itau.cl',               color: '#EC7000' },
+  { name: 'Banco BICE',            domain: 'bice.cl',               color: '#003C71' },
+  { name: 'Banco Security',        domain: 'bancosecurity.cl',      color: '#00953B' },
+  { name: 'Banco Falabella',       domain: 'falabella.com',         color: '#79BC43' },
+  { name: 'Banco Ripley',          domain: 'ripley.cl',             color: '#9B26B6' },
+  { name: 'Banco Consorcio',       domain: 'bancoconsorcio.cl',     color: '#003865' },
+  { name: 'Banco Internacional',   domain: 'bancointernacional.cl', color: '#005EB8' },
+  { name: 'Banco BTG Pactual',     domain: 'btgpactual.cl',         color: '#0F2B46' },
+  { name: 'HSBC Chile',            domain: 'hsbc.cl',               color: '#DB0011' },
+  { name: 'Banco Tanner',          domain: 'tanner.cl',             color: '#00A0DF' },
   // Cooperativas y cajas
-  { name: 'Coopeuch',              domain: 'coopeuch.cl'           },
+  { name: 'Coopeuch',              domain: 'coopeuch.cl',           color: '#E30613' },
   // Fintechs / plataformas de inversión
-  { name: 'Fintual',               domain: 'fintual.com'           },
-  { name: 'Racional',              domain: 'racional.cl'           },
-  { name: 'Tenpo',                 domain: 'tenpo.app'             },
-  { name: 'Mercado Pago',          domain: 'mercadopago.com'       },
+  { name: 'Fintual',               domain: 'fintual.com',           color: '#00C08B' },
+  { name: 'Racional',              domain: 'racional.cl',           color: '#12B76A' },
+  { name: 'Tenpo',                 domain: 'tenpo.app',             color: '#00E1A0' },
+  { name: 'Mercado Pago',          domain: 'mercadopago.com',       color: '#00B1EA' },
 ]
+
+/** Color de marca para el monograma, o `null` si no se reconoce la
+ *  institución (ahí el componente usa su paleta por hash, como siempre). */
+export function brandColor(name: string): string | null {
+  const domain = domainFromBankName(name)
+  if (!domain) return null
+  return CL_INSTITUTIONS.find(i => i.domain === domain)?.color ?? null
+}
 
 /** Palabras clave extra por institución — para que el logo siga saliendo
  *  aunque el nombre se haya escrito distinto (datos ya guardados, o alguien

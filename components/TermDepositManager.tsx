@@ -10,7 +10,7 @@ import StatHeroRow from '@/components/StatHeroRow'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity,
 } from '@/lib/term-deposits'
-import { CL_INSTITUTIONS, domainFromBankName } from '@/lib/cl-banks'
+import { CL_INSTITUTIONS, domainFromBankName, brandColor } from '@/lib/cl-banks'
 import type { TermDeposit } from '@/app/(dashboard)/inversiones/page'
 
 // El mapa de dominios y la lista de instituciones viven juntos en
@@ -291,11 +291,15 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
         className="w-full text-left group px-4 lg:px-6 py-4 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
       >
         <div className="flex items-center gap-3">
+          {/* minPx 80 = 40px de caja × 2 por pantalla retina. Si el banco no
+              publica un ícono de al menos ese tamaño, se dibuja el monograma
+              en su color de marca en vez de estirar un favicon de 16px. */}
           <ServiceLogo
             domain={domainFromBankName(d.bank)}
             name={d.bank}
             size={40}
-            fallbackColor={avatarColor(d.bank)}
+            minPx={80}
+            fallbackColor={brandColor(d.bank) ?? avatarColor(d.bank)}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -684,7 +688,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
               <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <ServiceLogo domain={domainFromBankName(d.bank)} name={d.bank} size={40} fallbackColor={avatarColor(d.bank)} />
+                <ServiceLogo domain={domainFromBankName(d.bank)} name={d.bank} size={40} minPx={80} fallbackColor={brandColor(d.bank) ?? avatarColor(d.bank)} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{d.bank}</h2>
