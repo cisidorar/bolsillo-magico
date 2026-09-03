@@ -604,8 +604,8 @@ function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => 
         {property.property_type && (
           <Row label="Tipo"
             value={property.property_type === 'departamento'
-              ? `Departamento${property.unit_number ? ` · ${property.unit_number}` : ''}`
-              : property.property_type === 'casa' ? 'Casa' : 'Otro'} />
+              ? `Departamento${property.unit_number ? ` ${property.unit_number}` : ''}`
+              : 'Casa'} />
         )}
         {property.address && <Row label="Dirección" value={property.address} />}
         {(property.comuna || property.region) && (
@@ -745,10 +745,8 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
   onSave: (input: Parameters<typeof saveProperty>[0]) => void
   onDelete?: () => void
 }) {
-  const [alias, setAlias]         = useState(property?.alias ?? '')
   const [propType, setPropType]   = useState<string>(property?.property_type ?? '')
   const [unitNum, setUnitNum]     = useState(property?.unit_number ?? '')
-  const [address, setAddress]     = useState(property?.address ?? '')
   const [region, setRegion]       = useState(property?.region ?? '')
   const [comuna, setComuna]   = useState(property?.comuna ?? '')
   const [rol, setRol]         = useState(property?.rol_sii ?? '')
@@ -769,11 +767,16 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
     <Modal title={property ? 'Editar propiedad' : 'Nueva propiedad'} backdrop={backdrop} onCancel={onCancel}>
       <form onSubmit={e => {
         e.preventDefault()
+        // Alias auto-generado: "Depto 921, Santiago" / "Casa, Las Condes" etc.
+        const autoAlias = [
+          propType === 'departamento' ? `Depto${unitNum ? ` ${unitNum}` : ''}` : 'Casa',
+          comuna || undefined,
+        ].filter(Boolean).join(', ')
         onSave({
-          alias,
+          alias: autoAlias,
           propertyType: (propType || null) as 'departamento' | 'casa' | 'otro' | null,
           unitNumber: propType === 'departamento' ? (unitNum || null) : null,
-          address: address || null, region: region || null,
+          address: null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
           mortgageAmount: divAmt ? Number(divAmt.replace(/\D/g, '')) : null,
           mortgageDueDay: divDay ? Number(divDay) : null,
@@ -782,17 +785,13 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           waterClientId: waterId || null,
         })
       }}>
-        <Field label="Nombre">
-          <input className={inputCls} style={inputStyle} value={alias} required
-                 onChange={e => setAlias(e.target.value)} placeholder="Depto Santa Victoria" />
-        </Field>
         <Field label="Tipo de propiedad">
           <div className="flex gap-2">
-            {(['departamento', 'casa', 'otro'] as const).map(t => (
+            {(['departamento', 'casa'] as const).map(t => (
               <button
                 key={t} type="button"
                 onClick={() => { setPropType(t); if (t !== 'departamento') setUnitNum('') }}
-                className="flex-1 py-2 rounded-xl text-xs font-semibold border transition-all capitalize"
+                className="flex-1 py-2 rounded-xl text-sm font-semibold border transition-all"
                 style={propType === t ? {
                   background: 'var(--primary-soft)', color: 'var(--primary)',
                   borderColor: 'var(--primary)',
@@ -801,21 +800,17 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
                   borderColor: 'var(--border)',
                 }}
               >
-                {t === 'departamento' ? 'Depto' : t === 'casa' ? 'Casa' : 'Otro'}
+                {t === 'departamento' ? 'Departamento' : 'Casa'}
               </button>
             ))}
           </div>
         </Field>
         {propType === 'departamento' && (
-          <Field label="Número / piso">
-            <input className={inputCls} style={inputStyle} value={unitNum}
-                   onChange={e => setUnitNum(e.target.value)} placeholder="Ej. 921, piso 9" />
+          <Field label="Número de departamento">
+            <input className={inputCls} style={inputStyle} value={unitNum} inputMode="numeric"
+                   onChange={e => setUnitNum(e.target.value.replace(/\D/g, ''))} placeholder="921" />
           </Field>
         )}
-        <Field label="Dirección">
-          <input className={inputCls} style={inputStyle} value={address}
-                 onChange={e => setAddress(e.target.value)} placeholder="Santa Victoria 562, depto 921" />
-        </Field>
         <Field label="Región">
           <select className={inputCls} style={inputStyle} value={region} onChange={e => handleRegion(e.target.value)}>
             <option value="">Selecciona una región…</option>
@@ -870,13 +865,13 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           <p className="text-xs font-bold pt-3 mb-1" style={{ color: 'var(--ink-2)' }}>Cuentas de servicios</p>
           <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>Para futura descarga automática de boletas</p>
         </div>
-        <Field label="NHE — Número de Medidor (luz)">
+        <Field label="Número de cliente Enel">
           <input className={inputCls} style={inputStyle} value={elecId}
-                 onChange={e => setElecId(e.target.value)} placeholder="Ej. 123456789" />
+                 onChange={e => setElecId(e.target.value)} placeholder="Ej. 3196937-9" />
         </Field>
-        <Field label="Número de cliente (agua)">
+        <Field label="Número de cliente Aguas Andinas">
           <input className={inputCls} style={inputStyle} value={waterId}
-                 onChange={e => setWaterId(e.target.value)} placeholder="Ej. 9876543" />
+                 onChange={e => setWaterId(e.target.value)} placeholder="Ej. 2502874-0" />
         </Field>
 
         {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
