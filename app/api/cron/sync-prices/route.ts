@@ -10,6 +10,7 @@ import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
+import { cashFromTotals } from '@/lib/wallet-cash'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
 // Programado en vercel.json (22:30 UTC ≈ post-cierre NYSE). Protegido con
@@ -331,9 +332,10 @@ async function snapshotAllNetWorths(supabase: SupabaseClient): Promise<{ ok: num
 // run, así `price_history` ya tiene el cierre de hoy) — no tiene sentido
 // duplicar el mismo punto en fines de semana/feriados, cuando nada cambió.
 async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTickers: string[]): Promise<{ ok: number; failed: number }> {
-  const [{ data: posRows }, { data: usdRows }] = await Promise.all([
+  const [{ data: posRows }, { data: usdRows }, { data: buyRows }] = await Promise.all([
     supabase.from('stock_positions').select('user_id, ticker, shares, avg_cost_usd, wallet_cost_usd'),
-    supabase.from('usd_purchases').select('user_id, usd_amount'),
+    supabase.from('usd_purchases').select('user_id, usd_amount, kind'),
+    supabase.from('stock_purchases').select('user_id, total_paid_usd'),
   ])
   const positions = (posRows ?? []) as { user_id: string; ticker: string; shares: number; avg_cost_usd: number; wallet_cost_usd: number | null }[]
   if (positions.length === 0) return { ok: 0, failed: 0 }
@@ -358,6 +360,13 @@ async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTicker
   for (const r of (usdRows ?? []) as { user_id: string; usd_amount: number }[]) {
     walletByUser.set(r.user_id, (walletByUser.get(r.user_id) ?? 0) + Number(r.usd_amount))
   }
+  // Lo GASTADO en compras — ver lib/wallet-cash.ts. Restar el costo de las
+  // posiciones abiertas (lo que hacía antes) dejaba de descontar apenas se
+  // cerraba una posición, e inflaba el efectivo guardado en el snapshot.
+  const spentByUser = new Map<string, number>()
+  for (const r of (buyRows ?? []) as { user_id: string; total_paid_usd: number }[]) {
+    spentByUser.set(r.user_id, (spentByUser.get(r.user_id) ?? 0) + Number(r.total_paid_usd))
+  }
 
   const { dateStr: today } = getNowChile()
   const rows: { user_id: string; snapshot_date: string; stocks_value_usd: number; wallet_usd: number; total_usd: number; cost_basis_usd: number }[] = []
@@ -373,9 +382,8 @@ async function snapshotAllPortfolioValues(supabase: SupabaseClient, syncedTicker
       // en stock_purchases, así que sumar compras menos ventas da muy por
       // debajo del costo real (ver la migración 20260903).
       const costBasisUsd   = userPositions.reduce((s, p) => s + Number(p.shares) * Number(p.avg_cost_usd), 0)
-      const fundedCostUsd  = userPositions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
       const walletUsdBase  = walletByUser.get(userId) ?? 0
-      const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
+      const walletAvailable = cashFromTotals(walletUsdBase, spentByUser.get(userId) ?? 0)
       const walletUsd = Math.max(0, walletAvailable ?? 0)
       rows.push({
         user_id: userId,

@@ -32,7 +32,10 @@ export interface UsdPurchase {
 interface Props {
   userId:           string
   initialPurchases: UsdPurchase[]
-  investedUsd:      number   // Σ costo de posiciones abiertas — se descuenta del saldo
+  /** Σ gastado en compras de acciones — se descuenta del saldo.
+   *  sep 2026: antes era el costo de las posiciones ABIERTAS, que dejaba de
+   *  restarse al cerrar una posición e inflaba el saldo (lib/wallet-cash.ts). */
+  spentUsd:         number
   stockPurchases?:  StockPurchase[]   // compras de acciones — para la cartola unificada
   sales?:           StockSale[]      // ventas — para el detalle (ticker, costo base, ganancia) en cada fila
 }
@@ -72,7 +75,7 @@ function fmtPct(n: number): string {
   return n >= 0 ? `+${s}%` : `-${s}%`
 }
 
-export default function UsdWalletManager({ userId, initialPurchases, investedUsd, stockPurchases = [], sales = [] }: Props) {
+export default function UsdWalletManager({ userId, initialPurchases, spentUsd, stockPurchases = [], sales = [] }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
@@ -132,12 +135,12 @@ export default function UsdWalletManager({ userId, initialPurchases, investedUsd
   }, [])
 
   // ── Agregados (USD primero) ────────────────────────────────────────────────
-  // Saldo disponible = aportes + ventas − costo de posiciones abiertas.
-  // Comprar acciones lo descuenta solo (la posición ES los USD invertidos);
-  // vender agrega una fila kind='sell' y los devuelve.
+  // Saldo disponible = aportes + ventas − lo gastado en comprar acciones.
+  // Es flujo de caja puro (lib/wallet-cash.ts): no depende de qué posiciones
+  // sigan abiertas, así que cerrar una posición ya no infla el saldo.
   const deposits    = purchases.filter(p => p.kind !== 'sell')
   const movementsUsd = purchases.reduce((s, p) => s + Number(p.usd_amount), 0)
-  const available   = movementsUsd - investedUsd
+  const available   = movementsUsd - spentUsd
   const depositUsd  = deposits.reduce((s, p) => s + Number(p.usd_amount), 0)
   const totalClp    = deposits.reduce((s, p) => s + (p.total_paid_clp ?? 0), 0)
   const avgRate     = depositUsd > 0 ? totalClp / depositUsd : null   // CLP por USD, comisión incluida

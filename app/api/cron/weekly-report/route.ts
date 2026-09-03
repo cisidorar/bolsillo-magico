@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { computeWeeklyItems } from '@/lib/weekly-report'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
+import { availableToInvest } from '@/lib/wallet-cash'
 import { fetchAllMacroSeries, type MacroSeriesData } from '@/lib/macro-fetch'
 import { nextFomcMeeting } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
@@ -194,14 +195,17 @@ export async function GET(request: Request) {
   let ok = 0, failed = 0
   for (const userId of userIds) {
     try {
-      const [{ data: stocks }, { data: watchlistRows }, { data: usdPurchases }] = await Promise.all([
+      const [{ data: stocks }, { data: watchlistRows }, { data: usdPurchases }, { data: stockBuys }] = await Promise.all([
         supabase.from('stock_positions').select('ticker, shares, wallet_cost_usd').eq('user_id', userId),
         supabase.from('watchlist').select('ticker').eq('user_id', userId),
         // ago 2026 (Cas): mismo cambio de metodología que inversiones/page.tsx
         // — el flujo de caja de la sombra SPY es por aporte a la billetera,
-        // no por compra/venta de acción (ver lib/benchmark.ts). stock_sales/
-        // stock_purchases ya no hacen falta acá.
+        // no por compra/venta de acción (ver lib/benchmark.ts).
         supabase.from('usd_purchases').select('usd_amount, purchase_date, kind').eq('user_id', userId),
+        // sep 2026: vuelve a hacer falta stock_purchases — el efectivo de la
+        // billetera se calcula por flujo de caja (lib/wallet-cash.ts), no
+        // restando el costo de las posiciones abiertas.
+        supabase.from('stock_purchases').select('total_paid_usd').eq('user_id', userId),
       ])
 
       const ownedTickers = new Set((stocks ?? []).map(s => s.ticker as string))
@@ -260,9 +264,13 @@ export async function GET(request: Request) {
         const { data: spyRows } = await supabase
           .from('price_history').select('date, close').eq('ticker', 'SPY').order('date', { ascending: true })
         const cashFlows = deposits.map(p => ({ date: p.purchase_date as string, usd: Number(p.usd_amount) }))
-        const walletUsdBase = (usdPurchases ?? []).reduce((s, p) => s + Number(p.usd_amount), 0)
-        const investedUsd   = (stocks ?? []).reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
-        const walletCashUsd = Math.max(0, walletUsdBase - investedUsd)
+        const walletCashUsd = availableToInvest(
+          (usdPurchases ?? []).map(p => ({
+            kind: (p.kind === 'sell' ? 'sell' : 'deposit') as 'sell' | 'deposit',
+            usd_amount: Number(p.usd_amount),
+          })),
+          (stockBuys ?? []).map(b => ({ total_paid_usd: Number(b.total_paid_usd) })),
+        ) ?? 0
         spyBenchmark = computeSpyBenchmark(
           cashFlows,
           (spyRows ?? []).map(r => ({ date: r.date as string, close: Number(r.close) })),

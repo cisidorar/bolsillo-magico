@@ -15,6 +15,7 @@ import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisErro
 import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
+import { cashFromTotals } from '@/lib/wallet-cash'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip, PriceZoneChip } from '@/components/RiskRail'
@@ -280,9 +281,13 @@ export default function Radar({
   // más abajo, junto al cómputo del ranking.
   const [bestActionableEarnings, setBestActionableEarnings] = useState<EarningsInfo | null>(null)
 
-  // Billetera disponible: mismo cálculo en toda la app (Radar/TransactionModal)
-  const fundedCostUsd = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
-  const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
+  // Billetera disponible: una sola fórmula en toda la app (lib/wallet-cash.ts).
+  // sep 2026: antes se restaba el wallet_cost_usd de las posiciones ABIERTAS,
+  // así que al vender una posición completa su costo dejaba de descontarse y
+  // el saldo quedaba inflado por ese monto. Ahora se resta lo GASTADO en
+  // compras, que no desaparece cuando cierras una posición.
+  const spentUsd = purchases.reduce((s, p) => s + Number(p.total_paid_usd), 0)
+  const walletAvailable = cashFromTotals(walletUsdBase, spentUsd)
 
   const totalCostUsd  = positions.reduce((s, p) => s + p.shares * p.avg_cost_usd, 0)
   const totalValueUsd = positions.reduce((s, p) => s + p.shares * (quotes[p.ticker]?.price ?? p.avg_cost_usd), 0)

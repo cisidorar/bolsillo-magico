@@ -170,11 +170,12 @@ export async function computeAndSnapshotNetWorth(
   now: Date,
   knownDebtTotal?: number,
 ): Promise<NetWorthResult> {
-  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: history }, committedDebtTotal] = await Promise.all([
+  const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: stockBuys }, { data: history }, committedDebtTotal] = await Promise.all([
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
     supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
     supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
+    supabase.from('stock_purchases').select('total_paid_usd').eq('user_id', userId),
     supabase.from('net_worth_snapshots').select('month, year, stocks_clp, deposits_clp, savings_clp, usd_clp, total_clp, debt_clp, net_clp')
       .eq('user_id', userId).order('year').order('month'),
     knownDebtTotal !== undefined ? Promise.resolve(knownDebtTotal) : computeCommittedDebt(supabase, userId, now),
@@ -199,11 +200,14 @@ export async function computeAndSnapshotNetWorth(
   let stocksPriced = true
   const positions = stocks ?? []
   const usdPurchases = usdRows ?? []
-  // Saldo de billetera = aportes + ventas − Σ wallet_cost_usd (la porción del
-  // costo de cada posición que salió de la billetera; lo legacy no descuenta)
+  // Saldo de billetera por flujo de caja (sep 2026, ver lib/wallet-cash.ts):
+  // aportes + ventas − lo gastado en comprar acciones. Antes se restaba el
+  // wallet_cost_usd de las posiciones ABIERTAS, que dejaba de descontar el
+  // costo apenas se cerraba una posición e inflaba el patrimonio por ese monto
+  // (el efectivo quedaba contado de más, encima del valor de las acciones).
   const movementsUsd = usdPurchases.reduce((s, r) => s + Number(r.usd_amount), 0)
-  const openCostUsd  = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
-  const totalUsdCash = usdPurchases.length > 0 ? Math.max(0, movementsUsd - openCostUsd) : 0
+  const spentUsd     = (stockBuys ?? []).reduce((s, b) => s + Number(b.total_paid_usd), 0)
+  const totalUsdCash = usdPurchases.length > 0 ? Math.max(0, movementsUsd - spentUsd) : 0
   if (positions.length > 0 || totalUsdCash > 0) {
     const tickers = positions.map(p => p.ticker)
     const { data: cached } = await supabase

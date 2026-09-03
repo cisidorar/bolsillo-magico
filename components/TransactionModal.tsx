@@ -6,6 +6,7 @@ import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
+import { cashFromTotals } from '@/lib/wallet-cash'
 import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
 import { getCachedBacktestStats, getCachedRateContext } from '@/lib/analysis-cache'
 import { useToast } from '@/components/ToastProvider'
@@ -167,9 +168,13 @@ export default function TransactionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Billetera disponible — mismo cálculo que Radar/StockPositionManager ──
-  const fundedCostUsd = positions.reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
-  const walletAvailable = walletUsdBase > 0 ? walletUsdBase - fundedCostUsd : null
+  // ── Billetera disponible — una sola fórmula (lib/wallet-cash.ts) ────────
+  // sep 2026: ver el comentario en Radar.tsx. Restar el costo de las
+  // posiciones abiertas dejaba de descontar lo gastado apenas cerrabas una,
+  // e inflaba el saldo — acá eso además relajaba la validación de "billetera
+  // insuficiente" de más abajo, dejando registrar compras sin fondos reales.
+  const spentUsd = purchases.reduce((s, p) => s + Number(p.total_paid_usd), 0)
+  const walletAvailable = cashFromTotals(walletUsdBase, spentUsd)
 
   const totalValueUsd = positions.reduce((s, p) => {
     const q = quotes[p.ticker]

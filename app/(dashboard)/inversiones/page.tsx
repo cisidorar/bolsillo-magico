@@ -22,6 +22,7 @@ import { computeYieldCurve } from '@/lib/yield-curve'
 import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
 import { fetchClIpcSeries, trailingAnnualInflation } from '@/lib/cl-indicators'
+import { computeWalletCash } from '@/lib/wallet-cash'
 
 export const dynamic = 'force-dynamic'
 
@@ -221,11 +222,16 @@ export default async function InversionesPage({ searchParams }: Props) {
     .eq('user_id', user.id)
     .order('purchase_date', { ascending: false })
 
-  // Σ movimientos (aportes + ventas) y costo de posiciones FINANCIADAS por la
-  // billetera — las legacy (compradas antes de usarla) no descuentan del saldo
-  const walletUsdBase = (usdPurchases ?? []).reduce((s, r) => s + Number(r.usd_amount), 0)
-  const investedUsd   = (stocks ?? [])
-    .reduce((s, p) => s + Number(p.wallet_cost_usd ?? 0), 0)
+  // Efectivo de la billetera por flujo de caja real (sep 2026, ver
+  // lib/wallet-cash.ts): entradas − compras. Antes se restaba el
+  // wallet_cost_usd de las posiciones ABIERTAS, que dejaba de descontar el
+  // costo apenas vendías una posición completa e inflaba el saldo.
+  const walletMovements = (usdPurchases ?? []).map(r => ({
+    kind: (r.kind === 'sell' ? 'sell' : 'deposit') as 'sell' | 'deposit',
+    usd_amount: Number(r.usd_amount),
+  }))
+  const walletPurchases = (purchases ?? []).map(p => ({ total_paid_usd: Number(p.total_paid_usd) }))
+  const walletCash = computeWalletCash(walletMovements, walletPurchases)
 
   // ── P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal,
   // ya vive en /inicio y /analisis) — Acciones la ignoraba por completo. Mismo
@@ -302,7 +308,7 @@ export default async function InversionesPage({ searchParams }: Props) {
     const cashFlows = (usdPurchases ?? [])
       .filter(p => p.kind === 'deposit')
       .map(p => ({ date: p.purchase_date, usd: Number(p.usd_amount) }))
-    const walletCashUsd = Math.max(0, walletUsdBase - investedUsd)
+    const walletCashUsd = Math.max(0, walletCash.cash)
 
     spyBenchmark = computeSpyBenchmark(
       cashFlows,
@@ -490,7 +496,7 @@ export default async function InversionesPage({ searchParams }: Props) {
         <UsdWalletManager
           userId={user.id}
           initialPurchases={(usdPurchases ?? []) as UsdPurchase[]}
-          investedUsd={investedUsd}
+          spentUsd={walletCash.spent}
           stockPurchases={(purchases ?? []) as StockPurchase[]}
           sales={(sales ?? []) as StockSale[]}
         />
@@ -503,7 +509,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           view="watchlist"
           userId={user.id}
           initialPositions={(stocks ?? []) as StockPosition[]}
-          walletUsdBase={walletUsdBase}
+          walletUsdBase={walletCash.deposited + walletCash.proceeds}
           initialSales={(sales ?? []) as StockSale[]}
           initialPurchases={(purchases ?? []) as StockPurchase[]}
           spyBenchmark={spyBenchmark}
@@ -532,7 +538,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             view="mias"
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
-            walletUsdBase={walletUsdBase}
+            walletUsdBase={walletCash.deposited + walletCash.proceeds}
             initialSales={(sales ?? []) as StockSale[]}
             initialPurchases={(purchases ?? []) as StockPurchase[]}
             spyBenchmark={spyBenchmark}
