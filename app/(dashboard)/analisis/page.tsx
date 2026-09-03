@@ -600,11 +600,6 @@ export default async function AnalisisPage({
   const totalSavings = savingsBalances.reduce((s, v) => s + v, 0)
     + depositsWithInterest.filter(x => x.counts).reduce((s, x) => s + x.d.amount + x.interest, 0)
 
-  // Cuánto de ese total es interés ya ganado — sin esto la tarjeta se veía
-  // congelada aunque el dinero rinda todos los días (Cas: "no veo que crezca").
-  const emergencyInterestEarned = savingsInterest.reduce((s, v) => s + v, 0)
-    + depositsWithInterest.filter(x => x.counts).reduce((s, x) => s + x.interest, 0)
-
   const emergencyFundItems = [
     ...savingsRows.map((s, i) => ({
       label: s.name || 'Cuenta de ahorro',
@@ -1798,7 +1793,6 @@ export default async function AnalisisPage({
               totalSavings={totalSavings}
               savingsCount={savingsBalances.length + depositsWithInterest.filter(x => x.counts).length}
               emergencyFundItems={emergencyFundItems}
-              emergencyInterestEarned={emergencyInterestEarned}
               avgMonthlyExpense={avgMonthlyExpense}
               monthsCovered={monthsCovered}
               monthLabel={monthName(month)}

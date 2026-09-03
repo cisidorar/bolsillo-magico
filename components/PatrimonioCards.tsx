@@ -43,8 +43,6 @@ interface Props {
   totalSavings: number             // CLP líquidos en cuentas de ahorro
   savingsCount: number             // nº de cuentas de ahorro
   emergencyFundItems: EmergencyFundItem[]  // desglose por cuenta/depósito
-  /** Interés ya devengado del fondo — para que se vea que crece (sep 2026). */
-  emergencyInterestEarned: number
   avgMonthlyExpense: number | null // gasto promedio mensual (meses completados)
   monthsCovered: number | null     // totalSavings / avgMonthlyExpense
   monthLabel: string               // 'Julio'
@@ -241,7 +239,7 @@ export function NetWorthChart({ points }: { points: { label: string; total: numb
 
 export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12,
-  totalSavings, savingsCount, emergencyFundItems, emergencyInterestEarned, avgMonthlyExpense, monthsCovered,
+  totalSavings, savingsCount, emergencyFundItems, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
@@ -602,18 +600,10 @@ export default function PatrimonioCards({
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(item.amount)}</p>
                   </div>
                 ))}
-                {/* sep 2026 (Cas: "no veo que crezca"): el fondo rinde todos
-                    los días pero la tarjeta se veía congelada — solo mostraba
-                    saldos. Acá va cuánto de ese total ya es interés ganado. */}
-                {emergencyInterestEarned > 0 && (
-                  <div className="flex items-center justify-between rounded-2xl px-3 py-2.5"
-                    style={{ background: 'rgba(31,190,141,0.08)' }}>
-                    <p className="text-xs font-semibold" style={{ color: 'var(--mint)' }}>Interés ganado hasta hoy</p>
-                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--mint)' }}>
-                      +{formatCLP(emergencyInterestEarned)}
-                    </p>
-                  </div>
-                )}
+                {/* sep 2026: acá estuvo un momento la fila "Interés ganado
+                    hasta hoy". Cas la sacó — el interés ya se ve en cada
+                    cuenta ("+$18.110 de interés"), así que el total repetía
+                    el mismo dato y alargaba la tarjeta sin agregar nada. */}
                 <div className="flex items-center justify-between rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                   <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Gasto promedio mensual</p>
                   <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
