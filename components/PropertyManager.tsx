@@ -810,6 +810,10 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
         })
       }}>
         {/* ── Datos básicos — siempre visibles ─────────────────── */}
+        <Field label="Dirección">
+          <input className={inputCls} style={inputStyle} value={address}
+                 onChange={e => setAddress(e.target.value)} placeholder="Av. Providencia 1234" />
+        </Field>
         <Field label="Tipo de propiedad">
           <div className="flex gap-2">
             {(['departamento', 'casa'] as const).map(t => (
@@ -836,10 +840,6 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
                    onChange={e => setUnitNum(e.target.value.replace(/\D/g, ''))} placeholder="42" />
           </Field>
         )}
-        <Field label="Dirección">
-          <input className={inputCls} style={inputStyle} value={address}
-                 onChange={e => setAddress(e.target.value)} placeholder="Av. Providencia 1234" />
-        </Field>
         <Field label="Región">
           <select className={inputCls} style={inputStyle} value={region} onChange={e => handleRegion(e.target.value)}>
             <option value="">Selecciona una región…</option>
