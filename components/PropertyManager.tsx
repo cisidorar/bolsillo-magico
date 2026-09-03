@@ -808,7 +808,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
         {propType === 'departamento' && (
           <Field label="Número de departamento">
             <input className={inputCls} style={inputStyle} value={unitNum} inputMode="numeric"
-                   onChange={e => setUnitNum(e.target.value.replace(/\D/g, ''))} placeholder="921" />
+                   onChange={e => setUnitNum(e.target.value.replace(/\D/g, ''))} placeholder="42" />
           </Field>
         )}
         <Field label="Región">
@@ -831,7 +831,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
         </Field>
         <Field label="ROL de avalúo" hint="Con este número se consultan los derechos de aseo y las contribuciones.">
           <input className={inputCls} style={inputStyle} value={rol}
-                 onChange={e => setRol(e.target.value)} placeholder="105980225" />
+                 onChange={e => setRol(e.target.value)} placeholder="20304050" />
         </Field>
 
         <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
@@ -845,13 +845,13 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
                 className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
                 value={fmtClpInput(divAmt)} inputMode="numeric"
                 onChange={e => setDivAmt(e.target.value.replace(/\D/g, ''))}
-                placeholder="420.000"
+                placeholder="580.000"
               />
             </div>
           </Field>
           <Field label="Día de cobro">
             <input className={inputCls} style={inputStyle} value={divDay} inputMode="numeric"
-                   onChange={e => setDivDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="5" />
+                   onChange={e => setDivDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="15" />
           </Field>
         </div>
         <Field label="Banco del dividendo" hint="Solo un rótulo. No guardamos números de cuenta.">
@@ -867,11 +867,11 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
         </div>
         <Field label="Número de cliente Enel">
           <input className={inputCls} style={inputStyle} value={elecId}
-                 onChange={e => setElecId(e.target.value)} placeholder="Ej. 3196937-9" />
+                 onChange={e => setElecId(e.target.value)} placeholder="4521083-2" />
         </Field>
         <Field label="Número de cliente Aguas Andinas">
           <input className={inputCls} style={inputStyle} value={waterId}
-                 onChange={e => setWaterId(e.target.value)} placeholder="Ej. 2502874-0" />
+                 onChange={e => setWaterId(e.target.value)} placeholder="1847362-5" />
         </Field>
 
         {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
