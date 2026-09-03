@@ -592,6 +592,8 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
 // ── Ficha de la propiedad ───────────────────────────────────────────────────
 
 function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => void }) {
+  const missingDiv = !property.mortgage_amount
+  const missingUtils = !property.electricity_client_id && !property.water_client_id
   return (
     <div className="card p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -626,6 +628,26 @@ function PropertyCard({ property, onEdit }: { property: Property; onEdit: () => 
           <Row label="Nº cliente (agua)" value={property.water_client_id} />
         )}
       </dl>
+
+      {/* Nudges: aparecen solo si faltan datos — llevan al mismo formulario de edición */}
+      {(missingDiv || missingUtils) && (
+        <div className="mt-3 pt-3 border-t flex flex-wrap gap-2" style={{ borderColor: 'var(--border)' }}>
+          {missingDiv && (
+            <button onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <Plus className="w-3.5 h-3.5" /> Agregar dividendo
+            </button>
+          )}
+          {missingUtils && (
+            <button onClick={onEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <Plus className="w-3.5 h-3.5" /> Agregar cuentas de servicios
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -767,17 +789,18 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
     <Modal title={property ? 'Editar propiedad' : 'Nueva propiedad'} backdrop={backdrop} onCancel={onCancel}>
       <form onSubmit={e => {
         e.preventDefault()
-        // Alias auto-generado: "Depto 921, Santiago" / "Casa, Las Condes" etc.
+        // Alias auto-generado: "Depto 42, Santiago" / "Casa, Las Condes" etc.
         const autoAlias = [
           propType === 'departamento' ? `Depto${unitNum ? ` ${unitNum}` : ''}` : 'Casa',
           comuna || undefined,
         ].filter(Boolean).join(', ')
         onSave({
-          alias: autoAlias,
+          alias: autoAlias || (property?.alias ?? 'Propiedad'),
           propertyType: (propType || null) as 'departamento' | 'casa' | 'otro' | null,
           unitNumber: propType === 'departamento' ? (unitNum || null) : null,
           address: null, region: region || null,
           comuna: comuna || null, rolSii: rol || null,
+          // En creación estos van vacíos — se agregan desde la ficha después
           mortgageAmount: divAmt ? Number(divAmt.replace(/\D/g, '')) : null,
           mortgageDueDay: divDay ? Number(divDay) : null,
           mortgageAccountLabel: divAcc || null,
@@ -785,6 +808,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           waterClientId: waterId || null,
         })
       }}>
+        {/* ── Datos básicos — siempre visibles ─────────────────── */}
         <Field label="Tipo de propiedad">
           <div className="flex gap-2">
             {(['departamento', 'casa'] as const).map(t => (
@@ -829,54 +853,57 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
             ))}
           </select>
         </Field>
-        <Field label="ROL de avalúo" hint="Con este número se consultan los derechos de aseo y las contribuciones.">
+        <Field label="ROL de avalúo (opcional)" hint="Con este número se consultan los derechos de aseo y las contribuciones.">
           <input className={inputCls} style={inputStyle} value={rol}
                  onChange={e => setRol(e.target.value)} placeholder="20304050" />
         </Field>
 
-        <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs font-bold pt-3 mb-3" style={{ color: 'var(--ink-2)' }}>Dividendo</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Monto mensual">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none" style={{ color: 'var(--ink-3)' }}>$</span>
-              <input
-                className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
-                value={fmtClpInput(divAmt)} inputMode="numeric"
-                onChange={e => setDivAmt(e.target.value.replace(/\D/g, ''))}
-                placeholder="580.000"
-              />
-            </div>
+        {/* ── Secciones extra — solo en edición ───────────────── */}
+        {property && (<>
+          <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-xs font-bold pt-3 mb-3" style={{ color: 'var(--ink-2)' }}>Dividendo</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Monto mensual">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none" style={{ color: 'var(--ink-3)' }}>$</span>
+                <input
+                  className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                  value={fmtClpInput(divAmt)} inputMode="numeric"
+                  onChange={e => setDivAmt(e.target.value.replace(/\D/g, ''))}
+                  placeholder="580.000"
+                />
+              </div>
+            </Field>
+            <Field label="Día de cobro">
+              <input className={inputCls} style={inputStyle} value={divDay} inputMode="numeric"
+                     onChange={e => setDivDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="15" />
+            </Field>
+          </div>
+          <Field label="Banco" hint="Solo un rótulo. No guardamos números de cuenta.">
+            <select className={inputCls} style={inputStyle} value={divAcc} onChange={e => setDivAcc(e.target.value)}>
+              <option value="">Sin especificar</option>
+              {BANCOS_CHILE.map(b => <option key={b} value={`Cta cte ${b}`}>{b}</option>)}
+            </select>
           </Field>
-          <Field label="Día de cobro">
-            <input className={inputCls} style={inputStyle} value={divDay} inputMode="numeric"
-                   onChange={e => setDivDay(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="15" />
-          </Field>
-        </div>
-        <Field label="Banco del dividendo" hint="Solo un rótulo. No guardamos números de cuenta.">
-          <select className={inputCls} style={inputStyle} value={divAcc} onChange={e => setDivAcc(e.target.value)}>
-            <option value="">Sin especificar</option>
-            {BANCOS_CHILE.map(b => <option key={b} value={`Cta cte ${b}`}>{b}</option>)}
-          </select>
-        </Field>
 
-        <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs font-bold pt-3 mb-1" style={{ color: 'var(--ink-2)' }}>Cuentas de servicios</p>
-          <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>Para futura descarga automática de boletas</p>
-        </div>
-        <Field label="Número de cliente Enel">
-          <input className={inputCls} style={inputStyle} value={elecId}
-                 onChange={e => setElecId(e.target.value)} placeholder="4521083-2" />
-        </Field>
-        <Field label="Número de cliente Aguas Andinas">
-          <input className={inputCls} style={inputStyle} value={waterId}
-                 onChange={e => setWaterId(e.target.value)} placeholder="1847362-5" />
-        </Field>
+          <div className="pt-2 mt-1 mb-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-xs font-bold pt-3 mb-1" style={{ color: 'var(--ink-2)' }}>Cuentas de servicios</p>
+            <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>Para futura descarga automática de boletas</p>
+          </div>
+          <Field label="Número de cliente Enel">
+            <input className={inputCls} style={inputStyle} value={elecId}
+                   onChange={e => setElecId(e.target.value)} placeholder="4521083-2" />
+          </Field>
+          <Field label="Número de cliente Aguas Andinas">
+            <input className={inputCls} style={inputStyle} value={waterId}
+                   onChange={e => setWaterId(e.target.value)} placeholder="1847362-5" />
+          </Field>
+        </>)}
 
         {error && <p className="text-sm mb-2" style={{ color: '#DC2626' }}>{error}</p>}
         <Actions
-          busy={busy} onCancel={onCancel} submitLabel="Guardar"
+          busy={busy} onCancel={onCancel} submitLabel={property ? 'Guardar' : 'Crear propiedad'}
           danger={onDelete ? { label: 'Eliminar propiedad', onClick: onDelete } : undefined}
         />
       </form>
