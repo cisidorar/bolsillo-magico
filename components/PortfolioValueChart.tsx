@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 
 // ── Curva diaria del valor de la cartera (pedido de Cas, ago 2026) ──────────
@@ -32,6 +32,11 @@ const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct'
 function fmtDayLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`
+}
+/** Fecha completa para el tooltip — el eje ya abrevia, el detalle no debería. */
+function fmtFullDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${d.getDate()} de ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`
 }
 function fmtUSD(n: number): string {
   return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -81,6 +86,8 @@ export default function PortfolioValueChart({
   dollarsBoughtPoints: PortfolioSnapshotPoint[]
 }) {
   const [period, setPeriod] = useState<Period>('month')
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   if (points.length === 0) {
     return (
@@ -169,6 +176,37 @@ export default function PortfolioValueChart({
   const gridFracs = [0.2, 0.5, 0.8]
   const xLabelDates = [cutoff, today]
 
+  // ── Hover: punto más cercano al puntero, en coordenadas del viewBox ────────
+  // Se busca por distancia en X en vez de por círculo individual porque los
+  // puntos quedan muy juntos en períodos largos (YTD) — un target pequeño ahí
+  // sería imposible de acertar, sobre todo en mobile.
+  function pointerToIndex(clientX: number): number {
+    const svg = svgRef.current
+    if (!svg) return 0
+    const rect = svg.getBoundingClientRect()
+    const svgX = ((clientX - rect.left) / rect.width) * W
+    let closest = 0, closestDist = Infinity
+    for (let i = 0; i < valueXs.length; i++) {
+      const dist = Math.abs(valueXs[i] - svgX)
+      if (dist < closestDist) { closestDist = dist; closest = i }
+    }
+    return closest
+  }
+  function handlePointer(e: React.PointerEvent<SVGRectElement>) {
+    setHoverIdx(pointerToIndex(e.clientX))
+  }
+
+  const hoverPoint = hoverIdx !== null ? valueShown[hoverIdx] : null
+  const hoverX = hoverIdx !== null ? valueXs[hoverIdx] : null
+  const hoverY = hoverIdx !== null ? valueYs[hoverIdx] : null
+  // Dólares comprados a esa misma fecha, para que el tooltip pueda decir la
+  // ganancia del día tal como la del header — no solo el valor suelto.
+  const hoverBought = hoverPoint && hasBought ? valueAsOf(dollarsBoughtPoints, hoverPoint.date) : null
+  const hoverGap = hoverPoint && hoverBought !== null ? hoverPoint.value - hoverBought : null
+  // Tooltip a la izquierda del punto pasado el 60% del ancho, para que no se
+  // salga del card por el borde derecho.
+  const tooltipLeft = hoverX !== null && hoverX / W > 0.6
+
   return (
     <div className="card p-4 lg:p-5">
       <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
@@ -232,7 +270,8 @@ export default function PortfolioValueChart({
           Todavía no hay suficientes días guardados para este período.
         </p>
       ) : (
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
+        <div className="relative">
+        <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`} className="block">
           <defs>
             <linearGradient id="portfolio-value-grad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
@@ -273,7 +312,62 @@ export default function PortfolioValueChart({
               {fmtDayLabel(d)}
             </text>
           ))}
+
+          {/* Guía + punto agrandado del día bajo el puntero */}
+          {hoverX !== null && hoverY !== null && (
+            <g>
+              <line x1={hoverX} y1={padTop} x2={hoverX} y2={H - padBot}
+                stroke="var(--ink-3)" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
+              <circle cx={hoverX} cy={hoverY} r="9" fill={lineColor} opacity="0.18" />
+              <circle cx={hoverX} cy={hoverY} r="4.5" fill={lineColor} stroke="var(--surface)" strokeWidth="1.5" />
+            </g>
+          )}
+
+          {/* Overlay transparente que captura el puntero en toda el área del
+              gráfico — más fácil de acertar que cada círculo suelto, sobre
+              todo con muchos días juntos o en mobile. */}
+          <rect
+            x={padLeft} y={padTop} width={chartW} height={chartH}
+            fill="transparent" style={{ cursor: 'crosshair', touchAction: 'none' }}
+            onPointerMove={handlePointer}
+            onPointerDown={handlePointer}
+            onPointerLeave={() => setHoverIdx(null)}
+          />
         </svg>
+
+        {/* Tooltip — posicionado por porcentaje del viewBox, no en px, porque
+            el SVG escala con el ancho del card (width:100%, sin alto fijo). */}
+        {hoverPoint && hoverX !== null && hoverY !== null && (
+          <div
+            className="absolute z-10 pointer-events-none rounded-xl px-3 py-2 text-xs whitespace-nowrap"
+            style={{
+              left: `${(hoverX / W) * 100}%`,
+              top: `${(hoverY / H) * 100}%`,
+              transform: `translate(${tooltipLeft ? '-108%' : '8%'}, -120%)`,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 8px 20px var(--shadow)',
+            }}
+          >
+            <p className="font-bold mb-1" style={{ color: 'var(--ink)' }}>{fmtFullDate(hoverPoint.date)}</p>
+            <p className="flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: lineColor }} />
+              Valor <strong style={{ color: 'var(--ink)' }}>{fmtUSD(hoverPoint.value)}</strong>
+            </p>
+            {hoverBought !== null && (
+              <p className="flex items-center gap-1.5 mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: boughtColor }} />
+                Comprado <strong style={{ color: 'var(--ink)' }}>{fmtUSD(hoverBought)}</strong>
+              </p>
+            )}
+            {hoverGap !== null && (
+              <p className="mt-0.5 font-bold" style={{ color: hoverGap >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                {hoverGap >= 0 ? 'Ganancia' : 'Pérdida'} {fmtUSD(Math.abs(hoverGap))}
+              </p>
+            )}
+          </div>
+        )}
+        </div>
       )}
     </div>
   )
