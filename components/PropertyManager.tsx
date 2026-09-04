@@ -1953,6 +1953,12 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
   const [matches, setMatches]       = useState<Map<string, { file: File; draft: ParsedAseoReceipt }>>(new Map())
   const [extracting, setExtracting] = useState(false)
   const [dragOver, setDragOver]     = useState(false)
+  // Antes un comprobante que no calzaba con nada fallaba en silencio — el
+  // recuadro decía "Leyendo…" y después no pasaba nada, sin explicar por
+  // qué. Ahora cada archivo deja rastro: coincidió, no coincidió, o no se
+  // pudo leer.
+  const [notMatched, setNotMatched] = useState<string[]>([])
+  const [failed, setFailed]         = useState<string[]>([])
 
   async function addFiles(files: File[]) {
     setExtracting(true)
@@ -1960,15 +1966,19 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
       const fd = new FormData()
       fd.append('file', f)
       const res = await extractAseoReceiptDraft(fd)
-      if (res.ok) {
-        const match =
-          // Primero por vencimiento — la clave real y confiable.
-          (res.draft.plazoParaPagar && charges.find(c => c.due_date === res.draft.plazoParaPagar)) ||
-          // external_ref como respaldo, por si ya se corrigió a mano antes.
-          (res.draft.ingresoNumero && charges.find(c => c.external_ref === res.draft.ingresoNumero))
-        if (match) {
-          setMatches(prev => new Map(prev).set(match.id, { file: f, draft: res.draft }))
-        }
+      if (!res.ok) {
+        setFailed(prev => [...prev, f.name])
+        continue
+      }
+      const match =
+        // Primero por vencimiento — la clave real y confiable.
+        (res.draft.plazoParaPagar && charges.find(c => c.due_date === res.draft.plazoParaPagar)) ||
+        // external_ref como respaldo, por si ya se corrigió a mano antes.
+        (res.draft.ingresoNumero && charges.find(c => c.external_ref === res.draft.ingresoNumero))
+      if (match) {
+        setMatches(prev => new Map(prev).set(match.id, { file: f, draft: res.draft }))
+      } else {
+        setNotMatched(prev => [...prev, f.name])
       }
     }
     setExtracting(false)
@@ -2001,6 +2011,21 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
           <input type="file" accept="application/pdf" multiple className="hidden"
                  onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length > 0) addFiles(fs) }} />
         </label>
+
+        {(notMatched.length > 0 || failed.length > 0) && (
+          <div className="mb-4 space-y-1">
+            {notMatched.map(name => (
+              <p key={name} className="text-xs" style={{ color: 'var(--gold)' }}>
+                {name}: se leyó bien pero no coincide con ninguna de estas cuentas (¿vencimiento distinto?).
+              </p>
+            ))}
+            {failed.map(name => (
+              <p key={name} className="text-xs" style={{ color: 'var(--coral)' }}>
+                {name}: no se pudo leer el PDF.
+              </p>
+            ))}
+          </div>
+        )}
 
         <div className="divide-y mb-2" style={{ borderColor: 'var(--border)' }}>
           {charges.map(c => {
