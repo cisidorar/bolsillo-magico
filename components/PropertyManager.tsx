@@ -218,6 +218,33 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     return true
   }
 
+  /**
+   * Guardado de la propiedad. No pasa por `run()` porque necesita el id que
+   * devuelve el insert: al crear una propiedad nueva hay que saltar a ella.
+   * Quedarse en la anterior sería raro — acabas de decir que existe una
+   * segunda y la app te seguiría mostrando la primera, con el agregado de que
+   * lo siguiente que quieres hacer (dividendo, contrato, cuentas) es sobre la
+   * recién creada.
+   */
+  async function handlePropertySave(input: Parameters<typeof saveProperty>[0]) {
+    const isNew = propForm === 'new'
+    const editingId = propForm && propForm !== 'new' ? propForm.id : undefined
+
+    setBusy(true); setError(null)
+    const res = await saveProperty(input, editingId)
+    setBusy(false)
+    if (!res.ok) { setError(res.error); return }
+
+    setPropForm(null)
+    if (isNew && res.id) {
+      // La navegación ya refetchea el server component; no hace falta refresh.
+      router.replace(`/propiedad?prop=${res.id}`)
+      return
+    }
+    if (openNew) router.replace(property ? `/propiedad?prop=${property.id}` : '/propiedad')
+    router.refresh()
+  }
+
   // ── Sin propiedad todavía ─────────────────────────────────────────────────
   if (!property) {
     return (
@@ -249,7 +276,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           <PropertyForm
             property={null} busy={busy} error={error} backdrop={propBackdrop}
             onCancel={closePropForm}
-            onSave={async input => { if (await run(() => saveProperty(input))) closePropForm() }}
+            onSave={handlePropertySave}
           />
         )}
       </>
@@ -504,12 +531,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           property={propForm === 'new' ? null : propForm}
           busy={busy} error={error} backdrop={propBackdrop}
           onCancel={closePropForm}
-          onSave={async input => {
-            const id = propForm === 'new' ? undefined : propForm.id
-            if (await run(() => saveProperty(input, id))) closePropForm()
-          }}
+          onSave={handlePropertySave}
           onDelete={propForm === 'new' ? undefined : async () => {
-            if (await run(() => deleteProperty(property.id))) closePropForm()
+            if (await run(() => deleteProperty(propForm.id))) closePropForm()
           }}
         />
       )}
