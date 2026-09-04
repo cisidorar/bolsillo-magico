@@ -34,6 +34,7 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, onCl
   const [draft, setDraft]   = useState<ParsedUtilityBill | null>(null)
   const [busy, setBusy]     = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   // Campos editables del borrador
   const [kind, setKind]     = useState<'electricity' | 'water'>('electricity')
@@ -103,13 +104,22 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, onCl
             <>
               <button
                 onClick={() => fileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={e => { e.preventDefault(); setDragOver(false) }}
+                onDrop={e => {
+                  e.preventDefault(); setDragOver(false)
+                  const f = e.dataTransfer.files?.[0]
+                  if (f) handleFile(f)
+                }}
                 disabled={busy}
-                className="w-full py-10 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 disabled:opacity-50"
-                style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                className="w-full py-10 rounded-2xl border-2 border-dashed flex flex-col items-center gap-2 disabled:opacity-50 transition-colors"
+                style={dragOver
+                  ? { borderColor: 'var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)' }
+                  : { borderColor: 'var(--border)', color: 'var(--ink-3)' }}
               >
                 <Upload className="w-7 h-7" />
                 <span className="text-sm font-semibold">
-                  {busy ? 'Leyendo el PDF…' : 'Elegir la boleta en PDF'}
+                  {busy ? 'Leyendo el PDF…' : dragOver ? 'Suelta la boleta aquí' : 'Elegir o arrastrar la boleta en PDF'}
                 </span>
                 <span className="text-xs">Enel o Aguas Andinas</span>
               </button>

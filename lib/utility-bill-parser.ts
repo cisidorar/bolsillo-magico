@@ -68,6 +68,18 @@ export function parseClMoney(raw: string): number | null {
   return Number.isFinite(n) ? Math.round(n) : null
 }
 
+/**
+ * Igual que parseClMoney pero conserva decimales — para consumo, no para CLP.
+ * El agua se prorratea entre lecturas ("3,74 m3"), así que redondear a entero
+ * (como sí corresponde para plata) perdería precisión real del dato.
+ */
+export function parseClNumber(raw: string): number | null {
+  const cleaned = raw.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')
+  if (!cleaned) return null
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : null
+}
+
 /** Primer grupo capturado del primer patrón que matchee. */
 function firstMatch(text: string, patterns: RegExp[]): string | null {
   for (const re of patterns) {
@@ -79,7 +91,13 @@ function firstMatch(text: string, patterns: RegExp[]): string | null {
 
 export function detectProvider(text: string): UtilityProvider {
   const t = text.toLowerCase()
-  if (/aguas\s+andinas/.test(t)) return 'aguas_andinas'
+  // Una boleta real de Aguas Andinas puede no decir "Aguas Andinas" en
+  // ninguna parte del texto extraído: el PDF muestra la razón social del
+  // cliente (ej. una inmobiliaria), no la del emisor. El RUT de la empresa
+  // (61.808.000-5) sí aparece siempre y es un identificador único confiable.
+  if (/aguas\s+andinas/.test(t) || t.includes('61.808.000-5') || t.includes('61808000-5')) {
+    return 'aguas_andinas'
+  }
   if (/\benel\b/.test(t)) return 'enel'
   return 'unknown'
 }
@@ -102,10 +120,13 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   // el identificador viene en el bloque PAC/PAT para inscribir el pago
   // automático ("PAT 3196937-9"), que es el mismo número. Va primero porque
   // es el más confiable — aparece en todas, no solo en algunas.
+  // Aguas Andinas identifica la cuenta como "Nro de cuenta" (con "r"), no
+  // "N° de cliente" — un prefijo distinto al de las otras variantes de abajo.
   const clientNumber = firstMatch(text, [
     /\bPAT\s+([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
+    /(?:n[°º.]?|nro)\.?\s*(?:de\s+)?cuenta[:\s]*([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
   ])
 
@@ -120,6 +141,10 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     // encontrar dígitos justo después (el resto de la palabra no son dígitos).
     /\bvence(?:\s+el)?[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
     /fecha\s+de\s+vencimiento[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
+    // Aguas Andinas solo dice "VENCIMIENTO 22-AGO-2026", sin "fecha de" ni
+    // "vence" — captura no-greedy para no tragarse el resto de la línea
+    // ("... TOTAL A PAGAR $ 6.120") cuando ambos comparten renglón.
+    /\bvencimiento[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}?[\s/-][\d]{2,4})/i,
     /pagar\s+hasta[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
   ])
 
@@ -128,16 +153,28 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     /per[íi]odo[^\d]{0,20}([\d]{1,2}[/-][\d]{1,2}[/-][\d]{2,4})\s*(?:al|a|-|hasta)\s*([\d]{1,2}[/-][\d]{1,2}[/-][\d]{2,4})/i
   )
 
+  // Aguas Andinas no siempre declara un "período" explícito: da las fechas de
+  // lectura del medidor, que delimitan el mismo tramo que cobra la boleta.
+  const lecturaAnterior = firstMatch(text, [
+    /lectura\s+anterior\s+([\d]{1,2}[-/][a-záéíóú]{3,9}[-/][\d]{2,4})/i,
+  ])
+  const lecturaActual = firstMatch(text, [
+    /lectura\s+actual\s+([\d]{1,2}[-/][a-záéíóú]{3,9}[-/][\d]{2,4})/i,
+  ])
+
   // El consumo total real casi siempre dice "Consumo total del período" (con
   // "total" de por medio) o "= 125" en vez de "125 kWh" pegado — y ANTES de
   // esa frase, la boleta ya mencionó sub-consumos por horario que también
   // vienen pegados a "kWh" ("Electricidad Consumida Noche (28kWh)"). El
   // fallback genérico de abajo agarraría ese 28 en vez de los 125 reales si
   // fuera el primero en la lista — por eso esta frase específica va primero.
+  // "CONSUMO TOTAL 3,74 m3" (Aguas Andinas real) tiene "TOTAL" entre
+  // "consumo" y el número — a diferencia de "CONSUMO AGUA POTABLE 3,74 2.286"
+  // que aparece antes en la misma boleta y NO es el consumo total a usar.
   const consumptionRaw = firstMatch(text, [
     /consumo\s+(?:total\s+)?(?:del\s+)?per[íi]odo[:=\s]*([\d.,]+)/i,
     /([\d.,]+)\s*kwh/i,
-    /consumo[:\s]*([\d.,]+)\s*(?:m3|m³)/i,
+    /consumo\s*(?:total)?[:\s]*([\d.,]+)\s*(?:m3|m³)/i,
   ])
 
   const prevRaw = firstMatch(text, [
@@ -150,9 +187,13 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     clientNumber:    clientNumber?.trim() ?? null,
     total:           totalRaw ? parseClMoney(totalRaw) : null,
     dueDate:         dueRaw ? parseClDate(dueRaw) : null,
-    periodFrom:      periodPair ? parseClDate(periodPair[1]) : null,
-    periodTo:        periodPair ? parseClDate(periodPair[2]) : null,
-    consumption:     consumptionRaw ? parseClMoney(consumptionRaw) : null,
+    periodFrom:      periodPair ? parseClDate(periodPair[1])
+                     : lecturaAnterior ? parseClDate(lecturaAnterior) : null,
+    periodTo:        periodPair ? parseClDate(periodPair[2])
+                     : lecturaActual ? parseClDate(lecturaActual) : null,
+    // parseClNumber, no parseClMoney: el consumo de agua viene prorrateado
+    // ("3,74 m3") y redondear a entero perdería el dato real.
+    consumption:     consumptionRaw ? parseClNumber(consumptionRaw) : null,
     // Un saldo anterior de 0 es un dato válido ("no debes nada"), distinto de
     // "no lo encontré" — por eso se conserva el 0 en vez de colapsarlo a null.
     previousBalance: prevRaw ? parseClMoney(prevRaw) : null,

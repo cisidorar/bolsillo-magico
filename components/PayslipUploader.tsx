@@ -136,6 +136,7 @@ export default function PayslipUploader() {
   const [savedCount, setSavedCount] = useState(0)
   const [skippedCount, setSkippedCount] = useState(0)
   const [anySaved, setAnySaved] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
 
   const doneCount = savedCount + skippedCount
   const isBatch   = total > 1
@@ -314,11 +315,22 @@ export default function PayslipUploader() {
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={e => { e.preventDefault(); setDragOver(false) }}
+                    onDrop={e => {
+                      e.preventDefault(); setDragOver(false)
+                      const files = Array.from(e.dataTransfer.files ?? [])
+                      if (files.length > 0) startBatch(files)
+                    }}
                     className="w-full flex flex-col items-center gap-3 py-10 rounded-2xl border-2 border-dashed transition-colors"
-                    style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                    style={dragOver
+                      ? { borderColor: 'var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)' }
+                      : { borderColor: 'var(--border)', color: 'var(--ink-3)' }}
                   >
                     <FileText className="w-8 h-8" style={{ color: 'var(--primary)' }} />
-                    <span className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>Toca para elegir uno o varios PDF</span>
+                    <span className="text-sm font-semibold" style={{ color: dragOver ? 'var(--primary)' : 'var(--ink-2)' }}>
+                      {dragOver ? 'Suelta el PDF aquí' : 'Toca o arrastra uno o varios PDF'}
+                    </span>
                     <span className="text-xs">Liquidación de sueldo · máx. 8MB c/u</span>
                   </button>
                 </div>

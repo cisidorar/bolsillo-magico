@@ -153,6 +153,63 @@ describe('parseUtilityBill — Aguas Andinas', () => {
   })
 })
 
+describe('parseUtilityBill — Aguas Andinas (formato real, no sintético)', () => {
+  // Extracto real de una boleta de Aguas Andinas (ago 2026): el texto nunca
+  // dice "Aguas Andinas" (el PDF muestra la razón social del cliente, no del
+  // emisor), la cuenta va como "Nro de cuenta" (no "N° de cliente"), el
+  // vencimiento va sin "fecha de" ni "vence", el consumo real dice "CONSUMO
+  // TOTAL 3,74 m3" (con un sub-consumo "3,74 2.286" apareciendo antes en el
+  // texto que un regex ingenuo confundiría), y no hay frase "período" — solo
+  // fechas de lectura de medidor.
+  const BOLETA_AGUAS_REAL = `
+    R.U.T. : 61.808.000-5
+    BOLETA ELECTRÓNICA
+    Captación, Tratamiento y Distribución de Agua
+    INMOBILIARIA LOS ALGARROBOS LIMITADA
+    RUTA: 03.150.0550/2 MEC: 00000445-0000000 2502874-0
+    VENCIMIENTO 22-AGO-2026 TOTAL A PAGAR $ 6.120
+    CARGO FIJO 944
+    CONSUMO AGUA POTABLE 3,74 2.286
+    RECOLECCION AGUAS SERVIDAS 3,74 1.726
+    LECTURA ACTUAL 25-JUL-2026 461 m3
+    LECTURA ANTERIOR 24-JUN-2026 458 m3
+    CONSUMO TOTAL 3,74 m3
+    Total a Pagar $ 6.120
+    Vencimiento 22-AGO-2026
+    Nro de cuenta 2502874-0
+  `
+
+  it('reconoce Aguas Andinas por su RUT aunque el nombre no aparezca en el texto', () => {
+    expect(parseUtilityBill(BOLETA_AGUAS_REAL).provider).toBe('aguas_andinas')
+  })
+
+  it('saca la cuenta de "Nro de cuenta", no de un "N° de cliente" que no existe', () => {
+    expect(parseUtilityBill(BOLETA_AGUAS_REAL).clientNumber).toBe('2502874-0')
+  })
+
+  it('lee "VENCIMIENTO 22-AGO-2026" sin "fecha de" ni "vence", y el total', () => {
+    const r = parseUtilityBill(BOLETA_AGUAS_REAL)
+    expect(r.dueDate).toBe('2026-08-22')
+    expect(r.total).toBe(6120)
+  })
+
+  it('agarra el consumo TOTAL, no el sub-consumo "3,74 2.286" que aparece antes', () => {
+    expect(parseUtilityBill(BOLETA_AGUAS_REAL).consumption).toBe(3.74)
+  })
+
+  it('conserva el decimal del consumo de agua — redondear perdería el prorrateo real', () => {
+    // A diferencia de los montos CLP (siempre enteros), 3,74 m3 no debe
+    // convertirse en 4.
+    expect(parseUtilityBill(BOLETA_AGUAS_REAL).consumption).not.toBe(4)
+  })
+
+  it('deriva el período de las fechas de lectura cuando no hay frase "período"', () => {
+    const r = parseUtilityBill(BOLETA_AGUAS_REAL)
+    expect(r.periodFrom).toBe('2026-06-24')
+    expect(r.periodTo).toBe('2026-07-25')
+  })
+})
+
 describe('parseUtilityBill — degradación', () => {
   it('un emisor desconocido devuelve todo en null, sin lanzar', () => {
     const r = parseUtilityBill('Boleta de gas Metrogas. Total a pagar: $ 20.000')
