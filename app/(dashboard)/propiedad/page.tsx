@@ -96,10 +96,25 @@ export default async function PropiedadPage({
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div className="min-w-0">
-          <h1 className="text-2xl lg:text-3xl font-extrabold leading-tight truncate"
-              style={{ color: 'var(--ink)' }}>
-            {title}
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl lg:text-3xl font-extrabold leading-tight truncate"
+                style={{ color: 'var(--ink)' }}>
+              {title}
+            </h1>
+            {/* Mint porque es confirmación, no alerta (UX5): que esté arrendada
+                es el estado bueno. Sin contrato el chip es gris, no coral —
+                una propiedad vacía no es una urgencia de hoy. */}
+            {property && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full flex-shrink-0"
+                style={lease
+                  ? { color: 'var(--mint)', background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }
+                  : { color: 'var(--ink-3)', background: 'var(--surface-2)' }}
+              >
+                {lease ? 'Arrendada' : 'Sin contrato'}
+              </span>
+            )}
+          </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
             {subtitle}
           </p>
