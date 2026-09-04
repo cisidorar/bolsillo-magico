@@ -1572,8 +1572,13 @@ function AseoForm({ propertyId, busy, error, backdrop, onCancel, onGenerate }: {
                  onChange={e => setYear(e.target.value.replace(/\D/g, '').slice(0, 4))} />
         </Field>
         <Field label="Monto base por cuota" hint="El que aparece antes de intereses y reajuste.">
-          <input className={inputCls} style={inputStyle} value={base} inputMode="numeric" required
-                 onChange={e => setBase(e.target.value.replace(/\D/g, ''))} placeholder="14330" />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                  style={{ color: 'var(--ink-3)' }}>$</span>
+            <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                   value={fmtClpInput(base)} inputMode="numeric" required
+                   onChange={e => setBase(e.target.value.replace(/\D/g, ''))} placeholder="14.330" />
+          </div>
         </Field>
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
