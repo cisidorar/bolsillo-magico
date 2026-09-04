@@ -115,3 +115,26 @@ export function pendingIncome<T extends SummaryCharge>(charges: T[], todayStr: s
     })
     .sort((a, b) => a.due_date.localeCompare(b.due_date))
 }
+
+/**
+ * Cuentas tuyas vencidas, sin importar de qué mes son.
+ *
+ * `monthBills` solo mira el mes en curso — un derecho de aseo de abril que
+ * nadie pagó se vuelve invisible en septiembre si nada más lo busca. Esta es
+ * la lista que lo saca a la luz: mientras exista una fila acá, esa deuda
+ * sigue viva aunque el calendario ya haya pasado tres trimestres de largo.
+ *
+ * Incluye el dividendo a propósito: uno atrasado es la peor sorpresa posible
+ * y esconderlo porque tiene su propia tarjeta en la banda de stats sería el
+ * mismo error que llevó a que estas dos cuentas de aseo pasaran cuatro meses
+ * sin aparecer en ningún lado.
+ */
+export function overdueOwnerBills<T extends SummaryCharge>(charges: T[], todayStr: string): T[] {
+  return charges
+    .filter(c => {
+      if (c.direction !== 'out' || c.responsible === 'tenant') return false
+      const s = chargeStatus(c, todayStr)
+      return s === 'overdue' || s === 'partial'
+    })
+    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+}

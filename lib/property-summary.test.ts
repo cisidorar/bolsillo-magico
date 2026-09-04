@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { propertySummary, monthBills, pendingIncome, type SummaryCharge } from './property-summary'
+import { propertySummary, monthBills, pendingIncome, overdueOwnerBills, type SummaryCharge } from './property-summary'
 
 const TODAY = '2026-09-03'
 
@@ -118,5 +118,44 @@ describe('pendingIncome', () => {
 
   it('ignora las salidas', () => {
     expect(pendingIncome([bill('aseo', '2026-09-30', 41900)], TODAY)).toHaveLength(0)
+  })
+})
+
+describe('overdueOwnerBills', () => {
+  it('saca a la luz una vencida de meses atrás, no solo del mes en curso', () => {
+    // El caso real que expuso el hueco: dos giros de aseo de abril y junio
+    // seguían vencidos en septiembre y no aparecían en ninguna lista.
+    const list = overdueOwnerBills([
+      bill('aseo', '2026-04-30', 13950),
+      bill('aseo', '2026-06-30', 13950),
+      bill('aseo', '2026-09-30', 14330),  // no vencida aún
+    ], TODAY)
+    expect(list.map(c => c.due_date)).toEqual(['2026-04-30', '2026-06-30'])
+  })
+
+  it('ordena de más vieja a más nueva — la que más recargo acumula primero', () => {
+    const list = overdueOwnerBills([bill('aseo', '2026-06-30', 13950), bill('aseo', '2026-04-30', 13950)], TODAY)
+    expect(list.map(c => c.due_date)).toEqual(['2026-04-30', '2026-06-30'])
+  })
+
+  it('incluye el dividendo vencido — es la peor sorpresa posible para esconder', () => {
+    expect(overdueOwnerBills([bill('mortgage', '2026-06-01', 248400)], TODAY)).toHaveLength(1)
+  })
+
+  it('excluye lo del arrendatario: no es deuda tuya', () => {
+    expect(overdueOwnerBills([tenantBill('electricity', '2026-06-30', 34210)], TODAY)).toHaveLength(0)
+  })
+
+  it('excluye lo ya pagado y lo que aún no vence', () => {
+    const list = overdueOwnerBills([
+      bill('aseo', '2026-04-30', 13950, '2026-05-01'),
+      bill('aseo', '2026-11-30', 14330),
+    ], TODAY)
+    expect(list).toHaveLength(0)
+  })
+
+  it('un abono parcial sigue contando como vencido', () => {
+    const parcial: SummaryCharge = { ...bill('aseo', '2026-04-30', 13950), paid_date: '2026-05-01', paid_amount: 5000 }
+    expect(overdueOwnerBills([parcial], TODAY)).toHaveLength(1)
   })
 })

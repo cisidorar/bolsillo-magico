@@ -9,10 +9,10 @@ import {
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
-  chargeStatus, chargeTotal, propertyHealth, mortgageProgress,
+  chargeStatus, chargeTotal, chargeOutstanding, propertyHealth, mortgageProgress,
   daysBetween, KIND_LABEL, type ChargeStatus,
 } from '@/lib/property-charges'
-import { propertySummary, monthBills, pendingIncome } from '@/lib/property-summary'
+import { propertySummary, monthBills, pendingIncome, overdueOwnerBills } from '@/lib/property-summary'
 import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
@@ -327,7 +327,14 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     [charges, today, lease, property.mortgage_amount],
   )
   const pending = useMemo(() => pendingIncome(charges, today), [charges, today])
-  const bills   = useMemo(() => monthBills(charges, today), [charges, today])
+  const overdueBills = useMemo(() => overdueOwnerBills(charges, today), [charges, today])
+  // "Cuentas del mes" ya no repite lo que vive en "Vencidas": una cuenta
+  // vencida es siempre del mes en que venció, así que sin este filtro
+  // aparecería duplicada en las dos tarjetas apenas se atrasa.
+  const bills = useMemo(
+    () => monthBills(charges, today).filter(c => !overdueBills.includes(c)),
+    [charges, today, overdueBills],
+  )
 
   const pendingOverdue = pending.filter(c => chargeStatus(c, today) === 'overdue')
   const pendingSoon    = pending.filter(c => chargeStatus(c, today) === 'due_soon')
@@ -335,6 +342,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     pendingOverdue.length > 0 ? `${pendingOverdue.length} ${pendingOverdue.length === 1 ? 'vencido' : 'vencidos'}` : null,
     pendingSoon.length    > 0 ? `${pendingSoon.length} por vencer` : null,
   ].filter(Boolean).join(' · ') || `${pending.length} pendiente${pending.length === 1 ? '' : 's'}`
+
+  const overdueBillsTotal = overdueBills.reduce((s, c) => s + chargeOutstanding(c), 0)
 
   const billsTotal   = bills.reduce((s, c) => s + chargeTotal(c), 0)
   const billsUnpaid  = bills.filter(c => chargeStatus(c, today) !== 'paid').length
@@ -357,6 +366,17 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   async function markAllPending() {
     setBusy(true); setError(null)
     for (const c of pendingOverdue) {
+      const res = await markChargePaid(c.id, today, chargeTotal(c))
+      if (!res.ok) { setError(res.error); setBusy(false); return }
+    }
+    setBusy(false)
+    router.refresh()
+  }
+
+  /** Igual que markAllPending, para el lado de lo que tú debes pagar. */
+  async function markAllOverdueBills() {
+    setBusy(true); setError(null)
+    for (const c of overdueBills) {
       const res = await markChargePaid(c.id, today, chargeTotal(c))
       if (!res.ok) { setError(res.error); setBusy(false); return }
     }
@@ -409,6 +429,44 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
             {/* Columna izquierda: lo que se mueve mes a mes */}
             <div className="space-y-5">
+
+              {/* Vencidas — sin importar de qué mes son. "Cuentas del mes"
+                  solo mira el mes en curso, así que una cuenta de un
+                  trimestre atrás que nadie pagó quedaba invisible apenas
+                  cambiaba el mes. Coral porque es la única urgencia real de
+                  "algo que tú debes" (UX5: por cobrar ya tiene su propio
+                  coral en la banda de stats, así que esta es la otra mitad). */}
+              {overdueBills.length > 0 && (
+                <div className="card p-4" style={{ borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--border))' }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vencidas</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--coral)' }}>
+                        {overdueBills.length} {overdueBills.length === 1 ? 'cuenta' : 'cuentas'} · {formatCLP(overdueBillsTotal)}
+                      </p>
+                    </div>
+                    {overdueBills.length > 1 && (
+                      <button
+                        onClick={markAllOverdueBills}
+                        disabled={busy}
+                        className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
+                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                      >
+                        Marcar todo pagado
+                      </button>
+                    )}
+                  </div>
+                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {overdueBills.map(c => (
+                      <ChargeRowCompact
+                        key={c.id} charge={c} today={today}
+                        subtitle={billSubtitle(c) ?? `venció ${fmtDate(c.due_date)} · ${relativeDue(c.due_date, today)}`}
+                        actionLabel="Pagué" onAction={() => setPayFor(c)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Cobros pendientes — una sola lista en vez de tres bloques de
                   alerta apilados. La severidad de cada fila la lleva su punto
@@ -522,7 +580,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
               {/* Nada que mostrar arriba: confirmación explícita, no una
                   columna vacía que parezca un error de carga. */}
-              {pending.length === 0 && bills.length === 0 && tenantCharges.length === 0 && (
+              {overdueBills.length === 0 && pending.length === 0 && bills.length === 0 && tenantCharges.length === 0 && (
                 <div className="card p-6 flex items-start gap-3">
                   <CircleCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--mint)' }} />
                   <div>
