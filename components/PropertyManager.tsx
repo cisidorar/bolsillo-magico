@@ -462,6 +462,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                         key={c.id} charge={c} today={today}
                         subtitle={billSubtitle(c) ?? `venció ${fmtDate(c.due_date)} · ${relativeDue(c.due_date, today)}`}
                         actionLabel="Pagué" onAction={() => setPayFor(c)}
+                        onEdit={() => setChargeForm(c)}
                       />
                     ))}
                   </div>
@@ -498,6 +499,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                       <ChargeRowCompact
                         key={c.id} charge={c} today={today}
                         actionLabel="Cobré" onAction={() => setPayFor(c)}
+                        onEdit={() => setChargeForm(c)}
                       />
                     ))}
                   </div>
@@ -524,6 +526,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                         key={c.id} charge={c} today={today}
                         subtitle={billSubtitle(c)}
                         actionLabel="Pagué" onAction={() => setPayFor(c)}
+                        onEdit={() => setChargeForm(c)}
                       />
                     ))}
                   </div>
@@ -543,7 +546,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                   <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                     {tenantCharges.slice(0, 5).map(c => (
                       <ChargeRowCompact key={c.id} charge={c} today={today}
-                                        subtitle={billSubtitle(c)} />
+                                        subtitle={billSubtitle(c)}
+                                        onEdit={() => setChargeForm(c)} />
                     ))}
                   </div>
                 </div>
@@ -802,19 +806,32 @@ function billSubtitle(c: Charge): string | undefined {
  * una lista mixta (vencidos y por vencer juntos) agrupar por color obligaría
  * a partirla en dos tarjetas que dicen lo mismo.
  */
-function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction }: {
+/**
+ * Fila compacta con el total como protagonista, pero clickeable: tocarla
+ * abre el mismo formulario de edición que "Agregar cobro", donde vive el
+ * desglose completo (base, interés penal, reajuste IPC, N° de giro). Cuando
+ * hay recargo, además se ve un renglón chico con el desglose sin necesidad
+ * de tocar nada — la fila sola con un total mayor a la base no explicaba de
+ * dónde salía la diferencia.
+ */
+function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEdit }: {
   charge: Charge
   today: string
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
+  onEdit?: () => void
 }) {
-  const status = chargeStatus(charge, today)
-  const style  = STATUS_STYLE[status]
-  const isPaid = status === 'paid'
+  const status  = chargeStatus(charge, today)
+  const style   = STATUS_STYLE[status]
+  const isPaid  = status === 'paid'
+  const recargo = charge.penalty + charge.inflation_adj
 
   return (
-    <div className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+    <div
+      onClick={onEdit}
+      className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 -mx-1 px-1 rounded-lg ${onEdit ? 'cursor-pointer hover:brightness-125 transition-[filter]' : ''}`}
+    >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
         style={{ background: isPaid ? 'var(--mint)' : style.color }}
@@ -833,13 +850,18 @@ function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction }: {
         <p className="text-sm font-bold tabular-nums" style={{ color: isPaid ? 'var(--ink)' : style.color }}>
           {formatCLP(chargeTotal(charge))}
         </p>
+        {recargo > 0 && (
+          <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
+            {formatCLP(charge.amount)} + {formatCLP(recargo)} rec.
+          </p>
+        )}
         <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: style.color }}>
           {style.label}
         </p>
       </div>
       {actionLabel && onAction && !isPaid && (
         <button
-          onClick={onAction}
+          onClick={e => { e.stopPropagation(); onAction() }}
           className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold"
           style={{ background: style.bg, color: style.color }}
         >
