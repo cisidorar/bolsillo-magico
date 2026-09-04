@@ -19,6 +19,7 @@ import {
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
   extractAseoReceiptDraft,
 } from '@/app/actions/property'
+import type { ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 import {
   nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
 } from '@/lib/lease'
@@ -212,6 +213,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [divForm, setDivForm]     = useState(false)
   const [utilsForm, setUtilsForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
+  // Marcar-todo-pagado de "Vencidas": abre un modal en vez de marcar directo,
+  // para poder adjuntar los comprobantes (se emparejan solos por N° de giro).
+  const [bulkPayFor, setBulkPayFor] = useState<Charge[] | null>(null)
   // La fila en Cobros ya no expone pagar/editar/eliminar como íconos — se
   // abre este detalle (misma lógica que la billetera USD) y de ahí salen.
   const [detailCharge, setDetailCharge] = useState<Charge | null>(null)
@@ -227,6 +231,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const divBackdrop    = useBackdropClose(() => setDivForm(false))
   const utilsBackdrop  = useBackdropClose(() => setUtilsForm(false))
   const payBackdrop    = useBackdropClose(() => setPayFor(null))
+  const bulkPayBackdrop = useBackdropClose(() => setBulkPayFor(null))
   const detailBackdrop = useBackdropClose(() => setDetailCharge(null))
 
   // Cerrar el form limpia ?nueva=1 de la URL. Sin esto, el router.refresh()
@@ -379,17 +384,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     router.refresh()
   }
 
-  /** Igual que markAllPending, para el lado de lo que tú debes pagar. */
-  async function markAllOverdueBills() {
-    setBusy(true); setError(null)
-    for (const c of overdueBills) {
-      const res = await markChargePaid(c.id, today, chargeTotal(c))
-      if (!res.ok) { setError(res.error); setBusy(false); return }
-    }
-    setBusy(false)
-    router.refresh()
-  }
-
   return (
     <>
       {view === 'estado' ? (
@@ -453,7 +447,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                     </div>
                     {overdueBills.length > 1 && (
                       <button
-                        onClick={markAllOverdueBills}
+                        onClick={() => setBulkPayFor(overdueBills)}
                         disabled={busy}
                         className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
                         style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
@@ -760,6 +754,31 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         />
       )}
 
+      {bulkPayFor && (
+        <BulkPayModal
+          charges={bulkPayFor} today={today} busy={busy} backdrop={bulkPayBackdrop}
+          onClose={() => setBulkPayFor(null)}
+          onConfirm={async matches => {
+            setBusy(true); setError(null)
+            for (const c of bulkPayFor) {
+              const m = matches.get(c.id)
+              let fd: FormData | null = null
+              if (m) { fd = new FormData(); fd.append('file', m.file) }
+              const res = await markChargePaid(
+                c.id,
+                m?.draft.paidDate ?? today,
+                m?.draft.totalPagado ?? chargeTotal(c),
+                fd,
+              )
+              if (!res.ok) { setError(res.error); setBusy(false); return }
+            }
+            setBusy(false)
+            setBulkPayFor(null)
+            router.refresh()
+          }}
+        />
+      )}
+
       {detailCharge && !payFor && !chargeForm && (
         <ChargeDetailSheet
           charge={detailCharge} today={today} busy={busy} backdrop={detailBackdrop}
@@ -1026,7 +1045,14 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
         <Fact label="Total" value={`${isIncome ? '+' : ''}${formatCLP(chargeTotal(charge))}`} bold
               color={isIncome ? 'var(--mint)' : undefined} />
         {charge.external_ref && <Fact label="N° de giro o boleta" value={charge.external_ref} />}
-        <Fact label="Quién lo paga" value={charge.responsible === 'tenant' ? 'El arrendatario' : 'Yo'} />
+        {/* "responsible" dice de quién es la carga financiera (para saber si
+            suma a tu deuda), no quién hace materialmente el pago — para un
+            cobro de ingreso (arriendo) eso es siempre el arrendatario, sin
+            importar que responsible='owner' (porque el ingreso es tuyo). */}
+        <Fact
+          label={isIncome ? 'Quién paga' : 'Quién lo paga'}
+          value={isIncome ? 'El arrendatario' : (charge.responsible === 'tenant' ? 'El arrendatario' : 'Yo')}
+        />
         {charge.paid_date && (
           <Fact label={isIncome ? 'Cobrado el' : 'Pagado el'} value={fmtDate(charge.paid_date)} />
         )}
@@ -1881,6 +1907,96 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel={isIncome ? 'Registrar' : 'Pagar'} />
+      </form>
+    </Modal>
+  )
+}
+
+/**
+ * Modal de "Marcar todo pagado" para varias cuentas a la vez (Vencidas).
+ * Antes marcaba todo con la fecha de hoy sin más — ahora deja soltar los
+ * comprobantes de una: cada PDF se parsea y se empareja solo con su cobro
+ * por N° de giro (external_ref), precargando fecha y monto reales en vez de
+ * "hoy y el total". Lo que no tenga comprobante se marca igual, como antes.
+ */
+function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
+  charges: Charge[]
+  today: string
+  busy: boolean
+  backdrop: Backdrop
+  onClose: () => void
+  onConfirm: (matches: Map<string, { file: File; draft: ParsedAseoReceipt }>) => void
+}) {
+  const [matches, setMatches]       = useState<Map<string, { file: File; draft: ParsedAseoReceipt }>>(new Map())
+  const [extracting, setExtracting] = useState(false)
+  const [dragOver, setDragOver]     = useState(false)
+
+  async function addFiles(files: File[]) {
+    setExtracting(true)
+    for (const f of files) {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await extractAseoReceiptDraft(fd)
+      if (res.ok && res.draft.ingresoNumero) {
+        const match = charges.find(c => c.external_ref === res.draft.ingresoNumero)
+        if (match) {
+          setMatches(prev => new Map(prev).set(match.id, { file: f, draft: res.draft }))
+        }
+      }
+    }
+    setExtracting(false)
+  }
+
+  return (
+    <Modal title="Marcar todo pagado" backdrop={backdrop} onCancel={onClose}>
+      <form onSubmit={e => { e.preventDefault(); onConfirm(matches) }}>
+        <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
+          {charges.length} {charges.length === 1 ? 'cuenta' : 'cuentas'} · lo que no traiga comprobante se marca con la fecha de hoy.
+        </p>
+
+        <label
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={e => { e.preventDefault(); setDragOver(false) }}
+          onDrop={e => {
+            e.preventDefault(); setDragOver(false)
+            const fs = Array.from(e.dataTransfer.files ?? []).filter(f => f.type === 'application/pdf')
+            if (fs.length > 0) addFiles(fs)
+          }}
+          className="flex flex-col items-center gap-1.5 py-6 rounded-2xl border-2 border-dashed cursor-pointer mb-4 text-center transition-colors"
+          style={dragOver
+            ? { borderColor: 'var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)' }
+            : { borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+        >
+          <Upload className="w-5 h-5" />
+          <span className="text-xs font-semibold px-4">
+            {extracting ? 'Leyendo comprobantes…' : 'Adjuntar comprobantes (opcional) — se emparejan solos por N° de giro'}
+          </span>
+          <input type="file" accept="application/pdf" multiple className="hidden"
+                 onChange={e => { const fs = Array.from(e.target.files ?? []); if (fs.length > 0) addFiles(fs) }} />
+        </label>
+
+        <div className="divide-y mb-2" style={{ borderColor: 'var(--border)' }}>
+          {charges.map(c => {
+            const m = matches.get(c.id)
+            return (
+              <div key={c.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                    {KIND_LABEL[c.kind] ?? c.kind}{c.external_ref ? ` · N° ${c.external_ref}` : ''}
+                  </p>
+                  <p className="text-xs truncate" style={{ color: m ? 'var(--mint)' : 'var(--ink-3)' }}>
+                    {m ? `Comprobante: ${m.file.name}` : `Sin comprobante · vence ${fmtDate(c.due_date)}`}
+                  </p>
+                </div>
+                <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                  {formatCLP(m?.draft.totalPagado ?? chargeTotal(c))}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+
+        <Actions busy={busy || extracting} onCancel={onClose} submitLabel="Marcar todo pagado" />
       </form>
     </Modal>
   )
