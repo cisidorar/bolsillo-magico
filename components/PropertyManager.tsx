@@ -210,6 +210,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [divForm, setDivForm]     = useState(false)
   const [utilsForm, setUtilsForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
+  // La fila en Cobros ya no expone pagar/editar/eliminar como íconos — se
+  // abre este detalle (misma lógica que la billetera USD) y de ahí salen.
+  const [detailCharge, setDetailCharge] = useState<Charge | null>(null)
   const [busy, setBusy]           = useState(false)
   const [error, setError]         = useState<string | null>(null)
 
@@ -222,6 +225,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const divBackdrop    = useBackdropClose(() => setDivForm(false))
   const utilsBackdrop  = useBackdropClose(() => setUtilsForm(false))
   const payBackdrop    = useBackdropClose(() => setPayFor(null))
+  const detailBackdrop = useBackdropClose(() => setDetailCharge(null))
 
   // Cerrar el form limpia ?nueva=1 de la URL. Sin esto, el router.refresh()
   // que dispara cualquier guardado volvería a montar el manager con openNew
@@ -650,22 +654,16 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
           <ChargeList
             title="Tuyos"
-            charges={ownerCharges} today={today} busy={busy}
-            onPay={c => setPayFor(c)}
-            onEdit={c => setChargeForm(c)}
-            onUnpay={c => run(() => unmarkChargePaid(c.id))}
-            onDelete={c => run(() => deleteCharge(c.id))}
+            charges={ownerCharges} today={today}
+            onOpen={c => setDetailCharge(c)}
           />
 
           {tenantCharges.length > 0 && (
             <ChargeList
               title="Del arrendatario"
               subtitle="Por contrato los paga él. Se listan para vigilar la mora, no suman a tu deuda."
-              charges={tenantCharges} today={today} busy={busy}
-              onPay={c => setPayFor(c)}
-              onEdit={c => setChargeForm(c)}
-              onUnpay={c => run(() => unmarkChargePaid(c.id))}
-              onDelete={c => run(() => deleteCharge(c.id))}
+              charges={tenantCharges} today={today}
+              onOpen={c => setDetailCharge(c)}
             />
           )}
         </div>
@@ -753,6 +751,21 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           onCancel={() => setPayFor(null)}
           onPay={async (date, amount) => {
             if (await run(() => markChargePaid(payFor.id, date, amount))) setPayFor(null)
+          }}
+        />
+      )}
+
+      {detailCharge && !payFor && !chargeForm && (
+        <ChargeDetailSheet
+          charge={detailCharge} today={today} busy={busy} backdrop={detailBackdrop}
+          onClose={() => setDetailCharge(null)}
+          onEdit={() => { setChargeForm(detailCharge); setDetailCharge(null) }}
+          onPay={() => { setPayFor(detailCharge); setDetailCharge(null) }}
+          onUnpay={async () => {
+            if (await run(() => unmarkChargePaid(detailCharge.id))) setDetailCharge(null)
+          }}
+          onDelete={async () => {
+            if (await run(() => deleteCharge(detailCharge.id))) setDetailCharge(null)
           }}
         />
       )}
@@ -874,16 +887,17 @@ function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEd
 
 // ── Lista de cobros ─────────────────────────────────────────────────────────
 
-function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUnpay, onDelete }: {
+/**
+ * Lista de la pestaña Cobros — misma lógica que la billetera USD: la fila
+ * entera es un botón que abre un detalle (ChargeDetailSheet); las acciones
+ * (pagar, editar, eliminar) viven ahí, no como íconos apretados en la fila.
+ */
+function ChargeList({ title, subtitle, charges, today, onOpen }: {
   title: string
   subtitle?: string
   charges: Charge[]
   today: string
-  busy: boolean
-  onPay: (c: Charge) => void
-  onEdit: (c: Charge) => void
-  onUnpay: (c: Charge) => void
-  onDelete: (c: Charge) => void
+  onOpen: (c: Charge) => void
 }) {
   const sorted = [...charges].sort((a, b) => b.due_date.localeCompare(a.due_date))
 
@@ -906,7 +920,11 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
             const status = chargeStatus(c, today)
             const style  = STATUS_STYLE[status]
             return (
-              <div key={c.id} className="px-4 py-3 flex items-center gap-3">
+              <button
+                key={c.id}
+                onClick={() => onOpen(c)}
+                className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-[var(--surface-2)] transition-colors active:opacity-80"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
@@ -939,52 +957,141 @@ function ChargeList({ title, subtitle, charges, today, busy, onPay, onEdit, onUn
                   )}
                 </div>
 
-                <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold whitespace-nowrap"
-                     style={{ color: c.direction === 'in' ? 'var(--mint)' : 'var(--ink)' }}>
-                    {c.direction === 'in' ? '+' : ''}{formatCLP(chargeTotal(c))}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {status === 'paid' ? (
-                    <button
-                      onClick={() => onUnpay(c)} disabled={busy}
-                      title="Deshacer pago"
-                      className="p-1.5 rounded-lg" style={{ color: 'var(--ink-3)' }}
-                    >
-                      <Undo2 className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => onPay(c)} disabled={busy}
-                      title={c.direction === 'in' ? 'Marcar cobrado' : 'Marcar pagado'}
-                      className="p-1.5 rounded-lg" style={{ color: 'var(--mint)' }}
-                    >
-                      <Check className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onEdit(c)} disabled={busy}
-                    title="Editar"
-                    className="p-1.5 rounded-lg" style={{ color: 'var(--ink-3)' }}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => { if (confirm('¿Eliminar este cobro?')) onDelete(c) }}
-                    disabled={busy}
-                    title="Eliminar"
-                    className="p-1.5 rounded-lg" style={{ color: 'var(--coral)' }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+                <p className="text-sm font-bold whitespace-nowrap flex-shrink-0"
+                   style={{ color: c.direction === 'in' ? 'var(--mint)' : 'var(--ink)' }}>
+                  {c.direction === 'in' ? '+' : ''}{formatCLP(chargeTotal(c))}
+                </p>
+              </button>
             )
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Detalle de un cobro — se abre al tocar una fila de ChargeList, misma
+ * lógica que la billetera USD: la fila no carga íconos, el tap abre esto y
+ * acá viven pagar/cobrar, editar y eliminar, más el desglose completo
+ * (base, interés penal, IPC, N° de giro) que en la fila compacta no cabía.
+ */
+function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onPay, onUnpay, onDelete }: {
+  charge: Charge
+  today: string
+  busy: boolean
+  backdrop: Backdrop
+  onClose: () => void
+  onEdit: () => void
+  onPay: () => void
+  onUnpay: () => void
+  onDelete: () => void
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const status = chargeStatus(charge, today)
+  const style  = STATUS_STYLE[status]
+  const isPaid = status === 'paid'
+  const isIncome = charge.direction === 'in'
+
+  return (
+    <Modal title={KIND_LABEL[charge.kind] ?? charge.kind} backdrop={backdrop} onCancel={onClose}>
+      <div className="flex items-center gap-2 mb-4">
+        <span
+          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+          style={{ background: style.bg, color: style.color }}
+        >
+          {style.label}
+        </span>
+        <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Vence {fmtDate(charge.due_date)}</span>
+      </div>
+
+      <div className="rounded-2xl overflow-hidden divide-y mb-4" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+        <Fact label="Monto base" value={formatCLP(charge.amount)} />
+        {charge.penalty > 0 && <Fact label="Interés penal" value={formatCLP(charge.penalty)} />}
+        {charge.inflation_adj > 0 && <Fact label="Reajuste IPC" value={formatCLP(charge.inflation_adj)} />}
+        <Fact label="Total" value={`${isIncome ? '+' : ''}${formatCLP(chargeTotal(charge))}`} bold
+              color={isIncome ? 'var(--mint)' : undefined} />
+        {charge.external_ref && <Fact label="N° de giro o boleta" value={charge.external_ref} />}
+        <Fact label="Quién lo paga" value={charge.responsible === 'tenant' ? 'El arrendatario' : 'Yo'} />
+        {charge.paid_date && (
+          <Fact label={isIncome ? 'Cobrado el' : 'Pagado el'} value={fmtDate(charge.paid_date)} />
+        )}
+      </div>
+
+      {charge.notes && (
+        <div className="mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Nota</p>
+          <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{charge.notes}</p>
+        </div>
+      )}
+
+      {confirmDelete ? (
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
+          <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+            ¿Eliminar este cobro?
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="flex-1 py-3 text-sm font-semibold rounded-2xl border"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={busy}
+              onClick={onDelete}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-60"
+              style={{ background: 'var(--coral)', color: 'white' }}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="w-11 h-11 flex items-center justify-center rounded-2xl border flex-shrink-0"
+            style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+            aria-label="Eliminar"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onEdit}
+            className="w-11 h-11 flex items-center justify-center rounded-2xl border flex-shrink-0"
+            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface-2)' }}
+            aria-label="Editar"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={isPaid ? onUnpay : onPay}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-60 active:scale-[.98] transition-transform"
+            style={isPaid
+              ? { color: 'var(--ink-2)', border: '1px solid var(--border)', background: 'var(--surface-2)' }
+              : { background: 'var(--primary)', color: 'var(--primary-ink)' }}
+          >
+            {isPaid
+              ? <><Undo2 className="w-3.5 h-3.5" /> Deshacer {isIncome ? 'cobro' : 'pago'}</>
+              : <><Check className="w-4 h-4" strokeWidth={2.5} /> {isIncome ? 'Marcar cobrado' : 'Marcar pagado'}</>}
+          </button>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/** Fila label/valor de la caja de datos del detalle. */
+function Fact({ label, value, bold, color }: { label: string; value: string; bold?: boolean; color?: string }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2.5">
+      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>{label}</span>
+      <span className={`text-sm tabular-nums ${bold ? 'font-bold' : 'font-semibold'}`} style={{ color: color ?? 'var(--ink)' }}>
+        {value}
+      </span>
     </div>
   )
 }
