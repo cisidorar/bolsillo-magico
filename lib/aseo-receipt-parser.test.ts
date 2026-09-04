@@ -65,6 +65,18 @@ describe('parseAseoReceipt — comprobante real (texto tal como lo entrega unpdf
   it('lee PLAZO PARA PAGAR — la clave real para emparejar con el cobro (su due_date), no INGRESO NÚMERO', () => {
     expect(parseAseoReceipt(COMPROBANTE_REAL).plazoParaPagar).toBe('2026-06-30')
   })
+
+  it('desglosa SUBTOTAL/IPC/INTERÉS por separado — no solo el total pagado', () => {
+    // Estos tres van a amount/inflation_adj/penalty del cobro. Sin el
+    // desglose, marcar pagado con solo el total deja el `amount` del cobro
+    // en su valor genérico y chargeStatus() lo muestra "Parcial" aunque se
+    // haya pagado exactamente lo que pedía la boleta.
+    const r = parseAseoReceipt(COMPROBANTE_REAL)
+    expect(r.subtotal).toBe(13950)
+    expect(r.ipc).toBe(34)
+    expect(r.interes).toBe(197)
+    expect(r.subtotal! + r.ipc! + r.interes!).toBe(r.totalPagado)
+  })
 })
 
 describe('parseAseoReceipt — segundo comprobante real (otro giro, mismo formato)', () => {
@@ -99,11 +111,14 @@ describe('parseAseoReceipt — segundo comprobante real (otro giro, mismo format
     CUOTA 01 DE 2026
   `
 
-  it('extrae los cuatro campos del giro de abril, distintos del de junio', () => {
+  it('extrae los campos del giro de abril, distintos del de junio', () => {
     const r = parseAseoReceipt(COMPROBANTE_Q1)
     expect(r.ingresoNumero).toBe('2600580210')
     expect(r.totalPagado).toBe(14694)
     expect(r.plazoParaPagar).toBe('2026-04-30')
+    expect(r.subtotal).toBe(13950)
+    expect(r.ipc).toBe(350)
+    expect(r.interes).toBe(394)
   })
 })
 
@@ -114,6 +129,9 @@ describe('parseAseoReceipt — degradación', () => {
     expect(r.totalPagado).toBeNull()
     expect(r.paidDate).toBeNull()
     expect(r.plazoParaPagar).toBeNull()
+    expect(r.subtotal).toBeNull()
+    expect(r.ipc).toBeNull()
+    expect(r.interes).toBeNull()
   })
 
   it('texto vacío no rompe', () => {

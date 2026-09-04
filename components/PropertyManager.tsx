@@ -757,10 +757,12 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         <PayForm
           charge={payFor} today={today} busy={busy} error={error} backdrop={payBackdrop}
           onCancel={() => setPayFor(null)}
-          onPay={async (date, amount, receipt, externalRef) => {
+          onPay={async (date, amount, receipt, externalRef, billBreakdown) => {
             let fd: FormData | null = null
             if (receipt) { fd = new FormData(); fd.append('file', receipt) }
-            if (await run(() => markChargePaid(payFor.id, date, amount, fd, externalRef))) setPayFor(null)
+            if (await run(() => markChargePaid(payFor.id, date, amount, {
+              receiptForm: fd, externalRef, billBreakdown,
+            }))) setPayFor(null)
           }}
         />
       )}
@@ -775,12 +777,14 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
               const m = matches.get(c.id)
               let fd: FormData | null = null
               if (m) { fd = new FormData(); fd.append('file', m.file) }
+              const bd = m && m.draft.subtotal != null && m.draft.ipc != null && m.draft.interes != null
+                ? { amount: m.draft.subtotal, penalty: m.draft.interes, inflationAdj: m.draft.ipc }
+                : null
               const res = await markChargePaid(
                 c.id,
                 m?.draft.paidDate ?? today,
                 m?.draft.totalPagado ?? chargeTotal(c),
-                fd,
-                m?.draft.ingresoNumero ?? null,
+                { receiptForm: fd, externalRef: m?.draft.ingresoNumero ?? null, billBreakdown: bd },
               )
               if (!res.ok) { setError(res.error); setBusy(false); return }
             }
@@ -1848,13 +1852,17 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
   error: string | null
   backdrop: Backdrop
   onCancel: () => void
-  onPay: (date: string, amount: number, receipt: File | null, externalRef: string | null) => void
+  onPay: (
+    date: string, amount: number, receipt: File | null, externalRef: string | null,
+    billBreakdown: { amount: number; penalty: number; inflationAdj: number } | null,
+  ) => void
 }) {
   const total = chargeTotal(charge)
   const [date, setDate]     = useState(today)
   const [amount, setAmount] = useState(total.toString())
   const [receipt, setReceipt]     = useState<File | null>(null)
   const [ingresoNumero, setIngresoNumero] = useState<string | null>(null)
+  const [billBreakdown, setBillBreakdown] = useState<{ amount: number; penalty: number; inflationAdj: number } | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractMsg, setExtractMsg] = useState<string | null>(null)
 
@@ -1863,10 +1871,13 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
 
   // Si el comprobante es de aseo (portal WebAseo), precarga fecha y monto —
   // igual que el uploader de boletas: precarga, nunca escribe directo. El N°
-  // de giro real (ingresoNumero) también reemplaza la referencia provisoria
-  // del cobro (aseoRef genera "aseo-2026-Q2" hasta que se conoce el folio).
+  // de giro real (ingresoNumero) reemplaza la referencia provisoria del
+  // cobro (aseoRef genera "aseo-2026-Q2" hasta que se conoce el folio), y el
+  // desglose SUBTOTAL/IPC/INTERÉS corrige amount/penalty/inflation_adj —
+  // sin esto un giro con mora real queda mostrando "Parcial" para siempre
+  // aunque se pague el total exacto.
   async function handleReceipt(f: File) {
-    setReceipt(f); setExtracting(true); setExtractMsg(null); setIngresoNumero(null)
+    setReceipt(f); setExtracting(true); setExtractMsg(null); setIngresoNumero(null); setBillBreakdown(null)
     const fd = new FormData()
     fd.append('file', f)
     const res = await extractAseoReceiptDraft(fd)
@@ -1877,6 +1888,9 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
       if (d.paidDate) setDate(d.paidDate)
       if (d.totalPagado) setAmount(String(d.totalPagado))
       if (d.ingresoNumero) setIngresoNumero(d.ingresoNumero)
+      if (d.subtotal != null && d.ipc != null && d.interes != null) {
+        setBillBreakdown({ amount: d.subtotal, penalty: d.interes, inflationAdj: d.ipc })
+      }
       setExtractMsg('Fecha y monto precargados del comprobante — revisa antes de guardar.')
     } else {
       setExtractMsg('No reconocí el formato del comprobante, pero igual queda archivado.')
@@ -1888,7 +1902,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
       title={isIncome ? 'Registrar cobro' : 'Registrar pago'}
       backdrop={backdrop} onCancel={onCancel}
     >
-      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt, ingresoNumero) }}>
+      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt, ingresoNumero, billBreakdown) }}>
         <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
           {KIND_LABEL[charge.kind] ?? charge.kind} · vence {fmtDate(charge.due_date)} ·{' '}
           <strong>{formatCLP(total)}</strong>

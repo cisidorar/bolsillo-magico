@@ -151,30 +151,44 @@ export async function saveCharge(input: ChargeInput, id?: string): Promise<Resul
   return { ok: true }
 }
 
+export interface MarkChargePaidOptions {
+  /** PDF del comprobante — se archiva en property-docs y queda en document_path. */
+  receiptForm?: FormData | null
+  /**
+   * Reemplaza el external_ref del cobro — cierra el "hasta que se conozca
+   * el folio real" de aseoRef(): el cobro nace con una referencia
+   * provisoria ("aseo-2026-Q2") porque el N° de giro real solo se conoce
+   * cuando llega la boleta o el comprobante de pago.
+   */
+  externalRef?: string | null
+  /**
+   * Corrige amount/penalty/inflation_adj con el desglose real del
+   * comprobante (SUBTOTAL/IPC/INTERÉS). Sin esto, un giro generado con el
+   * monto base genérico (sin el recargo real por mora) queda mostrando
+   * "Parcial" para siempre aunque se haya pagado el total exacto que pedía
+   * la boleta — chargeStatus() compara paid_amount contra amount+penalty+
+   * inflation_adj, no contra lo efectivamente pagado.
+   */
+  billBreakdown?: { amount: number; penalty: number; inflationAdj: number } | null
+}
+
 /**
- * Marca un cobro como pagado. `receiptForm`, si viene, trae el comprobante
- * de pago (PDF) — se archiva en el mismo bucket que las boletas y queda
- * enlazado por `document_path`, igual que saveUtilityBill. Si el comprobante
- * no se puede subir, el pago se registra igual: perder el archivo es
- * molesto, perder el registro del pago es peor.
- *
- * `externalRef`, si viene, reemplaza el external_ref del cobro — cierra el
- * "hasta que se conozca el folio real" de aseoRef(): el cobro nace con una
- * referencia provisoria ("aseo-2026-Q2") porque el N° de giro real solo se
- * conoce cuando llega la boleta o el comprobante de pago.
+ * Marca un cobro como pagado. Ver MarkChargePaidOptions para lo que trae
+ * `opts` — comprobante, referencia real y/o desglose real del giro. Si el
+ * comprobante no se puede subir, el pago se registra igual: perder el
+ * archivo es molesto, perder el registro del pago es peor.
  */
 export async function markChargePaid(
   id: string,
   paidDate: string,
   paidAmount: number,
-  receiptForm?: FormData | null,
-  externalRef?: string | null,
+  opts?: MarkChargePaidOptions,
 ): Promise<Result> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
 
   let documentPath: string | undefined
-  const file = receiptForm?.get('file')
+  const file = opts?.receiptForm?.get('file')
   if (file instanceof File && file.size > 0) {
     const { data: row } = await supabase
       .from('property_charges').select('property_id').eq('id', id).eq('user_id', user.id).maybeSingle()
@@ -187,6 +201,7 @@ export async function markChargePaid(
     }
   }
 
+  const b = opts?.billBreakdown
   const { error } = await supabase
     .from('property_charges')
     .update({
@@ -195,7 +210,8 @@ export async function markChargePaid(
       confirmed:   true,
       updated_at:  new Date().toISOString(),
       ...(documentPath ? { document_path: documentPath } : {}),
-      ...(externalRef ? { external_ref: externalRef } : {}),
+      ...(opts?.externalRef ? { external_ref: opts.externalRef } : {}),
+      ...(b ? { amount: Math.round(b.amount), penalty: Math.round(b.penalty), inflation_adj: Math.round(b.inflationAdj) } : {}),
     })
     .eq('id', id).eq('user_id', user.id)
 

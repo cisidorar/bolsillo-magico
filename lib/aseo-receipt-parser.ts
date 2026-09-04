@@ -23,7 +23,10 @@ import { parseClDate, parseClMoney } from './utility-bill-parser'
 export interface ParsedAseoReceipt {
   ingresoNumero:   string | null   // N° de giro real — para completar el external_ref provisorio
   rol:             string | null
-  totalPagado:     number | null   // CLP, ya con IPC + interés si hubo mora
+  subtotal:        number | null   // CLP, el VALOR ASEO sin recargos — es el `amount` real del cobro
+  ipc:             number | null   // CLP — reajuste IPC, va en `inflation_adj`
+  interes:         number | null   // CLP — interés por mora, va en `penalty`
+  totalPagado:     number | null   // CLP = subtotal + ipc + interés — lo realmente pagado
   paidDate:        string | null   // YYYY-MM-DD (el comprobante trae hora también, se descarta)
   plazoParaPagar:  string | null   // YYYY-MM-DD — el vencimiento del giro, para emparejar con el cobro
 }
@@ -49,7 +52,8 @@ export function looksLikeAseoReceipt(text: string): boolean {
 
 export function parseAseoReceipt(text: string): ParsedAseoReceipt {
   const empty: ParsedAseoReceipt = {
-    ingresoNumero: null, rol: null, totalPagado: null, paidDate: null, plazoParaPagar: null,
+    ingresoNumero: null, rol: null, subtotal: null, ipc: null, interes: null,
+    totalPagado: null, paidDate: null, plazoParaPagar: null,
   }
   if (!looksLikeAseoReceipt(text)) return empty
 
@@ -60,6 +64,17 @@ export function parseAseoReceipt(text: string): ParsedAseoReceipt {
   const rol = firstMatch(text, [
     /\brol[:\s]*(\d{5,})/i,
   ])
+
+  // El cobro en property_charges guarda amount/penalty/inflation_adj por
+  // separado (así se muestran desglosados en el detalle) — SUBTOTAL/IPC/
+  // INTERÉS del comprobante son exactamente esos tres campos, no solo el
+  // total. Sin esto, marcar pagado con el total del comprobante pero dejando
+  // el `amount` del cobro en su valor genérico (sin el desglose real) hace
+  // que chargeStatus() compare mal y el cobro quede "Parcial" aunque se
+  // haya pagado el total exacto que pedía la boleta.
+  const subtotalRaw = firstMatch(text, [/\bsubtotal[:\s$]*([\d.,]+)/i])
+  const ipcRaw       = firstMatch(text, [/\bipc[:\s$]*([\d.,]+)/i])
+  const interesRaw   = firstMatch(text, [/inter[ée]s[:\s$]*([\d.,]+)/i])
 
   const totalRaw = firstMatch(text, [
     // "TOTAL PAGADO" es el monto realmente pagado (subtotal + IPC + interés
@@ -83,6 +98,9 @@ export function parseAseoReceipt(text: string): ParsedAseoReceipt {
   return {
     ingresoNumero:  ingresoNumero?.trim() ?? null,
     rol:            rol?.trim() ?? null,
+    subtotal:       subtotalRaw ? parseClMoney(subtotalRaw) : null,
+    ipc:            ipcRaw ? parseClMoney(ipcRaw) : null,
+    interes:        interesRaw ? parseClMoney(interesRaw) : null,
     totalPagado:    totalRaw ? parseClMoney(totalRaw) : null,
     paidDate:       paidRaw ? parseClDate(paidRaw) : null,
     plazoParaPagar: plazoRaw ? parseClDate(plazoRaw) : null,
