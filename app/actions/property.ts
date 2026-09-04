@@ -6,6 +6,7 @@ import { aseoDueDates, aseoRef } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
+import { parseAseoReceipt, type ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 
 // ── P1 (PLAN_PROPIEDAD): CRUD de la propiedad y su ledger de obligaciones ────
 // Mundo aparte por decisión D1: nada de esto escribe en expenses ni en incomes.
@@ -150,13 +151,35 @@ export async function saveCharge(input: ChargeInput, id?: string): Promise<Resul
   return { ok: true }
 }
 
+/**
+ * Marca un cobro como pagado. `receiptForm`, si viene, trae el comprobante
+ * de pago (PDF) — se archiva en el mismo bucket que las boletas y queda
+ * enlazado por `document_path`, igual que saveUtilityBill. Si el comprobante
+ * no se puede subir, el pago se registra igual: perder el archivo es
+ * molesto, perder el registro del pago es peor.
+ */
 export async function markChargePaid(
   id: string,
   paidDate: string,
   paidAmount: number,
+  receiptForm?: FormData | null,
 ): Promise<Result> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
+
+  let documentPath: string | undefined
+  const file = receiptForm?.get('file')
+  if (file instanceof File && file.size > 0) {
+    const { data: row } = await supabase
+      .from('property_charges').select('property_id').eq('id', id).eq('user_id', user.id).maybeSingle()
+    if (row) {
+      const path = `${user.id}/${row.property_id}/pago-${id}.pdf`
+      const { error: upErr } = await supabase.storage
+        .from('property-docs')
+        .upload(path, file, { upsert: true, contentType: 'application/pdf' })
+      if (!upErr) documentPath = path
+    }
+  }
 
   const { error } = await supabase
     .from('property_charges')
@@ -165,6 +188,7 @@ export async function markChargePaid(
       paid_amount: Math.round(paidAmount),
       confirmed:   true,
       updated_at:  new Date().toISOString(),
+      ...(documentPath ? { document_path: documentPath } : {}),
     })
     .eq('id', id).eq('user_id', user.id)
 
@@ -454,6 +478,37 @@ export async function extractUtilityBillDraft(
       return { ok: false, error: 'No se pudo leer texto del PDF (¿es escaneado?)' }
     }
     return { ok: true, draft: parseUtilityBill(text) }
+  } catch {
+    return { ok: false, error: 'No se pudo leer el PDF. Intenta con otro archivo.' }
+  }
+}
+
+// ── Comprobante de pago de derechos de aseo ─────────────────────────────────
+
+/**
+ * Extrae el N° de giro, monto y fecha de un comprobante de pago (aseo). Igual
+ * que extractUtilityBillDraft: solo lee y parsea, no guarda nada — el
+ * resultado precarga PayForm pero el usuario confirma antes de que se
+ * escriba en la base.
+ */
+export async function extractAseoReceiptDraft(
+  formData: FormData,
+): Promise<{ ok: true; draft: ParsedAseoReceipt } | { ok: false; error: string }> {
+  const { user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { ok: false, error: 'No se recibió el archivo' }
+  if (file.type !== 'application/pdf') return { ok: false, error: 'El archivo debe ser un PDF' }
+  if (file.size > 8 * 1024 * 1024) return { ok: false, error: 'El PDF es muy grande (máx. 8MB)' }
+
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const { text } = await extractText(bytes, { mergePages: true })
+    if (!text || text.trim().length < 20) {
+      return { ok: false, error: 'No se pudo leer texto del PDF (¿es escaneado?)' }
+    }
+    return { ok: true, draft: parseAseoReceipt(text) }
   } catch {
     return { ok: false, error: 'No se pudo leer el PDF. Intenta con otro archivo.' }
   }

@@ -17,6 +17,7 @@ import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
+  extractAseoReceiptDraft,
 } from '@/app/actions/property'
 import {
   nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
@@ -751,8 +752,10 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         <PayForm
           charge={payFor} today={today} busy={busy} error={error} backdrop={payBackdrop}
           onCancel={() => setPayFor(null)}
-          onPay={async (date, amount) => {
-            if (await run(() => markChargePaid(payFor.id, date, amount))) setPayFor(null)
+          onPay={async (date, amount, receipt) => {
+            let fd: FormData | null = null
+            if (receipt) { fd = new FormData(); fd.append('file', receipt) }
+            if (await run(() => markChargePaid(payFor.id, date, amount, fd))) setPayFor(null)
           }}
         />
       )}
@@ -1807,21 +1810,43 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
   error: string | null
   backdrop: Backdrop
   onCancel: () => void
-  onPay: (date: string, amount: number) => void
+  onPay: (date: string, amount: number, receipt: File | null) => void
 }) {
   const total = chargeTotal(charge)
   const [date, setDate]     = useState(today)
   const [amount, setAmount] = useState(total.toString())
+  const [receipt, setReceipt]     = useState<File | null>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extractMsg, setExtractMsg] = useState<string | null>(null)
 
   const isIncome = charge.direction === 'in'
   const partial  = Number(amount || 0) < total
+
+  // Si el comprobante es de aseo (portal WebAseo), precarga fecha y monto —
+  // igual que el uploader de boletas: precarga, nunca escribe directo.
+  async function handleReceipt(f: File) {
+    setReceipt(f); setExtracting(true); setExtractMsg(null)
+    const fd = new FormData()
+    fd.append('file', f)
+    const res = await extractAseoReceiptDraft(fd)
+    setExtracting(false)
+    if (!res.ok) { setExtractMsg('No se pudo leer el PDF, pero igual queda archivado.'); return }
+    const d = res.draft
+    if (d.totalPagado || d.paidDate) {
+      if (d.paidDate) setDate(d.paidDate)
+      if (d.totalPagado) setAmount(String(d.totalPagado))
+      setExtractMsg('Fecha y monto precargados del comprobante — revisa antes de guardar.')
+    } else {
+      setExtractMsg('No reconocí el formato del comprobante, pero igual queda archivado.')
+    }
+  }
 
   return (
     <Modal
       title={isIncome ? 'Registrar cobro' : 'Registrar pago'}
       backdrop={backdrop} onCancel={onCancel}
     >
-      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0)) }}>
+      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt) }}>
         <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
           {KIND_LABEL[charge.kind] ?? charge.kind} · vence {fmtDate(charge.due_date)} ·{' '}
           <strong>{formatCLP(total)}</strong>
@@ -1837,6 +1862,21 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
         >
           <input className={inputCls} style={inputStyle} value={amount} inputMode="numeric" required
                  onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} />
+        </Field>
+
+        <Field label="Comprobante (opcional)">
+          <label
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm cursor-pointer"
+            style={inputStyle}
+          >
+            <Upload className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+            <span className="truncate" style={{ color: receipt ? 'var(--ink)' : 'var(--ink-3)' }}>
+              {extracting ? 'Leyendo el PDF…' : receipt ? receipt.name : 'Adjuntar PDF del pago'}
+            </span>
+            <input type="file" accept="application/pdf" className="hidden"
+                   onChange={e => { const f = e.target.files?.[0]; if (f) handleReceipt(f) }} />
+          </label>
+          {extractMsg && <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>{extractMsg}</p>}
         </Field>
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
