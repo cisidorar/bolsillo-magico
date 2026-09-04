@@ -157,12 +157,18 @@ export async function saveCharge(input: ChargeInput, id?: string): Promise<Resul
  * enlazado por `document_path`, igual que saveUtilityBill. Si el comprobante
  * no se puede subir, el pago se registra igual: perder el archivo es
  * molesto, perder el registro del pago es peor.
+ *
+ * `externalRef`, si viene, reemplaza el external_ref del cobro — cierra el
+ * "hasta que se conozca el folio real" de aseoRef(): el cobro nace con una
+ * referencia provisoria ("aseo-2026-Q2") porque el N° de giro real solo se
+ * conoce cuando llega la boleta o el comprobante de pago.
  */
 export async function markChargePaid(
   id: string,
   paidDate: string,
   paidAmount: number,
   receiptForm?: FormData | null,
+  externalRef?: string | null,
 ): Promise<Result> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -189,6 +195,7 @@ export async function markChargePaid(
       confirmed:   true,
       updated_at:  new Date().toISOString(),
       ...(documentPath ? { document_path: documentPath } : {}),
+      ...(externalRef ? { external_ref: externalRef } : {}),
     })
     .eq('id', id).eq('user_id', user.id)
 

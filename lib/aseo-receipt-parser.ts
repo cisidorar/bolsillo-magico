@@ -6,17 +6,26 @@
 // como separador de miles, el redondeo a entero de los CLP, etc).
 //
 // El comprobante lo entrega el portal de pago municipal cuando Cas paga un
-// giro de aseo — trae el mismo N° de giro (external_ref) con el que ya se
-// generó el cobro en property_charges, así que sirve para "adjuntar y marcar
-// pagado" en un solo paso en vez de escribir la fecha y el monto a mano.
+// giro de aseo. OJO: el "N° de giro" real (INGRESO NÚMERO, ej. 2600580211)
+// NO es lo mismo que el external_ref que ya tiene el cobro en
+// property_charges — generateAseoCharges genera un external_ref PROVISORIO
+// tipo "aseo-2026-Q2" (ver aseoRef en lib/property-charges.ts) porque el
+// folio real recién se conoce cuando llega esta boleta. El emparejamiento
+// automático con el cobro pendiente, entonces, no puede ser por número de
+// giro — se hace por PLAZO PARA PAGAR, que sí coincide exacto con la
+// due_date del cobro (los 4 vencimientos de aseo son fechas fijas: 30 abr,
+// 30 jun, 30 sep, 30 nov). El ingresoNumero que sí se extrae acá sirve para
+// completar el external_ref real una vez encontrado el cobro, cerrando el
+// "hasta que se conozca el folio real" de aseoRef.
 
 import { parseClDate, parseClMoney } from './utility-bill-parser'
 
 export interface ParsedAseoReceipt {
-  ingresoNumero: string | null   // N° de giro — coincide con external_ref del cobro
-  rol:           string | null
-  totalPagado:   number | null   // CLP, ya con IPC + interés si hubo mora
-  paidDate:      string | null   // YYYY-MM-DD (el comprobante trae hora también, se descarta)
+  ingresoNumero:   string | null   // N° de giro real — para completar el external_ref provisorio
+  rol:             string | null
+  totalPagado:     number | null   // CLP, ya con IPC + interés si hubo mora
+  paidDate:        string | null   // YYYY-MM-DD (el comprobante trae hora también, se descarta)
+  plazoParaPagar:  string | null   // YYYY-MM-DD — el vencimiento del giro, para emparejar con el cobro
 }
 
 /** Primer grupo capturado del primer patrón que matchee. */
@@ -40,7 +49,7 @@ export function looksLikeAseoReceipt(text: string): boolean {
 
 export function parseAseoReceipt(text: string): ParsedAseoReceipt {
   const empty: ParsedAseoReceipt = {
-    ingresoNumero: null, rol: null, totalPagado: null, paidDate: null,
+    ingresoNumero: null, rol: null, totalPagado: null, paidDate: null, plazoParaPagar: null,
   }
   if (!looksLikeAseoReceipt(text)) return empty
 
@@ -59,16 +68,23 @@ export function parseAseoReceipt(text: string): ParsedAseoReceipt {
     /total\s+pagado[:\s$]*([\d.,]+)/i,
   ])
 
-  const dueRaw = firstMatch(text, [
+  const paidRaw = firstMatch(text, [
     // "FECHA PAGO : 04-09-2026 13:58" — se corta antes de la hora, no hace
     // falta capturarla para paid_date.
     /fecha\s+pago\s*:?[:\s]*([\d]{1,2}[-/][\d]{1,2}[-/][\d]{2,4})/i,
   ])
 
+  const plazoRaw = firstMatch(text, [
+    // El vencimiento del giro (no el de pago) — es lo único fijo y conocido
+    // de antemano, así que es la clave real para emparejar con el cobro.
+    /plazo\s+para\s+pagar[:\s]*([\d]{1,2}[-/][\d]{1,2}[-/][\d]{2,4})/i,
+  ])
+
   return {
-    ingresoNumero: ingresoNumero?.trim() ?? null,
-    rol:           rol?.trim() ?? null,
-    totalPagado:   totalRaw ? parseClMoney(totalRaw) : null,
-    paidDate:      dueRaw ? parseClDate(dueRaw) : null,
+    ingresoNumero:  ingresoNumero?.trim() ?? null,
+    rol:            rol?.trim() ?? null,
+    totalPagado:    totalRaw ? parseClMoney(totalRaw) : null,
+    paidDate:       paidRaw ? parseClDate(paidRaw) : null,
+    plazoParaPagar: plazoRaw ? parseClDate(plazoRaw) : null,
   }
 }

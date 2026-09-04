@@ -757,10 +757,10 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         <PayForm
           charge={payFor} today={today} busy={busy} error={error} backdrop={payBackdrop}
           onCancel={() => setPayFor(null)}
-          onPay={async (date, amount, receipt) => {
+          onPay={async (date, amount, receipt, externalRef) => {
             let fd: FormData | null = null
             if (receipt) { fd = new FormData(); fd.append('file', receipt) }
-            if (await run(() => markChargePaid(payFor.id, date, amount, fd))) setPayFor(null)
+            if (await run(() => markChargePaid(payFor.id, date, amount, fd, externalRef))) setPayFor(null)
           }}
         />
       )}
@@ -780,6 +780,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                 m?.draft.paidDate ?? today,
                 m?.draft.totalPagado ?? chargeTotal(c),
                 fd,
+                m?.draft.ingresoNumero ?? null,
               )
               if (!res.ok) { setError(res.error); setBusy(false); return }
             }
@@ -1847,12 +1848,13 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
   error: string | null
   backdrop: Backdrop
   onCancel: () => void
-  onPay: (date: string, amount: number, receipt: File | null) => void
+  onPay: (date: string, amount: number, receipt: File | null, externalRef: string | null) => void
 }) {
   const total = chargeTotal(charge)
   const [date, setDate]     = useState(today)
   const [amount, setAmount] = useState(total.toString())
   const [receipt, setReceipt]     = useState<File | null>(null)
+  const [ingresoNumero, setIngresoNumero] = useState<string | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractMsg, setExtractMsg] = useState<string | null>(null)
 
@@ -1860,9 +1862,11 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
   const partial  = Number(amount || 0) < total
 
   // Si el comprobante es de aseo (portal WebAseo), precarga fecha y monto —
-  // igual que el uploader de boletas: precarga, nunca escribe directo.
+  // igual que el uploader de boletas: precarga, nunca escribe directo. El N°
+  // de giro real (ingresoNumero) también reemplaza la referencia provisoria
+  // del cobro (aseoRef genera "aseo-2026-Q2" hasta que se conoce el folio).
   async function handleReceipt(f: File) {
-    setReceipt(f); setExtracting(true); setExtractMsg(null)
+    setReceipt(f); setExtracting(true); setExtractMsg(null); setIngresoNumero(null)
     const fd = new FormData()
     fd.append('file', f)
     const res = await extractAseoReceiptDraft(fd)
@@ -1872,6 +1876,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
     if (d.totalPagado || d.paidDate) {
       if (d.paidDate) setDate(d.paidDate)
       if (d.totalPagado) setAmount(String(d.totalPagado))
+      if (d.ingresoNumero) setIngresoNumero(d.ingresoNumero)
       setExtractMsg('Fecha y monto precargados del comprobante — revisa antes de guardar.')
     } else {
       setExtractMsg('No reconocí el formato del comprobante, pero igual queda archivado.')
@@ -1883,7 +1888,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
       title={isIncome ? 'Registrar cobro' : 'Registrar pago'}
       backdrop={backdrop} onCancel={onCancel}
     >
-      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt) }}>
+      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt, ingresoNumero) }}>
         <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
           {KIND_LABEL[charge.kind] ?? charge.kind} · vence {fmtDate(charge.due_date)} ·{' '}
           <strong>{formatCLP(total)}</strong>
@@ -1926,9 +1931,16 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
 /**
  * Modal de "Marcar todo pagado" para varias cuentas a la vez (Vencidas).
  * Antes marcaba todo con la fecha de hoy sin más — ahora deja soltar los
- * comprobantes de una: cada PDF se parsea y se empareja solo con su cobro
- * por N° de giro (external_ref), precargando fecha y monto reales en vez de
- * "hoy y el total". Lo que no tenga comprobante se marca igual, como antes.
+ * comprobantes de una: cada PDF se parsea y se empareja solo con su cobro.
+ *
+ * El emparejamiento NO es por N° de giro (external_ref): generateAseoCharges
+ * genera una referencia provisoria tipo "aseo-2026-Q2" (aseoRef, hasta que
+ * se conoce el folio real), así que un cobro recién creado nunca va a tener
+ * el N° de giro real como external_ref — comparar por ahí nunca matchea. La
+ * clave confiable es el vencimiento: PLAZO PARA PAGAR del comprobante
+ * coincide exacto con la due_date del cobro (los 4 vencimientos de aseo son
+ * fechas fijas). Si matchea, además reemplaza el external_ref provisorio
+ * por el N° de giro real que sí trae el comprobante.
  */
 function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
   charges: Charge[]
@@ -1948,8 +1960,12 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
       const fd = new FormData()
       fd.append('file', f)
       const res = await extractAseoReceiptDraft(fd)
-      if (res.ok && res.draft.ingresoNumero) {
-        const match = charges.find(c => c.external_ref === res.draft.ingresoNumero)
+      if (res.ok) {
+        const match =
+          // Primero por vencimiento — la clave real y confiable.
+          (res.draft.plazoParaPagar && charges.find(c => c.due_date === res.draft.plazoParaPagar)) ||
+          // external_ref como respaldo, por si ya se corrigió a mano antes.
+          (res.draft.ingresoNumero && charges.find(c => c.external_ref === res.draft.ingresoNumero))
         if (match) {
           setMatches(prev => new Map(prev).set(match.id, { file: f, draft: res.draft }))
         }
