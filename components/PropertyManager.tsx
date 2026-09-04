@@ -346,6 +346,14 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     () => monthBills(charges, today).filter(c => !overdueBills.includes(c)),
     [charges, today, overdueBills],
   )
+  // El arriendo pendiente ya tiene su propia tarjeta de acción en "Cobros
+  // pendientes" (pending, por dirección) — ahora que el arriendo también es
+  // responsible='tenant', sin este filtro aparecería repetido en "Del
+  // arrendatario" (mismo criterio que bills arriba con Vencidas).
+  const tenantCardCharges = useMemo(
+    () => tenantCharges.filter(c => !pending.includes(c)),
+    [tenantCharges, pending],
+  )
 
   const pendingOverdue = pending.filter(c => chargeStatus(c, today) === 'overdue')
   const pendingSoon    = pending.filter(c => chargeStatus(c, today) === 'due_soon')
@@ -533,21 +541,24 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                 </div>
               )}
 
-              {/* Cuentas del arrendatario: no son costo tuyo, pero su mora es
+              {/* Cuentas del arrendatario: incluye el arriendo (te lo paga él,
+                  es tu ingreso) y las cuentas que por contrato paga él
+                  (no son costo tuyo). Su mora en cualquiera de las dos es
                   causal de término, así que tampoco se pueden esconder. */}
-              {tenantCharges.length > 0 && (
+              {tenantCardCharges.length > 0 && (
                 <div className="card p-4">
                   <div className="mb-3">
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Del arrendatario</p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      Los paga él. Se vigilan por la mora, no suman a tu deuda.
+                      Lo que paga él — tu arriendo y las cuentas por contrato. Se vigilan por la mora.
                     </p>
                   </div>
                   <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {tenantCharges.slice(0, 5).map(c => (
+                    {tenantCardCharges.slice(0, 5).map(c => (
                       <ChargeRowCompact key={c.id} charge={c} today={today}
                                         subtitle={billSubtitle(c)}
-                                        actionLabel="Pagó" onAction={() => setPayFor(c)}
+                                        actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagó'}
+                                        onAction={() => setPayFor(c)}
                                         onEdit={() => setChargeForm(c)} />
                     ))}
                   </div>
@@ -658,7 +669,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           {tenantCharges.length > 0 && (
             <ChargeList
               title="Del arrendatario"
-              subtitle="Por contrato los paga él. Se listan para vigilar la mora, no suman a tu deuda."
+              subtitle="Lo que paga él: tu arriendo y las cuentas por contrato. Se listan para vigilar la mora."
               charges={tenantCharges} today={today}
               onOpen={c => setDetailCharge(c)}
             />

@@ -411,7 +411,12 @@ export async function generateLeaseCharges(
         kind: 'rent', direction: 'in',
         due_date: rentDueDate(lease as LeaseLike, year, month),
         amount: lease.rent_amount,
-        responsible: 'owner', external_ref: rRef,
+        // 'tenant': el que paga el arriendo es el arrendatario (a diferencia
+        // del dividendo de abajo, que sí sale de tu bolsillo). No cambia si
+        // suma o no a tu deuda — property-summary.ts filtra por 'direction',
+        // no por 'responsible' — solo en qué lista aparece (Del arrendatario,
+        // no Tuyos).
+        responsible: 'tenant', external_ref: rRef,
         period_year: year, period_month: month,
       })
     }
