@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   chargeTotal, chargeStatus, chargeOutstanding, daysBetween,
   estimateArrears, aseoDueDates, aseoRef, propertyHealth, nextDue,
-  type ChargeLike,
+  mortgageProgress, type ChargeLike,
 } from './property-charges'
 
 const TODAY = '2026-09-03'
@@ -265,5 +265,57 @@ describe('nextDue', () => {
   it('ignora los vencidos: "próximo" mira hacia adelante', () => {
     const charges = [aseo('2026-06-30', 13950), aseo('2026-09-30', 14330)]
     expect(nextDue(charges, TODAY)?.due_date).toBe('2026-09-30')
+  })
+})
+
+/** Cuota de dividendo tal como la muestra la cartola del banco. */
+function cuota(due: string, amount: number, paid?: string): ChargeLike {
+  return { kind: 'mortgage', direction: 'out', due_date: due, amount, paid_date: paid ?? null, responsible: 'owner' }
+}
+
+describe('mortgageProgress', () => {
+  it('cuenta solo las cuotas pagadas, no las generadas a futuro', () => {
+    const charges = [
+      cuota('2026-07-01', 280730, '2026-07-01'),
+      cuota('2026-08-03', 280873, '2026-08-03'),
+      cuota('2026-09-01', 281075, '2026-09-01'),
+      cuota('2026-10-01', 281075),  // generada, aún no pagada
+    ]
+    const p = mortgageProgress(charges, 360)
+    expect(p.paidCount).toBe(3)
+    expect(p.pendingCount).toBe(357)
+  })
+
+  it('el monto de la última pagada es el UF-indexado más reciente, no un promedio', () => {
+    const charges = [
+      cuota('2026-07-01', 280730, '2026-07-01'),
+      cuota('2026-09-01', 281075, '2026-09-01'),
+      cuota('2026-08-03', 280873, '2026-08-03'),
+    ]
+    // Ordena por fecha de pago, no por orden de la lista.
+    expect(mortgageProgress(charges, 360).lastPaidAmount).toBe(281075)
+  })
+
+  it('sin total de cuotas, pendingCount es null en vez de un número inventado', () => {
+    const p = mortgageProgress([cuota('2026-07-01', 280730, '2026-07-01')], null)
+    expect(p.pendingCount).toBeNull()
+    expect(p.paidCount).toBe(1)
+  })
+
+  it('sin cuotas pagadas, todo en cero y lastPaidAmount null', () => {
+    const p = mortgageProgress([cuota('2026-07-01', 280730)], 360)
+    expect(p.paidCount).toBe(0)
+    expect(p.pendingCount).toBe(360)
+    expect(p.lastPaidAmount).toBeNull()
+  })
+
+  it('nunca pendingCount negativo si se pagaron más cuotas que el total cargado', () => {
+    const charges = [cuota('2026-07-01', 280730, '2026-07-01'), cuota('2026-08-01', 280873, '2026-08-01')]
+    expect(mortgageProgress(charges, 1).pendingCount).toBe(0)
+  })
+
+  it('ignora cobros de otro tipo', () => {
+    const charges = [aseo('2026-07-30', 14330, 0, 0, '2026-07-30'), cuota('2026-07-01', 280730, '2026-07-01')]
+    expect(mortgageProgress(charges, 360).paidCount).toBe(1)
   })
 })

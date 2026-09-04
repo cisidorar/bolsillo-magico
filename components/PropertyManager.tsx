@@ -9,7 +9,7 @@ import {
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
-  chargeStatus, chargeTotal, propertyHealth,
+  chargeStatus, chargeTotal, propertyHealth, mortgageProgress,
   daysBetween, KIND_LABEL, type ChargeStatus,
 } from '@/lib/property-charges'
 import { propertySummary, monthBills, pendingIncome } from '@/lib/property-summary'
@@ -39,6 +39,12 @@ export interface Property {
   mortgage_amount: number | null
   mortgage_due_day: number | null
   mortgage_account_label: string | null
+  mortgage_principal: number | null
+  mortgage_rate: number | null
+  mortgage_grace_months: number | null
+  mortgage_total_installments: number | null
+  mortgage_signed_date: string | null
+  mortgage_end_date: string | null
   electricity_client_id: string | null
   water_client_id: string | null
 }
@@ -538,6 +544,10 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                 onEdit={() => setLeaseForm(true)}
                 onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
               />
+              {property.mortgage_principal && (
+                <MortgageCard property={property} charges={charges}
+                              onEdit={() => setDivForm(true)} />
+              )}
               <PropertyCard property={property} onEdit={() => setPropForm(property)}
                             onAddMortgage={() => setDivForm(true)}
                             onAddUtilities={() => setUtilsForm(true)} />
@@ -1044,6 +1054,61 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
   )
 }
 
+/**
+ * Detalle del crédito hipotecario: capital, tasa, cuotas y vencimiento.
+ *
+ * Cuotas pagadas/pendientes se leen de `mortgageProgress`, no de un contador
+ * guardado — si agregas o borras una cuota a mano en Cobros, este número se
+ * actualiza solo, sin que nadie tenga que sincronizarlo.
+ */
+function MortgageCard({ property, charges, onEdit }: {
+  property: Property
+  charges: Charge[]
+  onEdit: () => void
+}) {
+  const progress = mortgageProgress(charges, property.mortgage_total_installments)
+  const pct = property.mortgage_total_installments
+    ? Math.min(100, Math.round((progress.paidCount / property.mortgage_total_installments) * 100))
+    : null
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <h3 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>El crédito</h3>
+        <button onClick={onEdit} className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>
+          Editar
+        </button>
+      </div>
+
+      {pct !== null && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
+              {progress.paidCount} de {property.mortgage_total_installments} cuotas
+            </p>
+            <p className="text-xs font-bold" style={{ color: 'var(--primary)' }}>{pct}%</p>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--primary)' }} />
+          </div>
+        </div>
+      )}
+
+      <dl className="space-y-1.5 text-sm">
+        {property.mortgage_principal && <Row label="Capital inicial" value={formatCLP(property.mortgage_principal)} />}
+        {property.mortgage_rate != null && <Row label="Tasa de interés" value={`${property.mortgage_rate}%`} />}
+        {progress.pendingCount != null && <Row label="Cuotas pendientes" value={String(progress.pendingCount)} />}
+        {progress.lastPaidAmount && (
+          <Row label="Última cuota" value={`${formatCLP(progress.lastPaidAmount)}${
+            property.mortgage_rate ? ' · sube con la UF' : ''}`} />
+        )}
+        {property.mortgage_signed_date && <Row label="Firma escritura" value={fmtDate(property.mortgage_signed_date)} />}
+        {property.mortgage_end_date && <Row label="Vencimiento" value={fmtDate(property.mortgage_end_date)} />}
+      </dl>
+    </div>
+  )
+}
+
 function PropertyCard({ property, onEdit, onAddMortgage, onAddUtilities }: {
   property: Property
   onEdit: () => void
@@ -1265,6 +1330,12 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
           mortgageAmount: property?.mortgage_amount ?? null,
           mortgageDueDay: property?.mortgage_due_day ?? null,
           mortgageAccountLabel: property?.mortgage_account_label ?? null,
+          mortgagePrincipal: property?.mortgage_principal ?? null,
+          mortgageRate: property?.mortgage_rate ?? null,
+          mortgageGraceMonths: property?.mortgage_grace_months ?? null,
+          mortgageTotalInstallments: property?.mortgage_total_installments ?? null,
+          mortgageSignedDate: property?.mortgage_signed_date ?? null,
+          mortgageEndDate: property?.mortgage_end_date ?? null,
           electricityClientId: property?.electricity_client_id ?? null,
           waterClientId: property?.water_client_id ?? null,
         })
@@ -1729,6 +1800,17 @@ function baseInput(property: Property) {
     rolSii:       property.rol_sii,
     contribucionesStatus: property.contribuciones_status,
     aseoBilling:          property.aseo_billing,
+    mortgageAmount:       property.mortgage_amount,
+    mortgageDueDay:       property.mortgage_due_day,
+    mortgageAccountLabel: property.mortgage_account_label,
+    mortgagePrincipal:         property.mortgage_principal,
+    mortgageRate:               property.mortgage_rate,
+    mortgageGraceMonths:        property.mortgage_grace_months,
+    mortgageTotalInstallments:  property.mortgage_total_installments,
+    mortgageSignedDate:         property.mortgage_signed_date,
+    mortgageEndDate:            property.mortgage_end_date,
+    electricityClientId: property.electricity_client_id,
+    waterClientId:       property.water_client_id,
   }
 }
 
@@ -1744,6 +1826,18 @@ function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
   const [day, setDay] = useState(property.mortgage_due_day?.toString() ?? '')
   const [acc, setAcc] = useState(property.mortgage_account_label ?? '')
 
+  // Detalle del crédito, opcional: sin esto el módulo sigue generando los
+  // cobros mensuales igual, solo que "La propiedad" no muestra capital,
+  // tasa ni cuotas. Por eso vive plegado, no mezclado con lo que sí hace
+  // falta para que la app funcione.
+  const [showLoan, setShowLoan] = useState(!!property.mortgage_principal)
+  const [principal, setPrincipal] = useState(property.mortgage_principal?.toString() ?? '')
+  const [rate, setRate]           = useState(property.mortgage_rate?.toString() ?? '')
+  const [grace, setGrace]         = useState(property.mortgage_grace_months?.toString() ?? '')
+  const [total, setTotal]         = useState(property.mortgage_total_installments?.toString() ?? '')
+  const [signed, setSigned]       = useState(property.mortgage_signed_date ?? '')
+  const [ends, setEnds]           = useState(property.mortgage_end_date ?? '')
+
   return (
     <Modal title="Dividendo" backdrop={backdrop} onCancel={onCancel}>
       <form onSubmit={e => {
@@ -1753,6 +1847,12 @@ function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
           mortgageAmount: amt ? Number(amt.replace(/\D/g, '')) : null,
           mortgageDueDay: day ? Number(day) : null,
           mortgageAccountLabel: acc || null,
+          mortgagePrincipal: principal ? Number(principal.replace(/\D/g, '')) : null,
+          mortgageRate: rate ? Number(rate.replace(',', '.')) : null,
+          mortgageGraceMonths: grace ? Number(grace) : null,
+          mortgageTotalInstallments: total ? Number(total) : null,
+          mortgageSignedDate: signed || null,
+          mortgageEndDate: ends || null,
           electricityClientId: property.electricity_client_id,
           waterClientId:       property.water_client_id,
         })
@@ -1762,7 +1862,7 @@ function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
         </p>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Monto mensual">
+          <Field label="Monto mensual" hint={showLoan ? 'El más reciente si es UF: sube cada mes.' : undefined}>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
                     style={{ color: 'var(--ink-3)' }}>$</span>
@@ -1783,6 +1883,59 @@ function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
             {BANCOS_CHILE.map(b => <option key={b} value={`Cta cte ${b}`}>{b}</option>)}
           </select>
         </Field>
+
+        {!showLoan ? (
+          <button type="button" onClick={() => setShowLoan(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold mb-4" style={{ color: 'var(--primary)' }}>
+            <Plus className="w-3.5 h-3.5" /> Agregar detalle del crédito
+          </button>
+        ) : (
+          <div className="mb-4 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-xs font-bold mb-2" style={{ color: 'var(--ink-2)' }}>
+              Detalle del crédito
+            </p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Field label="Capital inicial">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                        style={{ color: 'var(--ink-3)' }}>$</span>
+                  <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }}
+                         value={fmtClpInput(principal)} inputMode="numeric"
+                         onChange={e => setPrincipal(e.target.value.replace(/\D/g, ''))} placeholder="50.997.402" />
+                </div>
+              </Field>
+              <Field label="Tasa anual">
+                <div className="relative">
+                  <input className={inputCls} style={{ ...inputStyle, paddingRight: '1.75rem' }}
+                         value={rate} inputMode="decimal"
+                         onChange={e => setRate(e.target.value.replace(/[^0-9,.]/g, ''))} placeholder="4,4" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold pointer-events-none"
+                        style={{ color: 'var(--ink-3)' }}>%</span>
+                </div>
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Field label="Cuotas totales">
+                <input className={inputCls} style={inputStyle} value={total} inputMode="numeric"
+                       onChange={e => setTotal(e.target.value.replace(/\D/g, ''))} placeholder="360" />
+              </Field>
+              <Field label="Meses de gracia">
+                <input className={inputCls} style={inputStyle} value={grace} inputMode="numeric"
+                       onChange={e => setGrace(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Firma de escritura">
+                <input type="date" className={inputCls} style={inputStyle} value={signed}
+                       onChange={e => setSigned(e.target.value)} />
+              </Field>
+              <Field label="Vencimiento del crédito">
+                <input type="date" className={inputCls} style={inputStyle} value={ends}
+                       onChange={e => setEnds(e.target.value)} />
+              </Field>
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
@@ -1812,9 +1965,6 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
         e.preventDefault()
         onSave({
           ...baseInput(property),
-          mortgageAmount:       property.mortgage_amount,
-          mortgageDueDay:       property.mortgage_due_day,
-          mortgageAccountLabel: property.mortgage_account_label,
           electricityClientId: elec || null,
           waterClientId:       water || null,
         })

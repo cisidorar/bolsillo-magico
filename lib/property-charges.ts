@@ -171,6 +171,38 @@ export function nextDue(charges: ChargeLike[], todayStr: string): ChargeLike | n
   return pending[0] ?? null
 }
 
+export interface MortgageProgress {
+  /** Cuotas del crédito ya pagadas — contadas, no guardadas (ver cabecera del archivo). */
+  paidCount: number
+  /** null si no se cargó el total de cuotas del crédito. */
+  pendingCount: number | null
+  /** Última cuota pagada, para saber cuál fue el monto UF-indexado más reciente. */
+  lastPaidAmount: number | null
+}
+
+/**
+ * Progreso del crédito hipotecario a partir del historial de cobros.
+ *
+ * `totalInstallments` es un dato del contrato (viene de la escritura), no de
+ * los cobros — sin él no hay con qué restar para saber cuántas faltan.
+ */
+export function mortgageProgress(charges: ChargeLike[], totalInstallments: number | null): MortgageProgress {
+  const mortgageCharges = charges
+    .filter(c => c.kind === 'mortgage' && c.paid_date)
+    .sort((a, b) => (b.paid_date ?? '').localeCompare(a.paid_date ?? ''))
+
+  const paidCount = mortgageCharges.length
+  const lastPaidAmount = mortgageCharges[0]
+    ? (mortgageCharges[0].paid_amount ?? chargeTotal(mortgageCharges[0]))
+    : null
+
+  return {
+    paidCount,
+    pendingCount: totalInstallments != null ? Math.max(totalInstallments - paidCount, 0) : null,
+    lastPaidAmount,
+  }
+}
+
 /** Etiqueta en español de cada tipo de cobro. */
 export const KIND_LABEL: Record<string, string> = {
   rent:           'Arriendo',

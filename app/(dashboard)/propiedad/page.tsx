@@ -33,7 +33,7 @@ export default async function PropiedadPage({
   // El detalle sigue siendo de una sola a la vez — cuál, lo dice ?prop=.
   const { data: propertiesRaw } = await supabase
     .from('properties')
-    .select('id, alias, property_type, unit_number, address, region, comuna, rol_sii, contribuciones_status, aseo_billing, mortgage_amount, mortgage_due_day, mortgage_account_label, electricity_client_id, water_client_id')
+    .select('id, alias, property_type, unit_number, address, region, comuna, rol_sii, contribuciones_status, aseo_billing, mortgage_amount, mortgage_due_day, mortgage_account_label, mortgage_principal, mortgage_rate, mortgage_grace_months, mortgage_total_installments, mortgage_signed_date, mortgage_end_date, electricity_client_id, water_client_id')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .order('created_at', { ascending: true })

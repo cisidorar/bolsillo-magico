@@ -23,6 +23,15 @@ export interface PropertyInput {
   mortgageAmount:       number | null
   mortgageDueDay:       number | null
   mortgageAccountLabel: string | null
+  // Detalle del crédito — no derivable de los cobros, viene de la escritura
+  // y del portal del banco. Cuotas pagadas/pendientes sí se derivan, por eso
+  // no están acá (ver mortgageProgress en lib/property-charges.ts).
+  mortgagePrincipal:         number | null
+  mortgageRate:              number | null
+  mortgageGraceMonths:       number | null
+  mortgageTotalInstallments: number | null
+  mortgageSignedDate:        string | null
+  mortgageEndDate:           string | null
   electricityClientId:  string | null
   waterClientId:        string | null
 }
@@ -54,6 +63,12 @@ export async function saveProperty(input: PropertyInput, id?: string): Promise<R
     mortgage_amount:        input.mortgageAmount || null,
     mortgage_due_day:       input.mortgageDueDay || null,
     mortgage_account_label: input.mortgageAccountLabel?.trim() || null,
+    mortgage_principal:            input.mortgagePrincipal || null,
+    mortgage_rate:                  input.mortgageRate || null,
+    mortgage_grace_months:          input.mortgageGraceMonths ?? null,
+    mortgage_total_installments:    input.mortgageTotalInstallments || null,
+    mortgage_signed_date:           input.mortgageSignedDate || null,
+    mortgage_end_date:              input.mortgageEndDate || null,
     electricity_client_id:  input.electricityClientId?.trim() || null,
     water_client_id:        input.waterClientId?.trim() || null,
     updated_at:             new Date().toISOString(),
