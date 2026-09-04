@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
-  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload,
+  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload, FileText,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -16,7 +16,7 @@ import { propertySummary, monthBills, pendingIncome, overdueOwnerBills } from '@
 import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
-  saveLease, deleteLease, generateLeaseCharges,
+  saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
 } from '@/app/actions/property'
 import {
   nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
@@ -111,6 +111,7 @@ export interface Charge {
   notes: string | null
   period_month: number | null
   period_year: number | null
+  document_path: string | null
 }
 
 export interface Lease {
@@ -988,10 +989,19 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
   onDelete: () => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [openingDoc, setOpeningDoc] = useState(false)
   const status = chargeStatus(charge, today)
   const style  = STATUS_STYLE[status]
   const isPaid = status === 'paid'
   const isIncome = charge.direction === 'in'
+
+  async function openDoc() {
+    if (!charge.document_path || openingDoc) return
+    setOpeningDoc(true)
+    const url = await getPropertyDocUrl(charge.document_path)
+    setOpeningDoc(false)
+    if (url) window.open(url, '_blank')
+  }
 
   return (
     <Modal title={KIND_LABEL[charge.kind] ?? charge.kind} backdrop={backdrop} onCancel={onClose}>
@@ -1023,6 +1033,20 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
           <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Nota</p>
           <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{charge.notes}</p>
         </div>
+      )}
+
+      {charge.document_path && (
+        <button
+          onClick={openDoc}
+          disabled={openingDoc}
+          className="w-full flex items-center gap-2 p-3 rounded-2xl mb-4 disabled:opacity-60"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+        >
+          <FileText className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+          <span className="text-sm font-semibold flex-1 text-left" style={{ color: 'var(--ink)' }}>
+            {openingDoc ? 'Abriendo…' : 'Ver la boleta original'}
+          </span>
+        </button>
       )}
 
       {confirmDelete ? (

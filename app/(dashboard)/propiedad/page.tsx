@@ -48,7 +48,7 @@ export default async function PropiedadPage({
   const { data: chargesRaw } = property
     ? await supabase
         .from('property_charges')
-        .select('id, property_id, kind, direction, due_date, amount, penalty, inflation_adj, arrears_estimated, paid_date, paid_amount, auto_debit, confirmed, responsible, external_ref, notes, period_month, period_year')
+        .select('id, property_id, kind, direction, due_date, amount, penalty, inflation_adj, arrears_estimated, paid_date, paid_amount, auto_debit, confirmed, responsible, external_ref, notes, period_month, period_year, document_path')
         .eq('user_id', user.id)
         .eq('property_id', property.id)
         .order('due_date', { ascending: false })
