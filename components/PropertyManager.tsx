@@ -552,6 +552,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                     {tenantCharges.slice(0, 5).map(c => (
                       <ChargeRowCompact key={c.id} charge={c} today={today}
                                         subtitle={billSubtitle(c)}
+                                        actionLabel="Pagó" onAction={() => setPayFor(c)}
                                         onEdit={() => setChargeForm(c)} />
                     ))}
                   </div>
