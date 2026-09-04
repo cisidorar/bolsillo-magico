@@ -82,6 +82,56 @@ describe('parseUtilityBill — Enel', () => {
   })
 })
 
+describe('parseUtilityBill — Enel (formato real, no sintético)', () => {
+  // Extracto real de una boleta de Enel (sep 2026): no dice "N° de cliente"
+  // en ningún lado, el consumo va como "total del periodo" con "=" en vez de
+  // dos puntos, y antes de esa frase ya aparecieron sub-consumos por horario
+  // pegados a "kWh" que un regex ingenuo agarraría primero.
+  const BOLETA_ENEL_REAL = `
+    R.U.T. 96.800.570-7
+    Verifique documentos en: www.sii.cl o también en: www.enel.cl
+    BOLETA ELECTRÓNICA
+    Nº 371721064
+    3196937-9
+    Fecha de emisión: 03 Jul 2026
+    Tu código para inscribir
+    PAC/PAT es
+    PAC 31969379
+    PAT 3196937-9 Fecha estimada próxima lectura 30 Jul 2026
+    Fecha de vencimiento 21 Jul 2026
+    Total a pagar $30.689
+    Electricidad Consumida Noche (28kWh) $ 4.318
+    Período de lectura:30/05/2026 - 30/06/2026
+    Electricidad Consumida Día (64kWh) $ 14.096
+    Electricidad Consumida Punta (33kWh) $ 9.448
+    Consumo total del periodo= 125 kWh
+    Saldo anterior $ 0
+    Total a pagar $30.689
+  `
+
+  it('saca el N° de cliente del bloque PAT, no de un literal "N° de cliente" que no existe', () => {
+    expect(parseUtilityBill(BOLETA_ENEL_REAL).clientNumber).toBe('3196937-9')
+  })
+
+  it('agarra el consumo TOTAL del período, no el primer sub-consumo por horario que aparece antes', () => {
+    // El bug real: sin la frase completa, el fallback genérico /kwh/ pescaba
+    // el "28" de "(28kWh)" en vez del "125" del total.
+    expect(parseUtilityBill(BOLETA_ENEL_REAL).consumption).toBe(125)
+  })
+
+  it('lee vencimiento y total pese al ruido de "vencimiento" conteniendo "vence"', () => {
+    const r = parseUtilityBill(BOLETA_ENEL_REAL)
+    expect(r.dueDate).toBe('2026-07-21')
+    expect(r.total).toBe(30689)
+  })
+
+  it('lee el período con formato "Período de lectura:DD/MM/AAAA - DD/MM/AAAA"', () => {
+    const r = parseUtilityBill(BOLETA_ENEL_REAL)
+    expect(r.periodFrom).toBe('2026-05-30')
+    expect(r.periodTo).toBe('2026-06-30')
+  })
+})
+
 describe('parseUtilityBill — Aguas Andinas', () => {
   const BOLETA_AGUAS = `
     Aguas Andinas S.A.

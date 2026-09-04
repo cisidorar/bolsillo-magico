@@ -97,8 +97,13 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   }
   if (provider === 'unknown') return empty
 
-  // N° de cliente — formato chileno con dígito verificador (3196937-9)
+  // N° de cliente — formato chileno con dígito verificador (3196937-9).
+  // Las boletas reales de Enel casi nunca dicen literalmente "N° de cliente":
+  // el identificador viene en el bloque PAC/PAT para inscribir el pago
+  // automático ("PAT 3196937-9"), que es el mismo número. Va primero porque
+  // es el más confiable — aparece en todas, no solo en algunas.
   const clientNumber = firstMatch(text, [
+    /\bPAT\s+([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
     /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
@@ -111,7 +116,9 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   ])
 
   const dueRaw = firstMatch(text, [
-    /vence(?:\s+el)?[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
+    // \b evita que "vence" matchee dentro de "vencimiento" y falle por no
+    // encontrar dígitos justo después (el resto de la palabra no son dígitos).
+    /\bvence(?:\s+el)?[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
     /fecha\s+de\s+vencimiento[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
     /pagar\s+hasta[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
   ])
@@ -121,8 +128,14 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     /per[íi]odo[^\d]{0,20}([\d]{1,2}[/-][\d]{1,2}[/-][\d]{2,4})\s*(?:al|a|-|hasta)\s*([\d]{1,2}[/-][\d]{1,2}[/-][\d]{2,4})/i
   )
 
+  // El consumo total real casi siempre dice "Consumo total del período" (con
+  // "total" de por medio) o "= 125" en vez de "125 kWh" pegado — y ANTES de
+  // esa frase, la boleta ya mencionó sub-consumos por horario que también
+  // vienen pegados a "kWh" ("Electricidad Consumida Noche (28kWh)"). El
+  // fallback genérico de abajo agarraría ese 28 en vez de los 125 reales si
+  // fuera el primero en la lista — por eso esta frase específica va primero.
   const consumptionRaw = firstMatch(text, [
-    /consumo\s+(?:del\s+)?per[íi]odo[:\s]*([\d.,]+)\s*(?:kwh|m3|m³)/i,
+    /consumo\s+(?:total\s+)?(?:del\s+)?per[íi]odo[:=\s]*([\d.,]+)/i,
     /([\d.,]+)\s*kwh/i,
     /consumo[:\s]*([\d.,]+)\s*(?:m3|m³)/i,
   ])
