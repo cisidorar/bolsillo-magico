@@ -115,6 +115,24 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   }
   if (provider === 'unknown') return empty
 
+  // unpdf (el extractor real usado al subir el PDF) no siempre reconstruye
+  // el texto en orden de lectura natural: cuando el PDF tiene columnas, junta
+  // todas las ETIQUETAS de una columna y recién más abajo pega todos los
+  // VALORES de la otra, en el mismo orden. En la boleta de Aguas Andinas esto
+  // se ve como:
+  //   Total a Pagar
+  //   Vencimiento
+  //   Nro de cuenta
+  //   $ 6.120
+  //   22-AGO-2026
+  //   2502874-0
+  // (pdfplumber, usado antes para verificar a mano, sí arma el orden natural
+  // y por eso este bug no salió en la primera vuelta de pruebas). Este bloque
+  // ancla los tres valores por su orden relativo a las tres etiquetas.
+  const resumenBlock = text.match(
+    /total\s+a\s+pagar\s*\n\s*vencimiento\s*\n\s*nro\s+de\s+cuenta\s*\n\s*\$?\s*([\d.,]+)\s*\n\s*([\d]{1,2}[-/][a-záéíóú]{3,9}[-/][\d]{2,4})\s*\n\s*([\d.]+-[\dkK])/i
+  )
+
   // N° de cliente — formato chileno con dígito verificador (3196937-9).
   // Las boletas reales de Enel casi nunca dicen literalmente "N° de cliente":
   // el identificador viene en el bloque PAC/PAT para inscribir el pago
@@ -128,25 +146,27 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
     /(?:n[°º.]?|nro)\.?\s*(?:de\s+)?cuenta[:\s]*([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
-  ])
+  ]) ?? resumenBlock?.[3] ?? null
 
   const totalRaw = firstMatch(text, [
     /total\s+a\s+pagar[:\s$]*([\d.,]+)/i,
     /monto\s+a\s+pagar[:\s$]*([\d.,]+)/i,
     /total\s+boleta[:\s$]*([\d.,]+)/i,
-  ])
+  ]) ?? resumenBlock?.[1] ?? null
 
   const dueRaw = firstMatch(text, [
     // \b evita que "vence" matchee dentro de "vencimiento" y falle por no
     // encontrar dígitos justo después (el resto de la palabra no son dígitos).
     /\bvence(?:\s+el)?[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
     /fecha\s+de\s+vencimiento[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
-    // Aguas Andinas solo dice "VENCIMIENTO 22-AGO-2026", sin "fecha de" ni
-    // "vence" — captura no-greedy para no tragarse el resto de la línea
-    // ("... TOTAL A PAGAR $ 6.120") cuando ambos comparten renglón.
+    // Aguas Andinas junta "VENCIMIENTO" y "TOTAL A PAGAR" en un solo renglón,
+    // a veces sin espacio antes de la fecha ("...PAGAR22-AGO-2026 $ 6.120").
+    /vencimiento\s+total\s+a\s+pagar\s*([\d]{1,2}[\s/-][^\n,;]{2,20}?[\s/-][\d]{2,4})/i,
+    // Y "VENCIMIENTO 22-AGO-2026" a secas, sin "fecha de" ni "vence" — captura
+    // no-greedy para no tragarse el resto de la línea si comparten renglón.
     /\bvencimiento[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}?[\s/-][\d]{2,4})/i,
     /pagar\s+hasta[:\s]*([\d]{1,2}[\s/-][^\n,;]{2,20}[\s/-][\d]{2,4})/i,
-  ])
+  ]) ?? resumenBlock?.[2] ?? null
 
   // "Período: 05/08/2026 al 04/09/2026"
   const periodPair = text.match(

@@ -154,40 +154,67 @@ describe('parseUtilityBill — Aguas Andinas', () => {
 })
 
 describe('parseUtilityBill — Aguas Andinas (formato real, no sintético)', () => {
-  // Extracto real de una boleta de Aguas Andinas (ago 2026): el texto nunca
-  // dice "Aguas Andinas" (el PDF muestra la razón social del cliente, no del
-  // emisor), la cuenta va como "Nro de cuenta" (no "N° de cliente"), el
-  // vencimiento va sin "fecha de" ni "vence", el consumo real dice "CONSUMO
-  // TOTAL 3,74 m3" (con un sub-consumo "3,74 2.286" apareciendo antes en el
-  // texto que un regex ingenuo confundiría), y no hay frase "período" — solo
-  // fechas de lectura de medidor.
+  // Extracto real de una boleta de Aguas Andinas (ago 2026), reproducido en
+  // el ORDEN QUE unpdf REALMENTE ENTREGA — no en orden de lectura natural.
+  // unpdf (el extractor usado en producción al subir el PDF) reconstruye
+  // texto por columnas del PDF: cuando la boleta tiene un resumen en dos
+  // columnas (etiquetas a la izquierda, valores a la derecha), unpdf primero
+  // vuelca TODAS las etiquetas y recién después TODOS los valores:
+  //   Total a Pagar
+  //   Vencimiento
+  //   Nro de cuenta
+  //   $ 6.120
+  //   22-AGO-2026
+  //   2502874-0
+  // Una primera vuelta de pruebas usó texto reconstruido a mano en orden
+  // natural (como lo arma pdfplumber) y no detectó este bug — quedó al
+  // subir la boleta real. El texto nunca dice "Aguas Andinas" tampoco (el
+  // PDF muestra la razón social del cliente, no la del emisor).
   const BOLETA_AGUAS_REAL = `
-    R.U.T. : 61.808.000-5
-    BOLETA ELECTRÓNICA
-    Captación, Tratamiento y Distribución de Agua
-    INMOBILIARIA LOS ALGARROBOS LIMITADA
-    RUTA: 03.150.0550/2 MEC: 00000445-0000000 2502874-0
-    VENCIMIENTO 22-AGO-2026 TOTAL A PAGAR $ 6.120
+    Timbre Electrónico SII
+    Res. 58 del 2012. - Verifique documento: www.sii.cl
     CARGO FIJO 944
     CONSUMO AGUA POTABLE 3,74 2.286
     RECOLECCION AGUAS SERVIDAS 3,74 1.726
+    TRATAMIENTO AGUAS SERVIDAS 3,74 1.164
+    SUBTOTAL SERVICIO 6.120
+    TOTAL VENTA 6.120
+    TOTAL A PAGAR $ 6.120
+    Ultimo pago 14-JUL-2026 $9.370
+    MODALIDAD DE PRORRATEO Con reparto (Proporcional al consumo)
+    FECHA ESTIMADA PRÓXIMA LECTURA 25-AGO-2026
     LECTURA ACTUAL 25-JUL-2026 461 m3
     LECTURA ANTERIOR 24-JUN-2026 458 m3
+    DIFERENCIA DE LECTURAS 3 m3
+    ADICIONALES POR PRORRATEO (+) 0,74 m3
     CONSUMO TOTAL 3,74 m3
-    Total a Pagar $ 6.120
-    Vencimiento 22-AGO-2026
-    Nro de cuenta 2502874-0
+    R.U.T. : 61.808.000-5
+    BOLETA ELECTRÓNICA
+    Nº 319628734
+    Av. Presidente Balmaceda 1398 - Santiago
+    2502874-0
+    INMOBILIARIA LOS ALGARROBOS LIMITADA
+    SANTA VICTORIA 562 B/B-*-921
+    RUTA: 03.150.0550/2 MEC: 00000445-0000000
+    SANTIAGO
+    VENCIMIENTO TOTAL A PAGAR22-AGO-2026 $ 6.120
+    Total a Pagar
+    Vencimiento
+    Nro de cuenta
+    $ 6.120
+    22-AGO-2026
+    2502874-0
   `
 
   it('reconoce Aguas Andinas por su RUT aunque el nombre no aparezca en el texto', () => {
     expect(parseUtilityBill(BOLETA_AGUAS_REAL).provider).toBe('aguas_andinas')
   })
 
-  it('saca la cuenta de "Nro de cuenta", no de un "N° de cliente" que no existe', () => {
+  it('saca la cuenta del bloque "Total a Pagar / Vencimiento / Nro de cuenta" reordenado por columnas, no del "2502874-0" suelto que aparece antes sin etiqueta', () => {
     expect(parseUtilityBill(BOLETA_AGUAS_REAL).clientNumber).toBe('2502874-0')
   })
 
-  it('lee "VENCIMIENTO 22-AGO-2026" sin "fecha de" ni "vence", y el total', () => {
+  it('lee "VENCIMIENTOTOTAL A PAGAR22-AGO-2026 $ 6.120" pegado, sin espacio antes de la fecha', () => {
     const r = parseUtilityBill(BOLETA_AGUAS_REAL)
     expect(r.dueDate).toBe('2026-08-22')
     expect(r.total).toBe(6120)
