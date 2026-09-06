@@ -62,7 +62,12 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
     .filter(s => s.value > 0)
 
   const hoverBucket = hover ? data.find(d => d.tier === hover) ?? null : null
-  const DETAIL_HEIGHT = 96
+  // Alto fijo (nunca cambia con el hover, ver comentario de arriba), pero
+  // calculado para que la categoría con más tickers entre igual sin scroll —
+  // antes un valor fijo de 96px dejaba la mitad de "Riesgo" (6 tickers) tapada.
+  // overflow-y sigue de respaldo por si algún día una categoría crece más.
+  const maxHoldings = Math.max(1, ...data.map(d => d.holdings.length))
+  const DETAIL_HEIGHT = Math.max(72, Math.min(220, 28 + maxHoldings * 22))
 
   return (
     <div className="card p-4 lg:p-5">
@@ -129,7 +134,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
       {/* Panel de detalle: alto fijo siempre, scrollea si hace falta — nunca
           cambia el alto de la tarjeta al pasar de una categoría a otra. */}
       <div
-        className="mt-4 pt-3 border-t"
+        className="mt-4 pt-3 border-t scrollbar-none"
         style={{ borderColor: 'var(--border)', height: DETAIL_HEIGHT, overflowY: 'auto' }}
       >
         {hoverBucket ? (
