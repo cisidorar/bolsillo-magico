@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { RISK_TIER_LABEL, RISK_TIER_COLOR, RISK_TIER_ORDER, type RiskTier } from '@/lib/risk-tiers'
-import { useToast } from '@/components/ToastProvider'
 
 // ── Gráfico de riesgo de la cartera (sep 2026, a pedido de Cas) ─────────────
 // "quiero un gráfico de torta con acciones de riesgo, no riesgo o ETF" — pero
@@ -41,7 +40,6 @@ export interface RiskTierBucket {
 }
 
 export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] }) {
-  const { showToast } = useToast()
   const [hover, setHover] = useState<RiskTier | null>(null)
   const total = data.reduce((s, d) => s + d.valueUsd, 0)
 
@@ -60,26 +58,11 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
     })
     .filter(s => s.value > 0)
 
-  const explain = () => showToast(
-    'Clasificación propia de la app por riesgo real del activo (no del vehículo): ' +
-    'ETFs diversificados y acciones defensivas cuentan como bajo riesgo, acciones de crecimiento como riesgo, ' +
-    'y apalancados o cripto como riesgo alto. Puedes corregir la de cualquier posición editándola. No es una recomendación de inversión.'
-  )
-
   return (
     <div className="card p-4 lg:p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Riesgo de la cartera</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pasa el mouse por una porción para ver el detalle</p>
-        </div>
-        <button
-          onClick={explain}
-          className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg flex-shrink-0"
-          style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
-        >
-          ¿Cómo se arma?
-        </button>
+      <div className="mb-4">
+        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Riesgo de la cartera</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pasa el mouse por una porción para ver el detalle</p>
       </div>
 
       <div className="flex items-center gap-6 flex-wrap sm:flex-nowrap">
