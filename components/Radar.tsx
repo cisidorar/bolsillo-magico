@@ -362,14 +362,19 @@ export default function Radar({
   // Gráfico de riesgo de la cartera (sep 2026, a pedido de Cas): agrupa el
   // valor de cada posición por riesgo real (lib/risk-tiers.ts) — el override
   // guardado en la posición manda sobre el default curado (ver TransactionModal).
-  const riskBreakdown: { tier: RiskTier; valueUsd: number }[] = RISK_TIER_ORDER.map(tier => ({
-    tier,
-    valueUsd: myPerformance.reduce((s, row) => {
-      const override = positions.find(p => p.ticker === row.ticker)?.risk_tier ?? null
-      const effTier  = effectiveRiskTier(row.ticker, override, quotes[row.ticker]?.name)
-      return effTier === tier ? s + row.valueUsd : s
-    }, 0),
-  }))
+  // `holdings` va ordenado de mayor a menor para que al pasar el mouse por una
+  // porción se vea primero qué ticker pesa más dentro de ese nivel de riesgo.
+  const riskBreakdown: { tier: RiskTier; valueUsd: number; holdings: { ticker: string; valueUsd: number }[] }[] =
+    RISK_TIER_ORDER.map(tier => {
+      const holdings = myPerformance
+        .filter(row => {
+          const override = positions.find(p => p.ticker === row.ticker)?.risk_tier ?? null
+          return effectiveRiskTier(row.ticker, override, quotes[row.ticker]?.name) === tier
+        })
+        .map(row => ({ ticker: row.ticker, valueUsd: row.valueUsd }))
+        .sort((a, b) => b.valueUsd - a.valueUsd)
+      return { tier, valueUsd: holdings.reduce((s, h) => s + h.valueUsd, 0), holdings }
+    })
 
   // Y1 (a pedido de Cas): historial de operaciones — todas las compras y
   // ventas registradas, de cualquier ticker, en un solo lugar y ordenadas
@@ -1190,21 +1195,13 @@ export default function Radar({
         </div>
       )}
 
-      {/* Gráfico de riesgo de la cartera (sep 2026, a pedido de Cas): qué
-          porción del valor invertido está en cada nivel de riesgo. */}
+      {/* Evolución del portafolio (izquierda) + riesgo de la cartera (derecha),
+          en la misma fila en desktop (pedido de Cas, sep 2026) — mismo patrón
+          de 2 columnas que el resto de la app (CLAUDE.md). */}
       {positions.length > 0 && (
-        <div className="mb-4">
-          <PortfolioRiskChart data={riskBreakdown} />
-        </div>
-      )}
-
-      {/* Curva diaria REAL del valor del portafolio (pedido de Cas, ago 2026):
-          acciones + billetera, guardado día a día por el cron desde hoy —
-          antes solo había fotos del instante, sin forma de ver cómo sube o
-          baja según el mercado. */}
-      {positions.length > 0 && (
-        <div className="mb-4">
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-4 lg:space-y-0 mb-4">
           <PortfolioValueChart points={portfolioSnapshots} dollarsBoughtPoints={dollarsBoughtHistory} />
+          <PortfolioRiskChart data={riskBreakdown} />
         </div>
       )}
 
