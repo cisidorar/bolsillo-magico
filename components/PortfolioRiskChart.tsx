@@ -10,11 +10,14 @@ import { RISK_TIER_LABEL, RISK_TIER_COLOR, RISK_TIER_ORDER, type RiskTier } from
 // propio ejemplo: AVUV es un ETF pero "menos riesgo"; SOXL también es un ETF
 // pero apalancado 3×). Ver lib/risk-tiers.ts para la clasificación.
 //
-// Torta hecha a mano en SVG (CLAUDE.md: nunca librerías de gráficos). Al pasar
-// el mouse por una porción (o su fila en la leyenda) se expande la leyenda con
-// el detalle ticker por ticker de esa categoría — pedido explícito de Cas
-// ("que al pasar por las zonas del círculo salga el detalle de las acciones y
-// ETF"), no solo el total agregado.
+// Torta hecha a mano en SVG (CLAUDE.md: nunca librerías de gráficos). El
+// detalle ticker por ticker vive en un panel de ALTURA FIJA debajo de la
+// leyenda, no expandiendo cada fila: la primera versión insertaba la lista
+// bajo la fila de la categoría, y como cada categoría tiene una cantidad
+// distinta de tickers, la tarjeta entera crecía y encogía al pasar el mouse
+// de una porción a otra ("se sube y se baja", reportado por Cas). Un panel
+// fijo con scroll interno si hace falta deja la tarjeta siempre del mismo
+// alto, sin importar cuál categoría esté activa.
 
 function fmtUSD(n: number): string {
   return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -58,6 +61,9 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
     })
     .filter(s => s.value > 0)
 
+  const hoverBucket = hover ? data.find(d => d.tier === hover) ?? null : null
+  const DETAIL_HEIGHT = 96
+
   return (
     <div className="card p-4 lg:p-5">
       <div className="mb-4">
@@ -97,46 +103,57 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
             const isHover = hover === tier
 
             return (
-              <div key={tier}>
-                <div
-                  className="flex items-center gap-2.5 -mx-1.5 px-1.5 py-1 rounded-lg transition-colors"
-                  style={{ background: isHover ? 'var(--surface-2)' : 'transparent', cursor: value > 0 ? 'pointer' : 'default' }}
-                  onMouseEnter={() => value > 0 && setHover(tier)}
-                  onMouseLeave={() => setHover(null)}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: RISK_TIER_COLOR[tier] }} />
-                  <span className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>
-                    {RISK_TIER_LABEL[tier]}
-                  </span>
-                  <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    {pct.toFixed(0)}%
-                  </span>
-                  <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)', minWidth: 64, textAlign: 'right' }}>
-                    {fmtUSD(value)}
-                  </span>
-                </div>
-
-                {/* Detalle ticker por ticker — se expande al pasar el mouse por
-                    la porción o por esta fila, orden de mayor a menor peso. */}
-                {isHover && bucket && bucket.holdings.length > 0 && (
-                  <div className="ml-5 mt-0.5 mb-1.5 pl-3 space-y-1 border-l" style={{ borderColor: 'var(--border)' }}>
-                    {bucket.holdings.map(h => (
-                      <div key={h.ticker} className="flex items-center gap-2 text-[11px]">
-                        <span className="font-bold flex-shrink-0" style={{ color: 'var(--ink-2)', fontFamily: 'ui-monospace, monospace' }}>
-                          {h.ticker}
-                        </span>
-                        <span className="flex-1 border-b border-dotted" style={{ borderColor: 'var(--border)' }} />
-                        <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
-                          {fmtUSD(h.valueUsd)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div
+                key={tier}
+                className="flex items-center gap-2.5 -mx-1.5 px-1.5 py-1 rounded-lg transition-colors"
+                style={{ background: isHover ? 'var(--surface-2)' : 'transparent', cursor: value > 0 ? 'pointer' : 'default' }}
+                onMouseEnter={() => value > 0 && setHover(tier)}
+                onMouseLeave={() => setHover(null)}
+              >
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: RISK_TIER_COLOR[tier] }} />
+                <span className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>
+                  {RISK_TIER_LABEL[tier]}
+                </span>
+                <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                  {pct.toFixed(0)}%
+                </span>
+                <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)', minWidth: 64, textAlign: 'right' }}>
+                  {fmtUSD(value)}
+                </span>
               </div>
             )
           })}
         </div>
+      </div>
+
+      {/* Panel de detalle: alto fijo siempre, scrollea si hace falta — nunca
+          cambia el alto de la tarjeta al pasar de una categoría a otra. */}
+      <div
+        className="mt-4 pt-3 border-t"
+        style={{ borderColor: 'var(--border)', height: DETAIL_HEIGHT, overflowY: 'auto' }}
+      >
+        {hoverBucket ? (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: RISK_TIER_COLOR[hoverBucket.tier] }}>
+              {RISK_TIER_LABEL[hoverBucket.tier]}
+            </p>
+            {hoverBucket.holdings.map(h => (
+              <div key={h.ticker} className="flex items-center gap-2 text-xs">
+                <span className="font-bold flex-shrink-0" style={{ color: 'var(--ink-2)', fontFamily: 'ui-monospace, monospace', minWidth: 48 }}>
+                  {h.ticker}
+                </span>
+                <span className="flex-1 border-b border-dotted" style={{ borderColor: 'var(--border)' }} />
+                <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
+                  {fmtUSD(h.valueUsd)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs h-full flex items-center justify-center text-center" style={{ color: 'var(--ink-3)' }}>
+            Pasa el mouse sobre una porción o una categoría para ver qué tickers la componen
+          </p>
+        )}
       </div>
     </div>
   )
