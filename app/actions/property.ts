@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { aseoDueDates, aseoRef } from '@/lib/property-charges'
+import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
@@ -542,6 +542,83 @@ export async function extractAseoReceiptDraft(
   }
 }
 
+/**
+ * Recordatorio automático de la próxima cuenta de luz/agua ("que se generen
+ * solas", sep 2026). Cas no conoce la fecha exacta de cada boleta — solo se
+ * le pide un cálculo aproximado, no el dato real. Por eso: mismo día un mes
+ * después del último vencimiento conocido (nextUtilityDueDate), con el monto
+ * de la última boleta como estimado — nunca inventa un consumo.
+ *
+ * No genera nada si nunca se cargó una boleta real de ese tipo (sin
+ * baseline no hay de dónde sacar el monto), ni si ya existe un recordatorio
+ * pendiente para el período siguiente (idempotente por external_ref, mismo
+ * patrón que generateAseoCharges). El resultado se ve exactamente como una
+ * boleta real en las listas de "Cuentas del mes"/"Vencidas" — es lo que hace
+ * que el plazo máximo de pago quede avisado por el sistema de alertas que ya
+ * existe (UX5), sin construir uno aparte.
+ *
+ * Se llama sola al abrir /propiedad (mismo patrón que runAutoRegister +
+ * AutoRegister.tsx), no por un botón — el punto es que Cas no tenga que
+ * acordarse de generarlo.
+ */
+export async function generateUtilityReminders(
+  propertyId: string,
+  today: string,
+): Promise<{ ok: true; created: string[] } | { ok: false; error: string }> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+
+  const created: string[] = []
+  const rows: Record<string, unknown>[] = []
+
+  for (const kind of ['electricity', 'water'] as const) {
+    // El último cobro conocido de este tipo, real o estimado — de ahí sale
+    // tanto el monto base (siempre de una boleta real; ver más abajo) como
+    // la fecha desde la que se cuenta el próximo mes.
+    const { data: last } = await supabase
+      .from('property_charges')
+      .select('due_date, amount, is_estimate')
+      .eq('user_id', user.id).eq('property_id', propertyId).eq('kind', kind)
+      .order('due_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!last) continue // nunca se cargó una boleta real: no hay de dónde estimar
+    if (last.is_estimate) continue // ya hay un recordatorio pendiente para el próximo período
+
+    const dueDate = nextUtilityDueDate(last.due_date)
+    const year  = Number(dueDate.slice(0, 4))
+    const month = Number(dueDate.slice(5, 7))
+    const ref   = utilityReminderRef(kind, year, month)
+
+    rows.push({
+      user_id: user.id, property_id: propertyId,
+      kind, direction: 'out' as const,
+      due_date: dueDate,
+      amount: last.amount,
+      responsible: 'tenant' as const,
+      is_estimate: true,
+      external_ref: ref,
+      period_year: year, period_month: month,
+      notes: 'Estimado — monto y fecha son un cálculo, no la boleta real. Súbela cuando llegue.',
+    })
+    created.push(kind === 'electricity' ? 'Luz (estimado)' : 'Agua (estimado)')
+  }
+
+  if (rows.length === 0) return { ok: true, created: [] }
+
+  // Índice único (user_id, property_id, kind, external_ref) evita duplicar si
+  // dos pestañas corren esto a la vez.
+  const { error } = await supabase.from('property_charges').insert(rows)
+  if (error) {
+    if (error.code === '23505') return { ok: true, created: [] } // otra pestaña ya lo creó
+    return { ok: false, error: error.message }
+  }
+
+  revalidatePath('/propiedad')
+  return { ok: true, created }
+}
+
 export interface SaveUtilityBillInput {
   propertyId:  string
   kind:        'electricity' | 'water'
@@ -594,20 +671,39 @@ export async function saveUtilityBill(
     : null
   const notes = [consumoNote, input.notes?.trim() || null].filter(Boolean).join(' · ') || null
 
-  const { error } = await supabase.from('property_charges').insert({
+  const row = {
     user_id:       user.id,
     property_id:   input.propertyId,
     kind:          input.kind,
-    direction:     'out',
+    direction:     'out' as const,
     due_date:      input.dueDate,
     amount:        Math.round(input.amount),
-    responsible:   'tenant',
+    responsible:   'tenant' as const,
+    is_estimate:   false,
     external_ref:  input.externalRef?.trim() || null,
     document_path: documentPath,
     notes,
     period_year:   year,
     period_month:  month,
-  })
+  }
+
+  // Si hay un recordatorio automático pendiente de este tipo (ver
+  // generateUtilityReminders), la boleta real lo reemplaza en vez de sumar
+  // una fila aparte — si no, la boleta real quedaría duplicada junto al
+  // estimado que la generó, mostrando dos cuentas de luz el mismo mes.
+  const { data: estimate } = await supabase
+    .from('property_charges')
+    .select('id')
+    .eq('user_id', user.id).eq('property_id', input.propertyId)
+    .eq('kind', input.kind).eq('is_estimate', true)
+    .is('paid_date', null)
+    .order('due_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const { error } = estimate
+    ? await supabase.from('property_charges').update(row).eq('id', estimate.id).eq('user_id', user.id)
+    : await supabase.from('property_charges').insert(row)
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/propiedad')

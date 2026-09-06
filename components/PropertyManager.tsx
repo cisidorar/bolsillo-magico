@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
@@ -17,7 +17,7 @@ import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
-  extractAseoReceiptDraft,
+  extractAseoReceiptDraft, generateUtilityReminders,
 } from '@/app/actions/property'
 import type { ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 import {
@@ -109,6 +109,7 @@ export interface Charge {
   auto_debit: boolean
   confirmed: boolean
   responsible: 'owner' | 'tenant'
+  is_estimate: boolean
   external_ref: string | null
   notes: string | null
   period_month: number | null
@@ -209,7 +210,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [chargeForm, setChargeForm] = useState<Charge | 'new' | null>(null)
   const [aseoForm, setAseoForm]   = useState(false)
   const [leaseForm, setLeaseForm] = useState(false)
-  const [billUploader, setBillUploader] = useState(false)
+  // string = qué servicio precargar (desde "Subir boleta" en un recordatorio
+  // estimado); null = cerrado. El botón genérico de Cobros abre en 'electricity'.
+  const [billUploader, setBillUploader] = useState<'electricity' | 'water' | null>(null)
   const [divForm, setDivForm]     = useState(false)
   const [utilsForm, setUtilsForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
@@ -223,6 +226,19 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [error, setError]         = useState<string | null>(null)
 
   const health = useMemo(() => propertyHealth(charges, today), [charges, today])
+
+  // "Que se generen solas" (pedido de Cas, sep 2026): al abrir la propiedad,
+  // se completa sola el recordatorio de la próxima cuenta de luz/agua si ya
+  // no queda ninguno pendiente — mismo patrón que AutoRegister.tsx para
+  // gastos recurrentes. Sin fecha real conocida, es un cálculo aproximado
+  // (mismo día, un mes después de la última boleta real) que se reemplaza
+  // solo en cuanto sube la boleta verdadera (ver saveUtilityBill).
+  useEffect(() => {
+    if (!property) return
+    generateUtilityReminders(property.id, today).then(res => {
+      if (res.ok && res.created.length > 0) router.refresh()
+    })
+  }, [property?.id])
 
   const propBackdrop   = useBackdropClose(() => closePropForm())
   const chargeBackdrop = useBackdropClose(() => setChargeForm(null))
@@ -559,7 +575,10 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                                         subtitle={billSubtitle(c)}
                                         actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagó'}
                                         onAction={() => setPayFor(c)}
-                                        onEdit={() => setChargeForm(c)} />
+                                        onEdit={() => setChargeForm(c)}
+                                        onUploadBill={c.is_estimate
+                                          ? () => setBillUploader(c.kind as 'electricity' | 'water')
+                                          : undefined} />
                     ))}
                   </div>
                 </div>
@@ -640,7 +659,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
               <Plus className="w-4 h-4" strokeWidth={2.5} /> Agregar cobro
             </button>
             <button
-              onClick={() => setBillUploader(true)}
+              onClick={() => setBillUploader('electricity')}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold"
               style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
             >
@@ -667,12 +686,25 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           />
 
           {tenantCharges.length > 0 && (
-            <ChargeList
-              title="Del arrendatario"
-              subtitle="Lo que paga él: tu arriendo y las cuentas por contrato. Se listan para vigilar la mora."
-              charges={tenantCharges} today={today}
-              onOpen={c => setDetailCharge(c)}
-            />
+            // Dos columnas, no una lista mezclada: arriendo y cuentas de
+            // consumo son dos ritmos distintos (mensual fijo vs. boleta que
+            // llega cuando llega) y mezclados hacían difícil ver de un
+            // vistazo si faltaba generar o cargar algo de cualquiera de los
+            // dos. Cada ChargeList ya ordena por fecha internamente.
+            <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
+              <ChargeList
+                title="Arriendo"
+                subtitle="Lo que te paga el arrendatario cada mes."
+                charges={tenantCharges.filter(c => c.kind === 'rent')} today={today}
+                onOpen={c => setDetailCharge(c)}
+              />
+              <ChargeList
+                title="Luz y agua"
+                subtitle="Cuentas de consumo por contrato — no suman a tu deuda, se vigilan por la mora."
+                charges={tenantCharges.filter(c => c.kind !== 'rent')} today={today}
+                onOpen={c => setDetailCharge(c)}
+              />
+            </div>
           )}
         </div>
       )}
@@ -749,7 +781,8 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         <UtilityBillUploader
           propertyId={property.id}
           priorConsumption={priorConsumption}
-          onClose={() => setBillUploader(false)}
+          initialKind={billUploader}
+          onClose={() => setBillUploader(null)}
         />
       )}
 
@@ -801,6 +834,10 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           onClose={() => setDetailCharge(null)}
           onEdit={() => { setChargeForm(detailCharge); setDetailCharge(null) }}
           onPay={() => { setPayFor(detailCharge); setDetailCharge(null) }}
+          onUploadBill={() => {
+            setBillUploader(detailCharge.kind as 'electricity' | 'water')
+            setDetailCharge(null)
+          }}
           onUnpay={async () => {
             if (await run(() => unmarkChargePaid(detailCharge.id))) setDetailCharge(null)
           }}
@@ -867,13 +904,15 @@ function billSubtitle(c: Charge): string | undefined {
  * de tocar nada — la fila sola con un total mayor a la base no explicaba de
  * dónde salía la diferencia.
  */
-function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEdit }: {
+function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEdit, onUploadBill }: {
   charge: Charge
   today: string
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
   onEdit?: () => void
+  /** Fila estimada (is_estimate): la acción es subir la boleta real, no marcar pagado con el monto calculado. */
+  onUploadBill?: () => void
 }) {
   const status  = chargeStatus(charge, today)
   const style   = STATUS_STYLE[status]
@@ -890,13 +929,21 @@ function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEd
         style={{ background: isPaid ? 'var(--mint)' : style.color }}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+        <p className="text-sm font-semibold truncate flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
           {KIND_LABEL[charge.kind] ?? charge.kind}
           {charge.period_month && charge.kind === 'rent'
             ? ` ${MONTH_NAMES[charge.period_month - 1]}` : ''}
+          {charge.is_estimate && (
+            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md flex-shrink-0"
+                  style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}>
+              Estimado
+            </span>
+          )}
         </p>
         <p className="text-xs truncate" style={{ color: 'var(--ink-3)' }}>
-          {subtitle ?? `${fmtDate(charge.due_date)} · ${relativeDue(charge.due_date, today)}`}
+          {charge.is_estimate
+            ? `sube la boleta real · ${relativeDue(charge.due_date, today)}`
+            : (subtitle ?? `${fmtDate(charge.due_date)} · ${relativeDue(charge.due_date, today)}`)}
         </p>
       </div>
       <div className="text-right flex-shrink-0">
@@ -912,14 +959,24 @@ function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEd
           {style.label}
         </p>
       </div>
-      {actionLabel && onAction && !isPaid && (
+      {charge.is_estimate && onUploadBill ? (
         <button
-          onClick={e => { e.stopPropagation(); onAction() }}
+          onClick={e => { e.stopPropagation(); onUploadBill() }}
           className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold"
-          style={{ background: style.bg, color: style.color }}
+          style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}
         >
-          {actionLabel}
+          Subir boleta
         </button>
+      ) : (
+        actionLabel && onAction && !isPaid && (
+          <button
+            onClick={e => { e.stopPropagation(); onAction() }}
+            className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold"
+            style={{ background: style.bg, color: style.color }}
+          >
+            {actionLabel}
+          </button>
+        )
       )}
     </div>
   )
@@ -982,10 +1039,19 @@ function ChargeList({ title, subtitle, charges, today, onOpen }: {
                         recargo estimado
                       </span>
                     )}
+                    {c.is_estimate && (
+                      // Gold, no gris: no es un dato de relleno cualquiera —
+                      // es un aviso de "esto todavía no es la boleta real,
+                      // súbela cuando llegue" (UX5, chip de "atención pronto").
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                            style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}>
+                        estimado · falta subir la boleta
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                     Vence {fmtDate(c.due_date)}
-                    {c.external_ref && ` · N° ${c.external_ref}`}
+                    {c.external_ref && !c.is_estimate && ` · N° ${c.external_ref}`}
                     {c.paid_date && ` · pagado ${fmtDate(c.paid_date)}`}
                   </p>
                   {(c.penalty > 0 || c.inflation_adj > 0) && (
@@ -1016,7 +1082,7 @@ function ChargeList({ title, subtitle, charges, today, onOpen }: {
  * acá viven pagar/cobrar, editar y eliminar, más el desglose completo
  * (base, interés penal, IPC, N° de giro) que en la fila compacta no cabía.
  */
-function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onPay, onUnpay, onDelete }: {
+function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onPay, onUnpay, onDelete, onUploadBill }: {
   charge: Charge
   today: string
   busy: boolean
@@ -1026,6 +1092,8 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
   onPay: () => void
   onUnpay: () => void
   onDelete: () => void
+  /** Recordatorio estimado (is_estimate): la acción principal es subir la boleta real, no marcar pagado. */
+  onUploadBill: () => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [openingDoc, setOpeningDoc] = useState(false)
@@ -1054,8 +1122,18 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
         <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Vence {fmtDate(charge.due_date)}</span>
       </div>
 
+      {charge.is_estimate && (
+        <div className="rounded-2xl p-3 mb-4 flex items-start gap-2"
+             style={{ background: 'color-mix(in srgb, var(--gold) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' }}>
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+            Monto y fecha son un cálculo, no la boleta real todavía. Súbela cuando llegue y este recordatorio se reemplaza solo.
+          </p>
+        </div>
+      )}
+
       <div className="rounded-2xl overflow-hidden divide-y mb-4" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
-        <Fact label="Monto base" value={formatCLP(charge.amount)} />
+        <Fact label={charge.is_estimate ? 'Monto estimado' : 'Monto base'} value={formatCLP(charge.amount)} />
         {charge.penalty > 0 && <Fact label="Interés penal" value={formatCLP(charge.penalty)} />}
         {charge.inflation_adj > 0 && <Fact label="Reajuste IPC" value={formatCLP(charge.inflation_adj)} />}
         <Fact label="Total" value={`${isIncome ? '+' : ''}${formatCLP(chargeTotal(charge))}`} bold
@@ -1137,16 +1215,18 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
             <Pencil className="w-4 h-4" />
           </button>
           <button
-            onClick={isPaid ? onUnpay : onPay}
+            onClick={charge.is_estimate ? onUploadBill : (isPaid ? onUnpay : onPay)}
             disabled={busy}
             className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-60 active:scale-[.98] transition-transform"
             style={isPaid
               ? { color: 'var(--ink-2)', border: '1px solid var(--border)', background: 'var(--surface-2)' }
               : { background: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
-            {isPaid
-              ? <><Undo2 className="w-3.5 h-3.5" /> Deshacer {isIncome ? 'cobro' : 'pago'}</>
-              : <><Check className="w-4 h-4" strokeWidth={2.5} /> {isIncome ? 'Marcar cobrado' : 'Marcar pagado'}</>}
+            {charge.is_estimate
+              ? <><Upload className="w-4 h-4" /> Subir boleta</>
+              : isPaid
+                ? <><Undo2 className="w-3.5 h-3.5" /> Deshacer {isIncome ? 'cobro' : 'pago'}</>
+                : <><Check className="w-4 h-4" strokeWidth={2.5} /> {isIncome ? 'Marcar cobrado' : 'Marcar pagado'}</>}
           </button>
         </div>
       )}

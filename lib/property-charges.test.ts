@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   chargeTotal, chargeStatus, chargeOutstanding, daysBetween,
   estimateArrears, aseoDueDates, aseoRef, propertyHealth, nextDue,
-  mortgageProgress, type ChargeLike,
+  mortgageProgress, nextUtilityDueDate, utilityReminderRef, type ChargeLike,
 } from './property-charges'
 
 const TODAY = '2026-09-03'
@@ -74,6 +74,32 @@ describe('chargeStatus', () => {
   it('parcial cuando el abono no alcanza — ni pagado ni impago', () => {
     const c = { ...aseo('2026-04-30', 13950, 391, 350, '2026-05-02'), paid_amount: 10000 }
     expect(chargeStatus(c, TODAY)).toBe('partial')
+  })
+})
+
+describe('nextUtilityDueDate', () => {
+  it('mismo día, un mes después', () => {
+    expect(nextUtilityDueDate('2026-08-15')).toBe('2026-09-15')
+  })
+
+  it('cruza cambio de año', () => {
+    expect(nextUtilityDueDate('2026-12-20')).toBe('2027-01-20')
+  })
+
+  it('clampea al último día del mes cuando el mes siguiente es más corto (31 ene → feb)', () => {
+    expect(nextUtilityDueDate('2026-01-31')).toBe('2026-02-28')
+  })
+
+  it('respeta el 29 de febrero en año bisiesto', () => {
+    expect(nextUtilityDueDate('2027-01-29')).toBe('2027-02-28') // 2027 no es bisiesto
+    expect(nextUtilityDueDate('2028-01-29')).toBe('2028-02-29') // 2028 sí lo es
+  })
+})
+
+describe('utilityReminderRef', () => {
+  it('genera una referencia provisoria distinguible de un giro real', () => {
+    expect(utilityReminderRef('electricity', 2026, 9)).toBe('est-electricity-2026-09')
+    expect(utilityReminderRef('water', 2026, 1)).toBe('est-water-2026-01')
   })
 })
 

@@ -110,6 +110,31 @@ export function aseoRef(year: number, quarter: number): string {
   return `aseo-${year}-Q${quarter}`
 }
 
+/**
+ * Próximo vencimiento estimado de una cuenta de luz/agua, a partir del último
+ * vencimiento real conocido.
+ *
+ * NO intenta adivinar el ciclo real de facturación de la distribuidora —
+ * Cas fue explícita en que no conoce la fecha exacta de cada boleta. Es
+ * "mismo día, un mes después" con el mes clamp-eado a su último día (31 de
+ * enero → 28/29 de febrero), el mismo cálculo de mes calendario que ya usa
+ * mortgage_due_day en generateLeaseCharges. Sirve solo como recordatorio con
+ * fecha aproximada — se reemplaza por la fecha real en cuanto llega la boleta.
+ */
+export function nextUtilityDueDate(lastDueDate: string): string {
+  const [y, m, d] = lastDueDate.split('-').map(Number)
+  let ny = y, nm = m + 1
+  if (nm > 12) { nm = 1; ny += 1 }
+  const lastDay = new Date(ny, nm, 0).getDate()
+  const day = Math.min(d, lastDay)
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+/** Referencia del recordatorio automático de una cuenta de luz/agua (provisoria: se borra al llegar la boleta real). */
+export function utilityReminderRef(kind: 'electricity' | 'water', year: number, month: number): string {
+  return `est-${kind}-${year}-${String(month).padStart(2, '0')}`
+}
+
 export interface PropertyHealth {
   /** true cuando no hay nada vencido ni por vencer que dependa de ti. */
   ok:          boolean

@@ -17,6 +17,8 @@ interface Props {
   propertyId: string
   /** Consumos anteriores por tipo, para detectar saltos. */
   priorConsumption: { electricity: number[]; water: number[] }
+  /** Servicio precargado al abrir desde "Subir boleta" de un recordatorio estimado. */
+  initialKind?: 'electricity' | 'water'
   onClose: () => void
 }
 
@@ -27,7 +29,7 @@ interface Props {
  * nuevo, y un monto mal leído que entra directo a la base es peor que pedir
  * dos clics más. Todos los campos quedan editables aunque el parser acierte.
  */
-export default function UtilityBillUploader({ propertyId, priorConsumption, onClose }: Props) {
+export default function UtilityBillUploader({ propertyId, priorConsumption, initialKind, onClose }: Props) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [file, setFile]     = useState<File | null>(null)
@@ -37,7 +39,7 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, onCl
   const [dragOver, setDragOver] = useState(false)
 
   // Campos editables del borrador
-  const [kind, setKind]     = useState<'electricity' | 'water'>('electricity')
+  const [kind, setKind]     = useState<'electricity' | 'water'>(initialKind ?? 'electricity')
   const [amount, setAmount] = useState('')
   const [due, setDue]       = useState('')
   const [cons, setCons]     = useState('')
