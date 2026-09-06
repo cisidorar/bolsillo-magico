@@ -19,12 +19,18 @@ import { RISK_TIER_LABEL, RISK_TIER_COLOR, RISK_TIER_ORDER, type RiskTier } from
 // fijo con scroll interno si hace falta deja la tarjeta siempre del mismo
 // alto, sin importar cuál categoría esté activa.
 //
-// Selección por CLICK, no por hover (Cas: "paso por sobre amarillo, hago
-// click y quiero bajar a ver varias acciones, desaparece y no puedo ver
-// abajo") — con hover, mover el mouse hacia el panel de detalle (para leerlo
-// o hacer scroll) sacaba el cursor de la porción/fila y el panel se
-// vaciaba antes de poder verlo. Con click la categoría queda fija hasta
-// tocar otra (o la misma, para cerrarla) — también funciona en touch.
+// Selección "pegajosa" (Cas: "cuando pase por arriba, dejar lo último por
+// donde pase") — pasar el mouse por una porción la selecciona y la deja
+// puesta aunque el mouse se vaya (no hay onMouseLeave que la borre), así que
+// mover el cursor hacia el panel para leerlo o hacer scroll ya no lo vacía
+// (antes: "paso por sobre amarillo, hago click... desaparece y no puedo ver
+// abajo"). El click hace lo mismo Y además permite cerrar tocando la misma
+// porción de nuevo — así funciona igual con mouse y con touch.
+//
+// Pensado para carteras grandes (Cas: "cuando tenga 30 acciones"): el detalle
+// va en 2 columnas para aprovechar el ancho en vez de estirarse hacia abajo,
+// y el alto del panel se calcula para la categoría con más tickers — con
+// scroll interno de respaldo si algún día una categoría igual no entra.
 
 function fmtUSD(n: number): string {
   return '$' + n.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -74,18 +80,19 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
     .filter(s => s.value > 0)
 
   const selectedBucket = selected ? data.find(d => d.tier === selected) ?? null : null
-  // Alto fijo (nunca cambia con el hover, ver comentario de arriba), pero
-  // calculado para que la categoría con más tickers entre igual sin scroll —
-  // antes un valor fijo de 96px dejaba la mitad de "Riesgo" (6 tickers) tapada.
-  // overflow-y sigue de respaldo por si algún día una categoría crece más.
+  // Alto fijo (nunca cambia al seleccionar, ver comentario de arriba) pero
+  // calculado para que la categoría con más tickers entre igual sin scroll.
+  // 2 columnas (ver comentario de arriba): las filas necesarias son la mitad
+  // de los tickers, redondeando hacia arriba.
   const maxHoldings = Math.max(1, ...data.map(d => d.holdings.length))
-  const DETAIL_HEIGHT = Math.max(72, Math.min(220, 28 + maxHoldings * 22))
+  const maxRows = Math.ceil(maxHoldings / 2)
+  const DETAIL_HEIGHT = Math.max(72, Math.min(260, 30 + maxRows * 22))
 
   return (
     <div className="card p-4 lg:p-5">
       <div className="mb-4">
         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Riesgo de la cartera</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Toca una porción para ver el detalle</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pasa el mouse o toca una porción para ver el detalle</p>
       </div>
 
       <div className="flex items-center gap-6 flex-wrap sm:flex-nowrap">
@@ -94,6 +101,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
             <circle
               cx={cx} cy={cy} r={r} fill={RISK_TIER_COLOR[slices[0].tier]}
               style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setSelected(slices[0].tier)}
               onClick={() => toggle(slices[0].tier)}
             />
           ) : (
@@ -104,6 +112,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
                 fill={RISK_TIER_COLOR[s.tier]}
                 opacity={selected && selected !== s.tier ? 0.4 : 1}
                 style={{ cursor: 'pointer', transition: 'opacity 120ms' }}
+                onMouseEnter={() => setSelected(s.tier)}
                 onClick={() => toggle(s.tier)}
               />
             ))
@@ -122,6 +131,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
                 key={tier}
                 className="flex items-center gap-2.5 -mx-1.5 px-1.5 py-1 rounded-lg transition-colors"
                 style={{ background: isSelected ? 'var(--surface-2)' : 'transparent', cursor: value > 0 ? 'pointer' : 'default' }}
+                onMouseEnter={() => value > 0 && setSelected(tier)}
                 onClick={() => value > 0 && toggle(tier)}
               >
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: RISK_TIER_COLOR[tier] }} />
@@ -147,34 +157,38 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
         style={{ borderColor: 'var(--border)', height: DETAIL_HEIGHT, overflowY: 'auto' }}
       >
         {selectedBucket ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
               <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: RISK_TIER_COLOR[selectedBucket.tier] }}>
-                {RISK_TIER_LABEL[selectedBucket.tier]}
+                {RISK_TIER_LABEL[selectedBucket.tier]} · {selectedBucket.holdings.length} {selectedBucket.holdings.length === 1 ? 'posición' : 'posiciones'}
               </p>
               <button
                 onClick={() => setSelected(null)}
-                className="text-[10px] font-semibold"
+                className="text-[10px] font-semibold flex-shrink-0"
                 style={{ color: 'var(--ink-3)' }}
               >
                 Cerrar
               </button>
             </div>
-            {selectedBucket.holdings.map(h => (
-              <div key={h.ticker} className="flex items-center gap-2 text-xs">
-                <span className="font-bold flex-shrink-0" style={{ color: 'var(--ink-2)', fontFamily: 'ui-monospace, monospace', minWidth: 48 }}>
-                  {h.ticker}
-                </span>
-                <span className="flex-1 border-b border-dotted" style={{ borderColor: 'var(--border)' }} />
-                <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
-                  {fmtUSD(h.valueUsd)}
-                </span>
-              </div>
-            ))}
+            {/* 2 columnas: con carteras grandes (30+ acciones) una sola
+                columna obligaría a scrollear mucho más de lo necesario. */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {selectedBucket.holdings.map(h => (
+                <div key={h.ticker} className="flex items-center gap-2 text-xs">
+                  <span className="font-bold flex-shrink-0" style={{ color: 'var(--ink-2)', fontFamily: 'ui-monospace, monospace', minWidth: 44 }}>
+                    {h.ticker}
+                  </span>
+                  <span className="flex-1 border-b border-dotted" style={{ borderColor: 'var(--border)' }} />
+                  <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
+                    {fmtUSD(h.valueUsd)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <p className="text-xs h-full flex items-center justify-center text-center" style={{ color: 'var(--ink-3)' }}>
-            Toca una porción o una categoría para ver qué tickers la componen
+            Pasa el mouse o toca una porción para ver qué tickers la componen
           </p>
         )}
       </div>
