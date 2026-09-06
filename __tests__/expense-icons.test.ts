@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getExpenseIcon } from '@/lib/expense-icons'
+import { getExpenseIcon, guessMerchantDomain } from '@/lib/expense-icons'
 
 describe('getExpenseIcon', () => {
   describe('matching por descripción (prioridad sobre categoría)', () => {
@@ -66,25 +66,36 @@ describe('getExpenseIcon', () => {
       expect(result.bg).toBeDefined()
     })
   })
+})
 
-  describe('todos los resultados tienen estructura válida', () => {
-    const cases: [string | null, string | null][] = [
-      ['Uber', 'Transporte'],
-      ['Pizza dominó', 'Comidas'],
-      [null, 'salud'],
-      ['Vuelo LATAM', null],
-      [null, null],
-    ]
+describe('guessMerchantDomain', () => {
+  it('decathlon → decathlon.cl (bug reportado por Cas: no mostraba el logo en Historial)', () => {
+    expect(guessMerchantDomain('Decathlon mesa ping pong familia')).toBe('decathlon.cl')
+    expect(guessMerchantDomain('Decathlon pesa rusa')).toBe('decathlon.cl')
+  })
 
-    cases.forEach(([desc, cat]) => {
-      it(`getExpenseIcon(${JSON.stringify(desc)}, ${JSON.stringify(cat)}) tiene icon, color y bg`, () => {
-        const result = getExpenseIcon(desc, cat)
-        expect(result).toHaveProperty('icon')
-        expect(result).toHaveProperty('color')
-        expect(result).toHaveProperty('bg')
-        expect(result.color).toMatch(/^#[0-9A-Fa-f]{6}$/)
-        expect(result.bg).toMatch(/^#[0-9A-Fa-f]{6}$/)
-      })
+  it('descripción sin marca reconocida → null', () => {
+    expect(guessMerchantDomain('Compra varios')).toBeNull()
+  })
+})
+
+describe('todos los resultados tienen estructura válida', () => {
+  const cases: [string | null, string | null][] = [
+    ['Uber', 'Transporte'],
+    ['Pizza dominó', 'Comidas'],
+    [null, 'salud'],
+    ['Vuelo LATAM', null],
+    [null, null],
+  ]
+
+  cases.forEach(([desc, cat]) => {
+    it(`getExpenseIcon(${JSON.stringify(desc)}, ${JSON.stringify(cat)}) tiene icon, color y bg`, () => {
+      const result = getExpenseIcon(desc, cat)
+      expect(result).toHaveProperty('icon')
+      expect(result).toHaveProperty('color')
+      expect(result).toHaveProperty('bg')
+      expect(result.color).toMatch(/^#[0-9A-Fa-f]{6}$/)
+      expect(result.bg).toMatch(/^#[0-9A-Fa-f]{6}$/)
     })
   })
 })

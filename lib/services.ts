@@ -92,6 +92,7 @@ export const KNOWN_SERVICES: { keywords: string[]; domain: string }[] = [
   { keywords: ['homecenter'],                        domain: 'sodimac.com'       },
   { keywords: ['easy'],                              domain: 'easy.cl'           },
   { keywords: ['ikea'],                              domain: 'ikea.com'          },
+  { keywords: ['decathlon'],                         domain: 'decathlon.cl'      },
   { keywords: ['amazon'],                            domain: 'amazon.com'        },
   { keywords: ['aliexpress', 'ali express'],         domain: 'aliexpress.com'    },
   { keywords: ['mercado libre', 'mercadolibre'],     domain: 'mercadolibre.cl'   },

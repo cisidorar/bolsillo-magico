@@ -170,6 +170,7 @@ const MERCHANT_DOMAINS: Array<{ re: RegExp; domain: string }> = [
   { re: /\bikea\b/i,                     domain: 'ikea.com' },
   { re: /sodimac|homecenter/i,           domain: 'sodimac.cl' },
   { re: /\beasy\b/i,                     domain: 'easy.cl' },
+  { re: /decathlon/i,                    domain: 'decathlon.cl' },
   { re: /\bzara\b/i,                     domain: 'zara.com' },
   { re: /\bh&m\b|hennes/i,               domain: 'hm.com' },
   // Farmacias
