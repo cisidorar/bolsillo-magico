@@ -15,6 +15,8 @@ import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisErro
 import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
+import { effectiveRiskTier, RISK_TIER_ORDER, type RiskTier } from '@/lib/risk-tiers'
+import PortfolioRiskChart from '@/components/PortfolioRiskChart'
 import { cashFromTotals } from '@/lib/wallet-cash'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
@@ -356,6 +358,18 @@ export default function Radar({
       if (bv === null) return -1
       return bv - av
     })
+
+  // Gráfico de riesgo de la cartera (sep 2026, a pedido de Cas): agrupa el
+  // valor de cada posición por riesgo real (lib/risk-tiers.ts) — el override
+  // guardado en la posición manda sobre el default curado (ver TransactionModal).
+  const riskBreakdown: { tier: RiskTier; valueUsd: number }[] = RISK_TIER_ORDER.map(tier => ({
+    tier,
+    valueUsd: myPerformance.reduce((s, row) => {
+      const override = positions.find(p => p.ticker === row.ticker)?.risk_tier ?? null
+      const effTier  = effectiveRiskTier(row.ticker, override, quotes[row.ticker]?.name)
+      return effTier === tier ? s + row.valueUsd : s
+    }, 0),
+  }))
 
   // Y1 (a pedido de Cas): historial de operaciones — todas las compras y
   // ventas registradas, de cualquier ticker, en un solo lugar y ordenadas
@@ -1173,6 +1187,14 @@ export default function Radar({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Gráfico de riesgo de la cartera (sep 2026, a pedido de Cas): qué
+          porción del valor invertido está en cada nivel de riesgo. */}
+      {positions.length > 0 && (
+        <div className="mb-4">
+          <PortfolioRiskChart data={riskBreakdown} />
         </div>
       )}
 

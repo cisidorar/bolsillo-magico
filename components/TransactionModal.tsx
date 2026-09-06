@@ -6,6 +6,7 @@ import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { positionSizeUsd, type TechnicalAnalysis } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
+import { defaultRiskTier, RISK_TIER_LABEL, RISK_TIER_ORDER, type RiskTier } from '@/lib/risk-tiers'
 import { cashFromTotals } from '@/lib/wallet-cash'
 import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
 import { getCachedBacktestStats, getCachedRateContext } from '@/lib/analysis-cache'
@@ -117,7 +118,8 @@ export default function TransactionModal({
     }
   }
 
-  const [form,       setForm]       = useState({ ticker: ticker ?? '', shares: '', totalPaid: '', notes: '' })
+  // riskTier: '' = "sin corregir, usa el default curado" (ver lib/risk-tiers.ts) — nunca se manda null a mano, se omite.
+  const [form,       setForm]       = useState({ ticker: ticker ?? '', shares: '', totalPaid: '', notes: '', riskTier: '' as RiskTier | '' })
   const [saving,     setSaving]     = useState(false)
   const [formError,  setFormError]  = useState('')
   const [deleting,   setDeleting]   = useState(false)
@@ -134,12 +136,12 @@ export default function TransactionModal({
   // Prefill según modo, al abrir
   useEffect(() => {
     if (mode === 'edit' && pos) {
-      setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid: (pos.shares * pos.avg_cost_usd).toFixed(2), notes: pos.notes ?? '' })
+      setForm({ ticker: pos.ticker, shares: String(pos.shares), totalPaid: (pos.shares * pos.avg_cost_usd).toFixed(2), notes: pos.notes ?? '', riskTier: pos.risk_tier ?? '' })
     } else if (mode === 'new') {
       const suggestedUsd = prefill?.totalUsd
       const live = ticker ? quotes[ticker]?.price : undefined
       const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(6).replace(/\.?0+$/, '') : ''
-      setForm({ ticker: ticker ?? '', shares: suggestedShares, totalPaid: suggestedUsd ? suggestedUsd.toFixed(2) : '', notes: '' })
+      setForm({ ticker: ticker ?? '', shares: suggestedShares, totalPaid: suggestedUsd ? suggestedUsd.toFixed(2) : '', notes: '', riskTier: '' })
     } else if (mode === 'sell' && pos) {
       const q = quotes[pos.ticker]
       const price = q?.price ?? pos.avg_cost_usd
@@ -233,18 +235,19 @@ export default function TransactionModal({
     setSaving(true); setFormError('')
     if (isEdit && pos) {
       const { error } = await supabase.from('stock_positions')
-        .update({ ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null, updated_at: new Date().toISOString() })
+        .update({ ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null, risk_tier: form.riskTier || null, updated_at: new Date().toISOString() })
         .eq('id', pos.id).eq('user_id', userId)
       setSaving(false)
       if (error) { setFormError('Error al guardar'); return }
       setPositions(prev => prev.map(p => p.id === pos.id
-        ? { ...p, ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null }
+        ? { ...p, ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null, risk_tier: form.riskTier || null }
         : p
       ))
     } else {
       const { data, error } = await supabase.from('stock_positions')
         .upsert({
           user_id: userId, ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null,
+          risk_tier: form.riskTier || null,
           // Con billetera activa, la compra nueva sale de ella y descuenta del saldo
           wallet_funded:   walletUsdBase > 0,
           wallet_cost_usd: walletUsdBase > 0 ? Math.round(totalPaid * 100) / 100 : 0,
@@ -553,6 +556,46 @@ export default function TransactionModal({
                   onFocus={focusOn} onBlur={focusOff}
                 />
               </div>
+
+              {/* Riesgo para el gráfico de torta de la cartera (sep 2026): por
+                  defecto usa la clasificación curada (lib/risk-tiers.ts) — acá
+                  solo se guarda algo si Cas la corrige a mano. */}
+              {(() => {
+                const tk = form.ticker.trim().toUpperCase()
+                const curated = tk ? defaultRiskTier(tk, quotes[tk]?.name) : null
+                return (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Riesgo {curated && !form.riskTier && `· auto: ${RISK_TIER_LABEL[curated]}`}
+                    </label>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, riskTier: '' }))}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                        style={form.riskTier === ''
+                          ? { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }
+                          : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                      >
+                        Auto
+                      </button>
+                      {RISK_TIER_ORDER.map(tier => (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, riskTier: tier }))}
+                          className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                          style={form.riskTier === tier
+                            ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
+                            : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                        >
+                          {RISK_TIER_LABEL[tier]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
 

@@ -35,6 +35,9 @@ export interface StockPosition {
   wallet_funded:   boolean   // marcador: wallet_cost_usd > 0
   wallet_cost_usd: number    // porción del costo que salió de la billetera USD (descuenta del saldo)
   trail_stop_usd:  number | null   // trailing stop (ratchet, solo sube) — lo escribe el cron sync-prices
+  // Override manual del riesgo por defecto (lib/risk-tiers.ts) para el gráfico
+  // de torta de la cartera — null = "sin corregir, usa el default curado".
+  risk_tier:       'bajo' | 'medio' | 'alto' | null
   created_at:      string
   updated_at:      string
 }
