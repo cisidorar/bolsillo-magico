@@ -19,13 +19,19 @@ import { RISK_TIER_LABEL, RISK_TIER_COLOR, RISK_TIER_ORDER, type RiskTier } from
 // fijo con scroll interno si hace falta deja la tarjeta siempre del mismo
 // alto, sin importar cuál categoría esté activa.
 //
-// Selección "pegajosa" (Cas: "cuando pase por arriba, dejar lo último por
-// donde pase") — pasar el mouse por una porción la selecciona y la deja
-// puesta aunque el mouse se vaya (no hay onMouseLeave que la borre), así que
-// mover el cursor hacia el panel para leerlo o hacer scroll ya no lo vacía
-// (antes: "paso por sobre amarillo, hago click... desaparece y no puedo ver
-// abajo"). El click hace lo mismo Y además permite cerrar tocando la misma
-// porción de nuevo — así funciona igual con mouse y con touch.
+// Selección "pegajosa" en la leyenda (Cas: "cuando pase por arriba, dejar lo
+// último por donde pase") — pasar el mouse por una fila de la leyenda la
+// selecciona y la deja puesta aunque el mouse se vaya (no hay onMouseLeave
+// que la borre), así que mover el cursor hacia el panel para leerlo o hacer
+// scroll ya no lo vacía (antes: "paso por sobre amarillo, hago click...
+// desaparece y no puedo ver abajo"). El click hace lo mismo Y además permite
+// cerrar tocando la misma fila de nuevo — así funciona igual con mouse y con
+// touch.
+//
+// El gráfico circular en sí es SOLO click (Cas: "mejor que sea solo al hacer
+// click que seleccione el gráfico circular") — pasar el mouse sobre una
+// porción de la torta ya no la selecciona, evita selecciones accidentales al
+// simplemente mover el cursor sobre la tarjeta camino a otra parte.
 //
 // Pensado para carteras grandes (Cas: "cuando tenga 30 acciones"): el detalle
 // va en 2 columnas para aprovechar el ancho en vez de estirarse hacia abajo,
@@ -92,7 +98,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
     <div className="card p-4 lg:p-5">
       <div className="mb-4">
         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Riesgo de la cartera</p>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pasa el mouse o toca una porción para ver el detalle</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Haz click en una porción o pasa el mouse por la leyenda para ver el detalle</p>
       </div>
 
       <div className="flex items-center gap-6 flex-wrap sm:flex-nowrap">
@@ -101,7 +107,6 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
             <circle
               cx={cx} cy={cy} r={r} fill={RISK_TIER_COLOR[slices[0].tier]}
               style={{ cursor: 'pointer' }}
-              onMouseEnter={() => setSelected(slices[0].tier)}
               onClick={() => toggle(slices[0].tier)}
             />
           ) : (
@@ -112,7 +117,6 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
                 fill={RISK_TIER_COLOR[s.tier]}
                 opacity={selected && selected !== s.tier ? 0.4 : 1}
                 style={{ cursor: 'pointer', transition: 'opacity 120ms' }}
-                onMouseEnter={() => setSelected(s.tier)}
                 onClick={() => toggle(s.tier)}
               />
             ))
@@ -188,7 +192,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
           </div>
         ) : (
           <p className="text-xs h-full flex items-center justify-center text-center" style={{ color: 'var(--ink-3)' }}>
-            Pasa el mouse o toca una porción para ver qué tickers la componen
+            Haz click en una porción o en la leyenda para ver qué tickers la componen
           </p>
         )}
       </div>

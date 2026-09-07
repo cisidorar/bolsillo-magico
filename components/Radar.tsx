@@ -1197,9 +1197,11 @@ export default function Radar({
 
       {/* Evolución del portafolio (izquierda) + riesgo de la cartera (derecha),
           en la misma fila en desktop (pedido de Cas, sep 2026) — mismo patrón
-          de 2 columnas que el resto de la app (CLAUDE.md). */}
+          de 2 columnas que el resto de la app (CLAUDE.md). Sin lg:items-start:
+          el default (stretch) de CSS Grid hace que las dos tarjetas queden
+          del mismo alto, igualando la más corta a la más alta de la fila. */}
       {positions.length > 0 && (
-        <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-4 lg:space-y-0 mb-4">
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6 space-y-4 lg:space-y-0 mb-4">
           <PortfolioValueChart points={portfolioSnapshots} dollarsBoughtPoints={dollarsBoughtHistory} />
           <PortfolioRiskChart data={riskBreakdown} />
         </div>
