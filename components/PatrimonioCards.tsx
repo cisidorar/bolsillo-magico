@@ -164,12 +164,48 @@ function fmtAxisY(v: number): string {
 }
 
 /** Gráfico de área SVG del patrimonio neto (histórico de snapshots). Exportado
- * para reusarse más grande dentro de PatrimonioDetailSheet. */
-export function NetWorthChart({ points }: { points: { label: string; total: number }[] }) {
-  // W grande → tipografía no se agiganta al estirarse en desktop (~1100px real → escala ≈1).
-  // H=380 → a 1100px de ancho el SVG mide ~350px de alto, llenando la card junto con el panel izquierdo.
-  const W = 1200, H = 380
-  const padLeft = 68, padRight = 12, padTop = 16, padBot = 28
+ * para reusarse más grande dentro de PatrimonioDetailSheet.
+ *
+ * sep 2026 (Cas: "cuando achico el ancho de la pantalla se deforma el
+ * gráfico de patrimonio"): el viewBox fijo (1200×380) se eligió pensando
+ * SOLO en el ancho real de desktop (~1100px, ver comentario abajo) para que
+ * la tipografía no se agigante ahí — pero ese mismo viewBox se renderiza
+ * también en mobile, donde la tarjeta baja a ~340px de ancho real. Como el
+ * viewBox fuerza una proporción fija (ancho:alto = 1200:380), a 340px reales
+ * el alto también se achica en la misma proporción (~108px) y todo el
+ * contenido — texto de ejes, puntos, línea — se escala junto con el ancho:
+ * a esa escala (340/1200 ≈ 0.28) el fontSize de 10-11 queda en ~3px,
+ * ilegible y amontonado ("deformado"). Fix: dos variantes de SVG con su
+ * propio viewBox calibrado al ancho real donde cada una se muestra (mismo
+ * principio que ya usa el resto de charts de la app, aplicado por
+ * breakpoint en vez de una sola talla para los dos anchos tan distintos). */
+export function NetWorthChart({ points, idPrefix = 'nw' }: { points: { label: string; total: number }[]; idPrefix?: string }) {
+  if (points.length < 2) return null
+  return (
+    <>
+      <div className="lg:hidden">
+        <NetWorthChartSvg points={points} gradId={`${idPrefix}-grad-m`} W={380} H={210} padLeft={50} padRight={8} padTop={14} padBot={22} />
+      </div>
+      <div className="hidden lg:block">
+        {/* W grande → tipografía no se agiganta al estirarse en desktop (~1100px real → escala ≈1).
+            H=380 → a 1100px de ancho el SVG mide ~350px de alto, llenando la card junto con el panel izquierdo. */}
+        <NetWorthChartSvg points={points} gradId={`${idPrefix}-grad-d`} W={1200} H={380} padLeft={68} padRight={12} padTop={16} padBot={28} />
+      </div>
+    </>
+  )
+}
+
+// idPrefix (arriba) + gradId (acá) evitan <linearGradient id> duplicado en el
+// DOM: las dos variantes (mobile/desktop) de un mismo NetWorthChart conviven
+// SIEMPRE en el documento (una oculta por CSS, no desmontada), y
+// PatrimonioDetailSheet además monta dos NetWorthChart distintos a la vez
+// (patrimonio + acciones) — sin un id único por instancia, el navegador
+// resuelve el primer <linearGradient> que encuentra con ese id para todos,
+// pintando el área de un gráfico con el degradé de otro.
+function NetWorthChartSvg({ points, gradId, W, H, padLeft, padRight, padTop, padBot }: {
+  points: { label: string; total: number }[]
+  gradId: string; W: number; H: number; padLeft: number; padRight: number; padTop: number; padBot: number
+}) {
   const n = points.length
   if (n < 2) return null
   const totals = points.map(p => p.total)
@@ -185,7 +221,6 @@ export function NetWorthChart({ points }: { points: { label: string; total: numb
   const showLabel = (i: number) => n <= 6 || i === 0 || i === n - 1 || i % 3 === 0
   const trendUp = totals[n - 1] >= totals[0]
   const lineColor = trendUp ? 'var(--primary)' : 'var(--coral)'
-  const gradId = 'nw-area-grad'
   const gridFracs = [0.15, 0.4, 0.65, 0.9]
 
   return (

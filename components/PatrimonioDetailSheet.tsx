@@ -118,7 +118,7 @@ export default function PatrimonioDetailSheet({ netWorthPoints, snapshots, curre
                   <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
                     Patrimonio total
                   </p>
-                  <NetWorthChart points={netWorthPoints} />
+                  <NetWorthChart points={netWorthPoints} idPrefix="nw-total" />
                 </div>
               )}
 
@@ -139,7 +139,7 @@ export default function PatrimonioDetailSheet({ netWorthPoints, snapshots, curre
                       </span>
                     )}
                   </div>
-                  <NetWorthChart points={stockPoints} />
+                  <NetWorthChart points={stockPoints} idPrefix="nw-stock" />
                   <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
                     Tus posiciones de hoy valorizadas con el precio de cierre de cada día — muestra cómo se mueve tu cartera según el mercado.
                   </p>
