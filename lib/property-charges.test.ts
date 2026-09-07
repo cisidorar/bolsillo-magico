@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   chargeTotal, chargeStatus, chargeOutstanding, daysBetween,
   estimateArrears, aseoDueDates, aseoRef, propertyHealth, nextDue,
-  mortgageProgress, nextUtilityDueDate, utilityReminderRef, type ChargeLike,
+  mortgageProgress, nextUtilityDueDate, utilityReminderRef, billChargeRef, type ChargeLike,
 } from './property-charges'
 
 const TODAY = '2026-09-03'
@@ -100,6 +100,21 @@ describe('utilityReminderRef', () => {
   it('genera una referencia provisoria distinguible de un giro real', () => {
     expect(utilityReminderRef('electricity', 2026, 9)).toBe('est-electricity-2026-09')
     expect(utilityReminderRef('water', 2026, 1)).toBe('est-water-2026-01')
+  })
+})
+
+describe('billChargeRef', () => {
+  it('genera una referencia por período, no por N° de cliente', () => {
+    expect(billChargeRef('electricity', 2026, 9)).toBe('bill-electricity-2026-09')
+    expect(billChargeRef('water', 2026, 1)).toBe('bill-water-2026-01')
+  })
+
+  it('dos meses distintos del mismo servicio nunca chocan', () => {
+    expect(billChargeRef('electricity', 2026, 7)).not.toBe(billChargeRef('electricity', 2026, 9))
+  })
+
+  it('subir de nuevo la boleta del mismo mes da la misma referencia (permite actualizar, no duplicar)', () => {
+    expect(billChargeRef('electricity', 2026, 9)).toBe(billChargeRef('electricity', 2026, 9))
   })
 })
 

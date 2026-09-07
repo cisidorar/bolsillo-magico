@@ -135,6 +135,28 @@ export function utilityReminderRef(kind: 'electricity' | 'water', year: number, 
   return `est-${kind}-${year}-${String(month).padStart(2, '0')}`
 }
 
+/**
+ * Referencia de idempotencia de una boleta REAL de luz/agua (sep 2026).
+ *
+ * Bug real: saveUtilityBill() guardaba acá el "N° de cliente" que el parser
+ * lee del PDF (lib/utility-bill-parser.ts) — pero ese número identifica la
+ * CUENTA con la distribuidora, no la boleta puntual: es EL MISMO en todas
+ * las boletas de un mismo servicio, mes a mes (el propio parser lo dice:
+ * viene del bloque PAC/PAT de pago automático). Como external_ref es único
+ * por (user_id, property_id, kind), la segunda boleta real de cualquier
+ * servicio SIEMPRE chocaba con la primera ("duplicate key value violates
+ * unique constraint... external_ref_uniq"), reproducible al 100%.
+ *
+ * Esta referencia usa el período (año-mes de vencimiento) en vez del N° de
+ * cliente — único por mes como corresponde, y de paso hace que volver a
+ * subir la boleta del MISMO mes (ej. una corregida) actualice la fila en vez
+ * de fallar. El N° de cliente/boleta que el usuario ve y puede editar sigue
+ * guardándose, pero como dato informativo en `notes`, no como llave.
+ */
+export function billChargeRef(kind: 'electricity' | 'water', year: number, month: number): string {
+  return `bill-${kind}-${year}-${String(month).padStart(2, '0')}`
+}
+
 export interface PropertyHealth {
   /** true cuando no hay nada vencido ni por vencer que dependa de ti. */
   ok:          boolean

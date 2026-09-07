@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef } from '@/lib/property-charges'
+import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
@@ -669,7 +669,17 @@ export async function saveUtilityBill(
   const consumoNote = input.consumption
     ? `Consumo: ${input.consumption} ${input.kind === 'electricity' ? 'kWh' : 'm³'}`
     : null
-  const notes = [consumoNote, input.notes?.trim() || null].filter(Boolean).join(' · ') || null
+  // sep 2026 — bug real (Cas, "duplicate key value violates unique constraint
+  // property_charges_external_ref_uniq"): el N° que el parser lee de la
+  // boleta (input.externalRef) es el N° DE CLIENTE con la distribuidora, no
+  // un folio por boleta — es EL MISMO todos los meses (ver comentario de
+  // lib/utility-bill-parser.ts sobre el bloque PAC/PAT). Guardarlo en
+  // external_ref (única por servicio) hacía que la segunda boleta real de
+  // cualquier tipo chocara siempre con la primera. Ahora external_ref usa
+  // billChargeRef (período, único por mes — ver ese comentario) y el N° que
+  // ve/edita el usuario queda solo como dato informativo en notes.
+  const refNote = input.externalRef?.trim() ? `N° boleta: ${input.externalRef.trim()}` : null
+  const notes = [consumoNote, refNote, input.notes?.trim() || null].filter(Boolean).join(' · ') || null
 
   const row = {
     user_id:       user.id,
@@ -680,7 +690,7 @@ export async function saveUtilityBill(
     amount:        Math.round(input.amount),
     responsible:   'tenant' as const,
     is_estimate:   false,
-    external_ref:  input.externalRef?.trim() || null,
+    external_ref:  billChargeRef(input.kind, year, month),
     document_path: documentPath,
     notes,
     period_year:   year,
@@ -701,9 +711,13 @@ export async function saveUtilityBill(
     .limit(1)
     .maybeSingle()
 
+  // Sin estimado pendiente que reemplazar (ej. ya se había resuelto ese mes
+  // y ahora se sube una boleta corregida): upsert por external_ref en vez de
+  // insert — vuelve a subir la boleta del MISMO período y actualiza la fila
+  // existente en vez de chocar con property_charges_external_ref_uniq.
   const { error } = estimate
     ? await supabase.from('property_charges').update(row).eq('id', estimate.id).eq('user_id', user.id)
-    : await supabase.from('property_charges').insert(row)
+    : await supabase.from('property_charges').upsert(row, { onConflict: 'user_id,property_id,kind,external_ref' })
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/propiedad')
