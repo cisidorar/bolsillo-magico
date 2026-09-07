@@ -1,8 +1,12 @@
 /**
  * notify-deposit-maturity — Edge Function
  *
- * Corre diariamente (pg_cron). Detecta depósitos a plazo que vencen HOY
- * y envía un correo al usuario para que renueve o retire.
+ * Corre diariamente (pg_cron). Detecta depósitos a plazo que vencen HOY o
+ * MAÑANA y envía un correo al usuario para que renueve o retire — dos
+ * avisos (Cas, sep 2026: "me gustaría que avise un día antes y el mismo
+ * día") con textos distintos ("vence mañana" / "vence hoy") pero la misma
+ * idempotencia por notification_log, así que ambos conviven sin duplicarse
+ * ni pisarse entre sí.
  *
  * Requiere: RESEND_API_KEY, SITE_URL, DB_SERVICE_KEY
  */
@@ -16,6 +20,12 @@ const SERVICE_KEY    = Deno.env.get('DB_SERVICE_KEY')!
 
 function todayCL(): string {
   const cl = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  return `${cl.getFullYear()}-${String(cl.getMonth() + 1).padStart(2, '0')}-${String(cl.getDate()).padStart(2, '0')}`
+}
+
+function tomorrowCL(): string {
+  const cl = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }))
+  cl.setDate(cl.getDate() + 1)
   return `${cl.getFullYear()}-${String(cl.getMonth() + 1).padStart(2, '0')}-${String(cl.getDate()).padStart(2, '0')}`
 }
 
@@ -46,18 +56,21 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json() } catch { /* no body */ }
   const force = url.searchParams.get('force') === 'true' || body?.force === true
 
-  // MODO TEST: enviar correo de muestra sin DB
+  // MODO TEST: enviar correo de muestra sin DB. body.when = 'tomorrow' para
+  // previsualizar el aviso del día antes (default 'today').
   if (force) {
     const testEmail = (body?.email as string) ?? null
     if (!testEmail) return new Response('Pasa tu email: {"force":true,"email":"tu@email.com"}', { status: 400 })
+    const isTomorrow = body?.when === 'tomorrow'
     const today = todayCL()
+    const maturityDate = isTomorrow ? tomorrowCL() : today
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: testEmail,
-        subject: 'Tu depósito a plazo en Banco de Chile vence hoy · Bolsillo Mágico',
+        subject: `Tu depósito a plazo en Banco de Chile vence ${isTomorrow ? 'mañana' : 'hoy'} · Bolsillo Mágico`,
         html: depositMaturityHtml({
           displayName: 'Cas',
           bank: 'Banco de Chile',
@@ -65,9 +78,10 @@ Deno.serve(async (req: Request) => {
           interest: 1_139,
           rate: 0.34,
           startDate: '2026-07-28',
-          maturityDate: today,
+          maturityDate,
           renewable: true,
           siteUrl: SITE_URL,
+          isTomorrow,
         }),
       }),
     })
@@ -76,15 +90,19 @@ Deno.serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
   const today    = todayCL()
+  const tomorrow = tomorrowCL()
 
-  // Depósitos que vencen hoy
-  const { data: deposits, error: dErr } = await supabase
+  // Depósitos que vencen hoy o mañana (Cas: "que avise un día antes y el
+  // mismo día") — el flag isTomorrow por fila decide qué copy/ref_key usar.
+  const { data: depositsRaw, error: dErr } = await supabase
     .from('term_deposits')
     .select('id, user_id, bank, amount, interest_rate, start_date, maturity_date, renewable')
-    .eq('maturity_date', today)
+    .in('maturity_date', [today, tomorrow])
 
   if (dErr) return new Response(JSON.stringify({ error: dErr.message }), { status: 500 })
-  if (!deposits || deposits.length === 0) return new Response(JSON.stringify({ sent: 0, skipped: 0 }), { status: 200 })
+  if (!depositsRaw || depositsRaw.length === 0) return new Response(JSON.stringify({ sent: 0, skipped: 0 }), { status: 200 })
+
+  const deposits = depositsRaw.map(d => ({ ...d, isTomorrow: d.maturity_date === tomorrow }))
 
   const userIds = [...new Set(deposits.map(d => d.user_id))]
 
@@ -107,10 +125,14 @@ Deno.serve(async (req: Request) => {
     const email = emailMap.get(deposit.user_id)
     if (!email) { skipped++; continue }
 
-    const refKey = `${today}:deposit-maturity:${deposit.id}`
+    // Tipo/ref_key distintos para el aviso del día antes vs el del mismo día
+    // — así conviven sin pisarse ni duplicarse cuando ambos corren en la
+    // misma ejecución diaria del cron pero para depósitos distintos.
+    const type   = deposit.isTomorrow ? 'deposit_maturity_soon' : 'deposit_maturity'
+    const refKey = `${today}:${deposit.isTomorrow ? 'deposit-maturity-soon' : 'deposit-maturity'}:${deposit.id}`
     const { error: logErr } = await supabase
       .from('notification_log')
-      .insert({ user_id: deposit.user_id, type: 'deposit_maturity', ref_key: refKey })
+      .insert({ user_id: deposit.user_id, type, ref_key: refKey })
       .select().single()
     if (logErr) { skipped++; continue }  // ya enviado hoy
 
@@ -125,7 +147,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
         to: email,
-        subject: `Tu depósito a plazo en ${deposit.bank} vence hoy · Bolsillo Mágico`,
+        subject: `Tu depósito a plazo en ${deposit.bank} vence ${deposit.isTomorrow ? 'mañana' : 'hoy'} · Bolsillo Mágico`,
         html: depositMaturityHtml({
           displayName: profile.display_name ?? 'Usuario',
           bank: deposit.bank,
@@ -136,6 +158,7 @@ Deno.serve(async (req: Request) => {
           maturityDate: deposit.maturity_date,
           renewable: deposit.renewable ?? false,
           siteUrl: SITE_URL,
+          isTomorrow: deposit.isTomorrow,
         }),
       }),
     })
@@ -182,6 +205,7 @@ function depositMaturityHtml({
   maturityDate,
   renewable,
   siteUrl,
+  isTomorrow = false,
 }: {
   displayName: string
   bank: string
@@ -192,10 +216,15 @@ function depositMaturityHtml({
   maturityDate: string
   renewable: boolean
   siteUrl: string
+  isTomorrow?: boolean  // sep 2026: aviso del día antes, mismo template con copy ajustado
 }) {
   const total        = amount + interest
   const dateLabel     = fmtDateLong(maturityDate)
   const termDays      = daysBetween(startDate, maturityDate)
+  const whenWord      = isTomorrow ? 'mañana' : 'hoy'
+  const introVerb     = isTomorrow
+    ? `vence mañana, <strong style="color:#0E2A52">${dateLabel}</strong>. Prepárate para renovarlo o retirar el capital más los intereses apenas venza`
+    : `llegó a su fecha de vencimiento hoy, <strong style="color:#0E2A52">${dateLabel}</strong>. Ya puedes renovarlo o retirar el capital más los intereses`
   // Azul — mismo tono que el bloque destacado del correo de presupuesto
   // (pedido de Cas, ago 2026: "quiero ese display en el celeste de bolsillo
   // mágico como el de 80% de presupuesto"). El mint queda solo para el signo
@@ -210,7 +239,7 @@ function depositMaturityHtml({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Depósito vencido · Bolsillo Mágico</title>
+  <title>Depósito vence ${whenWord} · Bolsillo Mágico</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
@@ -244,11 +273,11 @@ function depositMaturityHtml({
         <div style="margin-bottom:24px">${brandWordmark(siteUrl)}</div>
         <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 16px">
           <tr><td style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);text-align:center;vertical-align:middle;font-size:26px;line-height:52px">
-            🏦
+            ${isTomorrow ? '⏰' : '🏦'}
           </td></tr>
         </table>
         <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:22px;font-weight:600;color:#ffffff;letter-spacing:0.2px">
-          Tu depósito en ${bank} vence hoy
+          Tu depósito en ${bank} vence ${whenWord}
         </p>
       </td></tr>
 
@@ -260,8 +289,7 @@ function depositMaturityHtml({
           Hola, ${displayName}
         </p>
         <p style="margin:0 0 28px;font-size:14px;font-weight:500;color:#5B6B82;line-height:1.6">
-          Tu depósito a plazo en <strong style="color:#0E2A52">${bank}</strong> llegó a su fecha de vencimiento hoy,
-          <strong style="color:#0E2A52">${dateLabel}</strong>. Ya puedes renovarlo o retirar el capital más los intereses.
+          Tu depósito a plazo en <strong style="color:#0E2A52">${bank}</strong> ${introVerb}.
         </p>
 
         <!-- BLOQUE resumen de plata -->
