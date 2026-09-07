@@ -1,0 +1,21 @@
+-- ============================================================
+-- Fix: notify-deposit-maturity nunca pudo leer term_deposits (sep 2026)
+-- ============================================================
+-- Al probar el aviso "vence mañana" (Cas: "manda el de mañana se vence,
+-- por que efectivamente mañana vence uno") la Edge Function devolvió
+-- "permission denied for table term_deposits". La migración original
+-- (20260628_investments.sql) solo hizo GRANT a `authenticated` — nunca a
+-- `service_role`, que es el rol que usa la Edge Function (SERVICE_KEY) para
+-- leer los depósitos de TODOS los usuarios sin pasar por RLS. A diferencia
+-- de otras tablas (stock_positions, watchlist, etc.), que ya se corrigieron
+-- en 20260713_service_role_grants.sql, term_deposits quedó afuera de ese
+-- barrido — así que notify-deposit-maturity nunca pudo mandar NINGÚN aviso
+-- de vencimiento desde que existe (ago 2026), ni el del mismo día ni el
+-- nuevo del día antes, sin que fallara visiblemente (el cron ignora el
+-- error 500 y sigue).
+--
+-- Ya se aplicó este mismo GRANT directo en producción (vía Supabase MCP)
+-- para poder mandar el aviso real de la cuenta que vence el 7 sep — este
+-- archivo solo lo deja documentado en el historial de migraciones.
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.term_deposits TO service_role;
