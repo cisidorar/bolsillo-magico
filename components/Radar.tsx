@@ -811,21 +811,25 @@ export default function Radar({
   return (
     <div>
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      {/* flex-wrap + basis-full: en mobile el toggle (4 tabs) + Agregar ya no
-          caben al lado del texto de estado del mercado — antes se dibujaban
-          encima uno del otro (min-w-0 dejaba encoger el texto sin recortarlo,
-          así que se desbordaba tapado por el toggle). Ahora el estado ocupa
-          su propia fila completa en mobile y el toggle baja a la siguiente;
-          en sm+ vuelven a compartir una sola fila como antes. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
-        {/* flex-wrap acá también: antes "Mercado cerrado" y la hora no tenían
-            whitespace-nowrap, así que cuando no cabían en una sola línea el
-            navegador las partía a media palabra ("Mercado" / "cerrado") en
-            vez de bajar de línea como bloque. Ahora los textos cortos no se
-            parten nunca (whitespace-nowrap) y el texto largo de "análisis…"
-            se reserva su propia línea completa (basis-full) para poder
-            truncar con "…" si hace falta. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-[11px] basis-full sm:basis-auto">
+      {/* sep 2026 (Cas: "revisa consistencia de ese toggle" — en Ahorro y
+          depósitos el toggle quedaba pegado al borde derecho, pero acá
+          (Mis acciones/Watchlist) terminaba pegado a la IZQUIERDA, un tab
+          desalineado según cuál estuviera activo). Causa: el texto de estado
+          y el grupo toggle+Agregar compartían una sola fila con
+          justify-between — cuando el texto de estado alcanzaba a ocupar toda
+          la fila, el grupo bajaba SOLO a la siguiente línea, y justify-between
+          no tiene nada contra qué repartir un único elemento (se va al borde
+          IZQUIERDO de esa línea por defecto, igual que un div normal). Ahora
+          el texto de estado siempre ocupa su propia fila completa (basis-full
+          fijo, no solo en mobile) y el grupo toggle+Agregar usa sm:ml-auto
+          para pegarse al borde derecho de SU fila sin depender de si comparte
+          línea con algo más — mismo resultado final, siempre, en las 4 vistas. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+        {/* whitespace-nowrap: antes "Mercado cerrado" y la hora no lo tenían,
+            así que cuando no cabían en una sola línea el navegador las
+            partía a media palabra ("Mercado" / "cerrado") en vez de bajar de
+            línea como bloque. Ahora los textos cortos no se parten nunca. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0 text-[11px] basis-full">
           {lastUpdated && !quotesError && marketOpen !== null && (
             <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
@@ -872,13 +876,13 @@ export default function Radar({
         </div>
 
         {/* sep 2026 (Cas: "esa barra a la izquierda y agregar a la derecha"):
-            antes toggle + Agregar iban juntos en un mismo grupo shrink-0 (los
-            dos quedaban pegados a la izquierda tras sacar el ml-auto). Ahora
-            el grupo ocupa todo el ancho disponible con justify-between:
-            toggle al borde izquierdo, Agregar al borde derecho — en sm+
-            comparte fila con el texto de estado gracias al mismo
+            en mobile el grupo ocupa todo el ancho disponible (flex-1) con su
+            propio justify-between: toggle al borde izquierdo, Agregar al
+            borde derecho. En sm+ el grupo se encoge a su contenido
+            (flex-initial) y sm:ml-auto lo pega al borde derecho de su fila
+            — ver comentario de arriba sobre por qué ml-auto y no
             justify-between del padre. */}
-        <div className="flex items-center justify-between gap-2 flex-1 sm:flex-initial min-w-0">
+        <div className="flex items-center justify-between gap-2 flex-1 sm:flex-initial sm:ml-auto min-w-0">
           <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
