@@ -26,6 +26,7 @@ import {
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
 import { suggestUtilities } from '@/lib/cl-utilities'
+import PropertyCalendar from '@/components/PropertyCalendar'
 
 export interface Property {
   id: string
@@ -644,6 +645,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
               <PropertyCard property={property} onEdit={() => setPropForm(property)}
                             onAddMortgage={() => setDivForm(true)}
                             onAddUtilities={() => setUtilsForm(true)} />
+              <PropertyCalendar charges={charges} today={today} />
             </div>
           </div>
         </div>
