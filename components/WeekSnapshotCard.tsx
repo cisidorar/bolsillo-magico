@@ -1,5 +1,6 @@
 import { Newspaper, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
+import type { FedMeetingProbability } from '@/lib/fed-probability'
 
 // ── P3 (roadmap largo plazo, jul 2026): reemplaza la pestaña Semanal completa.
 // Esa vista duplicaba el Radar ticker por ticker (mismo rating, mismas
@@ -20,6 +21,24 @@ function fmtDateShort(d: string): string {
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
   return `${day} ${MES[m - 1]}`
 }
+function whenLabel(dateStr: string, today: string): string {
+  const days = Math.round(
+    (new Date(dateStr + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86_400_000,
+  )
+  return days <= 0 ? 'hoy' : days === 1 ? 'mañana' : `en ${days} días`
+}
+
+/** Casilla de probabilidad — mismo patrón visual que RateScenariosCard
+ *  (grid de 3 con fondo --surface-2), para que "Sube/Mantiene/Baja" se lea
+ *  de un vistazo en vez de perderse en una frase. */
+function ProbBox({ label, pct }: { label: string; pct: number }) {
+  return (
+    <div className="rounded-xl px-2.5 py-2.5 text-center" style={{ background: 'var(--surface-2)' }}>
+      <p className="text-[10px] font-bold" style={{ color: 'var(--ink-3)' }}>{label}</p>
+      <p className="text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{pct}%</p>
+    </div>
+  )
+}
 
 export interface UpcomingEvent {
   label: string   // "Decisión de tasas de la Fed" / "TSM reporta resultados"
@@ -29,14 +48,21 @@ export interface UpcomingEvent {
 interface Props {
   spyBenchmark:       SpyBenchmarkResult | null
   fedSentence:        string | null
-  fedMeetingSentence: string | null   // sep 2026: próxima reunión + probabilidad (Kalshi)
+  // sep 2026 (Cas: "cuando hay proxima tasa fed y cuanta es la probabilidad
+  // que suba o baje"): datos crudos, no una frase — esto se pinta como
+  // tarjeta destacada de 3 casillas, no como una línea más del párrafo de
+  // contexto (ahí quedaba invisible entre fedSentence/inflationSentence).
+  fedMeetingDate:     string | null
+  fedMeetingProb:     FedMeetingProbability | null
+  today:              string
   inflationSentence:  string | null
   yieldCurveInverted: boolean
   upcoming:           UpcomingEvent[]   // ya ordenados por fecha, más cercano primero
 }
 
-export default function WeekSnapshotCard({ spyBenchmark, fedSentence, fedMeetingSentence, inflationSentence, yieldCurveInverted, upcoming }: Props) {
-  const hasMacro = !!(fedSentence || fedMeetingSentence || inflationSentence)
+export default function WeekSnapshotCard({ spyBenchmark, fedSentence, fedMeetingDate, fedMeetingProb, today, inflationSentence, yieldCurveInverted, upcoming }: Props) {
+  const hasFedMeeting = !!(fedMeetingDate && fedMeetingProb)
+  const hasMacro = !!(fedSentence || hasFedMeeting || inflationSentence)
   if (!spyBenchmark && !hasMacro && upcoming.length === 0) return null
 
   const vsMarketUp = spyBenchmark !== null && spyBenchmark.diffUsd >= 0
@@ -78,10 +104,28 @@ export default function WeekSnapshotCard({ spyBenchmark, fedSentence, fedMeeting
           )
         )}
 
+        {hasFedMeeting && (
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>Próxima reunión de la Fed</p>
+              <p className="text-[11px] font-semibold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
+                {fmtDateShort(fedMeetingDate!)} · {whenLabel(fedMeetingDate!, today)}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <ProbBox label="Sube" pct={fedMeetingProb!.pHikePct} />
+              <ProbBox label="Mantiene" pct={fedMeetingProb!.pHoldPct} />
+              <ProbBox label="Baja" pct={fedMeetingProb!.pCutPct} />
+            </div>
+            <p className="text-[10px] leading-relaxed mt-1.5" style={{ color: 'var(--ink-3)' }}>
+              Precio de mercado (Kalshi) — no es una predicción.
+            </p>
+          </div>
+        )}
+
         {hasMacro && (
           <div className="space-y-1.5">
             {fedSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{fedSentence}</p>}
-            {fedMeetingSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{fedMeetingSentence}</p>}
             {inflationSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{inflationSentence}</p>}
             {yieldCurveInverted && (
               <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--gold)' }}>

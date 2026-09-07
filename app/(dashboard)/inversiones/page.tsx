@@ -12,7 +12,7 @@ import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
-import { fedRateSentence, fedMeetingSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
+import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
 import { fetchFedMeetingProbability } from '@/lib/fed-probability'
 import { computeRateSensitivity } from '@/lib/rate-sensitivity'
@@ -400,9 +400,6 @@ export default async function InversionesPage({ searchParams }: Props) {
   const fedMeetingProb = nextMeetingDate && dffObs.length > 0
     ? await fetchFedMeetingProbability(supabase, nextMeetingDate, dffObs[dffObs.length - 1].value)
     : null
-  const fedMeetingSentenceStr = nextMeetingDate && fedMeetingProb
-    ? fedMeetingSentence(nextMeetingDate, todayCL, fedMeetingProb)
-    : null
   const yieldCurveInverted = dgs10Obs.length > 0 && dgs2Obs.length > 0
     ? computeYieldCurve(dgs10Obs[dgs10Obs.length - 1].value, dgs2Obs[dgs2Obs.length - 1].value).inverted
     : false
@@ -575,7 +572,9 @@ export default async function InversionesPage({ searchParams }: Props) {
             <WeekSnapshotCard
               spyBenchmark={spyBenchmark}
               fedSentence={fedSentence}
-              fedMeetingSentence={fedMeetingSentenceStr}
+              fedMeetingDate={nextMeetingDate}
+              fedMeetingProb={fedMeetingProb}
+              today={todayCL}
               inflationSentence={inflSentence}
               yieldCurveInverted={yieldCurveInverted}
               upcoming={upcoming}
