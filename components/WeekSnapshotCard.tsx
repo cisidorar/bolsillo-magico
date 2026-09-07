@@ -29,13 +29,14 @@ export interface UpcomingEvent {
 interface Props {
   spyBenchmark:       SpyBenchmarkResult | null
   fedSentence:        string | null
+  fedMeetingSentence: string | null   // sep 2026: próxima reunión + probabilidad (Kalshi)
   inflationSentence:  string | null
   yieldCurveInverted: boolean
   upcoming:           UpcomingEvent[]   // ya ordenados por fecha, más cercano primero
 }
 
-export default function WeekSnapshotCard({ spyBenchmark, fedSentence, inflationSentence, yieldCurveInverted, upcoming }: Props) {
-  const hasMacro = !!(fedSentence || inflationSentence)
+export default function WeekSnapshotCard({ spyBenchmark, fedSentence, fedMeetingSentence, inflationSentence, yieldCurveInverted, upcoming }: Props) {
+  const hasMacro = !!(fedSentence || fedMeetingSentence || inflationSentence)
   if (!spyBenchmark && !hasMacro && upcoming.length === 0) return null
 
   const vsMarketUp = spyBenchmark !== null && spyBenchmark.diffUsd >= 0
@@ -80,6 +81,7 @@ export default function WeekSnapshotCard({ spyBenchmark, fedSentence, inflationS
         {hasMacro && (
           <div className="space-y-1.5">
             {fedSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{fedSentence}</p>}
+            {fedMeetingSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{fedMeetingSentence}</p>}
             {inflationSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{inflationSentence}</p>}
             {yieldCurveInverted && (
               <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--gold)' }}>

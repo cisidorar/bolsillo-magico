@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { nextFomcMeeting, fedRateSentence, inflationSentence, FOMC_DECISION_DATES_2026 } from './market-week'
+import { nextFomcMeeting, fedRateSentence, fedMeetingSentence, inflationSentence, FOMC_DECISION_DATES_2026 } from './market-week'
 import { computeRatePath } from './rate-path'
+import type { FedMeetingProbability } from './fed-probability'
 
 describe('nextFomcMeeting', () => {
   it('encuentra una reunión dentro de la ventana', () => {
@@ -85,6 +86,30 @@ describe('fedRateSentence', () => {
   it('sin ratePath (undefined): se comporta igual que antes', () => {
     const s = fedRateSentence(stableObs)
     expect(s).toContain('sin presión nueva')
+  })
+})
+
+describe('fedMeetingSentence', () => {
+  const prob: FedMeetingProbability = { rangeLowPct: 3.5, rangeHighPct: 3.75, pHikePct: 51, pHoldPct: 48, pCutPct: 1 }
+
+  it('incluye la fecha, los días restantes y las 3 probabilidades', () => {
+    const s = fedMeetingSentence('2026-09-16', '2026-09-06', prob)
+    expect(s).toContain('16 sep')
+    expect(s).toContain('en 10 días')
+    expect(s).toContain('51%')
+    expect(s).toContain('48%')
+    expect(s).toContain('1%')
+  })
+
+  it('el día de la reunión dice "hoy", no "en 0 días"', () => {
+    const s = fedMeetingSentence('2026-09-16', '2026-09-16', prob)
+    expect(s).toContain('hoy')
+    expect(s).not.toContain('en 0 días')
+  })
+
+  it('un día antes dice "mañana"', () => {
+    const s = fedMeetingSentence('2026-09-16', '2026-09-15', prob)
+    expect(s).toContain('mañana')
   })
 })
 

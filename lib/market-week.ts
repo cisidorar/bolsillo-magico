@@ -1,5 +1,6 @@
 import { computeYoyChange, type Observation } from '@/lib/yoy-change'
 import type { RatePathResult } from '@/lib/rate-path'
+import type { FedMeetingProbability } from '@/lib/fed-probability'
 
 // ── P3 (roadmap largo plazo, jul 2026) ───────────────────────────────────────
 // Reemplaza la vista Semanal completa: en vez de una pestaña aparte con 4
@@ -84,6 +85,33 @@ export function fedRateSentence(observations: Observation[], ratePath?: RatePath
   return ratePath.direction === 'alzas'
     ? `${levelPart}, pero el bono a 2 años ya cotiza ${spreadAbs} pb más arriba — el mercado tiene precio para ${moveWord} de alza. No cambia tu plan de largo plazo, pero explica por qué los múltiplos altos están más castigados.`
     : `${levelPart}, y el bono a 2 años ya cotiza ${spreadAbs} pb más abajo — el mercado tiene precio para ${moveWord} de baja. Suele ser viento a favor para acciones de crecimiento y para nuevos depósitos a tasa fija.`
+}
+
+const MONTH_SHORT_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+function fmtDateShort(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${d.getDate()} ${MONTH_SHORT_ES[d.getMonth()]}`
+}
+
+/**
+ * Frase determinista sobre la próxima reunión de la Fed + probabilidad de
+ * mercado (Kalshi, ver lib/fed-probability.ts) de que suba, mantenga o baje
+ * — sep 2026 (Cas: "cuando hay proxima tasa fed y cuanta es la probabilidad
+ * que suba o baje"). A diferencia de fedRateSentence() (tasa YA realizada,
+ * DFF), esto mira hacia adelante a UNA reunión puntual, con la probabilidad
+ * real de mercado en vez del proxy grueso de impliedMoves.
+ */
+export function fedMeetingSentence(
+  meetingDate: string,
+  today: string,
+  prob: FedMeetingProbability,
+): string {
+  const days = Math.round(
+    (new Date(meetingDate + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86_400_000,
+  )
+  const when = days <= 0 ? 'hoy' : days === 1 ? 'mañana' : `en ${days} días`
+  return `Próxima reunión de la Fed: ${fmtDateShort(meetingDate)} (${when}) — el mercado le da ${prob.pHikePct}% a una subida, ${prob.pHoldPct}% a mantener y ${prob.pCutPct}% a un recorte (Kalshi).`
 }
 
 /** Frase determinista sobre inflación (CPI interanual) — compara el dato más

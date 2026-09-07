@@ -12,8 +12,9 @@ import { getNowChile } from '@/lib/utils'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
 import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
-import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
+import { fedRateSentence, fedMeetingSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
+import { fetchFedMeetingProbability } from '@/lib/fed-probability'
 import { computeRateSensitivity } from '@/lib/rate-sensitivity'
 import { computeRateScenarios } from '@/lib/rate-scenarios'
 import RateScenariosCard from '@/components/RateScenariosCard'
@@ -387,6 +388,21 @@ export default async function InversionesPage({ searchParams }: Props) {
     : null
   const fedSentence  = dffObs.length > 0 ? fedRateSentence(dffObs, ratePath) : null
   const inflSentence = cpiObs.length > 0 ? inflationSentence(cpiObs) : null
+
+  // sep 2026 (Cas: "cuando hay proxima tasa fed y cuanta es la probabilidad
+  // que suba o baje"): a diferencia del fomcDate de "Lo que viene" más abajo
+  // (acotado a ≤7 días, es un aviso de "no compres hoy"), esta busca la
+  // próxima reunión SIEMPRE, esté cerca o lejos — es contexto, no una alerta
+  // de ejecución. Probabilidad real de mercado vía Kalshi (lib/fed-probability.ts,
+  // público y sin API key), anclada con el DFF que ya se trajo arriba —
+  // ninguna llamada nueva a FRED, solo un fetch liviano a Kalshi cacheado 6h.
+  const nextMeetingDate = needsMacro ? nextFomcMeeting(todayCL, 365) : null
+  const fedMeetingProb = nextMeetingDate && dffObs.length > 0
+    ? await fetchFedMeetingProbability(supabase, nextMeetingDate, dffObs[dffObs.length - 1].value)
+    : null
+  const fedMeetingSentenceStr = nextMeetingDate && fedMeetingProb
+    ? fedMeetingSentence(nextMeetingDate, todayCL, fedMeetingProb)
+    : null
   const yieldCurveInverted = dgs10Obs.length > 0 && dgs2Obs.length > 0
     ? computeYieldCurve(dgs10Obs[dgs10Obs.length - 1].value, dgs2Obs[dgs2Obs.length - 1].value).inverted
     : false
@@ -559,6 +575,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             <WeekSnapshotCard
               spyBenchmark={spyBenchmark}
               fedSentence={fedSentence}
+              fedMeetingSentence={fedMeetingSentenceStr}
               inflationSentence={inflSentence}
               yieldCurveInverted={yieldCurveInverted}
               upcoming={upcoming}

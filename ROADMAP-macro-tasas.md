@@ -30,9 +30,9 @@ Las mismas de `ROADMAP-largo-plazo-inversiones.md`, sin excepción:
 4. **Sin agobio.** El perfil es largo plazo, comprar barato en tendencia. Nada de esto debe empujar a operar alrededor de una reunión de la Fed.
 5. **Degradación limpia.** Sin `FRED_API_KEY`, cada pieza desaparece sola sin romper la página (patrón ya establecido en `lib/macro-fetch.ts`).
 
-### Fuera de alcance, a propósito
+### Fuera de alcance, a propósito (revisado — ver M7)
 
-- **Probabilidades tipo CME FedWatch.** No hay API gratuita y confiable; una probabilidad mal scrapeada es peor que ninguna. El proxy de M1 (abajo) entrega la misma señal con datos que sí son públicos y estables.
+- ~~**Probabilidades tipo CME FedWatch.** No hay API gratuita y confiable; una probabilidad mal scrapeada es peor que ninguna.~~ **Revisado sep 2026:** sigue siendo cierto para CME (sin API pública), pero Kalshi (bolsa de predicción regulada por la CFTC) sí expone una API pública sin autenticación con el precio de cada contrato — que ES la probabilidad de mercado por construcción, no un scrape frágil. Ver M7.
 - **Comentario macro escrito por IA.** Contradice la regla 1.
 - **Rotación sectorial recomendada.** Exigiría datos fundamentales (duración, múltiplos) que la app no tiene ni va a comprar.
 - **Cualquier feature que sugiera operar alrededor del FOMC.** Contradice el perfil.
@@ -164,6 +164,24 @@ Esto encaja con la mecánica de tramos escalonados (`buy[]`) que el motor ya cal
 
 ---
 
+## M7 — Próxima reunión + probabilidad real de mercado (impacto alto · esfuerzo bajo) ✅
+
+**Problema.** Cas (sep 2026): *"me gustaría que en mis inversiones aparezca cuando hay proxima tasa fed y cuanta es la probabilidad que suba o baje"*. `impliedMoves` de M1 dice "~N movimientos" (un proxy grueso de magnitud sobre todo el horizonte de 2 años vía `DGS2-DFF`), pero no responde la pregunta puntual: para LA PRÓXIMA reunión específica, ¿cuánto % le da el mercado a subir/mantener/bajar?
+
+**Se pidió investigar una fuente real** (en vez de descartar la idea por la limitación ya documentada arriba sobre CME). Se encontró: **Kalshi** (`api.elections.kalshi.com`), bolsa de mercados de predicción regulada por la CFTC — su endpoint `GET /trade-api/v2/markets?event_ticker=KXFED-{YY}{MON}` es **público, sin API key**, y devuelve un mercado binario por cada posible techo de tasa ("¿el techo del rango terminará sobre X%?") con su precio actual — el precio ES la probabilidad de mercado (un contrato a 51¢ es 51%), verificado en vivo contra la reunión de sep 2026 (51% subida / 48% mantiene / 1% baja, consistente con la cobertura de prensa de esos mismos días sobre un "empate técnico").
+
+**Implementado.** `lib/fed-probability.ts`:
+- `kalshiEventTicker(meetingDate)` — `'2026-09-16'` → `'KXFED-26SEP'`.
+- `computeFedMeetingProbability(markets, currentRateDff)` — puramente aritmético (testeado con datos sintéticos, sin red). Ancla el rango vigente `[L, L+0.25]` con **DFF** (ya cacheado por `lib/macro-fetch.ts`), no con las probabilidades mismas: un heurístico que buscara "el primer precio bajo cierto umbral" en la escalera de contratos fallaría si el mercado le diera, por ejemplo, 90%+ a una subida (el contrato del techo vigente también tendría precio alto ahí, y el heurístico se saltaría de largo el rango real) — cubierto en el test `'mercado muy confiado en una subida'`. `pSube = precio(L+0.25)`, `pBaja = 100 − precio(L)`, `pMantiene` se deriva de las otras dos ya redondeadas (nunca de un tercer redondeo independiente) para que las tres siempre sumen exactamente 100 en pantalla.
+- `fetchFedMeetingProbability(supabase, meetingDate, currentRateDff)` — cache-first en `price_cache` (6h de TTL, más corto que las 24h de FRED porque un mercado de predicción se mueve más rápido que una serie macro mensual/diaria), fetch a Kalshi si expiró, `null` en cualquier fallo (evento no listado todavía, red caída, JSON inesperado) — degradación limpia, la card simplemente no muestra la línea.
+- `fedMeetingSentence(meetingDate, today, prob)` en `lib/market-week.ts` — *"Próxima reunión de la Fed: 16 sep (en 10 días) — el mercado le da 51% a una subida, 48% a mantener y 1% a un recorte (Kalshi)."* Cita la fuente explícita en el texto (a diferencia de `fedRateSentence`, que es un cálculo propio sobre FRED).
+- `WeekSnapshotCard` gana una tercera línea (`fedMeetingSentence` prop) junto a `fedSentence`/`inflationSentence`, mismo estilo, misma sección "Tu semana". A diferencia del `fomcDate` de "Lo que viene" (acotado a ≤7 días — es un aviso de "no compres hoy"), esta se busca SIEMPRE que exista una próxima reunión en el calendario (`nextFomcMeeting(todayCL, 365)`), esté cerca o lejos: es contexto informativo, no una alerta de ejecución.
+- `page.tsx` de `/inversiones` reusa el DFF que YA se trae para M1/M3 — cero llamadas nuevas a FRED, solo el fetch liviano a Kalshi (cacheado 6h) para el usuario que abre Mis acciones.
+
+**Por qué esto no contradice la regla de la casa de arriba.** La limitación real ("no hay API gratuita y confiable" para probabilidades) seguía siendo cierta para CME específicamente — el error habría sido inventar un número a partir de un proxy indirecto (como el spread de M1) y llamarlo "probabilidad". Kalshi es distinto: es la fuente primaria (precio de un contrato real, liquidado contra la decisión real de la Fed), no una inferencia.
+
+---
+
 ## Orden sugerido
 
 | # | Ítem | Impacto | Esfuerzo | Depende de |
@@ -174,6 +192,7 @@ Esto encaja con la mecánica de tramos escalonados (`buy[]`) que el motor ya cal
 | 4 | **M3** — escenarios de cartera ✅ | Alto | Medio | M2 |
 | 5 | **M4** — razón contextual en convicción ✅ | Medio | Bajo | M2 |
 | 6 | **M6** — puente USD/CLP + TPM (pendiente) | Medio | Bajo | M1 |
+| 7 | **M7** — próxima reunión + probabilidad real (Kalshi) ✅ | Alto | Bajo | — |
 
 **M1 + M5 son una sesión corta** y ya dejan la app diciendo la verdad sobre el momento actual en vez de "sin presión nueva". **M2 + M3 son el análisis complejo propiamente tal** y merecen su propia sesión, con tests de la regresión sobre series sintéticas (beta conocida de antemano) antes de mostrar un solo número en pantalla.
 
