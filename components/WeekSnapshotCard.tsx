@@ -1,5 +1,4 @@
-import { Newspaper, TrendingUp, TrendingDown, Calendar } from 'lucide-react'
-import type { SpyBenchmarkResult } from '@/lib/benchmark'
+import { Newspaper, Calendar } from 'lucide-react'
 import type { FedMeetingProbability } from '@/lib/fed-probability'
 
 // ── P3 (roadmap largo plazo, jul 2026): reemplaza la pestaña Semanal completa.
@@ -13,9 +12,6 @@ import type { FedMeetingProbability } from '@/lib/fed-probability'
 // (cron weekly-report + lib/weekly-report.ts), que es el formato natural de
 // algo semanal — se lee una vez, no hay que acordarse de abrir una pestaña.
 
-function fmtUSDSigned(n: number): string {
-  return (n >= 0 ? '+US$' : '-US$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 function fmtDateShort(d: string): string {
   const [, m, day] = d.split('-').map(Number)
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -46,7 +42,6 @@ export interface UpcomingEvent {
 }
 
 interface Props {
-  spyBenchmark:       SpyBenchmarkResult | null
   fedSentence:        string | null
   // sep 2026 (Cas: "cuando hay proxima tasa fed y cuanta es la probabilidad
   // que suba o baje"): datos crudos, no una frase — esto se pinta como
@@ -60,50 +55,25 @@ interface Props {
   upcoming:           UpcomingEvent[]   // ya ordenados por fecha, más cercano primero
 }
 
-export default function WeekSnapshotCard({ spyBenchmark, fedSentence, fedMeetingDate, fedMeetingProb, today, inflationSentence, yieldCurveInverted, upcoming }: Props) {
+export default function WeekSnapshotCard({ fedSentence, fedMeetingDate, fedMeetingProb, today, inflationSentence, yieldCurveInverted, upcoming }: Props) {
   const hasFedMeeting = !!(fedMeetingDate && fedMeetingProb)
   const hasMacro = !!(fedSentence || hasFedMeeting || inflationSentence)
-  if (!spyBenchmark && !hasMacro && upcoming.length === 0) return null
-
-  const vsMarketUp = spyBenchmark !== null && spyBenchmark.diffUsd >= 0
-  // ago 2026 (Cas: "¿cómo le voy a ganar eso si yo he ingresado como 4000
-  // USD?"): este header nunca había mirado degenerate/distorted — mostraba
-  // el $ diff siempre, aunque la sombra de SPY hubiera quedado vaciada o casi
-  // vaciada por una venta que le ganó por mucho al mercado. Mismo criterio
-  // que PerformanceSection: en ese caso ni el % ni el $ son un veredicto
-  // confiable.
-  const unreliable = spyBenchmark !== null && (spyBenchmark.degenerate || spyBenchmark.distorted)
+  // sep 2026 (Cas: "quita esto en tu semana inversiones", pegó la comparación
+  // vs. SPY) — se saca la comparación con el mercado de esta tarjeta. El
+  // cálculo (lib/benchmark.ts) sigue vivo para lo que SÍ lo usa en otro lado
+  // de /inversiones (Mi rendimiento en Radar.tsx) — acá solo deja de pintarse.
+  if (!hasMacro && upcoming.length === 0) return null
 
   return (
     <details className="card overflow-hidden group">
       <summary className="flex items-center gap-2.5 px-4 lg:px-5 py-3.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <Newspaper className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
         <p className="text-sm font-bold flex-1 min-w-0" style={{ color: 'var(--ink)' }}>Tu semana</p>
-        {spyBenchmark && !unreliable ? (
-          <span className="text-xs font-extrabold tabular-nums flex items-center gap-1 flex-shrink-0" style={{ color: vsMarketUp ? 'var(--mint)' : 'var(--coral)' }}>
-            {vsMarketUp ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-            {fmtUSDSigned(spyBenchmark.diffUsd)} vs. el mercado
-          </span>
-        ) : (
-          <span className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>ver detalle</span>
-        )}
+        <span className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--ink-3)' }}>ver detalle</span>
         <span className="text-[10px] font-bold flex-shrink-0 transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }}>▾</span>
       </summary>
 
       <div className="px-4 lg:px-5 pb-4 pt-1 space-y-3 border-t" style={{ borderColor: 'var(--border)' }}>
-        {spyBenchmark && (
-          unreliable ? (
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-              Comparación no confiable por ahora: una venta le ganó por mucho a SPY y descuadró la base de comparación. Se recupera sola con tus próximos movimientos.
-            </p>
-          ) : (
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-              vs. haber puesto la misma plata, en las mismas fechas, en SPY — al cierre del {fmtDateShort(spyBenchmark.asOfDate)}
-              {spyBenchmark.diffPct !== null && <> ({spyBenchmark.diffPct >= 0 ? '+' : ''}{spyBenchmark.diffPct.toFixed(1)}%)</>}
-            </p>
-          )
-        )}
-
         {hasFedMeeting && (
           <div>
             <div className="flex items-center justify-between gap-2 mb-1.5">

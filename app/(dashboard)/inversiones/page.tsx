@@ -570,7 +570,6 @@ export default async function InversionesPage({ searchParams }: Props) {
           />
           <div className="mt-4">
             <WeekSnapshotCard
-              spyBenchmark={spyBenchmark}
               fedSentence={fedSentence}
               fedMeetingDate={nextMeetingDate}
               fedMeetingProb={fedMeetingProb}
