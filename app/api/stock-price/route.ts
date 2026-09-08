@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession, createClient } from '@/lib/supabase/server'
+import { nyseHolidayLabel } from '@/lib/nyse-calendar'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -26,11 +27,21 @@ function nyseStatus(): { open: boolean; label: string } {
   const days  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
   const hh    = String(etNow.getHours()).padStart(2, '0')
   const mm    = String(etNow.getMinutes()).padStart(2, '0')
+  // sep 2026 (Cas, feriado Labor Day): antes un feriado entre semana caía en
+  // la misma rama que "cerrado fuera de horario" — "Mercado cerrado" a secas,
+  // sin decir por qué, mientras las cifras de al lado seguían mostrando el
+  // cambio del último cierre real (viernes). nyseHolidayLabel nombra el
+  // feriado cuando corresponde (lib/nyse-calendar.ts, misma lista que usa
+  // sync-prices para decidir si corre o no).
+  const year     = etNow.getFullYear(), m = String(etNow.getMonth() + 1).padStart(2, '0'), d = String(etNow.getDate()).padStart(2, '0')
+  const holiday  = isWeekday ? nyseHolidayLabel(`${year}-${m}-${d}`) : null
   const label = open
     ? `${days[day]} ${hh}:${mm} ET`
-    : isWeekday
-      ? mins < 570 ? 'Antes de apertura' : 'Mercado cerrado'
-      : 'Fin de semana'
+    : holiday
+      ? `Feriado — ${holiday}`
+      : isWeekday
+        ? mins < 570 ? 'Antes de apertura' : 'Mercado cerrado'
+        : 'Fin de semana'
 
   return { open, label }
 }

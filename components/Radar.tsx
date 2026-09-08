@@ -27,6 +27,7 @@ import TransactionModal, { type TransactionMode } from '@/components/Transaction
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
+import { isNyseTradingDay, todayEt } from '@/lib/nyse-calendar'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
@@ -215,6 +216,24 @@ export default function Radar({
 }: Props) {
   const supabase = createClient()
   const { showToast } = useToast()
+
+  // sep 2026 (Cas, con captura: SOXL +9.9%, INTC +4.5%... un Labor Day —
+  // feriado NYSE): "% hoy" mostraba el ÚLTIMO cambio real (el del viernes,
+  // que es lo único que hay — el proveedor de precios no inventa un cierre
+  // que no existió), pero rotulado literalmente "hoy" cuando el mercado no
+  // operó. El número no estaba mal, el rótulo mentía. En vez de vetar la
+  // cifra (sería esconder información real), se corrige la palabra: "hoy" se
+  // reemplaza por "últ. cierre" cualquier día que NYSE no haya operado.
+  const marketOpenToday = isNyseTradingDay(todayEt())
+  const dailyWord = marketOpenToday ? 'hoy' : 'últ. cierre'
+  // Mismo criterio para las labels de "Ordenar por" de Mis acciones — sin
+  // esto el dropdown seguía ofreciendo "Ganancia hoy %" un feriado aunque la
+  // cifra de al lado ya diga "% últ. cierre".
+  const sortOptions = useMemo(() => SORT_OPTIONS.map(o =>
+    (o.key === 'dailyPct' || o.key === 'dailyUsd') && !marketOpenToday
+      ? { ...o, label: o.label.replace('hoy', 'últ. cierre') }
+      : o
+  ), [marketOpenToday])
 
   const [positions, setPositions] = useState<StockPosition[]>(initialPositions)
   const [sales,     setSales]     = useState<StockSale[]>(initialSales)
@@ -1076,7 +1095,7 @@ export default function Radar({
                 className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70"
                 style={{ color: 'var(--ink-3)' }}
               >
-                Ordenar: {SORT_OPTIONS.find(o => o.key === sortKey)?.label}
+                Ordenar: {sortOptions.find(o => o.key === sortKey)?.label}
                 <ChevronDown className="w-3 h-3" />
               </button>
               {sortMenuOpen && (
@@ -1086,7 +1105,7 @@ export default function Radar({
                     className="absolute right-0 top-full mt-1.5 z-20 rounded-2xl border overflow-hidden py-1"
                     style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 170 }}
                   >
-                    {SORT_OPTIONS.map(o => (
+                    {sortOptions.map(o => (
                       <button
                         key={o.key}
                         onClick={() => { setSortKey(o.key); setSortMenuOpen(false) }}
@@ -1688,7 +1707,7 @@ export default function Radar({
           style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
         >
           <option value="convict">Ordenar: convicción</option>
-          <option value="daily">Ordenar: % hoy</option>
+          <option value="daily">Ordenar: % {dailyWord}</option>
         </select>
         <button
           onClick={showLegendToast}
@@ -1809,7 +1828,7 @@ export default function Radar({
                     <>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
                       <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                        {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
+                        {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% {dailyWord}
                       </p>
                     </>
                   ) : (
@@ -1985,7 +2004,7 @@ export default function Radar({
                   <div className="text-right flex-shrink-0 mr-1">
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
                     <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                      {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% hoy
+                      {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% {dailyWord}
                     </p>
                   </div>
                 )}

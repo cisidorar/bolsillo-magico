@@ -11,6 +11,7 @@ import { computeRatePath } from '@/lib/rate-path'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 import { cashFromTotals } from '@/lib/wallet-cash'
+import { NYSE_HOLIDAYS, todayEt, isNyseTradingDay } from '@/lib/nyse-calendar'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
 // Programado en vercel.json (22:30 UTC ≈ post-cierre NYSE). Protegido con
@@ -39,47 +40,17 @@ function fmtUSD(n: number): string {
 // la fecha del sábado/domingo — y el digest manda un correo con "novedades"
 // que en realidad son de dos días atrás. Se corta acá, antes de sincronizar
 // nada: ni se gastan cupos de las APIs de precios ni se generan señales.
-// Feriados NYSE por año (actualizar ANTES de cada año nuevo —
-// https://www.nyse.com/markets/hours-calendars). Si el año no está cargado,
-// se loguea un error visible en vez de fallar silencioso corriendo en feriados.
-const NYSE_HOLIDAYS: Record<number, string[]> = {
-  2026: [
-    '2026-01-01', // Año Nuevo
-    '2026-01-19', // Martin Luther King Jr. Day
-    '2026-02-16', // Washington's Birthday
-    '2026-04-03', // Good Friday
-    '2026-05-25', // Memorial Day
-    '2026-06-19', // Juneteenth
-    '2026-07-03', // Independence Day (4 de julio cae sábado, se observa el viernes)
-    '2026-09-07', // Labor Day
-    '2026-11-26', // Thanksgiving
-    '2026-12-25', // Navidad
-  ],
-  2027: [
-    '2027-01-01', // Año Nuevo
-    '2027-01-18', // Martin Luther King Jr. Day
-    '2027-02-15', // Washington's Birthday
-    '2027-03-26', // Good Friday
-    '2027-05-31', // Memorial Day
-    '2027-06-18', // Juneteenth (19 cae sábado, se observa el viernes)
-    '2027-07-05', // Independence Day (4 de julio cae domingo, se observa el lunes)
-    '2027-09-06', // Labor Day
-    '2027-11-25', // Thanksgiving
-    '2027-12-24', // Navidad (25 cae sábado, se observa el viernes)
-  ],
-}
-
+// La lista de feriados vive en lib/nyse-calendar.ts (sep 2026: antes estaba
+// duplicada acá — ver ese archivo para el porqué, incluye el bug real que
+// motivó unificarla). Actualizar ESE archivo antes de cada año nuevo.
 function isTradingDay(): boolean {
-  const et  = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }))
-  const day = et.getDay()   // 0=Dom … 6=Sáb
-  if (day === 0 || day === 6) return false
-  const y = et.getFullYear(), m = String(et.getMonth() + 1).padStart(2, '0'), d = String(et.getDate()).padStart(2, '0')
-  const holidays = NYSE_HOLIDAYS[y]
-  if (!holidays) {
-    console.error(`[cron/sync-prices] ⚠ Sin feriados NYSE cargados para ${y}: el cron correrá también en feriados y el digest puede reportar "novedades" viejas. Actualizar NYSE_HOLIDAYS.`)
+  const dateStr = todayEt()
+  const y = Number(dateStr.slice(0, 4))
+  if (!NYSE_HOLIDAYS[y]) {
+    console.error(`[cron/sync-prices] ⚠ Sin feriados NYSE cargados para ${y}: el cron correrá también en feriados y el digest puede reportar "novedades" viejas. Actualizar lib/nyse-calendar.ts.`)
     return true
   }
-  return !holidays.includes(`${y}-${m}-${d}`)
+  return isNyseTradingDay(dateStr)
 }
 
 interface WatchlistRow {
