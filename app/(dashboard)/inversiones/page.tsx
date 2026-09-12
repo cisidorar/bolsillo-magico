@@ -481,7 +481,7 @@ export default async function InversionesPage({ searchParams }: Props) {
               la version escritorio esto este a la derecha congruente en las 4
               vistas del toggle"). Acá no hay botón al lado, así que el toggle
               viaja solo. */}
-          <div className="flex items-center justify-start sm:justify-end mb-4">
+          <div className="flex items-center justify-start sm:justify-end mb-1.5">
             <InversionesToggle active="ahorro" />
           </div>
           <RentaFijaSummary

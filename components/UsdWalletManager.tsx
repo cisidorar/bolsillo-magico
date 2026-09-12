@@ -463,7 +463,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           ya quedaba a la derecha por el justify-between del top bar, así que
           separado a lo ancho acá rompía la congruencia entre pestañas. Mismo
           breakpoint (sm) que usa Radar.tsx para no desalinearse en tablet. */}
-      <div className="flex items-center justify-between sm:justify-end gap-2 mb-3">
+      <div className="flex items-center justify-between sm:justify-end gap-2 mb-1.5">
         <InversionesToggle active="billetera" />
         <button
           onClick={openAdd}
