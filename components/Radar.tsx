@@ -843,7 +843,7 @@ export default function Radar({
           fijo, no solo en mobile) y el grupo toggle+Agregar usa sm:ml-auto
           para pegarse al borde derecho de SU fila sin depender de si comparte
           línea con algo más — mismo resultado final, siempre, en las 4 vistas. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1.5">
         {/* whitespace-nowrap: antes "Mercado cerrado" y la hora no lo tenían,
             así que cuando no cabían en una sola línea el navegador las
             partía a media palabra ("Mercado" / "cerrado") en vez de bajar de
