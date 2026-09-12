@@ -75,30 +75,32 @@ export default function CalendarioPagos({ items }: Props) {
       <div className="card overflow-hidden">
 
         {/* Nav de mes */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+            style={{ color: 'var(--primary)' }}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <div className="text-center">
-            <p className="text-sm font-bold text-brand-900 capitalize">
+            <p className="text-sm font-bold capitalize" style={{ color: 'var(--ink)' }}>
               {monthName(month)} {year}
             </p>
           </div>
           <button
             onClick={() => navigate(1)}
-            className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+            style={{ color: 'var(--primary)' }}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
         {/* Cabecera días de semana */}
-        <div className="grid grid-cols-7 border-b border-gray-100">
+        <div className="grid grid-cols-7 border-b" style={{ borderColor: 'var(--border)' }}>
           {WEEKDAYS.map(d => (
-            <div key={d} className="py-2 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wide">
+            <div key={d} className="py-2 text-center text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
               {d}
             </div>
           ))}
@@ -107,7 +109,7 @@ export default function CalendarioPagos({ items }: Props) {
         {/* Celdas de días */}
         <div className="grid grid-cols-7">
           {Array.from({ length: offset }).map((_, i) => (
-            <div key={`e-${i}`} className="min-h-[68px] border-b border-r border-gray-50" />
+            <div key={`e-${i}`} className="min-h-[68px] border-b border-r" style={{ borderColor: 'var(--border)' }} />
           ))}
 
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
@@ -126,20 +128,22 @@ export default function CalendarioPagos({ items }: Props) {
                 disabled={!hasItems}
                 className={[
                   'min-h-[68px] p-1.5 flex flex-col items-center gap-0.5 border-b transition-colors w-full',
-                  isLastCol ? '' : 'border-r border-gray-50',
-                  'border-gray-50',
+                  isLastCol ? '' : 'border-r',
                   isSelected
-                    ? 'bg-brand-50'
+                    ? ''
                     : hasItems
-                      ? 'hover:bg-gray-50/80 cursor-pointer'
+                      ? 'hover:bg-[var(--surface-2)] cursor-pointer'
                       : 'cursor-default',
                 ].join(' ')}
+                style={{ borderColor: 'var(--border)', background: isSelected ? 'var(--primary-soft)' : undefined }}
               >
-                <span className={[
-                  'w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold leading-none flex-shrink-0',
-                  isToday    ? 'bg-brand-600 text-white' : 'text-gray-700',
-                  isSelected && !isToday ? 'text-brand-700' : '',
-                ].join(' ')}>
+                <span
+                  className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold leading-none flex-shrink-0"
+                  style={{
+                    background: isToday ? 'var(--primary)' : 'transparent',
+                    color: isToday ? 'var(--primary-ink)' : isSelected ? 'var(--primary)' : 'var(--ink-2)',
+                  }}
+                >
                   {day}
                 </span>
 
@@ -149,7 +153,10 @@ export default function CalendarioPagos({ items }: Props) {
                       <ServiceLogo key={item.id} domain={item.domain} name={item.name} size={20} className="rounded-md" />
                     ))}
                     {dayItems.length > 2 && (
-                      <span className="w-5 h-5 rounded-md bg-gray-100 text-[9px] font-bold text-gray-500 flex items-center justify-center">
+                      <span
+                        className="w-5 h-5 rounded-md text-[9px] font-bold flex items-center justify-center"
+                        style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                      >
                         +{dayItems.length - 2}
                       </span>
                     )}
@@ -157,7 +164,7 @@ export default function CalendarioPagos({ items }: Props) {
                 )}
 
                 {hasItems && (
-                  <span className="text-[9px] font-semibold tabular-nums leading-none whitespace-nowrap text-brand-600">
+                  <span className="text-[9px] font-semibold tabular-nums leading-none whitespace-nowrap" style={{ color: 'var(--primary)' }}>
                     {formatCLP(dayTotal)}
                   </span>
                 )}
@@ -166,19 +173,19 @@ export default function CalendarioPagos({ items }: Props) {
           })}
 
           {Array.from({ length: trailing }).map((_, i) => (
-            <div key={`t-${i}`} className="min-h-[68px] border-b border-gray-50" />
+            <div key={`t-${i}`} className="min-h-[68px] border-b" style={{ borderColor: 'var(--border)' }} />
           ))}
         </div>
 
         {/* Leyenda */}
-        <div className="flex items-center gap-5 px-4 py-2.5 border-t border-gray-100">
+        <div className="flex items-center gap-5 px-4 py-2.5 border-t" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-1.5">
             <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--primary)' }} />
-            <span className="text-xs text-gray-400">Hoy</span>
+            <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Hoy</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
-            <span className="text-xs text-gray-400">Día con cargo</span>
+            <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--border)' }} />
+            <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Día con cargo</span>
           </div>
         </div>
 
@@ -187,7 +194,7 @@ export default function CalendarioPagos({ items }: Props) {
           <span className="text-xs font-semibold capitalize" style={{ color: 'var(--ink-3)' }}>
             Total programado en {monthName(month)}
           </span>
-          <span className="text-sm font-bold tabular-nums text-brand-600">
+          <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--primary)' }}>
             {formatCLP(monthTotal)}
           </span>
         </div>
@@ -196,31 +203,32 @@ export default function CalendarioPagos({ items }: Props) {
       {/* Panel de detalle del día seleccionado */}
       {selectedDay && selectedItems.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-brand-50/60">
+          <div className="flex items-center justify-between px-4 py-3" style={{ background: 'var(--primary-soft)' }}>
             <div>
-              <p className="text-xs font-bold text-brand-700 capitalize">
+              <p className="text-xs font-bold capitalize" style={{ color: 'var(--primary)' }}>
                 {new Date(year, month - 1, selectedDay).toLocaleDateString('es-CL', {
                   weekday: 'long', day: 'numeric', month: 'long'
                 })}
               </p>
-              <p className="text-xs text-gray-500 font-medium mt-0.5">
+              <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--ink-3)' }}>
                 {selectedItems.length} pago{selectedItems.length !== 1 ? 's' : ''} · {formatCLP(selectedTotal)}
               </p>
             </div>
             <button
               onClick={() => setSelectedDay(null)}
-              className="p-1.5 rounded-lg hover:bg-brand-100 transition-colors text-gray-400"
+              className="p-1.5 rounded-lg hover:bg-[var(--surface)] transition-colors"
+              style={{ color: 'var(--ink-3)' }}
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {selectedItems.map(item => (
               <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
                 <ServiceLogo domain={item.domain} name={item.name} size={36} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{item.name}</p>
+                  <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                     {item.category?.name ?? '–'}
                     {item.payment_method ? ` · ${item.payment_method.name}` : ''}
                     {item.total_installments
@@ -228,7 +236,7 @@ export default function CalendarioPagos({ items }: Props) {
                       : ''}
                   </p>
                 </div>
-                <p className="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
+                <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                   {formatCLP(item.amount)}
                 </p>
               </div>
@@ -238,7 +246,7 @@ export default function CalendarioPagos({ items }: Props) {
       )}
 
       {activeItems.length === 0 && (
-        <div className="card text-center py-12 text-sm text-gray-400 font-medium">
+        <div className="card text-center py-12 text-sm font-medium" style={{ color: 'var(--ink-3)' }}>
           No tienes gastos recurrentes activos
         </div>
       )}
