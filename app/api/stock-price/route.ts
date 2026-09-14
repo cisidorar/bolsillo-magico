@@ -331,17 +331,35 @@ export async function GET(request: Request) {
   let usdClp: number | null = fxAge < FX_TTL ? fxRow.price : null
 
   // 4. Fetch paralelo de tickers vencidos desde Finnhub
-  if (stale.length > 0) {
+  //
+  // sep 2026 (Cas: "sabes por que no actualiza?" — Mis acciones entero en "—",
+  // sin pastilla de estado ni error visible): Vercel venía matando esta ruta
+  // con "Task timed out after 30 seconds" de forma intermitente desde jul
+  // 2026 (confirmado con get_runtime_errors). Cada ticker vencido tiene su
+  // propio timeout de FH_TIMEOUT=7s vía AbortSignal, pero corren en paralelo
+  // sin ningún límite de tiempo TOTAL para la fase — si Finnhub responde
+  // lento bajo carga (varios símbolos vencidos a la vez, ej. al abrir
+  // mercado cuando expira el TTL de todos a la vez), nada impedía que la
+  // función completa quedara colgada hasta el límite duro de Vercel, que
+  // mata la función sin dar chance a devolver ni siquiera los tickers que sí
+  // alcanzaron a resolver — de ahí que TODO saliera en "—" en vez de solo
+  // el ticker lento. STALE_FETCH_BUDGET_MS pone un techo a la fase completa:
+  // si se cumple, se responde con lo que ya se resolvió (los tickers lentos
+  // simplemente no traen precio nuevo esta vez y quedan con su valor de
+  // caché anterior, en vez de tumbar la respuesta entera).
+  const STALE_FETCH_BUDGET_MS = 20_000
+  const fhKey: string = apiKey   // TS pierde el narrowing de arriba al cruzar a esta función anidada
+  async function staleFetch() {
     await Promise.all(stale.map(async (ticker) => {
       const needsProfile = !cacheMap[ticker]?.name || !cacheMap[ticker]?.domain
 
       const [quote, history, profile] = await Promise.all([
-        fhQuote(ticker, apiKey),
+        fhQuote(ticker, fhKey),
         fetchHistory
           ? dbHistory7d(supabase, ticker)
           : Promise.resolve(null),
         needsProfile
-          ? resolveProfile(ticker, apiKey)
+          ? resolveProfile(ticker, fhKey)
           : Promise.resolve({ name: cacheMap[ticker]?.name ?? null, domain: cacheMap[ticker]?.domain ?? null }),
       ])
 
@@ -394,6 +412,12 @@ export async function GET(request: Request) {
         if (error) console.error('[stock-price] cache write error:', ticker, error.message)
       })
     }))
+  }
+  if (stale.length > 0) {
+    await Promise.race([
+      staleFetch(),
+      new Promise<void>(resolve => setTimeout(resolve, STALE_FETCH_BUDGET_MS)),
+    ])
   }
 
   // 5. Si prices frescos pero no hay history, refetch solo las sparklines vencidas

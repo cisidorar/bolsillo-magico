@@ -428,7 +428,13 @@ export default function Radar({
       const chunk = tickers.slice(i, i + 25)
       try {
         const r = await fetch(`/api/stock-price?symbols=${chunk.join(',')}`, { cache: 'no-store' })
-        if (!r.ok) continue
+        // sep 2026 (Cas: "sabes por que no actualiza?"): un !r.ok (ej. el 504
+        // que devuelve Vercel cuando /api/stock-price se pasa de maxDuration)
+        // hacía `continue` en silencio — sin setQuotesError, sin lastUpdated,
+        // sin marketOpen — así que la pantalla se quedaba con TODO en "—" y
+        // sin ninguna pastilla de estado ni botón de reintentar. Ahora un
+        // fallo de red sí se refleja.
+        if (!r.ok) { setQuotesError('No se pudieron obtener los precios.'); continue }
         const data = await r.json() as { quotes?: Record<string, Quote>; marketOpen?: boolean; marketLabel?: string }
         if (data.quotes) setQuotes(prev => ({ ...prev, ...data.quotes }))
         if (typeof data.marketOpen === 'boolean') { setMarketOpen(data.marketOpen); setMarketLabel(data.marketLabel ?? '') }
