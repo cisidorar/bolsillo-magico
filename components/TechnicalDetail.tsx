@@ -594,7 +594,7 @@ export default function TechnicalDetail({
               </span>
             </div>
             <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-              {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · costo prom. {fmtUSD(position.avgCost)}
+              {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. · costo prom. {fmtUSD(position.avgCost)}
             </p>
           </div>
         )
@@ -649,7 +649,7 @@ export default function TechnicalDetail({
             <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición · plan de salida</p>
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
               <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · costo prom. {fmtUSD(position.avgCost)}
+                {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. · costo prom. {fmtUSD(position.avgCost)}
               </p>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
                 style={{ background: retPct >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: retColor }}>
@@ -769,7 +769,7 @@ export default function TechnicalDetail({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-bold" style={{ color: 'var(--ink)' }}>
-                    {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                    {m.type === 'buy' ? (m.synthetic ? 'Compra inicial' : 'Compra') : 'Venta'} · {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.
                     {/* D5: score con el que se decidió esta compra, si quedó guardado */}
                     {m.type === 'buy' && m.convictionScore != null && (
                       <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'var(--surface)', color: 'var(--ink-3)' }}>

@@ -241,10 +241,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       if (posErr || !posRow) { setBusy(false); setFormError(`No se encontró la posición de ${oldSp.ticker}.`); return }
 
       const newTotalPaid = Math.round(usdTotal * 100) / 100
-      const newShares    = Math.round(shares * 1e6) / 1e6
+      const newShares    = Math.round(shares * 1e8) / 1e8
       const deltaCost    = newTotalPaid - Number(oldSp.total_paid_usd)
       const deltaShares  = newShares - Number(oldSp.shares)
-      const posShares    = Math.round((Number(posRow.shares) + deltaShares) * 1e6) / 1e6
+      const posShares    = Math.round((Number(posRow.shares) + deltaShares) * 1e8) / 1e8
 
       if (posShares <= 0) {
         setBusy(false)
@@ -347,7 +347,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       // acá se aplica el inverso exacto para volver al valor original.
       const cur       = Number(posRow.shares)
       const curWallet = Number(posRow.wallet_cost_usd ?? 0)
-      const newShares = Math.round((cur + sharesSold) * 1e6) / 1e6
+      const newShares = Math.round((cur + sharesSold) * 1e8) / 1e8
       const newWallet = curWallet > 0 && cur > 0
         ? Math.round(curWallet * (newShares / cur) * 100) / 100
         : curWallet
@@ -420,7 +420,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           return {
             key: `w-${p.id}`, date: p.purchase_date, type: 'venta',
             label: `Venta ${sale.ticker}`,
-            sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
+            sub: `${Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. · ${fmtUSDSigned(pnl)} (${fmtPct(pnlPct)})`,
             usd: Number(p.usd_amount), pnl, pnlPct, ticker: sale.ticker, shares: Number(sale.shares_sold), row: p, stockRow: null, sale,
           }
         }
@@ -443,7 +443,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
     ...stockPurchasesState.map<Move>(sp => ({
       key: `p-${sp.id}`, date: sp.purchase_date, type: 'compra',
       label: `Compra ${sp.ticker}`,
-      sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.`,
+      sub: `${Number(sp.shares).toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.`,
       usd: -Number(sp.total_paid_usd), pnl: null, pnlPct: null, ticker: sp.ticker, shares: Number(sp.shares), row: null, stockRow: sp, sale: null,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
@@ -527,7 +527,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                           Vendiste
                         </span>
                         <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
-                          {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. {sale.ticker}
+                          {Number(sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. {sale.ticker}
                         </span>
                       </div>
                     ) : null
@@ -768,7 +768,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Acciones</span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
+                        {m.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })}
                       </span>
                     </div>
                   )}
@@ -814,7 +814,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                           ¿Revertir esta venta? Se deshace todo junto:
                         </p>
                         <ul className="text-xs space-y-1" style={{ color: 'var(--ink-2)' }}>
-                          <li>· Vuelven {Number(m.sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de {m.sale.ticker} a tu posición</li>
+                          <li>· Vuelven {Number(m.sale.shares_sold).toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. de {m.sale.ticker} a tu posición</li>
                           <li>· Salen {fmtUSD(Number(m.row!.usd_amount))} de la billetera</li>
                           <li>· Se borra la {Number(m.sale.realized_pnl_usd) >= 0 ? 'ganancia' : 'pérdida'} de {fmtUSD(Math.abs(Number(m.sale.realized_pnl_usd)))} del historial de Ventas</li>
                         </ul>

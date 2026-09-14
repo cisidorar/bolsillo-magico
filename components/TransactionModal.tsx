@@ -140,19 +140,19 @@ export default function TransactionModal({
     } else if (mode === 'new') {
       const suggestedUsd = prefill?.totalUsd
       const live = ticker ? quotes[ticker]?.price : undefined
-      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(6).replace(/\.?0+$/, '') : ''
+      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(8).replace(/\.?0+$/, '') : ''
       setForm({ ticker: ticker ?? '', shares: suggestedShares, totalPaid: suggestedUsd ? suggestedUsd.toFixed(2) : '', notes: '', riskTier: '' })
     } else if (mode === 'sell' && pos) {
       const q = quotes[pos.ticker]
       const price = q?.price ?? pos.avg_cost_usd
-      setSellShares(String(Number(pos.shares.toFixed(6))))
+      setSellShares(String(Number(pos.shares.toFixed(8))))
       setSellPrice(price.toFixed(2))
       setSellUsd((price * pos.shares).toFixed(2))
       setSellDate(new Date().toISOString().slice(0, 10))
     } else if (mode === 'buyMore') {
       const suggestedUsd = prefill?.totalUsd
       const live = pos ? quotes[pos.ticker]?.price : undefined
-      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(6).replace(/\.?0+$/, '') : ''
+      const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(8).replace(/\.?0+$/, '') : ''
       setBuyShares(suggestedShares)
       setBuyTotalPaid(suggestedUsd ? suggestedUsd.toFixed(2) : '')
       setBuyDate(new Date().toISOString().slice(0, 10))
@@ -282,7 +282,7 @@ export default function TransactionModal({
     // se cerraba, sin decir si la compra quedó registrada.
     showToast(isEdit
       ? `Posición editada: ${tk}`
-      : `Compra registrada: ${shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${tk} por ${fmtUSD(totalPaid)}`)
+      : `Compra registrada: ${shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. de ${tk} por ${fmtUSD(totalPaid)}`)
     onDone?.(tk)
     onClose()
   }
@@ -350,12 +350,13 @@ export default function TransactionModal({
       await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
       setPositions(prev => prev.filter(p => p.id !== pos.id))
     } else {
-      // 1e6, no 1e4 (sep 2026): stock_positions.shares guarda 6 decimales y
-      // los brókers de fracciones dan cantidades como 3,746878 — redondear a
-      // 4 decimales acá borraba dos dígitos reales en cada venta parcial
-      // (caso visto: 4,708856 − 1,410437 quedó en 3,2984 en vez de 3,298419).
-      // Se nota al revertir una venta: las acciones no vuelven al valor exacto.
-      const remainingShares = Math.round((pos.shares - sharesSold) * 1e6) / 1e6
+      // 1e8, no 1e4 (sep 2026, ampliado de 1e6): stock_positions.shares guarda
+      // 8 decimales y los brókers de fracciones dan cantidades como
+      // 4,61686086 — redondear a menos decimales acá borraba dígitos reales
+      // en cada venta parcial (caso visto: 4,708856 − 1,410437 quedó en
+      // 3,2984 en vez de 3,298419). Se nota al revertir una venta: las
+      // acciones no vuelven al valor exacto.
+      const remainingShares = Math.round((pos.shares - sharesSold) * 1e8) / 1e8
       // El costo financiado por billetera se reduce en proporción a lo vendido
       const newWalletCost = Math.round(Number(pos.wallet_cost_usd ?? 0) * (remainingShares / pos.shares) * 100) / 100
       await supabase.from('stock_positions')
@@ -372,7 +373,7 @@ export default function TransactionModal({
 
     setDeleting(false)
     showToast(
-      `Venta registrada: ${sharesSold.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${pos.ticker} · `
+      `Venta registrada: ${sharesSold.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. de ${pos.ticker} · `
       + `${realizedPnl >= 0 ? '+' : '-'}${fmtUSD(Math.abs(realizedPnl))} · ${fmtUSD(proceeds)} volvieron a tu billetera`
     )
     onDone?.(pos.ticker)
@@ -435,7 +436,7 @@ export default function TransactionModal({
     if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
 
     setSaving(false)
-    showToast(`Compra registrada: +${addShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc. de ${pos.ticker} (ahora ${newShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.)`)
+    showToast(`Compra registrada: +${addShares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. de ${pos.ticker} (ahora ${newShares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.)`)
     onDone?.(pos.ticker)
     onClose()
   }
@@ -692,7 +693,7 @@ export default function TransactionModal({
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Acciones totales</span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {newShares.toLocaleString('es-CL', { maximumFractionDigits: 6 })}
+                        {newShares.toLocaleString('es-CL', { maximumFractionDigits: 8 })}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -754,7 +755,7 @@ export default function TransactionModal({
                             const q = quotes[pos.ticker]
                             const p = parseFloat(sellPrice.replace(',', '.'))
                             const priceToUse = Number.isFinite(p) && p > 0 ? p : (q?.price ?? pos.avg_cost_usd)
-                            setSellShares(String(Number(pos.shares.toFixed(6))))
+                            setSellShares(String(Number(pos.shares.toFixed(8))))
                             setSellUsd((priceToUse * pos.shares).toFixed(2))
                           }}
                           className="text-[10px] font-bold" style={{ color: 'var(--primary)' }}>

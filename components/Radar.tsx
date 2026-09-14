@@ -1267,7 +1267,7 @@ export default function Radar({
                         {op.type === 'buy' ? 'Compra' : 'Venta'} · {op.ticker}
                       </p>
                       <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                        {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} acc.
+                        {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.
                       </p>
                     </div>
                     <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
@@ -1350,7 +1350,7 @@ export default function Radar({
               </div>
 
               <div className="px-5 py-4 space-y-2 overflow-y-auto">
-                <Row label="Acciones" value={op.shares.toLocaleString('es-CL', { maximumFractionDigits: 6 })} />
+                <Row label="Acciones" value={op.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} />
                 {unit !== null && (
                   <Row label={isSell ? 'Precio de venta' : 'Precio de compra'} value={`${fmtUSD(unit)} por acción`} />
                 )}
