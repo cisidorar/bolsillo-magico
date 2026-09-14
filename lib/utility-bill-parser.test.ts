@@ -237,6 +237,65 @@ describe('parseUtilityBill — Aguas Andinas (formato real, no sintético)', () 
   })
 })
 
+describe('parseUtilityBill — ComunidadFeliz (gastos comunes)', () => {
+  // Extracto real de una liquidación de gastos comunes (sep 2026, Cas: "ayuda
+  // agregando posibilidad de gastos comunes a la propiedad") — a diferencia de
+  // Enel/Aguas Andinas, acá "Total a pagar" aparece dos veces: primero el
+  // monto PERSONAL de la unidad (Detalle de su gasto común) y más abajo el
+  // total de EGRESOS de toda la comunidad ($24.583.690) — el parser debe
+  // quedarse con el primero, no con el agregado del edificio entero.
+  const LIQUIDACION_GASTOS_COMUNES = `
+    LIQUIDACIÓN DE GASTOS COMUNES
+    Edificio Santa Victoria 562
+    Santa Victoria 562, Santiago, Chile
+    RUT: 65.110.778-4
+    Paga fácil desde aquí:
+    app.comunidadfeliz.com/pago_facil
+    Unidad : 921
+    Residente : Reinaldo Ordenes
+    Prorrateo : 0.28%
+    Folio último pago : 8410
+    Mes de cobro : agosto - 2026
+    Vencimiento : 24/09/2026
+    Facturación de capital atrasado : 24/09/2026
+    Último pago : 15/08/2026
+    Monto último pago : $ 102.533
+    Folio boleta : 10619
+    Detalle de su gasto común
+    Cobros del periodo $ 91.073
+    Gasto común (0.28%) $ 68.834
+    Fondo Reserva (5.0%) agosto $ 3.442
+    Agua Caliente $ 15.001
+    Seguro individual Incendio $ 3.796
+    Total a pagar $ 91.073
+    Egresos gasto común de la comunidad $ 24.583.690
+    Total $ 24.583.690
+  `
+
+  it('reconoce ComunidadFeliz por el dominio de pago y marca kind=gastos_comunes', () => {
+    const r = parseUtilityBill(LIQUIDACION_GASTOS_COMUNES)
+    expect(r.provider).toBe('comunidad_feliz')
+    expect(r.kind).toBe('gastos_comunes')
+  })
+
+  it('saca el N° de unidad como clientNumber', () => {
+    expect(parseUtilityBill(LIQUIDACION_GASTOS_COMUNES).clientNumber).toBe('921')
+  })
+
+  it('se queda con el total PERSONAL, no con el egreso agregado de toda la comunidad', () => {
+    const r = parseUtilityBill(LIQUIDACION_GASTOS_COMUNES)
+    expect(r.total).toBe(91073)
+    expect(r.dueDate).toBe('2026-09-24')
+  })
+
+  it('reconoce el emisor solo por la frase "liquidación de gastos comunes" aunque no diga ComunidadFeliz (otra administradora)', () => {
+    const r = parseUtilityBill('LIQUIDACIÓN DE GASTOS COMUNES\nTotal a pagar $ 45.000\nVencimiento : 10/10/2026')
+    expect(r.provider).toBe('comunidad_feliz')
+    expect(r.kind).toBe('gastos_comunes')
+    expect(r.total).toBe(45000)
+  })
+})
+
 describe('parseUtilityBill — degradación', () => {
   it('un emisor desconocido devuelve todo en null, sin lanzar', () => {
     const r = parseUtilityBill('Boleta de gas Metrogas. Total a pagar: $ 20.000')

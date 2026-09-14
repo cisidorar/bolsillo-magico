@@ -7,11 +7,18 @@
 // El parser NUNCA escribe: su salida alimenta un borrador editable que Cas
 // confirma. Un regex que falla degrada a carga manual, no a un dato falso.
 
-export type UtilityProvider = 'enel' | 'aguas_andinas' | 'unknown'
+// sep 2026 (Cas subió una "Liquidación de Gastos Comunes" de ComunidadFeliz,
+// pidió agregar esa posibilidad a la propiedad): mismo parser, un proveedor
+// más. ComunidadFeliz es el software de administración que usan la mayoría
+// de las comunidades/edificios en Chile para emitir esta liquidación — de
+// ahí que detectarlo por esa marca (o por la frase "liquidación de gastos
+// comunes" como respaldo) cubra otros edificios sin agregar un proveedor
+// por cada administradora.
+export type UtilityProvider = 'enel' | 'aguas_andinas' | 'comunidad_feliz' | 'unknown'
 
 export interface ParsedUtilityBill {
   provider:        UtilityProvider
-  kind:            'electricity' | 'water' | null
+  kind:            'electricity' | 'water' | 'gastos_comunes' | null
   clientNumber:    string | null
   total:           number | null   // CLP
   dueDate:         string | null   // YYYY-MM-DD
@@ -99,6 +106,7 @@ export function detectProvider(text: string): UtilityProvider {
     return 'aguas_andinas'
   }
   if (/\benel\b/.test(t)) return 'enel'
+  if (/comunidadfeliz/.test(t) || /liquidaci[oó]n\s+de\s+gastos\s+comunes/.test(t)) return 'comunidad_feliz'
   return 'unknown'
 }
 
@@ -106,6 +114,7 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   const provider = detectProvider(text)
   const kind = provider === 'enel' ? 'electricity'
              : provider === 'aguas_andinas' ? 'water'
+             : provider === 'comunidad_feliz' ? 'gastos_comunes'
              : null
 
   const empty: ParsedUtilityBill = {
@@ -146,6 +155,8 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
     /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
     /(?:n[°º.]?|nro)\.?\s*(?:de\s+)?cuenta[:\s]*([\d.]+-[\dkK])/i,
     /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
+    // ComunidadFeliz identifica la propiedad como "Unidad", no cliente/cuenta.
+    /\bunidad\s*[:\s]*(\d+)/i,
   ]) ?? resumenBlock?.[3] ?? null
 
   const totalRaw = firstMatch(text, [

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef } from '@/lib/property-charges'
+import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef, type UtilityKind } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
@@ -571,7 +571,7 @@ export async function generateUtilityReminders(
   const created: string[] = []
   const rows: Record<string, unknown>[] = []
 
-  for (const kind of ['electricity', 'water'] as const) {
+  for (const kind of ['electricity', 'water', 'gastos_comunes'] as const) {
     // El último cobro conocido de este tipo, real o estimado — de ahí sale
     // tanto el monto base (siempre de una boleta real; ver más abajo) como
     // la fecha desde la que se cuenta el próximo mes.
@@ -602,7 +602,11 @@ export async function generateUtilityReminders(
       period_year: year, period_month: month,
       notes: 'Estimado — monto y fecha son un cálculo, no la boleta real. Súbela cuando llegue.',
     })
-    created.push(kind === 'electricity' ? 'Luz (estimado)' : 'Agua (estimado)')
+    created.push(
+      kind === 'electricity' ? 'Luz (estimado)'
+        : kind === 'water' ? 'Agua (estimado)'
+        : 'Gastos comunes (estimado)'
+    )
   }
 
   if (rows.length === 0) return { ok: true, created: [] }
@@ -621,7 +625,7 @@ export async function generateUtilityReminders(
 
 export interface SaveUtilityBillInput {
   propertyId:  string
-  kind:        'electricity' | 'water'
+  kind:        UtilityKind
   amount:      number
   dueDate:     string
   consumption: number | null
@@ -667,7 +671,7 @@ export async function saveUtilityBill(
   // cuándo", y una columna de kWh solo tendría sentido en 2 de sus 11 tipos.
   // El formato es estable para que la detección de saltos lo pueda releer.
   const consumoNote = input.consumption
-    ? `Consumo: ${input.consumption} ${input.kind === 'electricity' ? 'kWh' : 'm³'}`
+    ? `Consumo: ${input.consumption} ${input.kind === 'electricity' ? 'kWh' : input.kind === 'water' ? 'm³' : ''}`
     : null
   // sep 2026 — bug real (Cas, "duplicate key value violates unique constraint
   // property_charges_external_ref_uniq"): el N° que el parser lee de la

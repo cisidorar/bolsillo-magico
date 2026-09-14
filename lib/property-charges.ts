@@ -130,8 +130,11 @@ export function nextUtilityDueDate(lastDueDate: string): string {
   return `${ny}-${String(nm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-/** Referencia del recordatorio automático de una cuenta de luz/agua (provisoria: se borra al llegar la boleta real). */
-export function utilityReminderRef(kind: 'electricity' | 'water', year: number, month: number): string {
+/** Tipos de boleta recurrente con recordatorio automático + carga por PDF (ver UtilityBillUploader). */
+export type UtilityKind = 'electricity' | 'water' | 'gastos_comunes'
+
+/** Referencia del recordatorio automático de una cuenta de luz/agua/gastos comunes (provisoria: se borra al llegar la boleta real). */
+export function utilityReminderRef(kind: UtilityKind, year: number, month: number): string {
   return `est-${kind}-${year}-${String(month).padStart(2, '0')}`
 }
 
@@ -153,7 +156,7 @@ export function utilityReminderRef(kind: 'electricity' | 'water', year: number, 
  * de fallar. El N° de cliente/boleta que el usuario ve y puede editar sigue
  * guardándose, pero como dato informativo en `notes`, no como llave.
  */
-export function billChargeRef(kind: 'electricity' | 'water', year: number, month: number): string {
+export function billChargeRef(kind: UtilityKind, year: number, month: number): string {
   return `bill-${kind}-${year}-${String(month).padStart(2, '0')}`
 }
 

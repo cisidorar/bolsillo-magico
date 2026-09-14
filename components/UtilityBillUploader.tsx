@@ -2,11 +2,12 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Zap, Droplet, X, FileText } from 'lucide-react'
+import { Upload, Zap, Droplet, Building2, X, FileText } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { extractUtilityBillDraft, saveUtilityBill } from '@/app/actions/property'
 import type { ParsedUtilityBill } from '@/lib/utility-bill-parser'
 import { detectConsumptionSpike } from '@/lib/utility-bill-parser'
+import type { UtilityKind } from '@/lib/property-charges'
 
 const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm outline-none'
 const inputStyle: React.CSSProperties = {
@@ -18,7 +19,7 @@ interface Props {
   /** Consumos anteriores por tipo, para detectar saltos. */
   priorConsumption: { electricity: number[]; water: number[] }
   /** Servicio precargado al abrir desde "Subir boleta" de un recordatorio estimado. */
-  initialKind?: 'electricity' | 'water'
+  initialKind?: UtilityKind
   onClose: () => void
 }
 
@@ -39,7 +40,7 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
   const [dragOver, setDragOver] = useState(false)
 
   // Campos editables del borrador
-  const [kind, setKind]     = useState<'electricity' | 'water'>(initialKind ?? 'electricity')
+  const [kind, setKind]     = useState<UtilityKind>(initialKind ?? 'electricity')
   const [amount, setAmount] = useState('')
   const [due, setDue]       = useState('')
   const [cons, setCons]     = useState('')
@@ -82,7 +83,10 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
     router.refresh(); onClose()
   }
 
-  const spike = cons
+  // Gastos comunes no tiene consumo propio (ver el condicional del formulario
+  // más abajo) — priorConsumption solo trackea luz/agua, así que no hay nada
+  // que comparar para ese tercer kind.
+  const spike = cons && kind !== 'gastos_comunes'
     ? detectConsumptionSpike(Number(cons), priorConsumption[kind])
     : null
 
@@ -123,7 +127,7 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
                 <span className="text-sm font-semibold">
                   {busy ? 'Leyendo el PDF…' : dragOver ? 'Suelta la boleta aquí' : 'Elegir o arrastrar la boleta en PDF'}
                 </span>
-                <span className="text-xs">Enel o Aguas Andinas</span>
+                <span className="text-xs">Enel, Aguas Andinas o gastos comunes</span>
               </button>
               <input ref={fileRef} type="file" accept="application/pdf" className="hidden"
                      onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
@@ -138,14 +142,18 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
                 <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
                   {draft.provider === 'unknown'
                     ? 'No reconocí el emisor — completa los datos a mano.'
-                    : `Boleta de ${draft.provider === 'enel' ? 'Enel' : 'Aguas Andinas'}. Revisa antes de guardar.`}
+                    : `Boleta de ${
+                        draft.provider === 'enel' ? 'Enel'
+                          : draft.provider === 'aguas_andinas' ? 'Aguas Andinas'
+                          : 'gastos comunes'
+                      }. Revisa antes de guardar.`}
                 </p>
               </div>
 
               <div className="mb-3">
                 <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Servicio</label>
                 <div className="flex gap-2">
-                  {([['electricity', 'Luz', Zap], ['water', 'Agua', Droplet]] as const).map(([k, label, Icon]) => (
+                  {([['electricity', 'Luz', Zap], ['water', 'Agua', Droplet], ['gastos_comunes', 'Gastos comunes', Building2]] as const).map(([k, label, Icon]) => (
                     <button key={k} type="button" onClick={() => setKind(k)}
                       className="flex-1 py-2 rounded-xl text-sm font-semibold border flex items-center justify-center gap-1.5"
                       style={kind === k ? {
@@ -175,20 +183,33 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
-                    Consumo ({kind === 'electricity' ? 'kWh' : 'm³'})
-                  </label>
-                  <input className={inputCls} style={inputStyle} value={cons} inputMode="numeric"
-                         onChange={e => setCons(e.target.value.replace(/\D/g, ''))} placeholder="187" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>N° boleta</label>
+              {/* Gastos comunes no tiene un consumo propio que medir (es un
+                  cobro mixto: administración + fondo reserva + a veces agua
+                  caliente/seguro) — el campo de consumo solo aplica a
+                  luz/agua, así que acá el N° de boleta/unidad ocupa el ancho
+                  completo en vez de compartir fila con un campo que no aplica. */}
+              {kind === 'gastos_comunes' ? (
+                <div className="mb-3">
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>N° unidad / boleta</label>
                   <input className={inputCls} style={inputStyle} value={ref}
                          onChange={e => setRef(e.target.value)} placeholder="opcional" />
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>
+                      Consumo ({kind === 'electricity' ? 'kWh' : 'm³'})
+                    </label>
+                    <input className={inputCls} style={inputStyle} value={cons} inputMode="numeric"
+                           onChange={e => setCons(e.target.value.replace(/\D/g, ''))} placeholder="187" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>N° boleta</label>
+                    <input className={inputCls} style={inputStyle} value={ref}
+                           onChange={e => setRef(e.target.value)} placeholder="opcional" />
+                  </div>
+                </div>
+              )}
 
               {/* Salto de consumo — gold: hay que mirarlo, no es una emergencia */}
               {spike?.isSpike && (

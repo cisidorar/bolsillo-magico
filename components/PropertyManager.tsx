@@ -10,7 +10,7 @@ import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
   chargeStatus, chargeTotal, chargeOutstanding, propertyHealth, mortgageProgress,
-  daysBetween, KIND_LABEL, type ChargeStatus,
+  daysBetween, KIND_LABEL, type ChargeStatus, type UtilityKind,
 } from '@/lib/property-charges'
 import { propertySummary, monthBills, pendingIncome, overdueOwnerBills } from '@/lib/property-summary'
 import {
@@ -213,7 +213,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [leaseForm, setLeaseForm] = useState(false)
   // string = qué servicio precargar (desde "Subir boleta" en un recordatorio
   // estimado); null = cerrado. El botón genérico de Cobros abre en 'electricity'.
-  const [billUploader, setBillUploader] = useState<'electricity' | 'water' | null>(null)
+  const [billUploader, setBillUploader] = useState<UtilityKind | null>(null)
   const [divForm, setDivForm]     = useState(false)
   const [utilsForm, setUtilsForm] = useState(false)
   const [payFor, setPayFor]       = useState<Charge | null>(null)
@@ -578,7 +578,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                                         onAction={() => setPayFor(c)}
                                         onEdit={() => setChargeForm(c)}
                                         onUploadBill={c.is_estimate
-                                          ? () => setBillUploader(c.kind as 'electricity' | 'water')
+                                          ? () => setBillUploader(c.kind as UtilityKind)
                                           : undefined} />
                     ))}
                   </div>
@@ -837,7 +837,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           onEdit={() => { setChargeForm(detailCharge); setDetailCharge(null) }}
           onPay={() => { setPayFor(detailCharge); setDetailCharge(null) }}
           onUploadBill={() => {
-            setBillUploader(detailCharge.kind as 'electricity' | 'water')
+            setBillUploader(detailCharge.kind as UtilityKind)
             setDetailCharge(null)
           }}
           onUnpay={async () => {
