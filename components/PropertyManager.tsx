@@ -143,7 +143,7 @@ interface Props {
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
   today: string
-  view: 'estado' | 'cobros'
+  view: 'estado' | 'cobros' | 'info'
   /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
   openNew?: boolean
 }
@@ -631,22 +631,39 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
               )}
             </div>
 
-            {/* Columna derecha: lo que casi no cambia */}
+            {/* Columna derecha: el calendario del mes en curso — lo demás
+                (contrato, arrendatario, ficha de la propiedad) se movió a la
+                pestaña Información (sep 2026, pedido de Cas): Estado queda
+                solo con lo operativo, que es lo que cambia mes a mes. */}
             <div className="space-y-5">
-              <LeaseCard
-                lease={lease} ipcSeries={ipcSeries} today={today} busy={busy}
-                onEdit={() => setLeaseForm(true)}
-                onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
-              />
-              {property.mortgage_principal && (
-                <MortgageCard property={property} charges={charges}
-                              onEdit={() => setDivForm(true)} />
-              )}
-              <PropertyCard property={property} onEdit={() => setPropForm(property)}
-                            onAddMortgage={() => setDivForm(true)}
-                            onAddUtilities={() => setUtilsForm(true)} />
               <PropertyCalendar charges={charges} today={today} />
             </div>
+          </div>
+        </div>
+      ) : view === 'info' ? (
+        // ── Información ──────────────────────────────────────────────────
+        // sep 2026 (Cas: "quiero agregar en el toggle información, para ahí
+        // tener información detallada sobre la propiedad y el arrendatario
+        // en vez de que estén en el estado"): mismas tarjetas que antes
+        // vivían en la columna derecha de Estado, ahora en su propia pestaña
+        // — ficha de la propiedad a la izquierda, contrato/arrendatario y
+        // crédito a la derecha.
+        <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
+          <div className="space-y-5">
+            <PropertyCard property={property} onEdit={() => setPropForm(property)}
+                          onAddMortgage={() => setDivForm(true)}
+                          onAddUtilities={() => setUtilsForm(true)} />
+          </div>
+          <div className="space-y-5">
+            <LeaseCard
+              lease={lease} ipcSeries={ipcSeries} today={today} busy={busy}
+              onEdit={() => setLeaseForm(true)}
+              onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
+            />
+            {property.mortgage_principal && (
+              <MortgageCard property={property} charges={charges}
+                            onEdit={() => setDivForm(true)} />
+            )}
           </div>
         </div>
       ) : (

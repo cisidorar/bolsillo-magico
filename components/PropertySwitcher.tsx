@@ -26,7 +26,7 @@ export default function PropertySwitcher({
 }: {
   properties: SwitcherProperty[]
   activeId: string
-  view: 'estado' | 'cobros'
+  view: 'estado' | 'cobros' | 'info'
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -55,7 +55,7 @@ export default function PropertySwitcher({
   function go(id: string) {
     const params = new URLSearchParams()
     params.set('prop', id)
-    if (view === 'cobros') params.set('view', 'cobros')
+    if (view !== 'estado') params.set('view', view)
     router.push(`/propiedad?${params.toString()}`)
     setOpen(false)
   }

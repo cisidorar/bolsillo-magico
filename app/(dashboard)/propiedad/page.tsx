@@ -23,7 +23,8 @@ export default async function PropiedadPage({
   ])
   if (!user) redirect('/login')
 
-  const view: PropiedadView = params.view === 'cobros' ? 'cobros' : 'estado'
+  const view: PropiedadView =
+    params.view === 'cobros' ? 'cobros' : params.view === 'info' ? 'info' : 'estado'
 
   // Fecha de Santiago, no del servidor: un vencimiento "de hoy" tiene que
   // seguir siendo de hoy aunque Vercel corra en UTC.
