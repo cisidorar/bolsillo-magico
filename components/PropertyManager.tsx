@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
-  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload, FileText,
+  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload, FileText, AlertTriangle,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -12,7 +12,10 @@ import {
   chargeStatus, chargeTotal, chargeOutstanding, propertyHealth, mortgageProgress,
   daysBetween, KIND_LABEL, type ChargeStatus, type UtilityKind,
 } from '@/lib/property-charges'
-import { propertySummary, monthBills, pendingIncome, overdueOwnerBills } from '@/lib/property-summary'
+import {
+  pendingIncome, overdueOwnerBills,
+  monthOf, monthSummary, recentMonthKeys, type MonthStatus, type MonthSummary,
+} from '@/lib/property-summary'
 import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
@@ -202,6 +205,12 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
+/** 'YYYY-MM' → "septiembre 2026", para el header de la lista unificada. */
+function monthLabelFor(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  return `${MONTH_NAMES[m - 1]} ${y}`
+}
+
 export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew }: Props) {
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
@@ -336,6 +345,11 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const ownerCharges  = charges.filter(c => c.responsible === 'owner')
   const tenantCharges = charges.filter(c => c.responsible === 'tenant')
 
+  // Mes elegido en los chips de Estado (sep 2026, mockup de Cas). Después del
+  // early-return de arriba, junto al resto de los derivados — mismo patrón
+  // (imperfecto, pero consistente) que ya usan priorConsumption/summary acá.
+  const [selectedMonth, setSelectedMonth] = useState(monthOf(today))
+
   // Consumos anteriores por servicio, más reciente primero — alimentan la
   // detección de saltos del uploader. Se leen de las notas del cobro porque
   // el consumo no es un campo de property_charges: es dato de la boleta, no
@@ -349,54 +363,55 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     return { electricity: pick('electricity'), water: pick('water') }
   }, [charges])
 
-  // ── Derivados de la banda de stats y las listas ───────────────────────────
-  const summary = useMemo(
-    () => propertySummary(charges, today, lease?.rent_amount ?? null, property.mortgage_amount),
-    [charges, today, lease, property.mortgage_amount],
-  )
-  const pending = useMemo(() => pendingIncome(charges, today), [charges, today])
-  const overdueBills = useMemo(() => overdueOwnerBills(charges, today), [charges, today])
-  // "Cuentas del mes" ya no repite lo que vive en "Vencidas": una cuenta
-  // vencida es siempre del mes en que venció, así que sin este filtro
-  // aparecería duplicada en las dos tarjetas apenas se atrasa.
-  const bills = useMemo(
-    () => monthBills(charges, today).filter(c => !overdueBills.includes(c)),
-    [charges, today, overdueBills],
-  )
-  // El arriendo pendiente ya tiene su propia tarjeta de acción en "Cobros
-  // pendientes" (pending, por dirección) — ahora que el arriendo también es
-  // responsible='tenant', sin este filtro aparecería repetido en "Del
-  // arrendatario" (mismo criterio que bills arriba con Vencidas).
-  const tenantCardCharges = useMemo(
-    () => tenantCharges.filter(c => !pending.includes(c)),
-    [tenantCharges, pending],
-  )
-
+  // ── Derivados de la lista unificada por mes (sep 2026, mockup de Cas) ────
+  // "itera y aplica a toggle estado": reemplaza la banda de 4 stats + las
+  // cuatro tarjetas separadas (Vencidas/Cobros pendientes/Cuentas del
+  // mes/Del arrendatario) por un navegador de meses + una sola lista por mes.
+  // Arriendo mensual y dividendo ya viven en la pestaña Información, así que
+  // acá solo queda lo operativo: qué falta pagar y de qué mes.
+  const pending        = useMemo(() => pendingIncome(charges, today), [charges, today])
+  const overdueBills   = useMemo(() => overdueOwnerBills(charges, today), [charges, today])
   const pendingOverdue = pending.filter(c => chargeStatus(c, today) === 'overdue')
-  const pendingSoon    = pending.filter(c => chargeStatus(c, today) === 'due_soon')
-  const pendingCaption = [
-    pendingOverdue.length > 0 ? `${pendingOverdue.length} ${pendingOverdue.length === 1 ? 'vencido' : 'vencidos'}` : null,
-    pendingSoon.length    > 0 ? `${pendingSoon.length} por vencer` : null,
-  ].filter(Boolean).join(' · ') || `${pending.length} pendiente${pending.length === 1 ? '' : 's'}`
 
-  const overdueBillsTotal = overdueBills.reduce((s, c) => s + chargeOutstanding(c), 0)
+  // Atrasado es global a propósito — una deuda de hace tres meses no deja de
+  // importar porque el chip que estás mirando hoy es septiembre.
+  const atrasadoCount = overdueBills.length + pendingOverdue.length
+  const atrasadoTotal =
+    overdueBills.reduce((s, c) => s + chargeOutstanding(c), 0) +
+    pendingOverdue.reduce((s, c) => s + chargeOutstanding(c), 0)
 
-  const billsTotal   = bills.reduce((s, c) => s + chargeTotal(c), 0)
-  const billsUnpaid  = bills.filter(c => chargeStatus(c, today) !== 'paid').length
-  const billsCaption = billsUnpaid > 0 ? `${billsUnpaid} por pagar` : 'todo pagado'
-  const monthLabel   = new Date(today + 'T12:00:00')
-    .toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+  const monthKeys = useMemo(() => recentMonthKeys(today, 4), [today])
 
-  // El dividendo del mes ya cargado manda sobre el dato del contrato: si está
-  // pagado, eso es lo que quieres ver, no una promesa de "día 1 c/mes".
-  const mortgageThisMonth = bills.find(c => c.kind === 'mortgage')
-  const mortgageCaption = !property.mortgage_amount
-    ? 'Sin dividendo cargado'
-    : mortgageThisMonth?.paid_date
-      ? `pagado · ${fmtDate(mortgageThisMonth.paid_date)}`
-      : property.mortgage_due_day
-        ? `vence el día ${property.mortgage_due_day} de cada mes`
-        : 'sin día de cargo'
+  // Cargos del mes elegido, todos juntos — dueño y arrendatario. Es la lista
+  // única que reemplaza a "Cuentas del mes" + "Del arrendatario" + la parte
+  // de "Cobros pendientes" que caía en este mes.
+  const monthCharges = useMemo(
+    () => charges
+      .filter(c => monthOf(c.due_date) === selectedMonth)
+      .sort((a, b) => a.due_date.localeCompare(b.due_date)),
+    [charges, selectedMonth],
+  )
+  const monthPending = monthCharges.filter(c => {
+    const s = chargeStatus(c, today)
+    return s !== 'paid' && s !== 'overdue' && s !== 'partial'
+  })
+  const monthPendingTotal = monthPending.reduce((s, c) => s + chargeOutstanding(c), 0)
+
+  // Vencidas que NO son del mes elegido: sin este filtro, cambiar de chip
+  // escondería una deuda vieja en vez de solo dejar de repetirla (cuando el
+  // chip vencido está seleccionado, ya aparece en la lista unificada de abajo).
+  const billsOverdueCross = useMemo(
+    () => overdueBills.filter(c => monthOf(c.due_date) !== selectedMonth),
+    [overdueBills, selectedMonth],
+  )
+  const rentOverdueCross = useMemo(
+    () => pendingOverdue.filter(c => monthOf(c.due_date) !== selectedMonth),
+    [pendingOverdue, selectedMonth],
+  )
+  const overdueCross = useMemo(
+    () => [...billsOverdueCross, ...rentOverdueCross].sort((a, b) => a.due_date.localeCompare(b.due_date)),
+    [billsOverdueCross, rentOverdueCross],
+  )
 
   /** Marca cobrado todo lo vencido de una, con la fecha de hoy y su total. */
   async function markAllPending() {
@@ -413,80 +428,137 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     <>
       {view === 'estado' ? (
         <div className="space-y-5">
-          {/* ── Banda de stats ───────────────────────────────────────────
-              Reemplaza al hero semáforo. El semáforo respondía "¿está todo
-              al día?" con un sí/no; estas cuatro tarjetas responden además
-              "¿cuánto?", que es lo que efectivamente haces con la respuesta.
-              El estado no se pierde: vive en el color de "Por cobrar". */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-            <StatCard
-              label="Por cobrar"
-              value={formatCLP(summary.toReceive)}
-              caption={summary.toReceiveCount > 0
-                ? `${summary.toReceiveCount} ${summary.toReceiveCount === 1 ? 'arriendo vencido' : 'arriendos vencidos'}`
-                : 'Nada pendiente de cobro'}
-              tone={summary.toReceive > 0 ? 'var(--coral)' : 'var(--mint)'}
-              accent
-            />
-            <StatCard
-              label="Arriendo mensual"
-              value={lease ? formatCLP(lease.rent_amount) : '—'}
-              caption={lease ? `vence el día ${lease.rent_due_day} de cada mes` : 'Sin contrato cargado'}
-            />
-            <StatCard
-              label="Dividendo"
-              value={property.mortgage_amount ? formatCLP(property.mortgage_amount) : '—'}
-              caption={mortgageCaption}
-            />
-            <StatCard
-              label="Margen del mes"
-              value={summary.margin != null
-                ? `${summary.margin >= 0 ? '+' : '−'}${formatCLP(Math.abs(summary.margin))}`
-                : '—'}
-              caption={summary.margin != null
-                ? 'arriendo − dividendo − cuentas'
-                : 'Falta el arriendo o el dividendo'}
-              tone={summary.margin == null ? undefined
-                  : summary.margin >= 0 ? 'var(--mint)' : 'var(--coral)'}
-            />
+          {/* ── Resumen (sep 2026, mockup de Cas) ────────────────────────
+              UX5: coral es el ÚNICO banner posible acá y solo aparece si hay
+              algo vencido (sin importar el mes) — es la única urgencia real
+              de "algo que tú debes/te deben". Sin nada vencido pero con algo
+              por pagar este mes, baja a un chip gold inline (nunca una caja
+              con borde del tamaño de un banner). Sin nada de lo anterior,
+              confirmación mint. */}
+          {atrasadoCount > 0 ? (
+            <div
+              className="flex items-start gap-3 px-4 py-3 rounded-2xl"
+              style={{
+                background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))',
+                border: '1.5px solid color-mix(in srgb, var(--coral) 30%, var(--border))',
+              }}
+            >
+              <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
+                  {atrasadoCount} {atrasadoCount === 1 ? 'cuenta vencida' : 'cuentas vencidas'}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                  {formatCLP(atrasadoTotal)} en total — de cualquier mes, no solo el que estás mirando abajo
+                </p>
+              </div>
+            </div>
+          ) : monthPending.length > 0 ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold)' }}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Faltan {monthPending.length} {monthPending.length === 1 ? 'cuenta' : 'cuentas'} por pagar este mes
+            </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <CircleCheck className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Todo al día</span>
+            </div>
+          )}
+
+          {/* Los dos números que importan: cuánto falta del mes elegido y
+              cuánto hay atrasado en total (este último no cambia con el
+              chip — es deuda viva sin importar qué mes mires). */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="card p-3.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                Por pagar
+              </p>
+              <p className="text-xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)', fontFamily: 'Fredoka, sans-serif' }}>
+                {formatCLP(monthPendingTotal)}
+              </p>
+              <p className="text-[11px] mt-1.5 capitalize" style={{ color: 'var(--ink-3)' }}>
+                {monthLabelFor(selectedMonth)}
+              </p>
+            </div>
+            <div className="card p-3.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                Atrasado
+              </p>
+              <p
+                className="text-xl font-extrabold tabular-nums leading-none"
+                style={{ color: atrasadoTotal > 0 ? 'var(--coral)' : 'var(--ink)', fontFamily: 'Fredoka, sans-serif' }}
+              >
+                {formatCLP(atrasadoTotal)}
+              </p>
+              <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+                {atrasadoCount > 0 ? `${atrasadoCount} ${atrasadoCount === 1 ? 'cuenta' : 'cuentas'}` : 'nada vencido'}
+              </p>
+            </div>
+          </div>
+
+          {/* Navegador de meses — inspirado en el MonthNav de análisis, pero
+              con los últimos 4 fijos en vez de adelante/atrás: acá lo que
+              importa es comparar el mes en curso con los recién cerrados,
+              no navegar el historial completo. */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-1 px-1 pb-1">
+            {monthKeys.map(key => (
+              <MonthChip
+                key={key} monthKey={key} selected={key === selectedMonth}
+                summary={monthSummary(charges, key, today)}
+                onClick={() => setSelectedMonth(key)}
+              />
+            ))}
           </div>
 
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
             {/* Columna izquierda: lo que se mueve mes a mes */}
             <div className="space-y-5">
 
-              {/* Vencidas — sin importar de qué mes son. "Cuentas del mes"
-                  solo mira el mes en curso, así que una cuenta de un
-                  trimestre atrás que nadie pagó quedaba invisible apenas
-                  cambiaba el mes. Coral porque es la única urgencia real de
-                  "algo que tú debes" (UX5: por cobrar ya tiene su propio
-                  coral en la banda de stats, así que esta es la otra mitad). */}
-              {overdueBills.length > 0 && (
+              {/* Vencidas de otros meses — el chip elegido ya muestra las
+                  suyas en la lista unificada de abajo. Sin esta tarjeta, una
+                  cuenta de un trimestre atrás que nadie pagó quedaría
+                  invisible apenas cambias de mes. */}
+              {overdueCross.length > 0 && (
                 <div className="card p-4" style={{ borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--border))' }}>
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vencidas</p>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vencidas de otros meses</p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--coral)' }}>
-                        {overdueBills.length} {overdueBills.length === 1 ? 'cuenta' : 'cuentas'} · {formatCLP(overdueBillsTotal)}
+                        {overdueCross.length} {overdueCross.length === 1 ? 'cuenta' : 'cuentas'}
                       </p>
                     </div>
-                    {overdueBills.length > 1 && (
-                      <button
-                        onClick={() => setBulkPayFor(overdueBills)}
-                        disabled={busy}
-                        className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
-                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                      >
-                        Marcar todo pagado
-                      </button>
-                    )}
+                    <div className="flex gap-2 flex-shrink-0">
+                      {billsOverdueCross.length > 0 && overdueBills.length > 1 && (
+                        <button
+                          onClick={() => setBulkPayFor(overdueBills)}
+                          disabled={busy}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
+                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                        >
+                          Marcar todo pagado
+                        </button>
+                      )}
+                      {rentOverdueCross.length > 0 && pendingOverdue.length > 1 && (
+                        <button
+                          onClick={() => markAllPending()}
+                          disabled={busy}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
+                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                        >
+                          Marcar todo cobrado
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {overdueBills.map(c => (
+                    {overdueCross.map(c => (
                       <ChargeRowCompact
                         key={c.id} charge={c} today={today}
                         subtitle={billSubtitle(c) ?? `venció ${fmtDate(c.due_date)} · ${relativeDue(c.due_date, today)}`}
-                        actionLabel="Pagué" onAction={() => setPayFor(c)}
+                        actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagué'} onAction={() => setPayFor(c)}
                         onEdit={() => setChargeForm(c)}
                       />
                     ))}
@@ -494,96 +566,50 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                 </div>
               )}
 
-              {/* Cobros pendientes — una sola lista en vez de tres bloques de
-                  alerta apilados. La severidad de cada fila la lleva su punto
-                  de color, así que no hace falta un banner coral por grupo
-                  (UX5: máximo uno por pantalla, y acá el coral vive en la
-                  tarjeta "Por cobrar"). */}
-              {pending.length > 0 && (
-                <div className="card p-4">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cobros pendientes</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                        {pendingCaption}
-                      </p>
-                    </div>
-                    {pendingOverdue.length > 1 && (
-                      <button
-                        onClick={() => markAllPending()}
-                        disabled={busy}
-                        className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
-                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                      >
-                        Marcar todo cobrado
-                      </button>
-                    )}
-                  </div>
-                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {pending.map(c => (
-                      <ChargeRowCompact
-                        key={c.id} charge={c} today={today}
-                        actionLabel="Cobré" onAction={() => setPayFor(c)}
-                        onEdit={() => setChargeForm(c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Cuentas del mes */}
-              {bills.length > 0 && (
-                <div className="card p-4">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cuentas del mes</p>
-                      <p className="text-xs mt-0.5 capitalize" style={{ color: 'var(--ink-3)' }}>
-                        {monthLabel} · {billsCaption}
-                      </p>
-                    </div>
-                    <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
-                      {formatCLP(billsTotal)}
+              {/* Lista unificada del mes elegido — reemplaza a "Cuentas del
+                  mes" + "Del arrendatario" + la parte de "Cobros pendientes"
+                  que caía en este mes. El punto de color de cada fila ya
+                  lleva la severidad, así que no hace falta partirla en tres
+                  tarjetas que dicen lo mismo (UX5: el único banner posible
+                  ya vive arriba). */}
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold capitalize" style={{ color: 'var(--ink)' }}>
+                      {monthLabelFor(selectedMonth)}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                      {monthCharges.length > 0
+                        ? `${monthCharges.length} ${monthCharges.length === 1 ? 'cobro' : 'cobros'}`
+                        : 'Sin cobros generados'}
                     </p>
                   </div>
+                </div>
+                {monthCharges.length === 0 ? (
+                  <p className="text-sm py-1" style={{ color: 'var(--ink-3)' }}>
+                    {charges.length === 0
+                      ? (lease
+                          ? 'Genera los meses del contrato para ver los arriendos acá.'
+                          : 'Carga el contrato para empezar a seguir los arriendos.')
+                      : 'Nada para este mes.'}
+                  </p>
+                ) : (
                   <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {bills.map(c => (
+                    {monthCharges.map(c => (
                       <ChargeRowCompact
                         key={c.id} charge={c} today={today}
                         subtitle={billSubtitle(c)}
-                        actionLabel="Pagué" onAction={() => setPayFor(c)}
+                        actionLabel={c.direction === 'in' ? 'Cobré' : c.responsible === 'tenant' ? 'Pagó' : 'Pagué'}
+                        onAction={() => setPayFor(c)}
                         onEdit={() => setChargeForm(c)}
+                        onUploadBill={c.is_estimate
+                          ? () => setBillUploader(c.kind as UtilityKind)
+                          : undefined}
                       />
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Cuentas del arrendatario: incluye el arriendo (te lo paga él,
-                  es tu ingreso) y las cuentas que por contrato paga él
-                  (no son costo tuyo). Su mora en cualquiera de las dos es
-                  causal de término, así que tampoco se pueden esconder. */}
-              {tenantCardCharges.length > 0 && (
-                <div className="card p-4">
-                  <div className="mb-3">
-                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Del arrendatario</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      Lo que paga él — tu arriendo y las cuentas por contrato. Se vigilan por la mora.
-                    </p>
-                  </div>
-                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {tenantCardCharges.slice(0, 5).map(c => (
-                      <ChargeRowCompact key={c.id} charge={c} today={today}
-                                        subtitle={billSubtitle(c)}
-                                        actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagó'}
-                                        onAction={() => setPayFor(c)}
-                                        onEdit={() => setChargeForm(c)}
-                                        onUploadBill={c.is_estimate
-                                          ? () => setBillUploader(c.kind as UtilityKind)
-                                          : undefined} />
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Cargos automáticos que nadie revisó en la cartola */}
               {health.unconfirmed.length > 0 && (
@@ -610,22 +636,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                         </button>
                       </div>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Nada que mostrar arriba: confirmación explícita, no una
-                  columna vacía que parezca un error de carga. */}
-              {overdueBills.length === 0 && pending.length === 0 && bills.length === 0 && tenantCharges.length === 0 && (
-                <div className="card p-6 flex items-start gap-3">
-                  <CircleCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--mint)' }} />
-                  <div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Todo al día</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      {lease
-                        ? 'Genera los meses del contrato para ver los arriendos acá.'
-                        : 'Carga el contrato para empezar a seguir los arriendos.'}
-                    </p>
                   </div>
                 </div>
               )}
@@ -869,37 +879,52 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   )
 }
 
-// ── Bloque de alerta ────────────────────────────────────────────────────────
+// ── Chip de mes ─────────────────────────────────────────────────────────────
 
 /**
- * Tarjeta de stat de la banda superior.
+ * Chip de navegación de mes del Estado — inspirado en el MonthNav de
+ * análisis, pero con los últimos 4 meses fijos en vez de flechas
+ * adelante/atrás: acá lo que importa es comparar el mes en curso con los
+ * recién cerrados, no pasear por todo el historial.
  *
- * `accent` agrega la barra lateral de color: se reserva para la tarjeta que
- * pide acción (Por cobrar). Si todas la tuvieran, ninguna destacaría.
+ * El punto de color ya cuenta el estado del mes sin tener que entrar a
+ * mirarlo (mismos tres colores que ChargeRowCompact: mint = cerrado,
+ * gold = con pendientes por vencer, coral = con algo vencido).
  */
-function StatCard({ label, value, caption, tone, accent }: {
-  label: string
-  value: string
-  caption: string
-  tone?: string
-  accent?: boolean
+function MonthChip({ monthKey, selected, summary, onClick }: {
+  monthKey: string
+  selected: boolean
+  summary: MonthSummary
+  onClick: () => void
 }) {
+  const [, m] = monthKey.split('-').map(Number)
+  const dotColor =
+    summary.status === 'overdue' ? 'var(--coral)'
+      : summary.status === 'due'    ? 'var(--gold)'
+      : summary.status === 'closed' ? 'var(--mint)'
+      : 'var(--ink-3)' // upcoming
+  const caption =
+    summary.status === 'overdue' ? `${summary.overdueCount} ${summary.overdueCount === 1 ? 'vencida' : 'vencidas'}`
+      : summary.status === 'due'    ? `${summary.pendingCount} por pagar`
+      : summary.status === 'closed' ? 'cerrado'
+      : 'próximo'
+
   return (
-    <div
-      className="card p-4 lg:p-5 relative overflow-hidden"
-      style={accent && tone ? { borderLeft: `4px solid ${tone}` } : undefined}
+    <button
+      onClick={onClick}
+      className="flex-shrink-0 flex flex-col items-center gap-1 px-3.5 py-2.5 rounded-2xl border text-center min-w-[78px] transition-colors"
+      style={selected
+        ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)' }
+        : { background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
-      <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
-        {label}
-      </p>
-      <p
-        className="text-xl lg:text-2xl font-extrabold tabular-nums leading-none whitespace-nowrap"
-        style={{ color: tone ?? 'var(--ink)', fontFamily: 'Fredoka, sans-serif' }}
-      >
-        {value}
-      </p>
-      <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>{caption}</p>
-    </div>
+      <span className="flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dotColor }} />
+        <span className="text-xs font-bold capitalize" style={{ color: selected ? 'var(--primary)' : 'var(--ink)' }}>
+          {MONTH_NAMES[m - 1].slice(0, 3)}
+        </span>
+      </span>
+      <span className="text-[10px] whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>{caption}</span>
+    </button>
   )
 }
 

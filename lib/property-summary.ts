@@ -33,8 +33,64 @@ export interface PropertySummary {
 }
 
 /** ¿A qué mes pertenece esta fecha YYYY-MM-DD? Devuelve 'YYYY-MM'. */
-function monthOf(dateStr: string): string {
+export function monthOf(dateStr: string): string {
   return dateStr.slice(0, 7)
+}
+
+// ── Chips de mes de Estado (sep 2026, iteración inspirada en mockup de Cas) ──
+// "itera y aplica a toggle estado" — reemplaza la banda de 4 stats (Arriendo
+// mensual/Dividendo ya viven en la pestaña Información) por un navegador de
+// meses recientes + una sola lista unificada por mes, en vez de repartir
+// "Cuentas del mes"/"Del arrendatario"/"Cobros pendientes" en tarjetas
+// separadas que solo miraban el mes en curso.
+
+export type MonthStatus = 'closed' | 'due' | 'overdue' | 'upcoming'
+
+export interface MonthSummary {
+  key:          string   // 'YYYY-MM'
+  status:       MonthStatus
+  pendingCount: number
+  overdueCount: number
+}
+
+/**
+ * Estado de un mes puntual — para los chips de navegación.
+ *
+ * 'overdue' manda sobre todo lo demás: un mes con algo vencido no puede
+ * llamarse "cerrado" aunque sea de hace tres trimestres. 'closed' = no queda
+ * nada pendiente (incluye meses sin ningún cobro generado — no hay nada que
+ * deba preocupar). 'due' es un mes pasado o el actual con pendientes que
+ * todavía no vencen. 'upcoming' es un mes futuro (recordatorio estimado
+ * generado con anticipación, ver generateUtilityReminders).
+ */
+export function monthSummary(charges: SummaryCharge[], monthKey: string, todayStr: string): MonthSummary {
+  const inMonth = charges.filter(c => monthOf(c.due_date) === monthKey)
+  let pendingCount = 0
+  let overdueCount = 0
+  for (const c of inMonth) {
+    const status = chargeStatus(c, todayStr)
+    if (status === 'paid') continue
+    if (status === 'overdue' || status === 'partial') overdueCount++
+    else pendingCount++
+  }
+  const status: MonthStatus =
+    overdueCount > 0 ? 'overdue'
+      : pendingCount === 0 ? 'closed'
+      : monthKey <= monthOf(todayStr) ? 'due'
+      : 'upcoming'
+  return { key: monthKey, status, pendingCount, overdueCount }
+}
+
+/** Las últimas `count` claves de mes ('YYYY-MM'), terminando en el mes de hoy. */
+export function recentMonthKeys(todayStr: string, count: number): string[] {
+  const [y, m] = monthOf(todayStr).split('-').map(Number)
+  const keys: string[] = []
+  for (let i = count - 1; i >= 0; i--) {
+    let year = y, month = m - i
+    while (month < 1) { month += 12; year-- }
+    keys.push(`${year}-${String(month).padStart(2, '0')}`)
+  }
+  return keys
 }
 
 /**
