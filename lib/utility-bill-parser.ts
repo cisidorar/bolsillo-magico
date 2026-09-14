@@ -98,6 +98,20 @@ function firstMatch(text: string, patterns: RegExp[]): string | null {
 
 export function detectProvider(text: string): UtilityProvider {
   const t = text.toLowerCase()
+
+  // sep 2026 (Cas: "no detecta esto automaticamente como gasto comun" — subió
+  // su liquidación real y el parser la clasificó como boleta de AGUA):
+  // ComunidadFeliz va PRIMERO, antes que los checks de Aguas Andinas/Enel.
+  // Una liquidación de gastos comunes lista como egresos de la comunidad las
+  // cuentas de luz y agua del edificio — "Aguas Andinas" y "Enel" aparecen
+  // ahí como proveedores pagados, no como el emisor del documento. Si esos
+  // checks corrían primero, cualquier liquidación con esas cuentas en su
+  // desglose se clasificaba como boleta de agua o luz en vez de gastos
+  // comunes. Los marcadores de ComunidadFeliz (dominio de pago, frase
+  // "liquidación de gastos comunes") son estructurales — describen el TIPO
+  // de documento, no una mención dentro de una tabla — así que van primero.
+  if (/comunidadfeliz/.test(t) || /liquidaci[oó]n\s+de\s+gastos\s+comunes/.test(t)) return 'comunidad_feliz'
+
   // Una boleta real de Aguas Andinas puede no decir "Aguas Andinas" en
   // ninguna parte del texto extraído: el PDF muestra la razón social del
   // cliente (ej. una inmobiliaria), no la del emisor. El RUT de la empresa
@@ -106,7 +120,6 @@ export function detectProvider(text: string): UtilityProvider {
     return 'aguas_andinas'
   }
   if (/\benel\b/.test(t)) return 'enel'
-  if (/comunidadfeliz/.test(t) || /liquidaci[oó]n\s+de\s+gastos\s+comunes/.test(t)) return 'comunidad_feliz'
   return 'unknown'
 }
 
@@ -149,15 +162,23 @@ export function parseUtilityBill(text: string): ParsedUtilityBill {
   // es el más confiable — aparece en todas, no solo en algunas.
   // Aguas Andinas identifica la cuenta como "Nro de cuenta" (con "r"), no
   // "N° de cliente" — un prefijo distinto al de las otras variantes de abajo.
-  const clientNumber = firstMatch(text, [
-    /\bPAT\s+([\d.]+-[\dkK])/i,
-    /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*([\d.]+-[\dkK])/i,
-    /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
-    /(?:n[°º.]?|nro)\.?\s*(?:de\s+)?cuenta[:\s]*([\d.]+-[\dkK])/i,
-    /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
-    // ComunidadFeliz identifica la propiedad como "Unidad", no cliente/cuenta.
-    /\bunidad\s*[:\s]*(\d+)/i,
-  ]) ?? resumenBlock?.[3] ?? null
+  //
+  // sep 2026 — bug real (Cas, misma liquidación que hizo saltar el orden de
+  // detectProvider): estos patrones genéricos de "N° cliente/cuenta/servicio"
+  // también matcheaban DENTRO de una liquidación de gastos comunes, porque su
+  // desglose de egresos lista las cuentas de luz/agua del EDIFICIO con su
+  // propio número de cliente ("100.0% Aguas Andinas ... n° cliente
+  // 2502864-3"). Para gastos_comunes el identificador correcto es "Unidad",
+  // así que ese kind usa SOLO ese patrón — nunca cae a los genéricos de abajo.
+  const clientNumber = kind === 'gastos_comunes'
+    ? firstMatch(text, [/\bunidad\s*[:\s]*(\d+)/i])
+    : firstMatch(text, [
+        /\bPAT\s+([\d.]+-[\dkK])/i,
+        /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*([\d.]+-[\dkK])/i,
+        /n[°ºo.]?\s*(?:de\s+)?cliente[:\s]*(\d{5,})/i,
+        /(?:n[°º.]?|nro)\.?\s*(?:de\s+)?cuenta[:\s]*([\d.]+-[\dkK])/i,
+        /n[°ºo.]?\s*(?:de\s+)?servicio[:\s]*([\d.]+-[\dkK])/i,
+      ]) ?? resumenBlock?.[3] ?? null
 
   const totalRaw = firstMatch(text, [
     /total\s+a\s+pagar[:\s$]*([\d.,]+)/i,

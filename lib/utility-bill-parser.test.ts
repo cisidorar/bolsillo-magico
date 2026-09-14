@@ -237,18 +237,26 @@ describe('parseUtilityBill — Aguas Andinas (formato real, no sintético)', () 
   })
 })
 
-describe('parseUtilityBill — ComunidadFeliz (gastos comunes)', () => {
-  // Extracto real de una liquidación de gastos comunes (sep 2026, Cas: "ayuda
-  // agregando posibilidad de gastos comunes a la propiedad") — a diferencia de
-  // Enel/Aguas Andinas, acá "Total a pagar" aparece dos veces: primero el
-  // monto PERSONAL de la unidad (Detalle de su gasto común) y más abajo el
-  // total de EGRESOS de toda la comunidad ($24.583.690) — el parser debe
-  // quedarse con el primero, no con el agregado del edificio entero.
+describe('parseUtilityBill — ComunidadFeliz (formato real, no sintético)', () => {
+  // Extracto real (unpdf, el mismo extractor de producción) de la liquidación
+  // que Cas subió y reportó como no detectada ("no detecta esto
+  // automaticamente como gasto comun", sep 2026). Una primera vuelta de
+  // pruebas usó solo el resumen personal recortado a mano y sí pasaba — el
+  // bug real necesita el documento completo: el desglose de "Servicios
+  // Básicos" de la comunidad lista las cuentas de luz y agua del EDIFICIO
+  // ("Aguas Andinas", "Enel", cada una con su propio "n° cliente"), y
+  // "Medidores" repite otro "n° cliente" de Aguas Andinas para el agua
+  // caliente prorrateada. Con detectProvider revisando Aguas Andinas/Enel
+  // ANTES que ComunidadFeliz, y clientNumber probando "n° cliente" antes que
+  // "Unidad", el documento se clasificaba como boleta de AGUA con el número
+  // de cuenta equivocado — mismo tipo de bug que ya atrapó BOLETA_AGUAS_REAL
+  // más arriba (un extracto recortado a mano no lo detecta).
   const LIQUIDACION_GASTOS_COMUNES = `
     LIQUIDACIÓN DE GASTOS COMUNES
     Edificio Santa Victoria 562
     Santa Victoria 562, Santiago, Chile
     RUT: 65.110.778-4
+    ¡Paga tus gastos comunes aquí!
     Paga fácil desde aquí:
     app.comunidadfeliz.com/pago_facil
     Unidad : 921
@@ -267,18 +275,33 @@ describe('parseUtilityBill — ComunidadFeliz (gastos comunes)', () => {
     Fondo Reserva (5.0%) agosto $ 3.442
     Agua Caliente $ 15.001
     Seguro individual Incendio $ 3.796
-    Total a pagar $ 91.073
+    AGT Administraciones
+    pagossantavictoria562@gmail.com Total a pagar $ 91.073
+    Observaciones de la administración
     Egresos gasto común de la comunidad $ 24.583.690
+    Concepto Descripción N° Doc Fecha Monto a pagar Monto total
+    Servicios Básicos $ 31.864 $ 11.379.983
+    2 Aguas Andinas Aguas andinas 2502861-9
+    Piscina 321674861 22-09-2026 $ 8 $ 2.714
+    8 75.0% De Metrogas Metrogas n° cliente 901240757 65319743 18-09-2026 $ 23.297 $ 8.320.528
+    10 Enel Servicio de electricidad 374920330 09-09-2026 $ 8.221 $ 2.936.099
     Total $ 24.583.690
+    Medidores
+    Agua Caliente $ 3.891.905
+    Egresos Nombre Servicio N° Total
+    25.0% Metrogas Metrogas n° cliente 901240757 65319743 $ 2.773.509
+    100.0% Aguas Andinas Aguas andinas n° cliente 2502864-3 321674880 $ 1.118.396
+    Consumo de la comunidad Precio por m3 Costo total
+    492.421 m3 $ 7.903,61 $ 3.891.905
   `
 
-  it('reconoce ComunidadFeliz por el dominio de pago y marca kind=gastos_comunes', () => {
+  it('reconoce ComunidadFeliz aunque el desglose mencione Aguas Andinas y Enel como proveedores pagados por la comunidad', () => {
     const r = parseUtilityBill(LIQUIDACION_GASTOS_COMUNES)
     expect(r.provider).toBe('comunidad_feliz')
     expect(r.kind).toBe('gastos_comunes')
   })
 
-  it('saca el N° de unidad como clientNumber', () => {
+  it('saca el N° de UNIDAD (921), no el n° de cliente de Aguas Andinas que aparece después en Medidores (2502864-3)', () => {
     expect(parseUtilityBill(LIQUIDACION_GASTOS_COMUNES).clientNumber).toBe('921')
   })
 
