@@ -159,14 +159,20 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
 
               <div className="mb-3">
                 <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Servicio</label>
+                {/* Icono arriba, texto abajo — no en fila: "Gastos comunes" es
+                    el único de los tres con dos palabras, y en fila el label
+                    envolvía a dos líneas empujando el ícono contra el borde
+                    redondeado (se veía cortado). Apilado, el wrap no choca con
+                    nada: el botón simplemente crece parejo con los otros dos. */}
                 <div className="flex gap-2">
                   {([['electricity', 'Luz', Zap], ['water', 'Agua', Droplet], ['gastos_comunes', 'Gastos comunes', Building2]] as const).map(([k, label, Icon]) => (
                     <button key={k} type="button" onClick={() => setKind(k)}
-                      className="flex-1 py-2 rounded-xl text-sm font-semibold border flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2.5 px-1.5 rounded-xl text-xs font-semibold border flex flex-col items-center justify-center gap-1 text-center leading-tight"
                       style={kind === k ? {
                         background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)',
                       } : { background: 'var(--surface)', color: 'var(--ink-2)', borderColor: 'var(--border)' }}>
-                      <Icon className="w-4 h-4" /> {label}
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span>{label}</span>
                     </button>
                   ))}
                 </div>
