@@ -76,6 +76,25 @@ describe('monthSummary', () => {
     expect(r.pendingCount).toBe(1)
   })
 
+  it('separa los montos: lo vencido no se mezcla con lo que aún no vence', () => {
+    const charges = [
+      charge({ due_date: '2026-09-05', amount: 1000, penalty: 200 }), // vencido, con recargo
+      charge({ due_date: '2026-09-25', amount: 2000 }),               // pendiente
+      charge({ due_date: '2026-09-08', amount: 9999, paid_date: '2026-09-08', paid_amount: 9999 }),
+    ]
+    const r = monthSummary(charges, '2026-09', today)
+    // El vencido suma su recargo (chargeOutstanding), el pagado no suma en ninguno.
+    expect(r.overdueTotal).toBe(1200)
+    expect(r.pendingTotal).toBe(2000)
+  })
+
+  it('un mes cerrado no arrastra montos', () => {
+    const charges = [charge({ due_date: '2026-08-05', amount: 100, paid_date: '2026-08-05', paid_amount: 100 })]
+    const r = monthSummary(charges, '2026-08', today)
+    expect(r.pendingTotal).toBe(0)
+    expect(r.overdueTotal).toBe(0)
+  })
+
   it('un mes futuro con un recordatorio estimado pendiente queda "upcoming", no "due"', () => {
     const charges = [charge({ due_date: '2026-10-21', amount: 13595 })]
     const r = monthSummary(charges, '2026-10', today)

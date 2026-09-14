@@ -51,6 +51,10 @@ export interface MonthSummary {
   status:       MonthStatus
   pendingCount: number
   overdueCount: number
+  /** Lo que falta pagar de ese mes y todavía no vence. */
+  pendingTotal: number
+  /** Lo que ya venció y sigue impago (o abonado a medias). */
+  overdueTotal: number
 }
 
 /**
@@ -67,18 +71,25 @@ export function monthSummary(charges: SummaryCharge[], monthKey: string, todaySt
   const inMonth = charges.filter(c => monthOf(c.due_date) === monthKey)
   let pendingCount = 0
   let overdueCount = 0
+  let pendingTotal = 0
+  let overdueTotal = 0
   for (const c of inMonth) {
     const status = chargeStatus(c, todayStr)
     if (status === 'paid') continue
-    if (status === 'overdue' || status === 'partial') overdueCount++
-    else pendingCount++
+    if (status === 'overdue' || status === 'partial') {
+      overdueCount++
+      overdueTotal += chargeOutstanding(c)
+    } else {
+      pendingCount++
+      pendingTotal += chargeOutstanding(c)
+    }
   }
   const status: MonthStatus =
     overdueCount > 0 ? 'overdue'
       : pendingCount === 0 ? 'closed'
       : monthKey <= monthOf(todayStr) ? 'due'
       : 'upcoming'
-  return { key: monthKey, status, pendingCount, overdueCount }
+  return { key: monthKey, status, pendingCount, overdueCount, pendingTotal, overdueTotal }
 }
 
 /** Las últimas `count` claves de mes ('YYYY-MM'), terminando en el mes de hoy. */
