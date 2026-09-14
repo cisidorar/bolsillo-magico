@@ -580,7 +580,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                         key={c.id} charge={c} today={today}
                         subtitle={billSubtitle(c) ?? `venció ${fmtDate(c.due_date)} · ${relativeDue(c.due_date, today)}`}
                         actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagué'} onAction={() => setPayFor(c)}
-                        onEdit={() => setChargeForm(c)}
+                        onOpen={() => setDetailCharge(c)}
                       />
                     ))}
                   </div>
@@ -629,7 +629,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                             subtitle={billSubtitle(c)}
                             actionLabel={c.direction === 'in' ? 'Cobré' : c.responsible === 'tenant' ? 'Pagó' : 'Pagué'}
                             onAction={() => setPayFor(c)}
-                            onEdit={() => setChargeForm(c)}
+                            onOpen={() => setDetailCharge(c)}
                             onUploadBill={c.is_estimate
                               ? () => setBillUploader(c.kind as UtilityKind)
                               : undefined}
@@ -653,7 +653,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                             <ChargeRowCompact
                               key={c.id} charge={c} today={today}
                               subtitle={billSubtitle(c)}
-                              onEdit={() => setChargeForm(c)}
+                              onOpen={() => setDetailCharge(c)}
                             />
                           ))}
                         </div>
@@ -1021,19 +1021,21 @@ function billSubtitle(c: Charge): string | undefined {
  */
 /**
  * Fila compacta con el total como protagonista, pero clickeable: tocarla
- * abre el mismo formulario de edición que "Agregar cobro", donde vive el
- * desglose completo (base, interés penal, reajuste IPC, N° de giro). Cuando
- * hay recargo, además se ve un renglón chico con el desglose sin necesidad
- * de tocar nada — la fila sola con un total mayor a la base no explicaba de
- * dónde salía la diferencia.
+ * abre el mismo detalle-tarjeta que la pestaña Cobros (ChargeDetailSheet, ver
+ * onOpen más abajo) — no el formulario de edición directo. El detalle muestra
+ * el desglose completo (base, interés penal, reajuste IPC, N° de giro) de
+ * forma legible, con un botón "Editar" propio para quien sí quiere cambiar
+ * algo (sep 2026, Cas: "quiero que cuando toque el gasto se despliegue una
+ * visualización con tarjeta y botón de editar" — antes tocar la fila saltaba
+ * directo al formulario, sin mostrar antes el detalle).
  */
-function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEdit, onUploadBill }: {
+function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onOpen, onUploadBill }: {
   charge: Charge
   today: string
   subtitle?: string
   actionLabel?: string
   onAction?: () => void
-  onEdit?: () => void
+  onOpen?: () => void
   /** Fila estimada (is_estimate): la acción es subir la boleta real, no marcar pagado con el monto calculado. */
   onUploadBill?: () => void
 }) {
@@ -1044,8 +1046,8 @@ function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onEd
 
   return (
     <div
-      onClick={onEdit}
-      className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 -mx-1 px-1 rounded-lg ${onEdit ? 'cursor-pointer hover:brightness-125 transition-[filter]' : ''}`}
+      onClick={onOpen}
+      className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 -mx-1 px-1 rounded-lg ${onOpen ? 'cursor-pointer hover:brightness-125 transition-[filter]' : ''}`}
     >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
