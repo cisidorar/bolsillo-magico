@@ -45,6 +45,11 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
   const [due, setDue]       = useState('')
   const [cons, setCons]     = useState('')
   const [ref, setRef]       = useState('')
+  // Luz y agua siempre llegan a nombre del arrendatario (client ID propio con
+  // la distribuidora) — no se pregunta. Gastos comunes es distinto: la
+  // liquidación llega a nombre de la PROPIETARIA, y el contrato puede pasarlo
+  // o no al arrendatario, así que acá sí queda editable (ver selector abajo).
+  const [responsible, setResponsible] = useState<'owner' | 'tenant'>('tenant')
 
   const backdrop = useBackdropClose(onClose)
 
@@ -77,6 +82,8 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
       consumption: cons ? Number(cons) : null,
       externalRef: ref || null,
       notes: null,
+      // Luz/agua: siempre a nombre del arrendatario, el selector no aplica.
+      responsible: kind === 'gastos_comunes' ? responsible : 'tenant',
     }, fd)
     setBusy(false)
     if (!res.ok) { setError(res.error); return }
@@ -189,11 +196,25 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
                   luz/agua, así que acá el N° de boleta/unidad ocupa el ancho
                   completo en vez de compartir fila con un campo que no aplica. */}
               {kind === 'gastos_comunes' ? (
-                <div className="mb-3">
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>N° unidad / boleta</label>
-                  <input className={inputCls} style={inputStyle} value={ref}
-                         onChange={e => setRef(e.target.value)} placeholder="opcional" />
-                </div>
+                <>
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>N° unidad / boleta</label>
+                    <input className={inputCls} style={inputStyle} value={ref}
+                           onChange={e => setRef(e.target.value)} placeholder="opcional" />
+                  </div>
+                  {/* La liquidación llega a nombre de la propietaria, no del
+                      arrendatario — a diferencia de luz/agua, acá sí hay que
+                      preguntar quién la paga (hay contratos donde la asume
+                      cada uno). */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Quién la paga</label>
+                    <select className={inputCls} style={inputStyle} value={responsible}
+                            onChange={e => setResponsible(e.target.value as 'owner' | 'tenant')}>
+                      <option value="owner">Yo</option>
+                      <option value="tenant">El arrendatario</option>
+                    </select>
+                  </div>
+                </>
               ) : (
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
@@ -226,7 +247,9 @@ export default function UtilityBillUploader({ propertyId, priorConsumption, init
               )}
 
               <p className="text-xs mb-4" style={{ color: 'var(--ink-3)' }}>
-                Se registra a nombre del arrendatario — no suma a tu deuda.
+                {kind !== 'gastos_comunes' || responsible === 'tenant'
+                  ? 'Se registra a nombre del arrendatario — no suma a tu deuda.'
+                  : 'Se registra a tu nombre — suma a tu deuda como propietaria.'}
               </p>
 
               {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}

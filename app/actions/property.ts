@@ -577,7 +577,7 @@ export async function generateUtilityReminders(
     // la fecha desde la que se cuenta el próximo mes.
     const { data: last } = await supabase
       .from('property_charges')
-      .select('due_date, amount, is_estimate')
+      .select('due_date, amount, is_estimate, responsible')
       .eq('user_id', user.id).eq('property_id', propertyId).eq('kind', kind)
       .order('due_date', { ascending: false })
       .limit(1)
@@ -596,7 +596,11 @@ export async function generateUtilityReminders(
       kind, direction: 'out' as const,
       due_date: dueDate,
       amount: last.amount,
-      responsible: 'tenant' as const,
+      // Hereda de la última boleta real, no un fijo 'tenant': para gastos
+      // comunes quién paga se elige al subir la boleta (ver saveUtilityBill),
+      // así que el siguiente recordatorio estimado debe seguir esa misma
+      // elección en vez de revertir a un supuesto que puede estar equivocado.
+      responsible: (last.responsible === 'owner' ? 'owner' as const : 'tenant' as const),
       is_estimate: true,
       external_ref: ref,
       period_year: year, period_month: month,
@@ -631,15 +635,29 @@ export interface SaveUtilityBillInput {
   consumption: number | null
   externalRef: string | null
   notes:       string | null
+  /**
+   * Quién paga esta boleta. Luz y agua siempre llegan a nombre del
+   * arrendatario (client ID propio con la distribuidora) — no se pregunta.
+   * Gastos comunes es distinto: la liquidación llega a nombre del
+   * PROPIETARIO (ver "Unidad 921" en la boleta real de Cas, no un nombre de
+   * arrendatario), y ChargeForm ya reconocía esto ("hay contratos donde los
+   * gastos comunes los asume el propietario") sin que este flujo lo
+   * respetara — quedaba fijo en 'tenant' sin poder corregirlo. Ver el
+   * selector condicional en UtilityBillUploader.
+   */
+  responsible: 'owner' | 'tenant'
 }
 
 /**
  * Paso 2: guarda el cobro ya confirmado y archiva el PDF original.
  *
- * `responsible: 'tenant'` por contrato — estas boletas las paga Bruno, así que
- * no suman a la deuda de Cas. Aparecen igual porque su mora es causal de
- * término, y porque un salto de consumo en un depto donde no vives suele ser
- * una filtración: la cañería sí es plata suya.
+ * `responsible` ya no se asume fijo (ver comentario en SaveUtilityBillInput):
+ * para luz/agua sigue siendo 'tenant' porque la boleta llega a su nombre —
+ * no suma a la deuda de Cas, pero aparece igual porque su mora es causal de
+ * término, y un salto de consumo en un depto donde no vives suele ser una
+ * filtración (la cañería sí es plata suya). Gastos comunes ahora se decide
+ * en el momento de subir la boleta, porque la liquidación llega a nombre de
+ * la propietaria, no del arrendatario.
  *
  * Si el PDF no se puede subir, el cobro se guarda igual. Perder el archivo es
  * molesto; perder el registro del cobro es peor.
@@ -692,7 +710,7 @@ export async function saveUtilityBill(
     direction:     'out' as const,
     due_date:      input.dueDate,
     amount:        Math.round(input.amount),
-    responsible:   'tenant' as const,
+    responsible:   input.responsible,
     is_estimate:   false,
     external_ref:  billChargeRef(input.kind, year, month),
     document_path: documentPath,
