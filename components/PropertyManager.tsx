@@ -450,46 +450,63 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     <>
       {view === 'estado' ? (
         <div className="space-y-5">
-          {/* ── Resumen (sep 2026, mockup de Cas) ────────────────────────
+          {/* ── Resumen + subir boleta (sep 2026, mockup de Cas) ──────────
               UX5: coral es el ÚNICO banner posible acá y solo aparece si hay
               algo vencido (sin importar el mes) — es la única urgencia real
               de "algo que tú debes/te deben". Sin nada vencido pero con algo
               por pagar este mes, baja a un chip gold inline (nunca una caja
               con borde del tamaño de un banner). Sin nada de lo anterior,
-              confirmación mint. */}
-          {atrasadoCount > 0 ? (
-            <div
-              className="flex items-start gap-3 px-4 py-3 rounded-2xl"
-              style={{
-                background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))',
-                border: '1.5px solid color-mix(in srgb, var(--coral) 30%, var(--border))',
-              }}
-            >
-              <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-              <div className="min-w-0">
-                <p className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
-                  {atrasadoCount} {atrasadoCount === 1 ? 'cuenta vencida' : 'cuentas vencidas'}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                  {formatCLP(atrasadoTotal)} · {monthsCaption(atrasadoMonths)} — de cualquier mes, no solo del que estés mirando
-                </p>
-              </div>
+              confirmación mint.
+              El botón de subir vive en la misma fila, a la derecha — mismo
+              trato que "Agregar" en Watchlist (azul, con sombra): antes había
+              que cambiarse a Cobros para subir una boleta; ahora la acción
+              más común de Estado queda a un toque, en la primera vista. */}
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="flex-1 min-w-[220px]">
+              {atrasadoCount > 0 ? (
+                <div
+                  className="flex items-start gap-3 px-4 py-3 rounded-2xl"
+                  style={{
+                    background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))',
+                    border: '1.5px solid color-mix(in srgb, var(--coral) 30%, var(--border))',
+                  }}
+                >
+                  <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
+                      {atrasadoCount} {atrasadoCount === 1 ? 'cuenta vencida' : 'cuentas vencidas'}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                      {formatCLP(atrasadoTotal)} · {monthsCaption(atrasadoMonths)} — de cualquier mes, no solo del que estés mirando
+                    </p>
+                  </div>
+                </div>
+              ) : monthTodo.length > 0 ? (
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+                  style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold)' }}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Faltan {monthTodo.length} {monthTodo.length === 1 ? 'cuenta' : 'cuentas'} por pagar
+                  {selectedMonth === monthOf(today) ? ' este mes' : ` en ${monthLabelFor(selectedMonth)}`}
+                </span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <CircleCheck className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+                  <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Todo al día</span>
+                </div>
+              )}
             </div>
-          ) : monthTodo.length > 0 ? (
-            <span
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold)' }}
+
+            <button
+              onClick={() => setBillUploader('electricity')}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
             >
-              <AlertTriangle className="w-3 h-3" />
-              Faltan {monthTodo.length} {monthTodo.length === 1 ? 'cuenta' : 'cuentas'} por pagar
-              {selectedMonth === monthOf(today) ? ' este mes' : ` en ${monthLabelFor(selectedMonth)}`}
-            </span>
-          ) : (
-            <div className="flex items-center gap-2">
-              <CircleCheck className="w-4 h-4" style={{ color: 'var(--mint)' }} />
-              <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Todo al día</span>
-            </div>
-          )}
+              <Upload className="w-4 h-4" strokeWidth={2.5} />
+              Subir boleta
+            </button>
+          </div>
 
           {/* Las dos preguntas del Estado, una por tarjeta: "¿qué me falta
               este mes?" y "¿quedó algo atrasado de antes?". La segunda nombra
