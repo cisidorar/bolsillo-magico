@@ -937,7 +937,15 @@ export default function Radar({
           colapsable de 380px (pensado para la columna sticky que ya no
           existe) por dos cards a lo ancho de la página. */}
       {positions.length > 0 && (
-        <div className="flex flex-col lg:flex-row gap-4 mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-4 mb-4">
+          {/* sep 2026 (Cas: "sube todo un poco mas queda mucho espacio"): sin
+              lg:items-start, el flex-row por defecto estira ambas cards a la
+              misma altura (items-stretch) — al sacar la fila "vs SPY" de
+              Rendimiento (ver más abajo) esa card quedó con menos contenido
+              que el hero azul, y el estiramiento dejaba un bloque de fondo
+              vacío debajo de "Mejor"/"Menor pérdida". lg:items-start deja que
+              cada card mida su propio contenido en vez de igualar la del
+              hero. */}
           {/* ago 2026 (bug reportado por Cas, mobile: la tarjeta se veía como
               dos líneas finas sin contenido): flex-basis 0 + overflow-hidden
               en un flex-col sin alto fijo colapsa el alto del item a 0 (el
