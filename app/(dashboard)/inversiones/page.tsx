@@ -79,9 +79,13 @@ export interface TermDeposit {
   start_date:    string
   maturity_date: string
   /** Renovable (se reinvierte solo al vencer) vs. fijo (se corta al vencer). Ago 2026. */
-  renewable:     boolean
-  notes:         string | null
-  created_at:    string
+  renewable:       boolean
+  notes:           string | null
+  created_at:      string
+  /** Ciclo del que viene esta renovación — null si es el primer ciclo. Sep
+   *  2026: encadena renovaciones para no mostrar un ciclo ya renovado como
+   *  "Vencido" suelto y poder armar el historial en el detalle. */
+  renewed_from_id: string | null
 }
 
 export interface SavingsAccount {

@@ -129,8 +129,31 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const today    = todayStr()
+  // sep 2026 (Cas: "me gustaria que... no salga en vencidos" — un ciclo ya
+  // renovado se seguía mostrando en Vencidos para siempre, como si fuera
+  // plata parada sin reinvertir, cuando en realidad ya sigue viva en el ciclo
+  // nuevo). Un depósito vencido que otro ciclo señala como su renewed_from_id
+  // ya fue renovado — no es un vencido "de verdad", es historia.
+  const supersededIds = new Set(
+    deposits.map(d => d.renewed_from_id).filter((id): id is string => !!id),
+  )
   const active   = deposits.filter(d => daysToMaturity(d, today) >= 0)
-  const matured  = deposits.filter(d => daysToMaturity(d, today) < 0)
+  const matured  = deposits.filter(d => daysToMaturity(d, today) < 0 && !supersededIds.has(d.id))
+
+  // Cadena de ciclos anteriores de un depósito (más reciente primero), para
+  // el historial en el detalle — se arma acá y no con una query aparte porque
+  // `deposits` ya tiene todos los ciclos del usuario en memoria.
+  function renewalHistory(d: TermDeposit): TermDeposit[] {
+    const history: TermDeposit[] = []
+    let current = d
+    while (current.renewed_from_id) {
+      const prev = deposits.find(x => x.id === current.renewed_from_id)
+      if (!prev) break
+      history.push(prev)
+      current = prev
+    }
+    return history
+  }
 
   const totalInvested = active.reduce((s, d) => s + d.amount, 0)
   const totalAtEnd    = active.reduce((s, d) => s + d.amount + totalInterest(d), 0)
@@ -247,14 +270,18 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
     setRenewSaving(true); setRenewError('')
     const payload = {
-      user_id:       userId,
-      bank:          d.bank,
-      amount:        newAmount,
-      interest_rate: rate,
-      start_date:    newStartDate,
-      maturity_date: newMaturityDate,
-      renewable:     d.renewable ?? false,
-      notes:         d.notes ?? null,
+      user_id:         userId,
+      bank:            d.bank,
+      amount:          newAmount,
+      interest_rate:   rate,
+      start_date:      newStartDate,
+      maturity_date:   newMaturityDate,
+      renewable:       d.renewable ?? false,
+      notes:           d.notes ?? null,
+      // Encadena este ciclo nuevo con el que lo originó — así el ciclo viejo
+      // deja de contar como "Vencido" (ver supersededIds) y el detalle puede
+      // armar el historial hacia atrás.
+      renewed_from_id: d.id,
     }
     const { data, error } = await supabase.from('term_deposits').insert(payload).select().single()
     setRenewSaving(false)
@@ -690,6 +717,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
         const pct       = progressPct(d, today)
         const days      = daysToMaturity(d, today)
         const daysIdle  = isMatured ? -days : 0
+        const history   = renewalHistory(d)
 
         return (
           <div
@@ -794,6 +822,36 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     {d.notes || 'Sin nota — agrégala al editar.'}
                   </p>
                 </div>
+
+                {/* Historial de renovaciones (pedido de Cas, sep 2026): ciclos
+                    anteriores de este mismo depósito renovable, encadenados
+                    por renewed_from_id — antes cada ciclo vencido quedaba
+                    suelto en "Vencidos" sin ningún rastro de que ya se había
+                    renovado. */}
+                {history.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      Historial de renovaciones
+                    </p>
+                    <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                      {history.map(h => (
+                        <div key={h.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                              {fmtDateShort(h.start_date)} – {fmtDateShort(h.maturity_date)}
+                            </p>
+                            <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                              {fmtPct(h.interest_rate)} período · {formatCLP(h.amount)}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--mint)' }}>
+                            +{formatCLP(totalInterest(h))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border-t px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
