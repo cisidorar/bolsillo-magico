@@ -756,10 +756,30 @@ export async function GET(request: Request) {
     // solo ticker que revienta (no solo "sin datos", sino una excepción real)
     // ya no puede tumbar la sincronización de los demás ni cortar el paso de
     // daily_signals más abajo.
-    const settled = await Promise.allSettled(tickers.map(t => syncTicker(supabase, t)))
-    const results = settled.map((r, i) => r.status === 'fulfilled'
-      ? r.value
-      : { ticker: tickers[i], inserted: 0, source: null, reasons: [`excepción: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] })
+    //
+    // Paralelo NO alcanza solo: acota el tiempo al ticker MÁS LENTO, pero ese
+    // ticker más lento puede solo, él solito, agotar más de medio maxDuration
+    // (4 proveedores en cascada × 7s de TIMEOUT, y yahoo prueba 2 URLs — hasta
+    // ~35s para UN ticker sin datos en ningún proveedor). Bug real (sep 2026,
+    // Cas: "sabes por que no llego correo de acciones de inversiones hoy?"):
+    // el cron murió por el límite duro de 60s de Vercel DENTRO de este paso,
+    // antes de llegar a invokeEdgeFunction más abajo — sin eso, el correo
+    // nunca se manda, y como el kill es a nivel de plataforma (no una
+    // excepción de JS), ni el try/catch de arriba lo ve para loguearlo.
+    // SYNC_BUDGET_MS deja el resto del presupuesto (señales + trailing stops +
+    // los dos correos) protegido: si algún ticker no llega a tiempo, esta
+    // corrida sigue sin él — se pone al día solo mañana — en vez de arriesgar
+    // el cron completo por un solo proveedor lento.
+    const SYNC_BUDGET_MS = 35_000
+    const settled = await Promise.race([
+      Promise.allSettled(tickers.map(t => syncTicker(supabase, t))),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), SYNC_BUDGET_MS)),
+    ])
+    const results = settled === null
+      ? tickers.map(ticker => ({ ticker, inserted: 0, source: null, reasons: ['presupuesto de sincronización agotado (35s) — se reintenta mañana'] }))
+      : settled.map((r, i) => r.status === 'fulfilled'
+        ? r.value
+        : { ticker: tickers[i], inserted: 0, source: null, reasons: [`excepción: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] })
 
     const ok     = results.filter(r => r.source !== null).length
     const failed = results.filter(r => r.source === null)
