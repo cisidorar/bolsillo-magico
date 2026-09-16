@@ -447,31 +447,40 @@ async function computeDailySignals(supabase: SupabaseClient) {
     hit_rate_20: number | null; avg_return_20: number | null; avg_return_60: number | null
   }[] = []
 
-  for (const ticker of tickers) {
+  // sep 2026 (Cas: "es posible correr el análisis?" — daily_signals llevaba 2
+  // días sin actualizarse): este loop era secuencial — un `await readCandles`
+  // (ida y vuelta a Supabase) por ticker, uno detrás de otro. Con ~24 tickers
+  // en watchlist, esa latencia de red sumada sola ya se comía una parte
+  // importante del presupuesto que SYNC_BUDGET_MS (más arriba) dejaba
+  // reservado para este paso — confirmado con un FUNCTION_INVOCATION_TIMEOUT
+  // real en producción incluso DESPUÉS de acotar el paso de sincronización.
+  // readCandles es I/O (red), no CPU — corre en paralelo igual que el paso de
+  // sync de tickers, en vez de pagar esa latencia 24 veces seguidas.
+  const perTicker = await Promise.all(tickers.map(async (ticker) => {
     try {
       const candles = await readCandles(supabase, ticker)
-      if (candles.closes.length < 30) continue   // sin historia suficiente, no se puede opinar
+      if (candles.closes.length < 30) return null   // sin historia suficiente, no se puede opinar
       const analysis = analyze(candles)
-      analysesByTicker.set(ticker, analysis)
       const closes = candles.closes
       const changePct = closes.length >= 2
         ? Math.round(((closes[closes.length - 1] - closes[closes.length - 2]) / closes[closes.length - 2]) * 1000) / 10
         : 0
-      changePctByTicker.set(ticker, changePct)
 
       // Track record: solo tiene sentido con suficiente historia para el
       // backtest (MIN_HISTORY de lib/signal-backtest.ts, ~260 ruedas) — con
       // menos, backtestSignals() ya devuelve stats vacíos, así que se salta
       // el cómputo (CPU) directamente en vez de gastarlo para nada.
+      let stats: LabelStat[] | null = null
+      const statRowsForTicker: typeof statRows = []
       if (candles.closes.length >= 260) {
         try {
-          const { stats } = backtestSignals(candles)
-          if (stats.length > 0) {
-            statsByTicker.set(ticker, stats)
-            for (const s of stats) {
-              statRows.push({
-                ticker, label: s.label, count: s.count,
-                hit_rate_20: s.hitRate20, avg_return_20: s.avgReturn20, avg_return_60: s.avgReturn60,
+          const { stats: s } = backtestSignals(candles)
+          if (s.length > 0) {
+            stats = s
+            for (const row of s) {
+              statRowsForTicker.push({
+                ticker, label: row.label, count: row.count,
+                hit_rate_20: row.hitRate20, avg_return_20: row.avgReturn20, avg_return_60: row.avgReturn60,
               })
             }
           }
@@ -479,8 +488,20 @@ async function computeDailySignals(supabase: SupabaseClient) {
           console.error(`[sync-prices] backtestSignals() falló para ${ticker}:`, err)
         }
       }
+      return { ticker, analysis, changePct, stats, statRowsForTicker }
     } catch (err) {
       console.error(`[sync-prices] analyze() falló para ${ticker}:`, err)
+      return null
+    }
+  }))
+
+  for (const r of perTicker) {
+    if (!r) continue
+    analysesByTicker.set(r.ticker, r.analysis)
+    changePctByTicker.set(r.ticker, r.changePct)
+    if (r.stats) {
+      statsByTicker.set(r.ticker, r.stats)
+      statRows.push(...r.statRowsForTicker)
     }
   }
 
@@ -770,7 +791,14 @@ export async function GET(request: Request) {
     // los dos correos) protegido: si algún ticker no llega a tiempo, esta
     // corrida sigue sin él — se pone al día solo mañana — en vez de arriesgar
     // el cron completo por un solo proveedor lento.
-    const SYNC_BUDGET_MS = 35_000
+    //
+    // 30s y no 35s (sep 2026, ajustado tras un FUNCTION_INVOCATION_TIMEOUT
+    // real con 35s): el resto del pipeline (señales, snapshot de cartera,
+    // trailing stops, los dos correos) recién quedó liviano después de
+    // paralelizar el loop de computeDailySignals más abajo — antes de eso
+    // ese resto solo podía costar unos segundos y aun así el cron se pasó de
+    // los 60s. Más margen acá es más colchón para ese resto.
+    const SYNC_BUDGET_MS = 30_000
     const settled = await Promise.race([
       Promise.allSettled(tickers.map(t => syncTicker(supabase, t))),
       new Promise<null>(resolve => setTimeout(() => resolve(null), SYNC_BUDGET_MS)),
