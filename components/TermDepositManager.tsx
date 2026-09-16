@@ -470,6 +470,16 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     style={inputBase}
                     onFocus={focusOn} onBlur={focusOff}
                   />
+                  {/* sep 2026 (Cas: comprobante de Banco de Chile cargado con
+                      0,34% "tasa base mensual" en vez de 0,39667% "tasa
+                      período" — el comprobante trae las dos muy juntas y es
+                      fácil confundirlas). Esta es la única que corresponde acá:
+                      la que rinde sobre el monto en TODO el plazo, no la base
+                      mensual que el banco prorratea para plazos != 30 días. */}
+                  <p className="text-[10px] mt-1 leading-snug" style={{ color: 'var(--ink-3)' }}>
+                    La del comprobante que dice <strong>"Tasa período"</strong> — no
+                    la "tasa base mensual" (suele ser otro número, más abajo).
+                  </p>
                 </div>
               </div>
 
@@ -964,8 +974,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     onFocus={focusOn} onBlur={focusOff}
                     autoFocus
                   />
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                    Tasa del ciclo anterior: {fmtPct(d.interest_rate)}
+                  <p className="text-[10px] mt-1 leading-snug" style={{ color: 'var(--ink-3)' }}>
+                    Tasa del ciclo anterior: {fmtPct(d.interest_rate)}. Usa la
+                    <strong> "Tasa período"</strong> del comprobante nuevo — no
+                    la "tasa base mensual".
                   </p>
                 </div>
 
