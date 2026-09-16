@@ -33,8 +33,14 @@ function todayStr(): string {
   return `${cl.getFullYear()}-${String(cl.getMonth() + 1).padStart(2, '0')}-${String(cl.getDate()).padStart(2, '0')}`
 }
 
+// sep 2026 (Cas: "creo que esta mal calculado el porcentaje" — 0,39667%
+// mostraba "0,4%"): no era un error de cálculo (el interés SÍ usa el número
+// completo, ver totalInterest/earnedToDate más abajo), era que maximumFractionDigits:2
+// se comía la precisión real de estas tasas — los DAP chilenos suelen venir
+// con 5 decimales en el comprobante (0,39667%, 0,32676%...) y redondear a 2
+// puede hacer que dos tasas DISTINTAS se vean idénticas en pantalla.
 function fmtPct(n: number): string {
-  return n.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + '%'
+  return n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 5 }) + '%'
 }
 
 function fmtDateShort(dateStr: string): string {
