@@ -166,11 +166,23 @@ async function dbHistory7d(
 // cuántas veces se reintentara. mindicador.cl/api/dolar (dólar observado,
 // Banco Central de Chile) sí cubre CLP y es el mismo proveedor sin API key
 // que ya usa lib/cl-indicators.ts para UF/IPC.
+// sep 2026 (Cas: "no me salen valores" — Watchlist entera en skeleton): esta
+// llamada no tenía NINGÚN timeout, a diferencia de fhFetch (FH_TIMEOUT=7s) y
+// de las demás llamadas de este archivo. mindicador.cl ya mostró cortes de
+// conexión (ECONNRESET/TLS) en otro flujo (ver lib/cl-indicators.ts) — sin
+// límite acá, un colgado deja el paso 6 (USD/CLP) esperando indefinidamente
+// DESPUÉS de que el paso 4 (STALE_FETCH_BUDGET_MS=20s) ya devolvió el
+// control, comiéndose el resto del maxDuration=30 sin llegar nunca al
+// NextResponse.json final — Vercel mata la función sin responder nada, así
+// que el cliente ni siquiera recibe los tickers que sí alcanzaron a
+// resolverse. Mismo patrón que FH_TIMEOUT: un techo de tiempo por llamada.
+const FX_TIMEOUT = 5_000
+
 async function fxUsdClp(): Promise<number | null> {
   try {
     const r = await fetch(
       'https://mindicador.cl/api/dolar',
-      { cache: 'no-store' },
+      { cache: 'no-store', signal: AbortSignal.timeout(FX_TIMEOUT) },
     )
     if (!r.ok) return null
     const d = await r.json()
