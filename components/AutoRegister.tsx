@@ -38,6 +38,13 @@ export default function AutoRegister() {
           // calcula overdueItems server-side con los datos del momento del render.
           router.refresh()
         }
+      }).catch(err => {
+        // sep 2026 (Cas: recurrentes sin registrarse en ningún dispositivo,
+        // sin ningún rastro): sin este catch, una falla al LLAMAR al server
+        // action (no una excepción adentro, que ya se loguea del lado del
+        // servidor — esto es si el fetch/RPC ni siquiera llega o se cae) era
+        // una promise rejection silenciosa, invisible incluso en la consola.
+        console.error('[auto-register] falló la llamada:', err)
       })
     }
 

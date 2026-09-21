@@ -6,9 +6,24 @@ import { monthlyDueDates, annualDueDates, effectiveDay, CATCHUP_MONTHS } from '@
 import { cookies } from 'next/headers'
 
 export async function runAutoRegister(): Promise<{ registered: string[] }> {
+  // sep 2026 (Cas: "tampoco registro claude ningun gasto recurrente" — el
+  // Netflix del 11/9 y varios más llevaban semanas sin registrarse, en
+  // MÚLTIPLES dispositivos y después de recargar la app): esta función no
+  // logueaba absolutamente nada — ni el motivo de un early-return (sin
+  // sesión, bloqueado por la cookie del día), ni los errores de los inserts
+  // (`if (!error) insertedNames.push(...)` descartaba el error en silencio).
+  // Server Action llamada desde un useEffect sin .catch() en el cliente
+  // (AutoRegister.tsx): cualquier excepción acá se perdía como promise
+  // rejection silenciosa, sin rastro en ningún lado. Try/catch + logs acá
+  // para que la próxima falla, si la hay, quede en get_runtime_logs de
+  // Vercel en vez de ser un misterio total otra vez.
+  try {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { registered: [] }
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (!user) {
+    console.error('[auto-register] sin sesión de usuario', authError?.message)
+    return { registered: [] }
+  }
 
   // Hora de Chile (no UTC): evita registrar con la fecha de "mañana" entre
   // ~20:00-00:00 hora Santiago, que desalinea dedup y período de facturación.
@@ -16,7 +31,10 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
   const cookieKey   = `auto_reg_${user.id.slice(0, 8)}_${todayStr}`
   const cookieStore = await cookies()
 
-  if (cookieStore.has(cookieKey)) return { registered: [] }
+  if (cookieStore.has(cookieKey)) {
+    console.log(`[auto-register] ${cookieKey} ya corrió hoy, se salta`)
+    return { registered: [] }
+  }
 
   const nextMonth    = currentMonth === 12 ? 1  : currentMonth + 1
   const nextYear     = currentMonth === 12 ? currentYear + 1 : currentYear
@@ -124,12 +142,14 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
       }))
 
     if (toInsert.length > 0) {
+      console.log(`[auto-register] ${toInsert.length} normales por registrar:`, toInsert.map(e => `${e.description}(${e.date})`))
       // upsert ignoreDuplicates: si otra pestaña ganó la carrera, no aborta el
       // lote completo ni duplica (índice único user+recurring+date en BD)
       const { error } = await supabase
         .from('expenses')
         .upsert(toInsert, { onConflict: 'user_id,recurring_expense_id,date', ignoreDuplicates: true })
       if (!error) insertedNames.push(...toInsert.map(e => e.description))
+      else console.error('[auto-register] upsert normales falló:', error.message)
     }
   }
 
@@ -167,6 +187,8 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
         .update({ paid_installments: newPaid, ...(isDone ? { is_active: false } : {}) })
         .eq('id', r.id)
       insertedNames.push(r.name)
+    } else {
+      console.error(`[auto-register] insert cuota falló (${r.name}):`, error.message)
     }
   }
 
@@ -212,6 +234,7 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     })
 
     if (!error) insertedNames.push(r.name)
+    else console.error(`[auto-register] insert anual falló (${r.name}):`, error.message)
   }
 
   // ── Cargo de administración de tarjetas de crédito ───────────────────────
@@ -307,6 +330,7 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     })
 
     if (!error) insertedNames.push(feeDesc)
+    else console.error(`[auto-register] insert cargo admin falló (${feeDesc}):`, error.message)
   }
 
   const midnight = new Date(today)
@@ -318,5 +342,11 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
     path:     '/',
   })
 
+  if (insertedNames.length > 0) console.log('[auto-register] registrados:', insertedNames)
   return { registered: insertedNames }
+
+  } catch (err) {
+    console.error('[auto-register] excepción no capturada:', err instanceof Error ? err.message : err)
+    return { registered: [] }
+  }
 }
