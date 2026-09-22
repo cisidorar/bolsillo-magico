@@ -227,6 +227,20 @@ export default function PortfolioValueChart({
             {deltaPct !== null && ` (${delta >= 0 ? '+' : ''}${deltaPct}%)`}
           </span>
         )}
+        {/* sep 2026 (Cas: "por que salen dos ganancias diferentes?"): esta
+            pastilla y la "Ganancia" de más abajo miden cosas distintas — esta
+            es cuánto cambió el VALOR total en el período elegido (1S/1M/...),
+            que sube igual si metiste plata nueva a la billetera aunque las
+            acciones no se hayan movido un peso. La de abajo es lo ganado de
+            verdad vs. lo invertido, sin importar el período. Sin esta
+            etiqueta, la pastilla de acá arriba se leía como "la ganancia" —
+            eran dos números de ganancia compitiendo sin decir en qué se
+            diferenciaban. */}
+        {delta !== null && (
+          <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
+            valor del período — no es ganancia
+          </span>
+        )}
       </div>
 
       {hasBought && (
