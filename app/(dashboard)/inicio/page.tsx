@@ -670,7 +670,7 @@ export default async function DashboardPage() {
                           }}
                         />
                         {!isOver && pendingPct > 0 && (
-                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: '#FFE08A' }} />
+                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'rgba(255,224,138,0.45)' }} />
                         )}
                       </div>
                       <div className="flex justify-between mt-2">
@@ -1105,7 +1105,7 @@ export default async function DashboardPage() {
                         backgroundColor: isOver ? '#f87171' : '#FFC23C',
                       }} />
                       {!isOver && pendingPct > 0 && (
-                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: '#FFE08A' }} />
+                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'rgba(255,224,138,0.45)' }} />
                       )}
                     </div>
                     <div className="flex justify-between mt-1.5">
