@@ -477,6 +477,24 @@ export default async function DashboardPage() {
     .filter(r => r.daysUntil >= 0 && r.daysUntil <= 7)
     .sort((a, b) => a.daysUntil - b.daysUntil)
 
+  // Cuotas/recurrentes cuyo día de cobro ya llegó este período pero que
+  // todavía no tienen un gasto registrado (Cas, sep 2026: "esto es falso
+  // porque cuando llegue el 24 se me van a cobrar todas las cosas que tengo
+  // en cuotas de una" — el "gastado este mes" no las incluye hasta que se
+  // registran, a veces con retraso — ver AutoRegister). Se muestra como un
+  // segundo segmento, en amarillo más claro, para anticipar cuánto se va a
+  // sumar sin contarlo todavía como gastado.
+  const pendingChargesAmount = recurringWithCounts
+    .filter(r => r.is_active)
+    .filter(r => r.billing_month === null || r.billing_month === month)
+    .filter(r => r.billing_day <= todayDate)
+    .filter(r => !paidThisMonthSet.has(r.id))
+    .reduce((s, r) => s + r.amount, 0)
+  const usedPct    = Math.min(100, progressPct)
+  const pendingPct = budgetAmount
+    ? Math.max(0, Math.min(100 - usedPct, Math.round((pendingChargesAmount / budgetAmount) * 100)))
+    : 0
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const StatementCardList = () => (
     <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
@@ -643,17 +661,31 @@ export default async function DashboardPage() {
                 <div className="mt-7">
                   {budgetAmount ? (
                     <>
-                      <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                      <div className="h-3 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.18)' }}>
                         <div
-                          className="h-full rounded-full transition-all"
+                          className="h-full transition-all"
                           style={{
-                            width: `${Math.min(100, progressPct)}%`,
+                            width: `${usedPct}%`,
                             backgroundColor: isOver ? '#f87171' : '#FFC23C',
                           }}
                         />
+                        {!isOver && pendingPct > 0 && (
+                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: '#FFE08A' }} />
+                        )}
                       </div>
                       <div className="flex justify-between mt-2">
-                        <span className="text-xs text-white/45">{progressPct}% usado</span>
+                        <span className="text-xs text-white/45 flex items-center gap-1">
+                          {progressPct}% usado
+                          {!isOver && pendingChargesAmount > 0 && (
+                            <>
+                              <span style={{ color: '#FFE08A' }}>· +{formatCLP(pendingChargesAmount)} por cobrar</span>
+                              <InfoTap
+                                explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
+                                color="rgba(255,255,255,0.5)"
+                              />
+                            </>
+                          )}
+                        </span>
                         <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                       </div>
                     </>
@@ -1067,16 +1099,24 @@ export default async function DashboardPage() {
                 {/* Barra de presupuesto */}
                 {budgetAmount && (
                   <div className="mt-4 mb-4">
-                    <div className="h-2 bg-white/15 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{
-                        width: `${Math.min(100, progressPct)}%`,
+                    <div className="h-2 bg-white/15 rounded-full overflow-hidden flex">
+                      <div className="h-full transition-all" style={{
+                        width: `${usedPct}%`,
                         backgroundColor: isOver ? '#f87171' : '#FFC23C',
                       }} />
+                      {!isOver && pendingPct > 0 && (
+                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: '#FFE08A' }} />
+                      )}
                     </div>
                     <div className="flex justify-between mt-1.5">
                       <span className="text-xs text-white/45">{progressPct}% usado</span>
                       <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                     </div>
+                    {!isOver && pendingChargesAmount > 0 && (
+                      <p className="text-xs mt-1" style={{ color: '#FFE08A' }}>
+                        + {formatCLP(pendingChargesAmount)} por cobrar (cuotas/recurrentes ya vencidos sin registrar)
+                      </p>
+                    )}
                   </div>
                 )}
 
