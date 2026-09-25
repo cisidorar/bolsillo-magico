@@ -2,6 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile, nextPaydayDate, lastClosedStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
+import { intervalDueDate } from '@/lib/recurring-due'
 import { buildCommittedTimeline } from '@/lib/committed-timeline'
 import CommittedTimeline from '@/components/CommittedTimeline'
 import RecurringManager from '@/components/RecurringManager'
@@ -150,10 +151,14 @@ export default async function RecurrentesPage({
   const ongoingItems = activeItems.filter(r => !isInstallmentDone(r))
   // Carga mensual: los anuales NO se suman completos cada mes — se prorratean
   // a amount/12. Antes un seguro anual de $600.000 inflaba la "carga mensual"
-  // en $600.000 (y el "anual estimado" en $7,2M).
+  // en $600.000 (y el "anual estimado" en $7,2M). Mismo prorrateo para
+  // "cada N meses" (sep 2026, Comida Kida): amount/interval_months, no
+  // amount completo — si no, un gasto cada 2 meses se contaba como si fuera
+  // mensual y doblaba la carga real.
   const monthlyItems = ongoingItems.filter(r => r.billing_month === null)
   const annualItems  = ongoingItems.filter(r => r.billing_month !== null)
-  const totalMonthly = monthlyItems.reduce((s, r) => s + r.amount, 0)
+  const monthlyEquivalent = (r: { amount: number; interval_months: number }) => r.amount / (r.interval_months || 1)
+  const totalMonthly = Math.round(monthlyItems.reduce((s, r) => s + monthlyEquivalent(r), 0))
     + Math.round(annualItems.reduce((s, r) => s + r.amount, 0) / 12)
   const activeCount  = activeItems.length
 
@@ -165,16 +170,34 @@ export default async function RecurrentesPage({
       .map((e: { recurring_expense_id: string | null }) => e.recurring_expense_id)
       .filter(Boolean)
   )
+  // Último gasto real por recurrente — ancla de los items "cada N meses"
+  // (sep 2026, Comida Kida: no caen en un día fijo del mes, así que su
+  // vencimiento se calcula desde la última vez que se compró, no desde
+  // billing_day). Ver lib/recurring-due.ts, intervalDueDate.
+  const lastPaidByItem: Record<string, string> = {}
+  Object.entries(expensesByRecurring).forEach(([id, exps]) => {
+    lastPaidByItem[id] = exps.reduce((max, e) => e.date > max ? e.date : max, exps[0]?.date ?? '')
+  })
   // auto_register=true: el sistema lo registra solo — aunque el billing_day
   // ya pasó y el gasto todavía no existe (race con AutoRegister, que corre
   // client-side después del render), NO es "atrasado" para el usuario: él
   // no tiene que hacer nada. Excluirlo evita la alerta falsa que veía Cas
   // con Apple (billing_day=8, auto_register=true, "Pago atrasado · 1 día").
   const overdueItems = ongoingItems.filter(r => {
+    if (r.auto_register) return false
+
+    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
+    if (isIntervalItem) {
+      const due = intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr)
+      if (!due) return false
+      // Si fue reactivado DESPUÉS del vencimiento calculado → lo tenía pausado, no es atraso
+      if (r.reactivated_at && new Date(r.reactivated_at) > new Date(due.date + 'T12:00:00')) return false
+      return true
+    }
+
     if (r.billing_month !== null && r.billing_month !== month) return false
     if (r.billing_day >= todayDate) return false
     if (paidThisMonthSet.has(r.id)) return false
-    if (r.auto_register) return false
     // Si fue reactivado DESPUÉS del billing_day de este mes → lo tenía pausado, no es atraso
     if (r.reactivated_at && new Date(r.reactivated_at) > new Date(year, month - 1, r.billing_day)) return false
     return true
@@ -192,8 +215,9 @@ export default async function RecurrentesPage({
   const avgMonthly     = monthKeys.length > 0
     ? Math.round(monthKeys.reduce((s, k) => s + monthlyTotals[k], 0) / monthKeys.length)
     : totalMonthly
-  // Anual estimado: mensuales ×12 + anuales una sola vez (no ×12)
-  const yearlyEstimate = monthlyItems.reduce((s, r) => s + r.amount, 0) * 12
+  // Anual estimado: mensuales ×12 (o ×12/interval_months para "cada N
+  // meses") + anuales una sola vez (no ×12)
+  const yearlyEstimate = Math.round(monthlyItems.reduce((s, r) => s + monthlyEquivalent(r), 0) * 12)
     + annualItems.reduce((s, r) => s + r.amount, 0)
 
   // ── F8 — Calendario de flujo de caja (próximos 30 días) ──────────────────

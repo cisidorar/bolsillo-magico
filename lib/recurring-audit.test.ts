@@ -8,6 +8,9 @@ describe('annualizedCost', () => {
   it('anual: el monto ya es el anual, no se multiplica', () => {
     expect(annualizedCost({ amount: 600000, billing_month: 3 })).toBe(600000)
   })
+  it('cada 2 meses: se paga 6 veces al año, no 12 (Comida Kida)', () => {
+    expect(annualizedCost({ amount: 75000, billing_month: null, interval_months: 2 })).toBe(450000)
+  })
 })
 
 describe('totalPaid', () => {

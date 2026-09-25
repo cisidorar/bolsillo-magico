@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { billingPeriodRange, currentStatementRange, getNowChile } from '@/lib/utils'
-import { monthlyDueDates, annualDueDates, effectiveDay, CATCHUP_MONTHS } from '@/lib/recurring-due'
+import { monthlyDueDates, annualDueDates, intervalDueDate, effectiveDay, CATCHUP_MONTHS } from '@/lib/recurring-due'
 import { cookies } from 'next/headers'
 
 export async function runAutoRegister(): Promise<{ registered: string[] }> {
@@ -41,7 +41,7 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
 
   const { data: autoRecurring } = await supabase
     .from('recurring_expenses')
-    .select('id, amount, category_id, payment_method_id, billing_day, billing_month, name, total_installments, paid_installments, created_at')
+    .select('id, amount, category_id, payment_method_id, billing_day, billing_month, interval_months, name, total_installments, paid_installments, created_at')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .eq('auto_register', true)
@@ -68,7 +68,15 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
   // acotada, y cada cobro se registra con SU fecha real (no la de hoy), que
   // es lo que mantiene coherente el historial y el período de facturación de
   // la tarjeta.
-  const normalItems = (autoRecurring ?? []).filter(r => r.total_installments == null && r.billing_month == null)
+  // "Cada N meses" (interval_months>1, sep 2026: Comida Kida) va aparte —
+  // no caen en un día fijo del mes, así que monthlyDueDates no aplica. Se
+  // ancla al último gasto REAL registrado, ver más abajo.
+  const normalItems = (autoRecurring ?? []).filter(r =>
+    r.total_installments == null && r.billing_month == null && (r.interval_months ?? 1) <= 1
+  )
+  const intervalItems = (autoRecurring ?? []).filter(r =>
+    r.total_installments == null && r.billing_month == null && (r.interval_months ?? 1) > 1
+  )
   const normalDue: { r: (typeof normalItems)[number]; date: string }[] = []
   for (const r of normalItems) {
     for (const due of monthlyDueDates({ billingDay: r.billing_day }, todayStr, r.created_at)) {
@@ -150,6 +158,48 @@ export async function runAutoRegister(): Promise<{ registered: string[] }> {
         .upsert(toInsert, { onConflict: 'user_id,recurring_expense_id,date', ignoreDuplicates: true })
       if (!error) insertedNames.push(...toInsert.map(e => e.description))
       else console.error('[auto-register] upsert normales falló:', error.message)
+    }
+  }
+
+  // ── Registrar "cada N meses" ──────────────────────────────────────────────
+  // Se ancla al último gasto REAL vinculado a cada ítem (no a un día fijo del
+  // mes) — por eso necesita su propia consulta de "último pago", sin límite
+  // de fecha hacia atrás: un ítem cada 6 meses puede tener su última compra
+  // fuera de la ventana de catch-up de los demás.
+  if (intervalItems.length > 0) {
+    const { data: lastPaidRows } = await supabase
+      .from('expenses')
+      .select('recurring_expense_id, date')
+      .eq('user_id', user.id)
+      .in('recurring_expense_id', intervalItems.map(r => r.id))
+      .order('date', { ascending: false })
+
+    const lastPaidByItem: Record<string, string> = {}
+    for (const e of lastPaidRows ?? []) {
+      if (!e.recurring_expense_id) continue
+      if (!lastPaidByItem[e.recurring_expense_id]) lastPaidByItem[e.recurring_expense_id] = e.date as string
+    }
+
+    const intervalToInsert = intervalItems
+      .map(r => ({ r, due: intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, todayStr) }))
+      .filter((x): x is { r: (typeof intervalItems)[number]; due: NonNullable<ReturnType<typeof intervalDueDate>> } => x.due !== null)
+      .map(({ r, due }) => ({
+        user_id:              user.id,
+        amount:               r.amount,
+        category_id:          r.category_id,
+        payment_method_id:    r.payment_method_id,
+        recurring_expense_id: r.id,
+        description:          r.name,
+        date:                 due.date,
+      }))
+
+    if (intervalToInsert.length > 0) {
+      console.log(`[auto-register] ${intervalToInsert.length} "cada N meses" por registrar:`, intervalToInsert.map(e => `${e.description}(${e.date})`))
+      const { error } = await supabase
+        .from('expenses')
+        .upsert(intervalToInsert, { onConflict: 'user_id,recurring_expense_id,date', ignoreDuplicates: true })
+      if (!error) insertedNames.push(...intervalToInsert.map(e => e.description))
+      else console.error('[auto-register] upsert "cada N meses" falló:', error.message)
     }
   }
 

@@ -10,11 +10,20 @@ export interface RecurringAuditItem {
   amount: number
   /** null = mensual o en cuotas (se cobra cada mes); 1-12 = anual, se cobra una vez ese mes. */
   billing_month: number | null
+  /** 1 (o ausente) = mensual; N = cada N meses. Solo aplica cuando billing_month es null. */
+  interval_months?: number
 }
 
-/** Costo anualizado: mensuales y cuotas activas se pagan cada mes (×12); anuales ya son el monto anual. */
+/**
+ * Costo anualizado: mensuales y cuotas activas se pagan cada mes (×12);
+ * anuales ya son el monto anual; cadencia "cada N meses" (sep 2026, Comida
+ * Kida) se paga 12/N veces al año, no 12 — multiplicar por 12 siempre
+ * sobreestimaba hasta 6x un gasto que en realidad ocurre cada 2 meses.
+ */
 export function annualizedCost(item: RecurringAuditItem): number {
-  return item.billing_month !== null ? item.amount : item.amount * 12
+  if (item.billing_month !== null) return item.amount
+  const interval = item.interval_months ?? 1
+  return Math.round(item.amount * (12 / interval))
 }
 
 export interface AuditExpense {

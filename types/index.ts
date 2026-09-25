@@ -54,6 +54,7 @@ export type RecurringExpense = {
   payment_method_id: string | null
   billing_day: number
   billing_month: number | null        // null = mensual, 1-12 = anual (mes del cobro)
+  interval_months: number             // 1 = mensual (default), N = cada N meses (ancla al último pago real, no a billing_day)
   auto_register: boolean
   is_active: boolean
   reactivated_at: string | null       // timestamp de la última reactivación (null si nunca fue pausado)

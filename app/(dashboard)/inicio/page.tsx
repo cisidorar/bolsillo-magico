@@ -1,6 +1,7 @@
 import React from 'react'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, lastDueStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
+import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
@@ -393,6 +394,19 @@ export default async function DashboardPage() {
   // Días en el mes anterior (para calcular daysLate cross-month)
   const lastDayOfPrevMonth = new Date(year, now.getMonth(), 0).getDate()
 
+  // Recurrentes "cada N meses" (sep 2026, Comida Kida: se compra cada ~2
+  // meses, no cada mes, y el monto varía — no es un cargo fijo). Estos NO
+  // caen en un día fijo del mes: su vencimiento se ancla al último gasto
+  // REAL registrado, no a billing_day. Ver lib/recurring-due.ts.
+  const isIntervalItem = (r: { billing_month: number | null; interval_months: number }) =>
+    r.billing_month === null && (r.interval_months ?? 1) > 1
+  const lastPaidByItem: Record<string, string> = {}
+  ;(allRecurringExpenses ?? []).forEach((e: { recurring_expense_id: string | null; date: string }) => {
+    if (!e.recurring_expense_id) return
+    const cur = lastPaidByItem[e.recurring_expense_id]
+    if (!cur || e.date > cur) lastPaidByItem[e.recurring_expense_id] = e.date
+  })
+
   // Atrasados: billing_day ya pasó este mes O en el mes anterior (primeros 15 días del nuevo mes)
   type PagoAtrasado = {
     id: string; name: string; amount: number; domain: string | null; daysLate: number
@@ -410,6 +424,9 @@ export default async function DashboardPage() {
     // Registrar automáticamente activado.
     .filter(r => !r.auto_register)
     .filter(r => {
+      if (isIntervalItem(r)) {
+        return intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr) !== null
+      }
       if (r.billing_day < todayDate) {
         // Vencido en el ciclo del mes actual
         if (r.billing_month !== null && r.billing_month !== month) return false
@@ -427,6 +444,16 @@ export default async function DashboardPage() {
       return false
     })
     .map(r => {
+      if (isIntervalItem(r)) {
+        const due = intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr)!
+        const daysLate = Math.round(
+          (new Date(dateStr + 'T12:00:00').getTime() - new Date(due.date + 'T12:00:00').getTime()) / 86400000
+        )
+        return {
+          id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysLate,
+          category_id: r.category_id ?? null, payment_method_id: r.payment_method_id ?? null,
+        }
+      }
       const daysLate = r.billing_day < todayDate
         ? todayDate - r.billing_day
         : (lastDayOfPrevMonth - r.billing_day) + todayDate
@@ -445,6 +472,10 @@ export default async function DashboardPage() {
   const proximosPagos: ProximoPago[] = recurringWithCounts
     .filter(r => r.is_active)
     .filter(r => {
+      if (isIntervalItem(r)) {
+        // Si está atrasado, ya aparece en la sección de arriba
+        return intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr) === null
+      }
       if (r.billing_month !== null && r.billing_month !== month) return false
       // Si está atrasado este mes, ya aparece en la sección de arriba
       if (r.billing_day < todayDate && !paidThisMonthSet.has(r.id)) return false
@@ -453,6 +484,16 @@ export default async function DashboardPage() {
       return true
     })
     .map(r => {
+      if (isIntervalItem(r)) {
+        const proj = projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at)
+        const daysUntil = Math.round(
+          (new Date(proj.date + 'T12:00:00').getTime() - new Date(dateStr + 'T12:00:00').getTime()) / 86400000
+        )
+        const isToday = daysUntil === 0
+        const projDay  = parseInt(proj.date.slice(8, 10), 10)
+        const label    = isToday ? 'Hoy' : daysUntil === 1 ? 'Mañana' : `${projDay} ${monthName(proj.month).slice(0, 3)}`
+        return { id: r.id, name: r.name, amount: r.amount, domain: r.domain ?? null, daysUntil, label, isToday }
+      }
       let d = r.billing_day, m = month, y = year
       // Si ya fue pagado este mes → calcular próxima ocurrencia (mes siguiente),
       // sin importar si billing_day ya pasó o no. Bug reportado por Cas: pagó
@@ -483,13 +524,18 @@ export default async function DashboardPage() {
   // en cuotas de una" — el "gastado este mes" no las incluye hasta que se
   // registran, a veces con retraso — ver AutoRegister). Se muestra como un
   // segundo segmento, en amarillo más claro, para anticipar cuánto se va a
-  // sumar sin contarlo todavía como gastado.
+  // sumar sin contarlo todavía como gastado. Los "cada N meses" se calculan
+  // aparte (misma lógica que atrasados: ancla al último pago real).
   const pendingChargesAmount = recurringWithCounts
-    .filter(r => r.is_active)
+    .filter(r => r.is_active && !isIntervalItem(r))
     .filter(r => r.billing_month === null || r.billing_month === month)
     .filter(r => r.billing_day <= todayDate)
     .filter(r => !paidThisMonthSet.has(r.id))
     .reduce((s, r) => s + r.amount, 0)
+    + recurringWithCounts
+      .filter(r => r.is_active && isIntervalItem(r))
+      .filter(r => intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr) !== null)
+      .reduce((s, r) => s + r.amount, 0)
   const usedPct    = Math.min(100, progressPct)
   const pendingPct = budgetAmount
     ? Math.max(0, Math.min(100 - usedPct, Math.round((pendingChargesAmount / budgetAmount) * 100)))

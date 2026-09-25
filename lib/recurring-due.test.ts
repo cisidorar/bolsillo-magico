@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { monthlyDueDates, annualDueDates, effectiveDay, CATCHUP_MONTHS } from './recurring-due'
+import { monthlyDueDates, annualDueDates, intervalDueDate, projectedIntervalDate, effectiveDay, CATCHUP_MONTHS } from './recurring-due'
 
 describe('effectiveDay', () => {
   it('respeta el día de cobro cuando el mes lo permite', () => {
@@ -104,5 +104,50 @@ describe('annualDueDates', () => {
 
   it('un ítem mensual (sin billing_month) no produce cobros anuales', () => {
     expect(annualDueDates({ billingDay: 29, billingMonth: null }, '2026-09-02')).toHaveLength(0)
+  })
+})
+
+describe('intervalDueDate — cadencia "cada N meses" (Comida Kida, sep 2026)', () => {
+  it('ancla al último pago real, no a un día fijo del mes', () => {
+    // Última compra 9 de julio, cada 2 meses → próxima 9 de septiembre
+    const due = intervalDueDate(2, '2026-07-09', '2026-01-01', '2026-09-09')
+    expect(due?.date).toBe('2026-09-09')
+  })
+
+  it('todavía no vence: devuelve null', () => {
+    const due = intervalDueDate(2, '2026-07-09', '2026-01-01', '2026-09-08')
+    expect(due).toBeNull()
+  })
+
+  it('vence justo hoy: no es null', () => {
+    const due = intervalDueDate(2, '2026-07-09', '2026-01-01', '2026-09-09')
+    expect(due).not.toBeNull()
+  })
+
+  it('sin pagos previos, se ancla a la fecha de alta', () => {
+    const due = intervalDueDate(3, null, '2026-06-01', '2026-09-01')
+    expect(due?.date).toBe('2026-09-01')
+  })
+
+  it('atrasado: la fecha vencida sigue siendo la misma aunque hoy sea mucho después', () => {
+    const due = intervalDueDate(2, '2026-07-09', '2026-01-01', '2026-10-20')
+    expect(due?.date).toBe('2026-09-09')
+  })
+
+  it('respeta fin de mes (31 en un mes de 30 días)', () => {
+    const due = intervalDueDate(1, '2026-01-31', '2026-01-01', '2026-03-01')
+    expect(due?.date).toBe('2026-02-28')
+  })
+
+  it('cruza el cambio de año hacia adelante', () => {
+    const due = intervalDueDate(2, '2026-11-15', '2026-01-01', '2027-01-15')
+    expect(due?.date).toBe('2027-01-15')
+  })
+})
+
+describe('projectedIntervalDate — para "próximos pagos" (incluso si aún no vence)', () => {
+  it('proyecta la fecha aunque todavía falten días', () => {
+    const due = projectedIntervalDate(2, '2026-07-09', '2026-01-01')
+    expect(due.date).toBe('2026-09-09')
   })
 })

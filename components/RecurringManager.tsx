@@ -10,6 +10,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { suggestCategory, type CategorySuggestion } from '@/app/actions/suggest-category'
 import { annualizedCost, totalPaid, detectPriceChange, type AuditExpense } from '@/lib/recurring-audit'
+import { intervalDueDate } from '@/lib/recurring-due'
 import ServiceLogo from './ServiceLogo'
 import type { RecurringExpense, Category, PaymentMethod } from '@/types'
 
@@ -35,6 +36,7 @@ type Form = {
   billing_day: string
   billing_month: string  // '' = mensual, '1'-'12' = anual
   ddmm: string           // input visual anual: "dd/mm"
+  interval_months: string // '1' = mensual, 'N' = cada N meses (solo si !cuotas && !anual)
   category_id: string
   payment_method_id: string
   auto_register: boolean
@@ -47,11 +49,20 @@ type Form = {
 }
 
 const DEFAULT: Form = {
-  name: '', amount: '', billing_day: '', billing_month: '', ddmm: '',
+  name: '', amount: '', billing_day: '', billing_month: '', ddmm: '', interval_months: '1',
   category_id: '', payment_method_id: '',
   auto_register: false, is_active: true,
   cuotas: false, anual: false, totalAmount: '', numCuotas: '3', pastCuotas: '0',
 }
+
+/** Opciones de cadencia para recurrentes que no son cuotas ni anuales. */
+const INTERVAL_OPTIONS: { value: string; label: string }[] = [
+  { value: '1', label: 'Mensual' },
+  { value: '2', label: 'Cada 2 meses' },
+  { value: '3', label: 'Cada 3 meses' },
+  { value: '4', label: 'Cada 4 meses' },
+  { value: '6', label: 'Cada 6 meses' },
+]
 
 function nextBillingDate(billingDay: number, billingMonth?: number | null): Date {
   const now = new Date()
@@ -170,6 +181,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       setForm(f => ({
         ...f,
         cuotas: true,
+        interval_months: '1',
         numCuotas: f.numCuotas || '3',
         payment_method_id: defaultCC?.id ?? f.payment_method_id,
         billing_day: defaultCC?.billing_day != null ? String(defaultCC.billing_day) : f.billing_day,
@@ -198,6 +210,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
       ddmm: bm != null
         ? `${String(item.billing_day).padStart(2, '0')}/${String(bm).padStart(2, '0')}`
         : '',
+      interval_months: String(item.interval_months ?? 1),
       category_id: item.category_id ?? '',
       payment_method_id: item.payment_method_id ?? '',
       auto_register: item.auto_register,
@@ -257,11 +270,17 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     setSaving(true); setError('')
     const past = form.cuotas ? Math.max(0, Math.min(parseInt(form.pastCuotas) || 0, (totalInstallments ?? 1) - 1)) : 0
 
+    // interval_months solo tiene sentido para recurrentes simples (no cuotas,
+    // no anuales) — esos ya tienen su propia cadencia (mensual fija por
+    // definición / una vez al año).
+    const intervalMonths = (form.cuotas || form.anual) ? 1 : (parseInt(form.interval_months) || 1)
+
     const payload = {
       name: form.name.trim(),
       amount: amt,
       billing_day: day,
       billing_month: form.anual ? annualMonth : null,
+      interval_months: intervalMonths,
       category_id: form.category_id || null,
       payment_method_id: form.payment_method_id || null,
       auto_register: form.auto_register,
@@ -475,16 +494,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 {!collapsed && groupItems.map(item => {
             const isCuotas    = item.total_installments != null && item.total_installments > 0
             const isAnual     = item.billing_month != null
+            const isInterval  = !isCuotas && !isAnual && (item.interval_months ?? 1) > 1
             const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
-            const next        = nextBillingDate(item.billing_day, item.billing_month)
-            const nextLabel   = isAnual
-              ? `${String(item.billing_day).padStart(2, '0')}/${String(item.billing_month).padStart(2, '0')}`
-              : next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
-            const progress    = isCuotas
-              ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
-              : null
-            const regState    = registerState[item.id] ?? null
-            const canRegister = item.is_active && !isCompleted && !item.auto_register
 
             // E6 — auditoría determinista: costo anualizado, total pagado histórico
             // y detección de alza/baja de precio. Solo para mensuales/anuales — las
@@ -494,6 +505,30 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             const priceChange   = !isCuotas ? detectPriceChange(auditExpenses) : null
             const annualized    = annualizedCost(item)
             const paidSoFar     = totalPaid(auditExpenses)
+
+            // Cadencia "cada N meses": el próximo cargo se ancla al último
+            // gasto REAL registrado (no a billing_day, que acá es solo un
+            // recordatorio aproximado) — ver lib/recurring-due.ts.
+            const lastPaidDate = auditExpenses.length > 0
+              ? auditExpenses.reduce((max, e) => e.date > max ? e.date : max, auditExpenses[0].date)
+              : null
+            const intervalDue = isInterval
+              ? intervalDueDate(item.interval_months, lastPaidDate, item.created_at, getNowChile().dateStr)
+              : null
+
+            const next        = nextBillingDate(item.billing_day, item.billing_month)
+            const nextLabel   = isAnual
+              ? `${String(item.billing_day).padStart(2, '0')}/${String(item.billing_month).padStart(2, '0')}`
+              : isInterval
+                ? (intervalDue
+                    ? `Vencido · ${new Date(intervalDue.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
+                    : 'Sin cargo pendiente')
+                : next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
+            const progress    = isCuotas
+              ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
+              : null
+            const regState    = registerState[item.id] ?? null
+            const canRegister = item.is_active && !isCompleted && !item.auto_register
 
             return (
               <div
@@ -525,6 +560,12 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       {isAnual && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                           style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>anual</span>
+                      )}
+                      {isInterval && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                          style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>
+                          cada {item.interval_months} meses
+                        </span>
                       )}
                       {priceChange?.changed && (
                         <span
@@ -559,7 +600,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
-                    <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : '/ mes'}</p>
+                    <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
                   </div>
 
                   {/* Botón "Registrar ahora" */}
@@ -711,7 +752,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
               {/* Toggle anual */}
               <button
-                onClick={() => setForm(f => ({ ...f, anual: !f.anual, billing_month: f.anual ? '' : f.billing_month, cuotas: false }))}
+                onClick={() => setForm(f => ({ ...f, anual: !f.anual, billing_month: f.anual ? '' : f.billing_month, cuotas: false, interval_months: '1' }))}
                 disabled={form.cuotas}
                 className={cn('flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left', form.anual ? 'sheet-toggle-active' : 'sheet-toggle', form.cuotas && 'opacity-40 cursor-not-allowed')}
               >
@@ -855,6 +896,34 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         className="sheet-input w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 text-center outline-none focus:border-brand-400 transition-colors"
                       />
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Frecuencia — solo para recurrentes simples (no cuotas, no
+                  anual): compras reales que no siempre caen el mismo día ni
+                  el mismo mes (ej: comida de mascota cada ~2 meses). El día
+                  de cobro de arriba queda como referencia; el próximo cargo
+                  real se calcula desde la última vez que se registró. */}
+              {!form.cuotas && !form.anual && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 block mb-1.5">Frecuencia</label>
+                  <div className="flex flex-wrap gap-2">
+                    {INTERVAL_OPTIONS.map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => set('interval_months', opt.value)}
+                        className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
+                          form.interval_months === opt.value ? 'sheet-chip-active' : 'sheet-chip'
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {form.interval_months !== '1' && (
+                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+                      El próximo cargo se calcula desde la última vez que se registró, no desde el día de cobro.
+                    </p>
                   )}
                 </div>
               )}

@@ -118,3 +118,48 @@ export function annualDueDates(
   }
   return out
 }
+
+/**
+ * Fecha proyectada del próximo cobro de un recurrente "cada N meses" (N>1),
+ * sin importar si ya llegó o no — sep 2026, Cas: "Comida Kida" se repite
+ * cada ~2 meses, no cada mes, y el monto varía (no es un cargo fijo).
+ *
+ * A diferencia de monthlyDueDates, esto NO es una función de calendario pura
+ * sobre billing_day: se ancla a la fecha del ÚLTIMO gasto real vinculado
+ * (lastPaidDate), o a la fecha de alta (createdAt) si todavía no se ha
+ * registrado ninguno.
+ */
+export function projectedIntervalDate(
+  intervalMonths: number,
+  lastPaidDate:   string | null,
+  createdAt:      string,
+): DueDate {
+  const anchor  = lastPaidDate ?? createdAt.slice(0, 10)
+  const [ay, am, ad] = anchor.split('-').map(Number)
+  let year  = ay
+  let month = am + intervalMonths
+  while (month > 12) { month -= 12; year += 1 }
+
+  const day  = effectiveDay(ad, year, month)
+  return { date: iso(year, month, day), year, month }
+}
+
+/**
+ * Igual que projectedIntervalDate, pero solo si el cobro YA VENCIÓ (fecha
+ * <= hoy) — para detectar "atrasados". Tampoco hay ventana de catch-up de
+ * varios ciclos como en monthlyDueDates: solo existe UN próximo cobro
+ * pendiente a la vez, porque no son cargos automáticos de monto fijo que
+ * tenga sentido "recuperar" en lote — son compras reales que la persona ya
+ * hizo o no.
+ *
+ * Devuelve null si el próximo cobro todavía no llega.
+ */
+export function intervalDueDate(
+  intervalMonths: number,
+  lastPaidDate:   string | null,
+  createdAt:      string,
+  todayStr:       string,
+): DueDate | null {
+  const due = projectedIntervalDate(intervalMonths, lastPaidDate, createdAt)
+  return due.date > todayStr ? null : due
+}
