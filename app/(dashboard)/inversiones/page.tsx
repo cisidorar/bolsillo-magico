@@ -249,11 +249,16 @@ export default async function InversionesPage({ searchParams }: Props) {
   const { data: profileRow } = needsRadarData
     ? await supabase
         .from('profiles')
-        .select('monthly_invest_goal')
+        .select('monthly_invest_goal, hide_portfolio_amounts')
         .eq('id', user.id)
         .maybeSingle()
     : { data: null }
   const monthlyInvestGoal = (profileRow as { monthly_invest_goal?: number | null } | null)?.monthly_invest_goal ?? null
+  // Ojo de privacidad (sep 2026, Cas): se lee acá server-side para que el
+  // primer render ya salga oculto si así quedó la sesión anterior — sin
+  // esto habría un flash del monto real antes de que el cliente aplicara
+  // la preferencia guardada.
+  const hidePortfolioAmounts = (profileRow as { hide_portfolio_amounts?: boolean } | null)?.hide_portfolio_amounts ?? false
   const [goalYear, goalMonth] = todayCL.split('-').map(Number)
   const thisMonthStartStr = `${goalYear}-${String(goalMonth).padStart(2, '0')}-01`
   const nextMonthStartStr = new Date(goalYear, goalMonth, 1).toISOString().slice(0, 10)
@@ -571,6 +576,7 @@ export default async function InversionesPage({ searchParams }: Props) {
             dollarsBoughtHistory={dollarsBoughtHistory}
             monthlyInvestGoal={monthlyInvestGoal}
             investedThisMonthClp={investedThisMonthClp}
+            initialHideAmounts={hidePortfolioAmounts}
           />
           <div className="mt-4">
             <WeekSnapshotCard

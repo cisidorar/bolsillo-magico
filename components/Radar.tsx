@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Plus, ChevronRight, ChevronDown, ChevronUp, Info, RefreshCw, X, Search, Check,
   AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, Newspaper,
+  Eye, EyeOff,
 } from 'lucide-react'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
@@ -65,6 +66,13 @@ const SORT_FIELD: Record<SortKey, 'valueUsd' | 'gainPct' | 'gainUsd' | 'dailyPct
   dailyPct: 'dailyPct',
   dailyUsd: 'dailyUsd',
   distPct:  'distPct',
+}
+
+// Ojo de privacidad (sep 2026, Cas): reemplaza un monto por puntos del mismo
+// ancho aproximado en vez de "•••" fijo, para que la card no salte de tamaño
+// al ocultar/mostrar.
+function Masked({ hidden, value }: { hidden: boolean; value: string }) {
+  return <>{hidden ? '•'.repeat(Math.max(4, Math.min(10, value.length))) : value}</>
 }
 
 export interface WatchlistItem {
@@ -205,6 +213,11 @@ interface Props {
    *  círculo sueldo → meta → compra que antes solo vivía en /inicio. */
   monthlyInvestGoal?:    number | null
   investedThisMonthClp?: number
+  /** sep 2026 (Cas: ojo para ocultar el valor del portafolio, "que además se
+   *  recuerde para futuras sesiones"): profiles.hide_portfolio_amounts,
+   *  leído server-side para que el primer render ya salga oculto si así lo
+   *  dejó la vez anterior (sin esto habría un flash del monto real). */
+  initialHideAmounts?: boolean
 }
 
 export default function Radar({
@@ -213,9 +226,27 @@ export default function Radar({
   todayDecision = null, todaySignals = [], portfolioHistory = [],
   portfolioSnapshots = [], dollarsBoughtHistory = [],
   monthlyInvestGoal = null, investedThisMonthClp = 0,
+  initialHideAmounts = false,
 }: Props) {
   const supabase = createClient()
   const { showToast } = useToast()
+
+  // Ojo de privacidad del valor del portafolio — persistido en
+  // profiles.hide_portfolio_amounts para que se recuerde entre sesiones
+  // (Cas). Optimista: cambia en pantalla al toque y guarda en segundo plano;
+  // si falla el guardado, revierte y avisa (mismo patrón que otros toggles
+  // de perfil, ver BudgetPeriodSelect.tsx).
+  const [hideAmounts, setHideAmounts] = useState(initialHideAmounts)
+  const toggleHideAmounts = useCallback(async () => {
+    const next = !hideAmounts
+    setHideAmounts(next)
+    const { error } = await supabase.from('profiles').update({ hide_portfolio_amounts: next }).eq('id', userId)
+    if (error) {
+      console.error('[Radar] no se pudo guardar hide_portfolio_amounts:', error.message)
+      setHideAmounts(!next)
+      showToast('No se pudo guardar la preferencia')
+    }
+  }, [hideAmounts, supabase, userId, showToast])
 
   // sep 2026 (Cas, con captura: SOXL +9.9%, INTC +4.5%... un Labor Day —
   // feriado NYSE): "% hoy" mostraba el ÚLTIMO cambio real (el del viernes,
@@ -962,7 +993,19 @@ export default function Radar({
                 StatHeroRow.tsx (label text-[10px], valor text-3xl lg:text-4xl
                 font-extrabold) en vez del text-6xl que tenía antes. */}
             <div className="px-5 pt-5 pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+                <button
+                  type="button"
+                  onClick={toggleHideAmounts}
+                  className="p-0.5 rounded-full transition-colors hover:bg-white/10"
+                  style={{ color: 'rgba(255,255,255,0.55)' }}
+                  aria-label={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
+                  title={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
+                >
+                  {hideAmounts ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
               <div className="flex items-baseline justify-between gap-2 flex-wrap">
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <p className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
@@ -973,14 +1016,14 @@ export default function Radar({
                         portfolioValueUsd para el sizing del 1%. Mismo
                         criterio que el benchmark vs SPY (lib/benchmark.ts):
                         el valor total = posiciones + efectivo disponible. */}
-                    {hasQ ? fmtUSD(portfolioValueUsd) : fmtUSD(totalCostUsd + Math.max(0, walletAvailable ?? 0))}
+                    <Masked hidden={hideAmounts} value={hasQ ? fmtUSD(portfolioValueUsd) : fmtUSD(totalCostUsd + Math.max(0, walletAvailable ?? 0))} />
                   </p>
                   <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
                 </div>
                 {hasQ && (
                   <p className="flex items-center gap-1 text-xs font-bold" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
                     {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
-                    {fmtUSDSigned(dailyChangeUsd)} ({fmtPct(dailyChangePct)}) hoy
+                    <Masked hidden={hideAmounts} value={fmtUSDSigned(dailyChangeUsd)} /> ({fmtPct(dailyChangePct)}) hoy
                   </p>
                 )}
               </div>
@@ -1001,13 +1044,13 @@ export default function Radar({
             <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
-                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}>{fmtUSD(totalCostUsd)}</p>
+                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}><Masked hidden={hideAmounts} value={fmtUSD(totalCostUsd)} /></p>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
                   <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
-                    {hasQ ? fmtUSDSigned(totalReturnUsd) : '—'}
+                    {hasQ ? <Masked hidden={hideAmounts} value={fmtUSDSigned(totalReturnUsd)} /> : '—'}
                   </p>
                   {hasQ && (
                     <p className="text-xs font-bold tabular-nums" style={{ color: totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61' }}>
@@ -1019,7 +1062,7 @@ export default function Radar({
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
                 <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
                 <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
-                  {walletAvailable !== null ? fmtUSD(Math.max(0, walletAvailable)) : '—'}
+                  {walletAvailable !== null ? <Masked hidden={hideAmounts} value={fmtUSD(Math.max(0, walletAvailable))} /> : '—'}
                 </p>
               </div>
             </div>

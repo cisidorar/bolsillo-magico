@@ -2366,16 +2366,17 @@ export default async function AnalisisPage({
               })()}
             </div>
 
-            {/* R1: "Con qué pagaste" y "Cuándo gastas" colapsados en "Más detalle" —
-                se consultan menos que la tendencia y las categorías */}
-            <details className="group">
-              <summary className="card px-4 py-3 flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            {/* R1 originalmente colapsaba "Con qué pagaste" y "Cuándo gastas" en
+                "Más detalle" con un <details>/<summary> — sep 2026, Cas:
+                "me gustaria que esto siempre salga descomprimido". Se saca el
+                plegado: mismo encabezado, pero el contenido queda siempre visible. */}
+            <div>
+              <div className="card px-4 py-3 flex items-center justify-between">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Más detalle del mes</p>
-                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                   Con qué pagaste · Cuándo gastas
-                  <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
                 </span>
-              </summary>
+              </div>
               <div className="space-y-5 mt-5">
 
             {/* Medios de pago */}
@@ -2438,7 +2439,7 @@ export default async function AnalisisPage({
             <WeekdayBreakdown expenses={selectedExpenses} monthLabel={monthName(month)} />
 
               </div>
-            </details>
+            </div>
 
             </div>
 
