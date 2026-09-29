@@ -7,6 +7,7 @@ import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
 import CategoryDetailModal from './CategoryDetailModal'
+import EmergencyFundDetailModal from './EmergencyFundDetailModal'
 import NetWorthChart from './NetWorthChart'
 import { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from '@/lib/chart-axis'
 
@@ -515,9 +516,14 @@ export default function PatrimonioCards({
                 <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>Recomendado: 3–6 meses de gasto</p>
               </div>
             </div>
-            <Link href="/inversiones?view=ahorro#ahorro" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>
-              Ver
-            </Link>
+            <EmergencyFundDetailModal
+              icon={<ShieldCheck className="w-4 h-4" style={{ color: 'var(--primary)' }} />}
+              monthsCovered={monthsCovered ?? 0}
+              coveredLabel={coveredLabel}
+              coveredColor={coveredColor}
+              totalSavings={totalSavings}
+              avgMonthlyExpense={avgMonthlyExpense}
+            />
           </div>
 
           {hasSavings && monthsCovered !== null ? (
