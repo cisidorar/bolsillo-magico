@@ -22,7 +22,7 @@ import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import { earnedSoFar } from '@/lib/savings-accounts'
-import { earnedToDate } from '@/lib/term-deposits'
+import { earnedToDate, withoutSuperseded } from '@/lib/term-deposits'
 import { countsAsEmergencyFund, emergencyFundNote } from '@/lib/emergency-fund'
 
 export const revalidate = 0
@@ -154,7 +154,7 @@ export default async function AnalisisPage({
     // muestran igual, pero no suman al total líquido hasta que venzan.
     supabase
       .from('term_deposits')
-      .select('bank, amount, interest_rate, start_date, maturity_date')
+      .select('id, renewed_from_id, bank, amount, interest_rate, start_date, maturity_date')
       .eq('user_id', user!.id),
     // Meta mensual de aporte a inversión (Fase A1/A2 del asesor financiero)
     supabase.from('profiles').select('monthly_invest_goal').eq('id', user!.id).maybeSingle(),
@@ -566,6 +566,7 @@ export default async function AnalisisPage({
   const ratesLast12 = completedRates.map(r => r.rate)
   const rateAvg6  = ratesLast6.length  > 0 ? Math.round(ratesLast6.reduce((s, v) => s + v, 0) / ratesLast6.length)   : null
   const rateAvg12 = ratesLast12.length > 0 ? Math.round(ratesLast12.reduce((s, v) => s + v, 0) / ratesLast12.length) : null
+  const rateAvg12Months = ratesLast12.length
 
   // Fondo de emergencia: ahorros líquidos / gasto promedio de meses completados.
   // Los depósitos a plazo ya VENCIDOS son líquidos en la práctica (rescatables)
@@ -575,7 +576,12 @@ export default async function AnalisisPage({
   // distinto al "Ahorro" de Patrimonio neto (confuso: dos cifras de lo mismo).
   const emergencyTodayStr = getNowChile().dateStr
   const savingsRows = (savingsRaw ?? []) as { name: string; balance: number; annual_rate: number; start_date: string }[]
-  const depositRows = (depositsRaw ?? []) as { bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[]
+  // Sin ciclos ya renovados (sep 2026): el DAP del 4 ago aparecía como
+  // "vencido $336.329" al lado del ciclo que lo reemplazó — mismo capital
+  // contado dos veces en el fondo de emergencia.
+  const depositRows = withoutSuperseded(
+    (depositsRaw ?? []) as { id: string; renewed_from_id: string | null; bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[],
+  )
 
   const savingsInterest = savingsRows.map(s => earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))
   const savingsBalances = savingsRows.map((s, i) => s.balance + savingsInterest[i])
@@ -1790,6 +1796,7 @@ export default async function AnalisisPage({
               currentSaved={surplus}
               avg6={rateAvg6}
               avg12={rateAvg12}
+              avg12Months={rateAvg12Months}
               totalSavings={totalSavings}
               savingsCount={savingsBalances.length + depositsWithInterest.filter(x => x.counts).length}
               emergencyFundItems={emergencyFundItems}

@@ -24,6 +24,7 @@ import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
 import { fetchClIpcSeries, trailingAnnualInflation } from '@/lib/cl-indicators'
 import { computeWalletCash } from '@/lib/wallet-cash'
+import { withoutSuperseded } from '@/lib/term-deposits'
 
 export const dynamic = 'force-dynamic'
 
@@ -495,7 +496,9 @@ export default async function InversionesPage({ searchParams }: Props) {
           </div>
           <RentaFijaSummary
             savings={(savings ?? []) as SavingsAccount[]}
-            deposits={(deposits ?? []) as TermDeposit[]}
+            // Sin ciclos ya renovados: su capital vive en el ciclo nuevo
+            // (TermDepositManager sí recibe todos, para el historial).
+            deposits={withoutSuperseded((deposits ?? []) as TermDeposit[])}
             todayStr={todayCL}
             trailingInflationPct={trailingInflationPctResolved}
           />

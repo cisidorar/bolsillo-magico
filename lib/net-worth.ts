@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { billingPeriod } from './utils'
 import { fetchClDolarYear, type UsdClpObservation } from './cl-indicators'
+import { withoutSuperseded, supersededSince } from './term-deposits'
 
 // ── F4: cálculo y snapshot de patrimonio neto ────────────────────────────────
 // Valoriza los tres tipos de activos y hace upsert del snapshot del mes actual.
@@ -172,7 +173,7 @@ export async function computeAndSnapshotNetWorth(
 ): Promise<NetWorthResult> {
   const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: stockBuys }, { data: history }, committedDebtTotal] = await Promise.all([
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
-    supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
+    supabase.from('term_deposits').select('id, renewed_from_id, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
     supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
     supabase.from('stock_purchases').select('total_paid_usd').eq('user_id', userId),
@@ -186,7 +187,9 @@ export async function computeAndSnapshotNetWorth(
     s + a.balance + savingsEarned(a.balance, Number(a.annual_rate), a.start_date), 0)
 
   // ── Depósitos: capital + devengado (solo vigentes; vencidos = capital + interés total) ─
-  const depositsClp = (deposits ?? []).reduce((s, d) =>
+  // Sin los ciclos ya renovados: su capital vive en el ciclo nuevo (ver
+  // withoutSuperseded en lib/term-deposits.ts — antes se contaban dos veces).
+  const depositsClp = withoutSuperseded(deposits ?? []).reduce((s, d) =>
     s + d.amount + depositAccrued(d.amount, Number(d.interest_rate), d.start_date, d.maturity_date), 0)
 
   // ── Acciones y dólares: precio de caché × USD/CLP; fallback al costo ─────
@@ -330,7 +333,7 @@ export async function computeNetWorthWeeklyHistory(
 ): Promise<NetWorthHistoryPoint[]> {
   const [{ data: savings }, { data: deposits }, { data: purchases }, { data: sales }, { data: usdRows }, { data: positions }] = await Promise.all([
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
-    supabase.from('term_deposits').select('amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
+    supabase.from('term_deposits').select('id, renewed_from_id, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('stock_purchases').select('ticker, shares, total_paid_usd, purchase_date').eq('user_id', userId).order('purchase_date'),
     supabase.from('stock_sales').select('ticker, shares_sold, sale_date').eq('user_id', userId).order('sale_date'),
     supabase.from('usd_purchases').select('usd_amount, purchase_date').eq('user_id', userId).order('purchase_date'),
@@ -339,6 +342,8 @@ export async function computeNetWorthWeeklyHistory(
 
   const savingsRows  = savings ?? []
   const depositRows  = deposits ?? []
+  // Un ciclo renovado cuenta solo HASTA que arranca el ciclo que lo reemplazó.
+  const depositReplacedOn = supersededSince(depositRows)
   const purchaseRows = (purchases ?? []) as { ticker: string; shares: number; total_paid_usd: number; purchase_date: string }[]
   const saleRows     = (sales ?? []) as { ticker: string; shares_sold: number; sale_date: string }[]
   const usdMovements = (usdRows ?? []) as { usd_amount: number; purchase_date: string }[]
@@ -445,6 +450,7 @@ export async function computeNetWorthWeeklyHistory(
       .reduce((s, a) => s + a.balance + savingsEarned(a.balance, Number(a.annual_rate), a.start_date, asOf), 0)
     const depositsClp = depositRows
       .filter(d => d.start_date <= D)
+      .filter(d => { const until = depositReplacedOn.get(d.id); return !until || D < until })
       .reduce((s, d) => s + d.amount + depositAccrued(d.amount, Number(d.interest_rate), d.start_date, d.maturity_date, asOf), 0)
 
     // Billetera USD: aportes + ventas acumulados a D, menos lo ya asignado a

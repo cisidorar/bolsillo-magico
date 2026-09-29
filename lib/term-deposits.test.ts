@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, annualizeRate,
+  withoutSuperseded, supersededSince,
   type DepositLike,
 } from './term-deposits'
 
@@ -57,5 +58,26 @@ describe('annualizeRate', () => {
 
   it('plazo 0 no revienta (división por cero)', () => {
     expect(annualizeRate(1, 0)).toBe(0)
+  })
+})
+
+describe('cadena de renovaciones — caso real Banco de Chile (sep 2026)', () => {
+  const rows = [
+    { id: 'a', renewed_from_id: null, start_date: '2026-08-04', amount: 335000 },
+    { id: 'b', renewed_from_id: null, start_date: '2026-09-02', amount: 500000 },
+    { id: 'c', renewed_from_id: 'a',  start_date: '2026-09-08', amount: 336329 },
+  ]
+
+  it('withoutSuperseded saca el ciclo ya renovado, deja el vigente y los independientes', () => {
+    expect(withoutSuperseded(rows).map(r => r.id)).toEqual(['b', 'c'])
+  })
+
+  it('sin renovaciones no cambia nada', () => {
+    expect(withoutSuperseded(rows.slice(0, 2)).map(r => r.id)).toEqual(['a', 'b'])
+  })
+
+  it('supersededSince marca desde cuándo dejó de contar el ciclo viejo', () => {
+    expect(supersededSince(rows).get('a')).toBe('2026-09-08')
+    expect(supersededSince(rows).has('b')).toBe(false)
   })
 })

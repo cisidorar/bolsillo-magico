@@ -47,6 +47,41 @@ export function daysToMaturity(d: DepositLike, todayStr: string): number {
   return daysBetween(todayStr, d.maturity_date)
 }
 
+// ── Cadena de renovaciones (sep 2026) ────────────────────────────────────────
+// Cuando un DAP renovable se renueva, el ciclo nuevo se guarda como otra fila
+// con renewed_from_id = id del ciclo anterior. El capital del ciclo viejo YA
+// ESTÁ dentro del nuevo (se reinvirtió capital + interés), así que cualquier
+// suma de "cuánto tengo en depósitos" debe saltarse los ciclos renovados.
+// Bug real (Cas): Patrimonio mostraba Depósitos $1.174.847 cuando lo real era
+// ~$838k — el ciclo 4 ago → 8 sep ($336.329 al vencer) seguía sumando como
+// "vencido" al lado del ciclo que lo reemplazó.
+export interface RenewableLike {
+  id:               string
+  renewed_from_id?: string | null
+  start_date:       string
+}
+
+/** Filtra los ciclos que ya fueron renovados (otro depósito apunta a ellos). */
+export function withoutSuperseded<T extends RenewableLike>(rows: T[]): T[] {
+  const superseded = new Set(rows.map(r => r.renewed_from_id).filter((x): x is string => !!x))
+  return rows.filter(r => !superseded.has(r.id))
+}
+
+/**
+ * id del ciclo renovado → fecha en que empezó el ciclo que lo reemplazó.
+ * Para curvas históricas: un ciclo renovado cuenta hasta el día anterior a
+ * que arranca su reemplazo, no para siempre ni nunca.
+ */
+export function supersededSince<T extends RenewableLike>(rows: T[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const r of rows) {
+    if (!r.renewed_from_id) continue
+    const prev = out.get(r.renewed_from_id)
+    if (!prev || r.start_date < prev) out.set(r.renewed_from_id, r.start_date)
+  }
+  return out
+}
+
 // ── Desempeño combinado con Ahorro (A2, roadmap ROADMAP-ahorro-depositos.md) ─
 // El ahorro se expresa en TAE (tasa anual) y el depósito en tasa del período
 // (ej. 0,39667% a 35 días) — son unidades distintas, promediarlas tal cual es

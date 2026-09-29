@@ -6,6 +6,7 @@ import type { PortfolioPoint } from '@/lib/portfolio-history'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
+import NetWorthChart, { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from './NetWorthChart'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -40,6 +41,7 @@ interface Props {
   currentSaved: number | null      // CLP ahorrados (o déficit) del mes seleccionado
   avg6: number | null              // promedio 6 meses completados
   avg12: number | null             // promedio 12 meses completados
+  avg12Months?: number             // cuántos meses reales entran en avg12 (puede ser <12 con poca historia)
   totalSavings: number             // CLP líquidos en cuentas de ahorro
   savingsCount: number             // nº de cuentas de ahorro
   emergencyFundItems: EmergencyFundItem[]  // desglose por cuenta/depósito
@@ -79,34 +81,39 @@ interface Props {
   stockPortfolioHistory: PortfolioPoint[]
 }
 
-/** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada barra. */
+/** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada
+ * barra y el % encima (sep 2026 — antes solo se veía la forma, había que
+ * adivinar si una barra era 45% o 60%). */
 function RateBars({ points }: { points: RatePoint[] }) {
   // viewBox ancho para que la tipografía NO se agigante al estirarse al contenedor
-  const W = 560, H = 86, gap = 8
+  const W = 560, gap = 8
   const n = points.length
   const barW = (W - gap * (n - 1)) / n
 
   const values = points.map(p => p.rate).filter((r): r is number => r !== null)
   const posMax = Math.max(...values.map(v => Math.max(v, 0)), 10)
   const negMax = Math.max(...values.map(v => Math.max(-v, 0)), 0)
-  const usable = H - 20 // deja espacio para los labels de mes
-  const scale  = usable / (posMax + negMax || 1)
-  const baseY  = 2 + posMax * scale
+  const topPad = 13                 // espacio para el % sobre las barras positivas
+  const negPad = negMax > 0 ? 13 : 0 // espacio para el % bajo las negativas
+  const monthPad = 16
+  const plotH = 70
+  const H = topPad + plotH + negPad + monthPad
+  const scale  = plotH / (posMax + negMax || 1)
+  const baseY  = topPad + posMax * scale
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
-      {/* Línea base */}
       <line x1={0} y1={baseY} x2={W} y2={baseY} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 3" />
       {points.map((p, i) => {
         const x = i * (barW + gap)
+        const isLast = i === points.length - 1
         const label = (
           <text key={`l${i}`} x={x + barW / 2} y={H - 4} fontSize="9" fontWeight="600"
-            fill="var(--ink-3)" textAnchor="middle" style={{ textTransform: 'capitalize' }}>
+            fill={isLast ? 'var(--ink-2)' : 'var(--ink-3)'} textAnchor="middle" style={{ textTransform: 'capitalize' }}>
             {p.label}
           </text>
         )
         if (p.rate === null) {
-          // Mes sin ingreso registrado: marcador tenue en la base
           return [
             <rect key={i} x={x} y={baseY - 2} width={barW} height={2} rx={1} fill="var(--border)" />,
             label,
@@ -114,13 +121,14 @@ function RateBars({ points }: { points: RatePoint[] }) {
         }
         const h = Math.max(Math.abs(p.rate) * scale, 2)
         const y = p.rate >= 0 ? baseY - h : baseY
+        const color = p.rate >= 0 ? 'var(--mint)' : 'var(--coral)'
         return [
-          <rect
-            key={i}
-            x={x} y={y} width={barW} height={h} rx={2}
-            fill={p.rate >= 0 ? 'var(--mint)' : 'var(--coral)'}
-            opacity={i === points.length - 1 ? 1 : 0.55 + (i / points.length) * 0.4}
-          />,
+          <rect key={i} x={x} y={y} width={barW} height={h} rx={2} fill={color}
+            opacity={isLast ? 1 : 0.55 + (i / points.length) * 0.4} />,
+          <text key={`v${i}`} x={x + barW / 2} y={p.rate >= 0 ? y - 3.5 : y + h + 10}
+            fontSize="9" fontWeight="700" fill={color} textAnchor="middle">
+            {p.rate}%{isLast ? '*' : ''}
+          </text>,
           label,
         ]
       })}
@@ -132,148 +140,12 @@ function fmtMonths(v: number): string {
   return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-export const MONTH_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
-
-/** 'YYYY-MM-DD' → '3 ago' — label corto para los puntos de la curva semanal reconstruida. */
-function fmtWeekLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00')
-  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`
-}
-
-/** Curva suave tipo Catmull-Rom → Bézier cúbica (se ve bien con 2 puntos —
- * queda una línea recta — y mejora sola a medida que se acumulan snapshots). */
-function smoothPath(xs: number[], ys: number[]): string {
-  let d = `M ${xs[0]},${ys[0]}`
-  for (let i = 0; i < xs.length - 1; i++) {
-    const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
-    const x1 = xs[i], y1 = ys[i]
-    const x2 = xs[i + 1], y2 = ys[i + 1]
-    const x3 = xs[i + 2] ?? x2, y3 = ys[i + 2] ?? y2
-    const c1x = x1 + (x2 - x0) / 6, c1y = y1 + (y2 - y0) / 6
-    const c2x = x2 - (x3 - x1) / 6, c2y = y2 - (y3 - y1) / 6
-    d += ` C ${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`
-  }
-  return d
-}
-
-/** Formato abreviado para el eje Y (valores CLP grandes). */
-function fmtAxisY(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
-  if (Math.abs(v) >= 1_000)    return `$${Math.round(v / 1_000)}k`
-  return `$${Math.round(v)}`
-}
-
-/** Gráfico de área SVG del patrimonio neto (histórico de snapshots). Exportado
- * para reusarse más grande dentro de PatrimonioDetailSheet.
- *
- * sep 2026 (Cas: "cuando achico el ancho de la pantalla se deforma el
- * gráfico de patrimonio"): el viewBox fijo (1200×380) se eligió pensando
- * SOLO en el ancho real de desktop (~1100px, ver comentario abajo) para que
- * la tipografía no se agigante ahí — pero ese mismo viewBox se renderiza
- * también en mobile, donde la tarjeta baja a ~340px de ancho real. Como el
- * viewBox fuerza una proporción fija (ancho:alto = 1200:380), a 340px reales
- * el alto también se achica en la misma proporción (~108px) y todo el
- * contenido — texto de ejes, puntos, línea — se escala junto con el ancho:
- * a esa escala (340/1200 ≈ 0.28) el fontSize de 10-11 queda en ~3px,
- * ilegible y amontonado ("deformado"). Fix: dos variantes de SVG con su
- * propio viewBox calibrado al ancho real donde cada una se muestra (mismo
- * principio que ya usa el resto de charts de la app, aplicado por
- * breakpoint en vez de una sola talla para los dos anchos tan distintos). */
-export function NetWorthChart({ points, idPrefix = 'nw' }: { points: { label: string; total: number }[]; idPrefix?: string }) {
-  if (points.length < 2) return null
-  return (
-    <>
-      <div className="lg:hidden">
-        <NetWorthChartSvg points={points} gradId={`${idPrefix}-grad-m`} W={380} H={210} padLeft={50} padRight={8} padTop={14} padBot={22} />
-      </div>
-      <div className="hidden lg:block">
-        {/* W grande → tipografía no se agiganta al estirarse en desktop (~1100px real → escala ≈1).
-            H=380 → a 1100px de ancho el SVG mide ~350px de alto, llenando la card junto con el panel izquierdo. */}
-        <NetWorthChartSvg points={points} gradId={`${idPrefix}-grad-d`} W={1200} H={380} padLeft={68} padRight={12} padTop={16} padBot={28} />
-      </div>
-    </>
-  )
-}
-
-// idPrefix (arriba) + gradId (acá) evitan <linearGradient id> duplicado en el
-// DOM: las dos variantes (mobile/desktop) de un mismo NetWorthChart conviven
-// SIEMPRE en el documento (una oculta por CSS, no desmontada), y
-// PatrimonioDetailSheet además monta dos NetWorthChart distintos a la vez
-// (patrimonio + acciones) — sin un id único por instancia, el navegador
-// resuelve el primer <linearGradient> que encuentra con ese id para todos,
-// pintando el área de un gráfico con el degradé de otro.
-function NetWorthChartSvg({ points, gradId, W, H, padLeft, padRight, padTop, padBot }: {
-  points: { label: string; total: number }[]
-  gradId: string; W: number; H: number; padLeft: number; padRight: number; padTop: number; padBot: number
-}) {
-  const n = points.length
-  if (n < 2) return null
-  const totals = points.map(p => p.total)
-  const min = Math.min(...totals)
-  const max = Math.max(...totals)
-  const range = max - min || 1
-  const chartH = H - padTop - padBot
-  const chartW = W - padLeft - padRight
-  const xs = points.map((_, i) => padLeft + (i / (n - 1)) * chartW)
-  const ys = totals.map(t => padTop + (1 - (t - min) / range) * chartH)
-  const linePath = smoothPath(xs, ys)
-  const areaPath = `${linePath} L ${xs[n - 1]},${H - padBot} L ${xs[0]},${H - padBot} Z`
-  const showLabel = (i: number) => n <= 6 || i === 0 || i === n - 1 || i % 3 === 0
-  const trendUp = totals[n - 1] >= totals[0]
-  const lineColor = trendUp ? 'var(--primary)' : 'var(--coral)'
-  const gridFracs = [0.15, 0.4, 0.65, 0.9]
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
-      {/* Grillas horizontales con valor del eje Y */}
-      {gridFracs.map(f => {
-        const yPos  = padTop + chartH * f
-        const value = min + (1 - f) * range
-        return (
-          <g key={f}>
-            <line x1={padLeft} y1={yPos} x2={W - padRight} y2={yPos}
-              stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
-            <text x={padLeft - 8} y={yPos + 4} fontSize="10" fontWeight="500"
-              fill="var(--ink-3)" textAnchor="end">
-              {fmtAxisY(value)}
-            </text>
-          </g>
-        )
-      })}
-
-      <path d={areaPath} fill={`url(#${gradId})`} />
-      <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5"
-        strokeLinecap="round" strokeLinejoin="round" />
-
-      {/* Punto por mes — tenues en el trayecto, el actual destacado con halo */}
-      {xs.map((x, i) => {
-        if (i === n - 1) return null
-        return <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={lineColor} opacity={i === 0 ? 0.85 : 0.45} />
-      })}
-      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="7" fill={lineColor} opacity="0.2" />
-      <circle cx={xs[n - 1]} cy={ys[n - 1]} r="4" fill={lineColor} />
-
-      {/* Eje X */}
-      {points.map((p, i) => showLabel(i) && (
-        <text key={i} x={xs[i]} y={H - 10} fontSize="10" fontWeight="600" fill="var(--ink-3)"
-          textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-          style={{ textTransform: 'capitalize' }}>
-          {p.label}
-        </text>
-      ))}
-    </svg>
-  )
-}
+// sep 2026: el gráfico se movió a NetWorthChart.tsx (cliente, con tooltip).
+// Se re-exporta para no romper imports existentes.
+export { MONTH_SHORT, default as NetWorthChart } from './NetWorthChart'
 
 export default function PatrimonioCards({
-  ratePoints, currentRate, currentSaved, avg6, avg12,
+  ratePoints, currentRate, currentSaved, avg6, avg12, avg12Months = 12,
   totalSavings, savingsCount, emergencyFundItems, avgMonthlyExpense, monthsCovered,
   monthLabel, prevMonthLabel,
   projectedRate, dayOfMonth, isCurrentMonth,
@@ -332,9 +204,9 @@ export default function PatrimonioCards({
   // nada que reconstruir (ej. usuario recién llegado, sin ninguna cuenta/
   // compra con fecha todavía).
   const nwPoints = netWorthHistory.length >= 2
-    ? netWorthHistory.map(p => ({ label: fmtWeekLabel(p.date), total: p.total }))
+    ? netWorthHistory.map(p => ({ label: fmtDayShort(p.date), full: fmtDayLong(p.date), total: p.total }))
     : nw
-      ? nw.snapshots.slice(-13).map(s => ({ label: MONTH_SHORT[s.month - 1], total: s.total_clp }))
+      ? nw.snapshots.slice(-13).map(s => ({ label: MONTH_SHORT[s.month - 1], full: `${MONTH_LONG[s.month - 1]} ${s.year}`, total: s.total_clp }))
       : []
   const nwPrev = nw && nw.snapshots.length >= 2 ? nw.snapshots[nw.snapshots.length - 2] : null
   const nwDelta = nw && nwPrev ? nw.current.total_clp - nwPrev.total_clp : null
@@ -342,15 +214,31 @@ export default function PatrimonioCards({
     ? Math.round((nwDelta / nwPrev.total_clp) * 1000) / 10
     : null
   const nwBreakdown = nw ? [
-    { label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
+    { key: 'stocks_clp' as const,   label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
     // Ago 2026 (ROADMAP-ahorro-depositos.md, A3/A4): Ahorro y Depósitos
     // fusionaron en una sola vista (?view=ahorro) — cada card apunta a su
     // ancla (#ahorro / #depositos) para no dejar a Cas arriba de todo.
-    { label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=ahorro#depositos' },
-    { label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro#ahorro' },
+    { key: 'deposits_clp' as const, label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=ahorro#depositos' },
+    { key: 'savings_clp' as const,  label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro#ahorro' },
     // Bug detectado de paso: "Dólares" apuntaba a Ahorro en vez de Billetera.
-    { label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=billetera' },
+    { key: 'usd_clp' as const,      label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=billetera' },
   ].filter(b => b.value > 0) : []
+  const nwTotal = nw?.current.total_clp ?? 0
+  const sharePct = (v: number) => nwTotal > 0 ? Math.round((v / nwTotal) * 100) : 0
+
+  // sep 2026 (Cas: "mejoremos la entrega de valor"): "+$1.682.203 vs el mes
+  // pasado" solo decía CUÁNTO cambió, no POR QUÉ — y ese número mezcla plata
+  // nueva que pusiste (dólares comprados, un DAP nuevo) con rendimiento. En
+  // vez de inventar una separación aporte/rendimiento que los datos no
+  // permiten (las cuentas de ahorro no tienen libro de movimientos), se
+  // muestra qué categorías explican el cambio, que sí es un dato exacto.
+  const nwDrivers = nw && nwPrev
+    ? (['stocks_clp', 'deposits_clp', 'savings_clp', 'usd_clp'] as const)
+        .map(k => ({ key: k, label: { stocks_clp: 'Acciones', deposits_clp: 'Depósitos', savings_clp: 'Ahorro', usd_clp: 'Dólares' }[k], delta: (nw.current[k] ?? 0) - (nwPrev[k] ?? 0) }))
+        .filter(d => Math.abs(d.delta) >= 1000)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+        .slice(0, 2)
+    : []
   // P1: neto real = bruto − deuda ya contraída (cuotas pendientes + tarjeta por facturar)
   const netReal = nw ? nw.current.total_clp - committedDebtTotal : null
 
@@ -375,9 +263,10 @@ export default function PatrimonioCards({
               </div>
             </div>
             <PatrimonioDetailSheet
-              netWorthPoints={nwPoints}
+              history={netWorthHistory}
               snapshots={nw.snapshots}
               current={nw.current}
+              committedDebtTotal={committedDebtTotal}
               stockPortfolioHistory={stockPortfolioHistory}
             />
           </div>
@@ -390,12 +279,25 @@ export default function PatrimonioCards({
                 style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                 {formatCLP(nw.current.total_clp)}
               </p>
-              {nwDelta !== null ? (
-                <p className="text-[11px] mt-1.5 font-semibold tabular-nums"
-                  style={{ color: nwDelta >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
-                  {nwDelta >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta))}
-                  {nwDeltaPct !== null && ` (${nwDelta >= 0 ? '+' : ''}${nwDeltaPct}%)`} vs el mes pasado
-                </p>
+              {nwDelta !== null && nwPrev ? (
+                <>
+                  <p className="text-[11px] mt-1.5 font-semibold tabular-nums"
+                    style={{ color: nwDelta >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    {nwDelta >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta))}
+                    {nwDeltaPct !== null && ` (${nwDelta >= 0 ? '+' : ''}${nwDeltaPct}%)`} vs cierre de {MONTH_LONG[nwPrev.month - 1]}
+                  </p>
+                  {nwDrivers.length > 0 && (
+                    <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                      {nwDrivers.map((d, i) => (
+                        <span key={d.key}>
+                          {i > 0 && ' · '}
+                          {d.label} {d.delta >= 0 ? '+' : '−'}{formatCLP(Math.abs(d.delta))}
+                        </span>
+                      ))}
+                      {' '}— incluye aportes nuevos, no es solo rendimiento
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
                   Primer registro: desde ahora tu evolución se guarda mes a mes.
@@ -419,15 +321,28 @@ export default function PatrimonioCards({
                 </div>
               )}
 
+              {/* Composición: de un vistazo cuánto pesa cada tipo de activo
+                  (sep 2026) — antes había que sumar mentalmente las filas. */}
+              {nwBreakdown.length > 1 && (
+                <div className="flex h-2 rounded-full overflow-hidden mt-3 gap-0.5" aria-hidden="true">
+                  {nwBreakdown.map(b => (
+                    <div key={b.key} style={{ width: `${(b.value / nwTotal) * 100}%`, background: b.color }} />
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-2 mt-3">
-                {nwBreakdown.map(({ label, value, color, Icon, href }) => (
-                  <Link key={label} href={href}
+                {nwBreakdown.map(({ key, label, value, color, Icon, href }) => (
+                  <Link key={key} href={href}
                     className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-opacity hover:opacity-80"
                     style={{ background: 'var(--surface-2)' }}>
                     <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
                       <Icon className="w-3.5 h-3.5" style={{ color }} />
                     </div>
-                    <p className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>{label}</p>
+                    <p className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>
+                      {label}
+                      <span className="ml-1.5 text-[10px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>{sharePct(value)}%</span>
+                    </p>
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(value)}</p>
                   </Link>
                 ))}
@@ -514,11 +429,13 @@ export default function PatrimonioCards({
                   </p>
                 ) : (
                   <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    Si sigues gastando a este ritmo, cerrarás {monthLabel.toLowerCase()} ahorrando{' '}
-                    <span className="font-bold" style={{ color: rateColor }}>{displayRate}%</span> del sueldo de {prevMonthLabel.toLowerCase()}.
-                    {currentRate !== null && (
-                      <> Al día {dayOfMonth} llevas {currentRate}% sin gastar — ese número baja solo a medida que avanza el mes.</>
-                    )}
+                    A este ritmo cierras {monthLabel.toLowerCase()} guardando{' '}
+                    <span className="font-bold" style={{ color: rateColor }}>{displayRate}%</span> del sueldo de {prevMonthLabel.toLowerCase()}
+                    {avg6 !== null && displayRate !== null && (
+                      <> — {displayRate >= avg6
+                        ? <span style={{ color: 'var(--mint)' }}>sobre tu promedio de 6 meses ({avg6}%)</span>
+                        : <>bajo tu promedio de 6 meses ({avg6}%)</>}</>
+                    )}.
                   </p>
                 )
               ) : (
@@ -534,6 +451,9 @@ export default function PatrimonioCards({
               {/* Histórico 12 meses */}
               <div className="mt-4">
                 <RateBars points={ratePoints} />
+                {isCurrentMonth && displayRate !== null && (
+                  <p className="text-[9px] mt-1 text-right" style={{ color: 'var(--ink-3)' }}>* proyección al cierre</p>
+                )}
               </div>
 
               {/* Promedios móviles — filas inset */}
@@ -546,7 +466,11 @@ export default function PatrimonioCards({
                   </p>
                 </div>
                 <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Promedio 12m</p>
+                  {/* sep 2026: con 7 meses de historia decía "Promedio 12m" —
+                      el número es real pero la etiqueta prometía un año. */}
+                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                    {avg12Months >= 12 ? 'Promedio 12m' : `Histórico · ${avg12Months}m`}
+                  </p>
                   <p className="text-base font-extrabold tabular-nums mt-0.5"
                     style={{ color: avg12 === null ? 'var(--ink-3)' : avg12 >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {avg12 !== null ? `${avg12}%` : '—'}
@@ -601,7 +525,9 @@ export default function PatrimonioCards({
                 </span>
               </div>
               {coveredLabel && (
-                <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[10px] font-bold"
+                // self-start: la card es flex-col y sin esto el chip se
+                // estiraba a todo el ancho — un banner dorado, que UX5 prohíbe.
+                <span className="self-start inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-[10px] font-bold"
                   style={{ background: coveredBg, color: coveredColor }}>
                   <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: coveredColor }} />
                   {coveredLabel}
