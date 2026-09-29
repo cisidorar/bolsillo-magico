@@ -439,18 +439,25 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   // anuales. El orden dentro de cada grupo se mantiene (billing_day, ya
   // ordenado por el server). Un item nunca cae en dos grupos: cuotas gana
   // sobre anual si por algún motivo coincidieran ambos campos.
-  type GroupKey = 'cuotas' | 'anuales' | 'mensuales'
-  const GROUP_LABELS: Record<GroupKey, string> = { cuotas: 'En cuotas', anuales: 'Anuales', mensuales: 'Mensuales' }
-  const groups: Record<GroupKey, RecurringExpense[]> = { cuotas: [], anuales: [], mensuales: [] }
+  // sep 2026 (Cas: cuotas "Completado" ocupaban el mismo espacio que las
+  // activas — 3/3 pagadas con su barra llena de sobra en la vista principal)
+  // — las cuotas ya terminadas de pagar se sacan del grupo "En cuotas" a su
+  // propio grupo "Completados", colapsado por defecto y con fila compacta
+  // (sin barra de progreso — un 3/3 fijo no aporta nada nuevo).
+  type GroupKey = 'cuotas' | 'anuales' | 'mensuales' | 'completados'
+  const GROUP_LABELS: Record<GroupKey, string> = { cuotas: 'En cuotas', anuales: 'Anuales', mensuales: 'Mensuales', completados: 'Completados' }
+  const groups: Record<GroupKey, RecurringExpense[]> = { cuotas: [], anuales: [], mensuales: [], completados: [] }
   for (const item of items) {
-    const isCuotas = item.total_installments != null && item.total_installments > 0
-    const isAnual  = item.billing_month != null
-    if (isCuotas) groups.cuotas.push(item)
+    const isCuotas    = item.total_installments != null && item.total_installments > 0
+    const isAnual     = item.billing_month != null
+    const isCompleted = isCuotas && (item.paid_installments ?? 0) >= (item.total_installments ?? 0)
+    if (isCompleted) groups.completados.push(item)
+    else if (isCuotas) groups.cuotas.push(item)
     else if (isAnual) groups.anuales.push(item)
     else groups.mensuales.push(item)
   }
-  const groupOrder: GroupKey[] = ['mensuales', 'cuotas', 'anuales']
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set())
+  const groupOrder: GroupKey[] = ['mensuales', 'cuotas', 'anuales', 'completados']
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set(['completados']))
   const toggleGroup = (g: GroupKey) => setCollapsedGroups(prev => {
     const next = new Set(prev)
     next.has(g) ? next.delete(g) : next.add(g)
@@ -458,8 +465,10 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   })
   // Solo agrupar cuando hay más de un tipo presente — con un solo tipo, el
   // header sería puro ruido repitiendo lo que ya dice la lista completa.
+  // "Completados" siempre se separa si tiene algo, aunque sea el único otro
+  // grupo — es justamente lo que hay que comprimir.
   const activeGroupCount = groupOrder.filter(g => groups[g].length > 0).length
-  const showGroups = activeGroupCount > 1
+  const showGroups = activeGroupCount > 1 || groups.completados.length > 0
 
   return (
     <>
@@ -538,12 +547,13 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 tabIndex={0}
                 onKeyDown={e => e.key === 'Enter' && openEdit(item)}
                 className={cn(
-                  'w-full px-4 py-4 text-left transition-colors hover:bg-gray-50/60 active:bg-brand-50/40 cursor-pointer',
+                  'w-full px-4 text-left transition-colors hover:bg-gray-50/60 active:bg-brand-50/40 cursor-pointer',
+                  isCompleted ? 'py-2.5' : 'py-4',
                   !item.is_active && 'opacity-60'
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <ServiceLogo domain={item.domain} name={item.name} size={40} className="flex-shrink-0" />
+                  <ServiceLogo domain={item.domain} name={item.name} size={isCompleted ? 28 : 40} className="flex-shrink-0" />
 
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
@@ -640,7 +650,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                 </div>
 
-                {isCuotas && (() => {
+                {isCuotas && !isCompleted && (() => {
                   const remaining = (item.total_installments ?? 0) - (item.paid_installments ?? 0)
                   // Última cuota cae en el mes actual + cuotas restantes (misma convención que "Ya comprometido")
                   const endDate = new Date()
