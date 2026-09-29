@@ -6,6 +6,7 @@ import type { PortfolioPoint } from '@/lib/portfolio-history'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
+import CategoryDetailModal from './CategoryDetailModal'
 import NetWorthChart from './NetWorthChart'
 import { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from '@/lib/chart-axis'
 
@@ -211,14 +212,15 @@ export default function PatrimonioCards({
     ? Math.round((nwDelta / nwPrev.total_clp) * 1000) / 10
     : null
   const nwBreakdown = nw ? [
-    { key: 'stocks_clp' as const,   label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones' },
+    { key: 'stocks_clp' as const,   label: 'Acciones',  value: nw.current.stocks_clp,   color: 'var(--primary)', Icon: TrendingUp, href: '/inversiones', ctaLabel: 'Ver acciones', isTransit: false },
     // Ago 2026 (ROADMAP-ahorro-depositos.md, A3/A4): Ahorro y Depósitos
     // fusionaron en una sola vista (?view=ahorro) — cada card apunta a su
     // ancla (#ahorro / #depositos) para no dejar a Cas arriba de todo.
-    { key: 'deposits_clp' as const, label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=ahorro#depositos' },
-    { key: 'savings_clp' as const,  label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro#ahorro' },
+    { key: 'deposits_clp' as const, label: 'Depósitos', value: nw.current.deposits_clp, color: 'var(--gold)',    Icon: Timer,      href: '/inversiones?view=ahorro#depositos', ctaLabel: 'Ver depósitos', isTransit: false },
+    { key: 'savings_clp' as const,  label: 'Ahorro',    value: nw.current.savings_clp,  color: 'var(--mint)',    Icon: Landmark,   href: '/inversiones?view=ahorro#ahorro', ctaLabel: 'Ver ahorro', isTransit: false },
     // Bug detectado de paso: "Dólares" apuntaba a Ahorro en vez de Billetera.
-    { key: 'usd_clp' as const,      label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=billetera' },
+    // isTransit: es plata en tránsito hacia acciones, no rendimiento.
+    { key: 'usd_clp' as const,      label: 'Dólares',   value: nw.current.usd_clp ?? 0, color: '#A78BFA',        Icon: DollarSign, href: '/inversiones?view=billetera', ctaLabel: 'Ver billetera', isTransit: true },
   ].filter(b => b.value > 0) : []
   const nwTotal = nw?.current.total_clp ?? 0
   const sharePct = (v: number) => nwTotal > 0 ? Math.round((v / nwTotal) * 100) : 0
@@ -329,20 +331,29 @@ export default function PatrimonioCards({
               )}
 
               <div className="space-y-2 mt-3">
-                {nwBreakdown.map(({ key, label, value, color, Icon, href }) => (
-                  <Link key={key} href={href}
-                    className="flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-opacity hover:opacity-80"
-                    style={{ background: 'var(--surface-2)' }}>
-                    <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
-                      <Icon className="w-3.5 h-3.5" style={{ color }} />
-                    </div>
-                    <p className="text-xs font-semibold flex-1" style={{ color: 'var(--ink-2)' }}>
-                      {label}
-                      <span className="ml-1.5 text-[10px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>{sharePct(value)}%</span>
-                    </p>
-                    <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(value)}</p>
-                  </Link>
-                ))}
+                {nwBreakdown.map(({ key, label, value, color, Icon, href, ctaLabel, isTransit }) => {
+                  const prevValue = nwPrev ? nwPrev[key] : null
+                  const delta = !isTransit && prevValue !== null ? value - prevValue : null
+                  const deltaPct = delta !== null && prevValue! > 0 ? Math.round((delta / prevValue!) * 1000) / 10 : null
+                  const trend = nw.snapshots.slice(-7).map(s => s[key])
+                  return (
+                    <CategoryDetailModal
+                      key={key}
+                      label={label}
+                      value={value}
+                      share={sharePct(value)}
+                      color={color}
+                      icon={<Icon className="w-3.5 h-3.5" style={{ color }} />}
+                      href={href}
+                      ctaLabel={ctaLabel}
+                      delta={delta}
+                      deltaPct={deltaPct}
+                      isTransit={isTransit}
+                      trend={trend}
+                      prevLabel={nwPrev ? MONTH_LONG[nwPrev.month - 1] : null}
+                    />
+                  )
+                })}
               </div>
               {!nw.stocksPriced && (
                 <div className="flex items-center gap-2 flex-wrap mt-3">
