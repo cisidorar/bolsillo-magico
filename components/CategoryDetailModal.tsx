@@ -15,42 +15,38 @@ import { useBackdropClose } from './useBackdropClose'
 // vista completa. El estado (open/close, Esc, backdrop) vive acá adentro —
 // PatrimonioCards.tsx sigue siendo Server Component y no necesita saber nada
 // de esto, solo pasar los números ya calculados.
+//
+// sep 2026 (Cas, viendo el pop-up de Depósitos: "quita esos gráficos y pon
+// detalle de los depósitos que existen con información esencial") — el
+// mini-gráfico de tendencia no decía nada que el delta de arriba no dijera
+// ya, y no respondía la pregunta real: "¿cuáles son, cuánto tiene cada uno?".
+// Se reemplaza por una lista de ítems (cada cuenta/DAP real) cuando el padre
+// la tiene disponible (Depósitos, Ahorro); Acciones y Dólares no traen
+// ítems todavía y se quedan solo con el resumen + el botón de ir al detalle.
+
+export interface CategoryItem {
+  label:  string
+  amount: number
+  note?:  string
+}
 
 interface Props {
   label:     string
   value:     number
   share:     number            // % del patrimonio total
-  color:     string
   icon:      ReactNode         // <Icon /> ya renderizado por el padre (server)
   href:      string            // a dónde ir si quiere el detalle completo
   ctaLabel:  string            // ej. "Ver depósitos"
   delta:     number | null     // vs cierre del mes anterior; null = sin dato o "en tránsito"
   deltaPct:  number | null
   isTransit: boolean           // ej. Dólares: saldo de billetera, no es rendimiento
-  trend:     number[]          // últimos meses, para el mini-gráfico
+  items?:    CategoryItem[]    // cada cuenta/DAP real que compone el total
   prevLabel: string | null     // 'agosto' — mes contra el que se compara
 }
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return null
-  const W = 100, H = 28, pad = 3
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const xs = values.map((_, i) => pad + (i / (values.length - 1)) * (W - pad * 2))
-  const ys = values.map(v => pad + (1 - (v - min) / range) * (H - pad * 2))
-  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${x},${ys[i]}`).join(' ')
-  return (
-    <svg width="100%" height="36" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
-      <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="3" fill={color} />
-    </svg>
-  )
-}
-
 export default function CategoryDetailModal({
-  label, value, share, color, icon, href, ctaLabel,
-  delta, deltaPct, isTransit, trend, prevLabel,
+  label, value, share, icon, href, ctaLabel,
+  delta, deltaPct, isTransit, items, prevLabel,
 }: Props) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
@@ -149,12 +145,22 @@ export default function CategoryDetailModal({
                 <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Sin mes anterior para comparar todavía.</p>
               )}
 
-              {trend.length >= 2 && (
-                <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
-                    Últimos {trend.length} meses
+              {items && items.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                    {items.length === 1 ? '1 cuenta' : `${items.length} cuentas`}
                   </p>
-                  <Sparkline values={trend} color={color} />
+                  <div className="space-y-2">
+                    {items.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                        <p className="text-xs font-semibold min-w-0" style={{ color: 'var(--ink-2)' }}>
+                          {item.label}
+                          {item.note && <span className="block text-[10px] font-medium mt-0.5" style={{ color: 'var(--ink-3)' }}>{item.note}</span>}
+                        </p>
+                        <p className="text-sm font-extrabold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(item.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

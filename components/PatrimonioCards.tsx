@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { PiggyBank, ShieldCheck, ArrowRight, CalendarClock, Gem, TrendingUp, Timer, Landmark, DollarSign, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthResult, NetWorthHistoryPoint } from '@/lib/net-worth'
-import type { PortfolioPoint } from '@/lib/portfolio-history'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
@@ -36,6 +35,9 @@ export interface EmergencyFundItem {
   amount: number   // capital + interés devengado a hoy
   liquid: boolean  // false = fuera del horizonte, no suma a monthsCovered
   note?:  string   // ej. "vence en 8 días", "+$18.110 de interés"
+  // sep 2026: de dónde sale la fila — usado por el pop-up de Depósitos/Ahorro
+  // en la card de Patrimonio neto para mostrar solo lo que corresponde.
+  kind?:  'savings' | 'deposit'
 }
 
 interface Props {
@@ -77,11 +79,6 @@ interface Props {
   // más rica que los snapshots mensuales cuando hay pocos meses de historia.
   // Ver PatrimonioCards' nwPoints para el fallback a snapshots mensuales.
   netWorthHistory: NetWorthHistoryPoint[]
-  // ago 2026: curva diaria del valor de la cartera de acciones (posiciones
-  // actuales × precio de cierre histórico) — para responder "¿suben o bajan
-  // mis acciones según el mercado?", algo que el patrimonio total no puede
-  // mostrar porque mezcla depósitos/ahorro/dólares en tránsito.
-  stockPortfolioHistory: PortfolioPoint[]
 }
 
 /** Mini gráfico SVG de barras +/- para la tasa de ahorro, con mes bajo cada
@@ -150,7 +147,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal, stockTickers, netWorthHistory, stockPortfolioHistory,
+  netWorth, committedDebtTotal, stockTickers, netWorthHistory,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -226,6 +223,18 @@ export default function PatrimonioCards({
   const nwTotal = nw?.current.total_clp ?? 0
   const sharePct = (v: number) => nwTotal > 0 ? Math.round((v / nwTotal) * 100) : 0
 
+  // sep 2026 (Cas: "quita esos gráficos y pon detalle de los depósitos que
+  // existen con información esencial") — el pop-up de cada categoría ya no
+  // muestra un mini-gráfico de tendencia; en su lugar, para Depósitos y
+  // Ahorro, lista cada cuenta/DAP real (mismos datos que ya arma la card de
+  // Fondo de emergencia, filtrados por origen).
+  const depositItems = emergencyFundItems.filter(i => i.kind === 'deposit')
+  const savingsItems = emergencyFundItems.filter(i => i.kind === 'savings')
+  const itemsByKey: Record<string, EmergencyFundItem[] | undefined> = {
+    deposits_clp: depositItems,
+    savings_clp:  savingsItems,
+  }
+
   // sep 2026 (Cas: "mejoremos la entrega de valor"): "+$1.682.203 vs el mes
   // pasado" solo decía CUÁNTO cambió, no POR QUÉ — y ese número mezcla plata
   // nueva que pusiste (dólares comprados, un DAP nuevo) con rendimiento. En
@@ -267,7 +276,6 @@ export default function PatrimonioCards({
               snapshots={nw.snapshots}
               current={nw.current}
               committedDebtTotal={committedDebtTotal}
-              stockPortfolioHistory={stockPortfolioHistory}
             />
           </div>
 
@@ -336,21 +344,19 @@ export default function PatrimonioCards({
                   const prevValue = nwPrev ? nwPrev[key] : null
                   const delta = !isTransit && prevValue !== null ? value - prevValue : null
                   const deltaPct = delta !== null && prevValue! > 0 ? Math.round((delta / prevValue!) * 1000) / 10 : null
-                  const trend = nw.snapshots.slice(-7).map(s => s[key])
                   return (
                     <CategoryDetailModal
                       key={key}
                       label={label}
                       value={value}
                       share={sharePct(value)}
-                      color={color}
                       icon={<Icon className="w-3.5 h-3.5" style={{ color }} />}
                       href={href}
                       ctaLabel={ctaLabel}
                       delta={delta}
                       deltaPct={deltaPct}
                       isTransit={isTransit}
-                      trend={trend}
+                      items={itemsByKey[key]}
                       prevLabel={nwPrev ? MONTH_LONG[nwPrev.month - 1] : null}
                     />
                   )

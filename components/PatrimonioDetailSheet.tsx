@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { X, TrendingUp, TrendingDown, Minus, Timer, Landmark, DollarSign } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { NetWorthSnapshot, NetWorthHistoryPoint } from '@/lib/net-worth'
-import type { PortfolioPoint } from '@/lib/portfolio-history'
 import { useBackdropClose } from './useBackdropClose'
 import NetWorthChart, { type NetWorthChartPoint } from './NetWorthChart'
 import { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from '@/lib/chart-axis'
@@ -27,9 +26,6 @@ interface Props {
   snapshots: NetWorthSnapshot[]      // histórico mensual, viejo → nuevo, incluye el actual
   current:   NetWorthSnapshot
   committedDebtTotal: number
-  // Curva diaria de las posiciones de HOY valorizadas a precio histórico —
-  // muestra el efecto del mercado sin el ruido de compras nuevas.
-  stockPortfolioHistory: PortfolioPoint[]
 }
 
 type Period = '1m' | '3m' | 'all'
@@ -80,25 +76,7 @@ function Signed({ v, pct, className = '' }: { v: number; pct?: number | null; cl
   )
 }
 
-/** Mini sparkline SVG (solo tendencia, sin ejes). */
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return null
-  const W = 100, H = 28, pad = 3
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const xs = values.map((_, i) => pad + (i / (values.length - 1)) * (W - pad * 2))
-  const ys = values.map(v => pad + (1 - (v - min) / range) * (H - pad * 2))
-  const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${x},${ys[i]}`).join(' ')
-  return (
-    <svg width="72" height="24" viewBox={`0 0 ${W} ${H}`} className="block flex-shrink-0" aria-hidden="true">
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="2.5" fill={color} />
-    </svg>
-  )
-}
-
-export default function PatrimonioDetailSheet({ history, snapshots, current, committedDebtTotal, stockPortfolioHistory }: Props) {
+export default function PatrimonioDetailSheet({ history, snapshots, current, committedDebtTotal }: Props) {
   const [open, setOpen]     = useState(false)
   const [period, setPeriod] = useState<Period>('all')
   const backdropClose = useBackdropClose(() => setOpen(false))
@@ -127,11 +105,6 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
   const netReal = current.total_clp - committedDebtTotal
   const prev = snapshots.length >= 2 ? snapshots[snapshots.length - 2] : null
   const monthlyRows = [...snapshots].slice(-13).reverse()
-
-  const stockClipped = clip(stockPortfolioHistory, period)
-  const stockPoints: NetWorthChartPoint[] = stockClipped.map(p => ({ label: fmtDayShort(p.date), full: fmtDayLong(p.date), total: p.value }))
-  const stockDelta = stockClipped.length >= 2 ? stockClipped[stockClipped.length - 1].value - stockClipped[0].value : null
-  const stockPct   = stockDelta !== null ? pctChange(stockClipped[0].value, stockClipped[stockClipped.length - 1].value) : null
 
   const cats = CATEGORIES.filter(c => current[c.key] > 0)
   const total = current.total_clp || 1
@@ -261,7 +234,6 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
                     const isTransit = key === 'usd_clp'
                     const prevValue = prev ? prev[key] : null
                     const delta = !isTransit && prevValue !== null ? value - prevValue : null
-                    const trend = snapshots.slice(-7).map(s => s[key])
                     const DeltaIcon = delta === null || delta === 0 ? Minus : delta > 0 ? TrendingUp : TrendingDown
                     return (
                       <div key={key} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
@@ -282,28 +254,11 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
                             </p>
                           )}
                         </div>
-                        {!isTransit && trend.length >= 2 && <Sparkline values={trend} color={color} />}
                       </div>
                     )
                   })}
                 </div>
               </div>
-
-              {/* Acciones por mercado (sin compras nuevas) */}
-              {stockPoints.length >= 2 && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
-                      Acciones — efecto del mercado
-                    </p>
-                    {stockDelta !== null && <span className="text-[11px] font-bold"><Signed v={stockDelta} pct={stockPct} /></span>}
-                  </div>
-                  <NetWorthChart points={stockPoints} idPrefix="nw-stock" />
-                  <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
-                    Tus posiciones de hoy valorizadas al cierre de cada día: aísla cuánto subió o bajó el mercado, sin contar compras nuevas.
-                  </p>
-                </div>
-              )}
 
               {/* Histórico mensual: bruto y neto real */}
               {monthlyRows.length >= 2 && (
