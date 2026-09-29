@@ -6,7 +6,8 @@ import { formatCLP } from '@/lib/utils'
 import type { NetWorthSnapshot, NetWorthHistoryPoint } from '@/lib/net-worth'
 import type { PortfolioPoint } from '@/lib/portfolio-history'
 import { useBackdropClose } from './useBackdropClose'
-import NetWorthChart, { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong, type NetWorthChartPoint } from './NetWorthChart'
+import NetWorthChart, { type NetWorthChartPoint } from './NetWorthChart'
+import { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from '@/lib/chart-axis'
 
 // ── Detalle de patrimonio (rediseño sep 2026, Cas: "mejoremos la entrega de
 // valor, también las ventanas al abrir el detalle") ────────────────────────

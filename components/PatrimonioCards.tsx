@@ -6,7 +6,8 @@ import type { PortfolioPoint } from '@/lib/portfolio-history'
 import RefreshStocksButton from './RefreshStocksButton'
 import InfoTap from './InfoTap'
 import PatrimonioDetailSheet from './PatrimonioDetailSheet'
-import NetWorthChart, { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from './NetWorthChart'
+import NetWorthChart from './NetWorthChart'
+import { MONTH_SHORT, MONTH_LONG, fmtDayShort, fmtDayLong } from '@/lib/chart-axis'
 
 export interface RatePoint {
   label: string        // 'ene', 'feb', …
@@ -139,10 +140,6 @@ function RateBars({ points }: { points: RatePoint[] }) {
 function fmtMonths(v: number): string {
   return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
-
-// sep 2026: el gráfico se movió a NetWorthChart.tsx (cliente, con tooltip).
-// Se re-exporta para no romper imports existentes.
-export { MONTH_SHORT, default as NetWorthChart } from './NetWorthChart'
 
 export default function PatrimonioCards({
   ratePoints, currentRate, currentSaved, avg6, avg12, avg12Months = 12,
