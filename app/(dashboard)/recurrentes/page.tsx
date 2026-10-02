@@ -332,15 +332,22 @@ export default async function RecurrentesPage({
   // cambia cada mes según lo que se gaste, así que no es algo "comprometido"
   // de antemano como una cuota o un fijo — mezclarlo distorsionaba la
   // proyección. Ese vencimiento puntual ya vive en Flujo de caja 30 días.
-  const committedItems = activeItems.map(r => ({
-    name: r.name,
-    amount: r.amount,
-    billing_month: r.billing_month,
-    totalInstallments: r.total_installments,
-    paidInstallments: r.paid_installments ?? 0,
-    isActive: r.is_active,
-    billingDay: r.billing_day ?? null,
-  }))
+  const committedItems = activeItems.map(r => {
+    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
+    return {
+      name: r.name,
+      amount: r.amount,
+      billing_month: r.billing_month,
+      totalInstallments: r.total_installments,
+      paidInstallments: r.paid_installments ?? 0,
+      isActive: r.is_active,
+      billingDay: r.billing_day ?? null,
+      intervalMonths: r.interval_months ?? 1,
+      projectedDate: isIntervalItem
+        ? projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at).date
+        : null,
+    }
+  })
   const committedMonths = buildCommittedTimeline(committedItems, month, year, 6, [], todayDate)
 
   return (

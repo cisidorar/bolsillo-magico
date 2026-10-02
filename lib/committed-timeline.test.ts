@@ -60,6 +60,23 @@ describe('buildCommittedTimeline', () => {
     expect(months.every(m => m.total === 0)).toBe(true)
   })
 
+  it('"cada N meses" se proyecta solo en los meses que corresponden, no todos', () => {
+    // Comida Kida: cada 2 meses, próximo proyectado en marzo 2026 (horizonte ene-jun)
+    const months = buildCommittedTimeline(
+      [item({ name: 'Comida Kida', amount: 75000, intervalMonths: 2, projectedDate: '2026-03-09' })],
+      1, 2026, 6,
+    )
+    expect(months.map(m => m.total)).toEqual([0, 0, 75000, 0, 75000, 0])
+  })
+
+  it('"cada N meses" sin projectedDate no aporta a ningún mes', () => {
+    const months = buildCommittedTimeline(
+      [item({ amount: 75000, intervalMonths: 2, projectedDate: null })],
+      1, 2026, 6,
+    )
+    expect(months.every(m => m.total === 0)).toBe(true)
+  })
+
   it('combina varios tipos en el mismo mes', () => {
     const months = buildCommittedTimeline([
       item({ name: 'Arriendo', amount: 400000 }),

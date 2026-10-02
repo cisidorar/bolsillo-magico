@@ -21,6 +21,13 @@ export interface CommittedTimelineItem {
    *  del mes actual ya pasó (billingDay <= todayDay) — en ese caso, los
    *  cargos restantes empiezan el mes siguiente, no este mes. */
   billingDay?: number | null
+  /** >1 = "cada N meses" (ej. Comida Kida, cada 2) — no se cobra todos los
+   *  meses como un fijo indefinido. Requiere `projectedDate`. */
+  intervalMonths?: number
+  /** YYYY-MM-DD del próximo cobro proyectado (ya calculado fuera de este
+   *  módulo, anclado al último gasto real — ver lib/recurring-due.ts). Solo
+   *  se usa cuando `intervalMonths` > 1. */
+  projectedDate?: string | null
 }
 
 export interface ReleasingItem {
@@ -98,6 +105,27 @@ export function buildCommittedTimeline(
       if (remaining > 0 && lastIdx < months.length) {
         months[lastIdx].freesUp = true
         months[lastIdx].releasing.push({ name: item.name, amount: item.amount })
+      }
+      continue
+    }
+
+    // "Cada N meses" (Comida Kida): NO se paga todos los meses como un fijo
+    // indefinido — se proyecta cada `intervalMonths` desde `projectedDate`,
+    // que ya viene anclado al último gasto real. Sin este branch caía en el
+    // "fijo indefinido" de abajo y se sumaba completo cada mes del horizonte,
+    // aplanando el gráfico de "Ya comprometido" (bug real, oct 2026: Cas vio
+    // las 6 barras idénticas pese a que el gasto es bimensual).
+    if ((item.intervalMonths ?? 1) > 1) {
+      if (!item.projectedDate) continue
+      let [py, pm] = item.projectedDate.split('-').map(Number)
+      const last = months[months.length - 1]
+      // Tope de seguridad: nunca más vueltas que meses en el horizonte.
+      for (let guard = 0; guard < months.length + 1; guard++) {
+        if (py > last.year || (py === last.year && pm > last.month)) break
+        const idx = months.findIndex(mo => mo.month === pm && mo.year === py)
+        if (idx >= 0) months[idx].total += item.amount
+        pm += item.intervalMonths!
+        while (pm > 12) { pm -= 12; py++ }
       }
       continue
     }
