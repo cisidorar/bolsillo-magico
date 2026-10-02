@@ -11,12 +11,19 @@ export interface RecurringWithRelations {
   amount: number
   billing_day: number
   billing_month: number | null   // null = mensual, 1-12 = anual (solo aparece en su mes)
+  interval_months: number        // 1 = mensual normal; >1 = "cada N meses" (ver projected_date)
   is_active: boolean
   domain: string | null
   total_installments: number | null
   paid_installments: number
   category: { name: string; color: string; bg_color: string } | null
   payment_method: { name: string } | null
+  // oct 2026: para ítems "cada N meses" (interval_months > 1, billing_month
+  // null), la fecha de cobro NO es "billing_day de cada mes" — se calcula
+  // server-side (projectedIntervalDate, anclada al último gasto real) y
+  // llega ya resuelta acá. Solo se ubica en el mes/año que indica esta
+  // fecha, no en todos los meses como los demás.
+  projected_date: string | null
 }
 
 interface Props {
@@ -46,14 +53,29 @@ export default function CalendarioPagos({ items }: Props) {
   const daysInMonth  = new Date(year, month, 0).getDate()
   const offset       = startOffset(year, month)
   const today        = now.getMonth() + 1 === month && now.getFullYear() === year ? now.getDate() : null
-  const monthTotal   = activeItems.reduce((s, r) => s + r.amount, 0)
 
+  // oct 2026: los "cada N meses" (Comida Kida) no caen en su billing_day
+  // TODOS los meses — solo en el mes que diga su projected_date. Sin este
+  // filtro aparecían (y sumaban al total) en cada mes del calendario.
   const byDay: Record<number, RecurringWithRelations[]> = {}
   for (const item of activeItems) {
+    const isIntervalItem = item.billing_month == null && (item.interval_months ?? 1) > 1
+    if (isIntervalItem) {
+      if (!item.projected_date) continue
+      const [py, pm, pd] = item.projected_date.split('-').map(Number)
+      if (py !== year || pm !== month) continue
+      if (!byDay[pd]) byDay[pd] = []
+      byDay[pd].push(item)
+      continue
+    }
     const d = effectiveDay(item.billing_day, year, month)
     if (!byDay[d]) byDay[d] = []
     byDay[d].push(item)
   }
+  // Total = suma de lo efectivamente ubicado este mes, no de activeItems
+  // crudo (ese incluía el monto completo de los "cada N meses" aunque no
+  // les tocara este mes).
+  const monthTotal = Object.values(byDay).flat().reduce((s, r) => s + r.amount, 0)
 
   function navigate(delta: number) {
     let m = month + delta, y = year

@@ -2,7 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile, nextPaydayDate, lastClosedStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
-import { intervalDueDate } from '@/lib/recurring-due'
+import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { buildCommittedTimeline } from '@/lib/committed-timeline'
 import CommittedTimeline from '@/components/CommittedTimeline'
 import RecurringManager from '@/components/RecurringManager'
@@ -242,18 +242,32 @@ export default async function RecurrentesPage({
     // y generaba alertas de flujo negativo falsas (ej. Spotify en CMR).
     if ((r.payment_method as { card_type?: string } | null)?.card_type === 'credit') return
 
-    // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
-    // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
-    // billing_day y seguía apareciendo en el flujo de caja como si fuera a
-    // cobrarse "mañana" — nextBillingDate() es pura aritmética de fechas y
-    // no sabe si YA se registró un gasto este mes. Si es mensual y ya está
-    // pagado este mes, se calcula la ocurrencia del PRÓXIMO mes en vez de
-    // dejar que nextBillingDate devuelva la de este mes.
-    const from = (r.billing_month === null && paidThisMonthSet.has(r.id))
-      ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
-      : now
-    const d = nextBillingDate(r.billing_day, from, r.billing_month)
-    const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    // sep/oct 2026 (Cas: "comida de kida sale para este mes pero el mes
+    // pasado ya compré"): los ítems "cada N meses" (interval_months > 1, ej.
+    // Comida Kida) no caen en un billing_day fijo cada mes — nextBillingDate()
+    // es aritmética de calendario pura y, sin este branch, calculaba "el
+    // próximo día 9" aunque la última compra real haya sido hace solo 3
+    // semanas, adelantando el cobro casi 2 meses. Usan projectedIntervalDate,
+    // igual que overdueItems arriba, anclado al último gasto real (o al alta
+    // si todavía no hay ninguno).
+    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
+    let dStr: string
+    if (isIntervalItem) {
+      dStr = projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at).date
+    } else {
+      // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
+      // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
+      // billing_day y seguía apareciendo en el flujo de caja como si fuera a
+      // cobrarse "mañana" — nextBillingDate() es pura aritmética de fechas y
+      // no sabe si YA se registró un gasto este mes. Si es mensual y ya está
+      // pagado este mes, se calcula la ocurrencia del PRÓXIMO mes en vez de
+      // dejar que nextBillingDate devuelva la de este mes.
+      const from = (r.billing_month === null && paidThisMonthSet.has(r.id))
+        ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        : now
+      const d = nextBillingDate(r.billing_day, from, r.billing_month)
+      dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
     cashFlowEvents.push({
       date: dStr, type: 'recurring', label: r.name, amount: -r.amount,
       sublabel: r.category?.name, domain: r.domain ?? null,
@@ -291,6 +305,23 @@ export default async function RecurrentesPage({
       date: st.dueDate, type: 'card', label: st.label, amount: -st.amount,
       sublabel: 'estado de cuenta', domain: st.domain,
     })
+  })
+
+  // oct 2026 (mismo bug de Cas que el flujo de caja arriba): el calendario
+  // mensual (CalendarioPagos) ubicaba los ítems "cada N meses" en SU
+  // billing_day todos los meses, como si fueran mensuales — Comida Kida
+  // aparecía el día 9 de octubre aunque la próxima compra real sea recién
+  // en noviembre. Se precalcula la fecha proyectada acá (server, con acceso
+  // a lastPaidByItem) y se la pasa al componente para que la ubique solo en
+  // el mes que corresponde, en vez de repetirla cada mes.
+  const calendarItems = recurringWithCounts.map(r => {
+    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
+    return {
+      ...r,
+      projected_date: isIntervalItem
+        ? projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at).date
+        : null,
+    }
   })
 
   const cashFlowTimelineFull = buildCashFlowTimeline(cashFlowEvents, dateStr)
@@ -381,7 +412,7 @@ export default async function RecurrentesPage({
             cardsWithoutDueDay={cardsWithoutDueDay}
             muteRiskBanner={overdueCount > 0}
           />
-          <CalendarioPagos items={recurringWithCounts as unknown as RecurringWithRelations[]} />
+          <CalendarioPagos items={calendarItems as unknown as RecurringWithRelations[]} />
         </div>
       </div>
     </div>
