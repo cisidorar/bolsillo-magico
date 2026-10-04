@@ -262,6 +262,19 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
     })
   }, [property?.id])
 
+  // oct 2026 (Cas: "por que no sale a pagar el mes de octubre de arriendo?"):
+  // el arriendo de octubre no existía porque generateLeaseCharges solo corría
+  // al tocar "Generar arriendos y dividendos al día" en la pestaña
+  // Información — un botón que hay que acordarse de apretar cada mes. Mismo
+  // patrón que el recordatorio de luz/agua arriba: se genera solo al abrir la
+  // propiedad (idempotente por external_ref, no duplica si ya existe).
+  useEffect(() => {
+    if (!property || !lease) return
+    generateLeaseCharges(property.id, today).then(res => {
+      if (res.ok && res.created > 0) router.refresh()
+    })
+  }, [property?.id, lease?.id])
+
   const propBackdrop   = useBackdropClose(() => closePropForm())
   const chargeBackdrop = useBackdropClose(() => setChargeForm(null))
   const aseoBackdrop   = useBackdropClose(() => setAseoForm(false))
