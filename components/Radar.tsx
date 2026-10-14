@@ -135,25 +135,6 @@ function fmtUSD(n: number): string {
 function fmtUSDSigned(n: number): string {
   return (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
-// Formato de la tabla "Mis Stocks" de Racional (oct 2026, Cas): "USD 102,81",
-// "+USD 12,84" / "USD -3,33", "+1,44%" (2 decimales), "8,79494064 acciones".
-function fmtUsdLabel(n: number): string {
-  return 'USD ' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-function fmtUsdSignedLabel(n: number): string {
-  return (n >= 0 ? '+' : '') + fmtUsdLabel(n)
-}
-function fmtPct2(n: number): string {
-  const s = Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return n >= 0 ? `+${s}%` : `-${s}%`
-}
-function fmtShares(n: number): string {
-  return n.toLocaleString('es-CL', { maximumFractionDigits: 8 })
-}
-// Columnas de la tabla de escritorio: Ticker y Nombre · Precio · Valor Inversión · Costo · Ganancia diaria · Ganancia total
-const POSITIONS_COLS = 'minmax(200px, 2.2fr) repeat(5, minmax(0, 1fr))'
-const POSITIONS_TABLE_LIMIT = 8
-
 function fmtPct(n: number, showSign = true): string {
   const s = Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   return showSign ? (n >= 0 ? `+${s}%` : `-${s}%`) : `${s}%`
@@ -311,10 +292,7 @@ export default function Radar({
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null)
 
   // Orden de la tabla "Mis acciones" — ver SORT_OPTIONS arriba.
-  // oct 2026: por defecto "Ganancia total" (USD) descendente, igual que la
-  // tabla "Mis Stocks" de Racional (Cas la usa de referencia).
-  const [sortKey, setSortKey] = useState<SortKey>('gainUsd')
-  const [showAllPositions, setShowAllPositions] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey>('value')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
 
   // ── Posición agregada por ticker (puede haber legacy con varias filas) ──
@@ -419,12 +397,7 @@ export default function Radar({
       // Distribución % (ago 2026, a pedido de Cas): qué porción del valor
       // total en acciones representa esta posición — no existía como campo.
       const distPct = totalValueUsd > 0 ? (valueUsd / totalValueUsd) * 100 : null
-      // price/shares/costUsd/avgCost alimentan la tabla de escritorio con el
-      // formato de Racional (Precio · Valor · Costo · Ganancia diaria · total)
-      return {
-        ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null, dailyUsd, distPct,
-        price: q?.price ?? null, shares: pos.shares, costUsd: pos.shares * pos.avgCost, avgCost: pos.avgCost,
-      }
+      return { ticker, valueUsd, gainUsd, gainPct, dailyPct: q?.changePercent ?? null, dailyUsd, distPct }
     })
     .sort((a, b) => {
       // ago 2026 (Cas): orden elegible por 6 criterios (ver SORT_OPTIONS) en
@@ -1145,134 +1118,7 @@ export default function Radar({
           </div>
         </div>
       ) : (
-        <>
-        {/* ── Escritorio: tabla con el formato de "Mis Stocks" de Racional
-            (oct 2026, Cas: "es posible que mis acciones tengan este formato").
-            En móvil no caben 6 columnas: ahí queda la lista compacta de abajo
-            (un solo número a la derecha, como pidió Cas en ago 2026). ── */}
-        <div className="card overflow-hidden mb-4 hidden lg:block">
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <h2 className="text-xl font-extrabold" style={{ color: 'var(--ink)' }}>Mis acciones</h2>
-            <button
-              onClick={() => setTxn({ mode: 'new', ticker: null })}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold border transition-opacity hover:opacity-80"
-              style={{ borderColor: 'var(--border)', color: 'var(--ink)', background: 'var(--surface-2)' }}
-            >
-              <Plus className="w-4 h-4" strokeWidth={2.5} />
-              Comprar
-            </button>
-          </div>
-          {(() => {
-            const sortHeader = (label: string, keys: SortKey[], target: SortKey) => (
-              <button
-                onClick={() => setSortKey(target)}
-                className="flex items-center justify-end gap-1 text-right font-semibold transition-opacity hover:opacity-70"
-                style={{ color: keys.includes(sortKey) ? 'var(--ink)' : 'var(--ink-3)' }}
-              >
-                {keys.includes(sortKey) && <ArrowDown className="w-3 h-3 flex-shrink-0" />}
-                {label}
-              </button>
-            )
-            // Una posición con señal de venta activa nunca queda escondida
-            // detrás de "Ver más" — el aviso tiene que verse sin pedirlo.
-            const hasSellSignal = (t: string) => {
-              const a = analyses[t]
-              return typeof a === 'object' && !!a.sell.find(s => s.now)
-            }
-            const rows = showAllPositions
-              ? myPerformance
-              : myPerformance.filter((r, i) => i < POSITIONS_TABLE_LIMIT || hasSellSignal(r.ticker))
-            const hiddenCount = myPerformance.length - rows.length
-            const canToggle = myPerformance.length > POSITIONS_TABLE_LIMIT
-            return (
-              <>
-                <div className="grid items-center gap-4 px-5 py-2.5 text-xs" style={{ gridTemplateColumns: POSITIONS_COLS, color: 'var(--ink-3)' }}>
-                  <span className="font-semibold">Ticker y Nombre</span>
-                  <span className="text-right font-semibold">Precio</span>
-                  {sortHeader('Valor Inversión', ['value'], 'value')}
-                  <span className="text-right font-semibold">Costo</span>
-                  {sortHeader(marketOpenToday ? 'Ganancia diaria' : 'Ganancia últ. cierre', ['dailyPct', 'dailyUsd'], 'dailyPct')}
-                  {sortHeader('Ganancia total', ['gainPct', 'gainUsd'], 'gainUsd')}
-                </div>
-                <div>
-                  {rows.map(row => {
-                    const q = quotes[row.ticker]
-                    const a = analyses[row.ticker]
-                    const sellNow = typeof a === 'object' && a.sell.find(t => t.now)
-                    const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
-                    const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold)'
-                    const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
-                    const tone = (v: number | null) => v === null ? 'var(--ink-3)' : v >= 0 ? 'var(--mint)' : 'var(--coral)'
-                    return (
-                      <button
-                        key={row.ticker}
-                        onClick={() => openDetail(row.ticker)}
-                        className="w-full grid items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-black/5"
-                        style={{
-                          gridTemplateColumns: POSITIONS_COLS,
-                          ...(sellNow ? {
-                            background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)',
-                            borderLeft: trendReversed ? '3px solid var(--coral)' : undefined,
-                          } : {}),
-                        }}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={40} fallbackColor={avatarColor(row.ticker)} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
-                              {sellNow && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: sellBg, color: sellColor }}>
-                                  {trendReversed ? 'Sal ya' : 'Vende'}
-                                </span>
-                              )}
-                            </div>
-                            {q?.name && <p className="text-sm truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>}
-                          </div>
-                        </div>
-                        <div className="text-right tabular-nums">
-                          <p className="text-[15px] font-semibold" style={{ color: 'var(--ink)' }}>{row.price !== null ? fmtUsdLabel(row.price) : '—'}</p>
-                          <p className="text-sm" style={{ color: tone(row.dailyPct) }}>{row.dailyPct !== null ? fmtPct2(row.dailyPct) : ''}</p>
-                        </div>
-                        <div className="text-right tabular-nums">
-                          <p className="text-[15px] font-semibold" style={{ color: 'var(--ink)' }}><Masked hidden={hideAmounts} value={fmtUsdLabel(row.valueUsd)} /></p>
-                          <p className="text-sm" style={{ color: 'var(--ink-3)' }}><Masked hidden={hideAmounts} value={`${fmtShares(row.shares)} acciones`} /></p>
-                        </div>
-                        <div className="text-right tabular-nums">
-                          <p className="text-[15px] font-semibold" style={{ color: 'var(--ink)' }}><Masked hidden={hideAmounts} value={fmtUsdLabel(row.costUsd)} /></p>
-                          <p className="text-sm" style={{ color: 'var(--ink-3)' }}><Masked hidden={hideAmounts} value={`${fmtUsdLabel(row.avgCost)}/acción`} /></p>
-                        </div>
-                        <div className="text-right tabular-nums">
-                          <p className="text-[15px] font-semibold" style={{ color: tone(row.dailyPct) }}>{row.dailyPct !== null ? fmtPct2(row.dailyPct) : '—'}</p>
-                          <p className="text-sm" style={{ color: 'var(--ink-3)' }}>{row.dailyUsd !== null ? <Masked hidden={hideAmounts} value={fmtUsdSignedLabel(row.dailyUsd)} /> : ''}</p>
-                        </div>
-                        <div className="text-right tabular-nums">
-                          <p className="text-[15px] font-semibold" style={{ color: tone(row.gainPct) }}>{row.gainPct !== null ? fmtPct2(row.gainPct) : '—'}</p>
-                          <p className="text-sm" style={{ color: 'var(--ink-3)' }}>{row.gainUsd !== null ? <Masked hidden={hideAmounts} value={fmtUsdSignedLabel(row.gainUsd)} /> : ''}</p>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-                {canToggle && (
-                  <div className="flex justify-center py-4">
-                    <button
-                      onClick={() => setShowAllPositions(v => !v)}
-                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full text-sm font-semibold transition-opacity hover:opacity-80"
-                      style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}
-                    >
-                      {showAllPositions ? 'Ver menos' : `Ver más${hiddenCount > 0 ? ` (${hiddenCount})` : ''}`}
-                      {showAllPositions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
-                  </div>
-                )}
-              </>
-            )
-          })()}
-        </div>
-
-        {/* ── Móvil: lista compacta, un solo número a la derecha ── */}
-        <div className="card overflow-hidden mb-4 lg:hidden">
+        <div className="card overflow-hidden mb-4">
           <div className="flex items-center justify-between px-4 lg:px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
             <span>Acción</span>
             {/* Orden de la tabla (ago 2026, a pedido de Cas): dropdown con los
@@ -1405,7 +1251,6 @@ export default function Radar({
             })}
           </div>
         </div>
-        </>
       )}
 
       {/* Evolución del portafolio (izquierda) + riesgo de la cartera (derecha),
