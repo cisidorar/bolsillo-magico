@@ -771,31 +771,6 @@ export default function Radar({
     }
   }
 
-  /**
-   * P2 (roadmap largo plazo): conecta el plan de compra ("40% si baja a ~$X")
-   * con el aviso por correo que ya existe para precio objetivo — sin esto,
-   * comprar barato en tendencia obligaba a copiar el número a mano al editor
-   * de objetivo, o entrar todos los días a mirar. Si el ticker todavía no se
-   * sigue (posición sin "Seguir"), lo agrega a la watchlist con el objetivo
-   * ya puesto en el mismo paso.
-   */
-  async function setBuyZoneAlert(ticker: string, price: number) {
-    const rounded = Math.round(price * 100) / 100
-    const existing = items.find(i => i.ticker === ticker)
-    if (existing) {
-      await saveTarget(existing, rounded, 'below')
-      return
-    }
-    const { data, error } = await supabase
-      .from('watchlist')
-      .insert({ user_id: userId, ticker, target_price: rounded, target_direction: 'below' })
-      .select('id, ticker, target_price, target_direction')
-      .single()
-    if (error) return
-    setItems(prev => [...prev, data as WatchlistItem])
-    showToast(`Objetivo guardado: te avisamos si ${ticker} baja a ${fmtUSD(rounded)}`)
-  }
-
   // ── Fila: orden por atractivo real de compra (mismo criterio que el
   // ranking de arriba — commit 18cee34, jul 2026: convicción, no rating crudo) ──
   function buyRank(ticker: string): number {
@@ -2224,8 +2199,6 @@ export default function Radar({
                     onBuyMore={isOwned ? (t) => setTxn({ mode: 'buyMore', ticker: t, prefillUsd: suggestedUsdFor(t) ?? undefined }) : undefined}
                     onSell={isOwned ? (t) => setTxn({ mode: 'sell', ticker: t }) : undefined}
                     onEditPurchase={isOwned ? setEditingPurchaseId : undefined}
-                    buyZoneAlert={item && item.target_price !== null ? { price: item.target_price, direction: item.target_direction ?? 'below' } : null}
-                    onSetBuyZoneAlert={setBuyZoneAlert}
                   />
                 )}
               </div>

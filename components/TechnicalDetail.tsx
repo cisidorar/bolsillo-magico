@@ -187,7 +187,7 @@ type DetailSection = 'resumen' | 'plan' | 'chart' | 'signals' | 'history'
 
 export default function TechnicalDetail({
   a, ticker, name, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
-  onBuyMore, onSell, onEditPurchase, buyZoneAlert, onSetBuyZoneAlert,
+  onBuyMore, onSell, onEditPurchase,
 }: {
   a:         TechnicalAnalysis
   ticker:    string
@@ -211,13 +211,6 @@ export default function TechnicalDetail({
   /** oct 2026: tocar una compra del timeline de Movimientos abre su edición
    *  (corregir acciones/monto/fecha o eliminar una duplicada). */
   onEditPurchase?: (purchaseId: string) => void
-  /** P2 (roadmap largo plazo): precio objetivo YA guardado en la watchlist con
-   *  dirección 'below' — si coincide con `a.buyZone`, la alerta ya está puesta. */
-  buyZoneAlert?: { price: number; direction: 'above' | 'below' } | null
-  /** Guarda target_price = a.buyZone (dirección 'below') en la watchlist —
-   *  conecta el plan de compra con el aviso por correo que ya existe, en vez
-   *  de obligar a copiar el precio a mano al editor de objetivo. */
-  onSetBuyZoneAlert?: (ticker: string, price: number) => void
 }) {
   // U3 (roadmap UX): cabecera fija con score + acción + monto; el resto vive
   // en secciones colapsables — antes eran ~12 bloques apilados en un solo scroll.
@@ -724,25 +717,8 @@ export default function TechnicalDetail({
           <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--ink-3)' }}>Nada por ahora</p>
         )}
         <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{a.entryPlan}</p>
-        {/* P2 (roadmap largo plazo): comprar barato en tendencia ES esperar el
-            retroceso — antes había que copiar este precio a mano al editor de
-            objetivo, o entrar todos los días a mirar. Un toque conecta el
-            plan con el aviso por correo que ya existe. */}
-        {a.buyZone !== null && onSetBuyZoneAlert && (
-          buyZoneAlert && buyZoneAlert.direction === 'below' && Math.abs(buyZoneAlert.price - a.buyZone) < 0.01 ? (
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold mt-2" style={{ color: 'var(--primary)' }}>
-              <Target className="w-3 h-3 flex-shrink-0" /> Ya te avisamos por correo si llega a {fmtUSD(a.buyZone)}
-            </p>
-          ) : (
-            <button
-              onClick={() => onSetBuyZoneAlert(ticker, a.buyZone!)}
-              className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 hover:opacity-90"
-              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-            >
-              <Target className="w-3 h-3" /> Avísame en la zona de compra ({fmtUSD(a.buyZone)})
-            </button>
-          )
-        )}
+        {/* oct 2026 (Cas: "quita eso de avisar, no es efectivo"): se quitó el
+            botón "Avísame en la zona de compra" (P2) — no le servía. */}
       </div>
       </>}
 
