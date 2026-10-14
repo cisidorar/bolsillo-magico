@@ -25,6 +25,7 @@ import { ConvictionChip, PriceZoneChip } from '@/components/RiskRail'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
+import PurchaseEditModal from '@/components/PurchaseEditModal'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import type { SpyBenchmarkResult } from '@/lib/benchmark'
 import { fmtLastAutoUpdate } from '@/lib/format-freshness'
@@ -287,6 +288,8 @@ export default function Radar({
   // monto, el modal llega con ese número ya cargado — sin esto había que
   // re-tipear a mano lo que la app acababa de calcular.
   const [txn, setTxn] = useState<{ mode: TransactionMode; ticker: string | null; prefillUsd?: number } | null>(null)
+  // Compra individual en edición (tocada desde Historial → Movimientos)
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null)
 
   // Orden de la tabla "Mis acciones" — ver SORT_OPTIONS arriba.
   const [sortKey, setSortKey] = useState<SortKey>('value')
@@ -2220,6 +2223,7 @@ export default function Radar({
                     spyReturn6m={spyReturn6m}
                     onBuyMore={isOwned ? (t) => setTxn({ mode: 'buyMore', ticker: t, prefillUsd: suggestedUsdFor(t) ?? undefined }) : undefined}
                     onSell={isOwned ? (t) => setTxn({ mode: 'sell', ticker: t }) : undefined}
+                    onEditPurchase={isOwned ? setEditingPurchaseId : undefined}
                     buyZoneAlert={item && item.target_price !== null ? { price: item.target_price, direction: item.target_direction ?? 'below' } : null}
                     onSetBuyZoneAlert={setBuyZoneAlert}
                   />
@@ -2336,6 +2340,23 @@ export default function Radar({
           prefill={txn.prefillUsd !== undefined ? { totalUsd: txn.prefillUsd } : undefined}
         />
       )}
+
+      {/* ── Editar/eliminar UNA compra del historial (Movimientos) ───────── */}
+      {(() => {
+        const editing = editingPurchaseId ? purchases.find(p => p.id === editingPurchaseId) : null
+        if (!editing) return null
+        return (
+          <PurchaseEditModal
+            userId={userId}
+            purchase={editing}
+            positions={positions}
+            setPositions={setPositions}
+            setPurchases={setPurchases}
+            onClose={() => setEditingPurchaseId(null)}
+            onDone={(ticker) => { fetchQuotes([ticker]); fetchAnalysis(ticker, true) }}
+          />
+        )
+      })()}
     </div>
   )
 }

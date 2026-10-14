@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Info, RefreshCw, TrendingUp, TrendingDown, Target, Activity, BarChart3, Gauge,
-  Newspaper, ExternalLink, Plus, Minus, DollarSign, CalendarClock, ChevronDown, ChevronUp,
+  Newspaper, ExternalLink, Plus, Minus, DollarSign, CalendarClock, ChevronDown, ChevronUp, Pencil,
 } from 'lucide-react'
 import type { TechnicalAnalysis, SignalTone } from '@/lib/technical'
 import type { NewsResponse } from '@/app/api/stock-news/route'
@@ -187,7 +187,7 @@ type DetailSection = 'resumen' | 'plan' | 'chart' | 'signals' | 'history'
 
 export default function TechnicalDetail({
   a, ticker, name, position, rawPosition, purchases, sales, livePrice, portfolioValueUsd, walletAvailableUsd, spyReturn6m,
-  onBuyMore, onSell, buyZoneAlert, onSetBuyZoneAlert,
+  onBuyMore, onSell, onEditPurchase, buyZoneAlert, onSetBuyZoneAlert,
 }: {
   a:         TechnicalAnalysis
   ticker:    string
@@ -208,6 +208,9 @@ export default function TechnicalDetail({
   /** U4 roadmap UX: el modal transaccional ahora se invoca desde acá, no al revés. */
   onBuyMore?: (ticker: string) => void
   onSell?:    (ticker: string) => void
+  /** oct 2026: tocar una compra del timeline de Movimientos abre su edición
+   *  (corregir acciones/monto/fecha o eliminar una duplicada). */
+  onEditPurchase?: (purchaseId: string) => void
   /** P2 (roadmap largo plazo): precio objetivo YA guardado en la watchlist con
    *  dirección 'below' — si coincide con `a.buyZone`, la alerta ya está puesta. */
   buyZoneAlert?: { price: number; direction: 'above' | 'below' } | null
@@ -450,7 +453,7 @@ export default function TechnicalDetail({
   // D5 (roadmap de calidad de decisión): score de convicción con el que se
   // decidió cada compra, cuando está guardado (compras registradas antes de
   // jul 2026 no lo tienen — queda null, no se inventa).
-  type Movement = { type: 'buy' | 'sell'; date: string; shares: number; pricePerShare: number; amount: number; synthetic?: boolean; convictionScore?: number | null }
+  type Movement = { type: 'buy' | 'sell'; date: string; shares: number; pricePerShare: number; amount: number; synthetic?: boolean; convictionScore?: number | null; purchaseId?: string }
   const movements: Movement[] = (() => {
     if (!position) return []
     const purchasesForTicker = (purchases ?? []).filter(p => p.ticker === ticker)
@@ -461,7 +464,7 @@ export default function TechnicalDetail({
         ? purchasesForTicker.map(p => ({
             type: 'buy' as const, date: p.purchase_date, shares: Number(p.shares),
             pricePerShare: Number(p.total_paid_usd) / Number(p.shares), amount: -Number(p.total_paid_usd),
-            convictionScore: p.conviction_score ?? null,
+            convictionScore: p.conviction_score ?? null, purchaseId: p.id,
           }))
         : rawPosition
           ? [{
@@ -759,8 +762,17 @@ export default function TechnicalDetail({
             </p>
           </div>
           <div className="rounded-xl divide-y overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
-            {movements.map((m, i) => (
-              <div key={i} className="flex items-center gap-2.5 px-3 py-2">
+            {movements.map((m, i) => {
+              const editable = !!(m.purchaseId && onEditPurchase)
+              return (
+              <div key={i}
+                className={`flex items-center gap-2.5 px-3 py-2${editable ? ' cursor-pointer transition-colors hover:brightness-110 active:brightness-95' : ''}`}
+                {...(editable ? {
+                  role: 'button', tabIndex: 0,
+                  'aria-label': 'Editar esta compra',
+                  onClick: () => onEditPurchase!(m.purchaseId!),
+                  onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEditPurchase!(m.purchaseId!) } },
+                } : {})}>
                 <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: m.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
                   {m.type === 'buy'
@@ -784,8 +796,10 @@ export default function TechnicalDetail({
                 <p className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
                   {m.amount >= 0 ? '+' : '-'}{fmtUSD(Math.abs(m.amount))}
                 </p>
+                {editable && <Pencil className="w-3 h-3 shrink-0" style={{ color: 'var(--ink-3)' }} />}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
