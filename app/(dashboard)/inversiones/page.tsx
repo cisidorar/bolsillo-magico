@@ -23,7 +23,7 @@ import { computeYieldCurve } from '@/lib/yield-curve'
 import { fetchEarnings } from '@/lib/earnings-fetch'
 import { businessDaysUntil } from '@/lib/earnings'
 import { fetchClIpcSeries, trailingAnnualInflation } from '@/lib/cl-indicators'
-import { computeWalletCash } from '@/lib/wallet-cash'
+import { computeWalletCash, walletKind } from '@/lib/wallet-cash'
 import { withoutSuperseded } from '@/lib/term-deposits'
 
 export const dynamic = 'force-dynamic'
@@ -236,7 +236,7 @@ export default async function InversionesPage({ searchParams }: Props) {
   // wallet_cost_usd de las posiciones ABIERTAS, que dejaba de descontar el
   // costo apenas vendías una posición completa e inflaba el saldo.
   const walletMovements = (usdPurchases ?? []).map(r => ({
-    kind: (r.kind === 'sell' ? 'sell' : 'deposit') as 'sell' | 'deposit',
+    kind: walletKind(r.kind),
     usd_amount: Number(r.usd_amount),
   }))
   const walletPurchases = (purchases ?? []).map(p => ({ total_paid_usd: Number(p.total_paid_usd) }))

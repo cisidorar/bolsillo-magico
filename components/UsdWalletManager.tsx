@@ -26,7 +26,9 @@ export interface UsdPurchase {
   total_paid_clp: number | null   // null en ventas (nunca pasaron por CLP)
   purchase_date:  string          // YYYY-MM-DD
   notes:          string | null
-  kind:           'deposit' | 'sell'
+  /** 'dividend' / 'interest' (oct 2026): lo que paga el bróker — entran al
+   *  saldo igual que en la cartola de Racional ("Dividendo TSM"). */
+  kind:           'deposit' | 'sell' | 'dividend' | 'interest'
 }
 
 interface Props {
@@ -40,7 +42,12 @@ interface Props {
   sales?:           StockSale[]      // ventas — para el detalle (ticker, costo base, ganancia) en cada fila
 }
 
-interface FormState { date: string; clp: string; usd: string; notes: string; shares: string }
+interface FormState { date: string; clp: string; usd: string; notes: string; shares: string; ticker: string }
+
+/** "Dividendo TSM" → "TSM" (el ticker del dividendo vive en notes). */
+function dividendTicker(notes: string | null): string {
+  return notes?.match(/^Dividendo\s+([A-Z0-9.\-]{1,10})\b/i)?.[1]?.toUpperCase() ?? ''
+}
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -54,7 +61,7 @@ function maxFutureStr(): string {
   d.setFullYear(d.getFullYear() + 1)
   return d.toISOString().slice(0, 10)
 }
-const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '', shares: '' })
+const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '', shares: '', ticker: '' })
 
 function fmtUSD(n: number): string {
   return 'US$' + n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -62,7 +69,8 @@ function fmtUSD(n: number): string {
 function fmtDate(d: string): string {
   const [y, m, day] = d.split('-').map(Number)
   const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-  return `${day} ${MES[m - 1]} ${String(y).slice(2)}`
+  // Año completo, como la cartola de Racional ("13 oct 2026")
+  return `${day} ${MES[m - 1]} ${y}`
 }
 function fmtInputCLP(digits: string): string {
   return digits ? Number(digits).toLocaleString('es-CL') : ''
@@ -99,7 +107,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   // trail_stop_usd para que el cron lo recalcule. Eliminar una compra sigue
   // sin estar acá — borrar una fila individual podría dejar la posición con
   // acciones/costo inconsistentes; eso se sigue gestionando desde Acciones.
-  const [editKind,  setEditKind]  = useState<'deposit' | 'sell' | 'compra'>('deposit')
+  // 'income' (oct 2026) = dividendo o intereses; cuál de los dos lo dice
+  // `incomeKind`. Se agregan/editan con el mismo formulario que el aporte.
+  const [editKind,  setEditKind]  = useState<'deposit' | 'sell' | 'compra' | 'income'>('deposit')
+  const [incomeKind, setIncomeKind] = useState<'dividend' | 'interest'>('dividend')
   const [editSaleId, setEditSaleId] = useState<string | null>(null)
   const [editTicker, setEditTicker] = useState<string | null>(null)
   const [stockPurchasesState, setStockPurchasesState] = useState<StockPurchase[]>(stockPurchases)
@@ -138,7 +149,9 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   // Saldo disponible = aportes + ventas − lo gastado en comprar acciones.
   // Es flujo de caja puro (lib/wallet-cash.ts): no depende de qué posiciones
   // sigan abiertas, así que cerrar una posición ya no infla el saldo.
-  const deposits    = purchases.filter(p => p.kind !== 'sell')
+  // Solo los aportes en pesos entran a la tasa promedio — dividendos e
+  // intereses suman al saldo pero nunca pasaron por CLP.
+  const deposits    = purchases.filter(p => p.kind === 'deposit')
   const movementsUsd = purchases.reduce((s, p) => s + Number(p.usd_amount), 0)
   const available   = movementsUsd - spentUsd
   const depositUsd  = deposits.reduce((s, p) => s + Number(p.usd_amount), 0)
@@ -152,15 +165,19 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   }
   function openEdit(p: UsdPurchase) {
     setEditId(p.id)
-    setEditKind(p.kind === 'sell' ? 'sell' : 'deposit')
+    const isIncome = p.kind === 'dividend' || p.kind === 'interest'
+    setEditKind(p.kind === 'sell' ? 'sell' : isIncome ? 'income' : 'deposit')
+    if (isIncome) setIncomeKind(p.kind as 'dividend' | 'interest')
     setEditSaleId(p.kind === 'sell' ? (sales.find(s => s.usd_purchase_id === p.id)?.id ?? null) : null)
     setEditTicker(null)
     setForm({
       date:  p.purchase_date,
       clp:   String(p.total_paid_clp ?? ''),
       usd:   String(p.usd_amount),
-      notes: p.notes ?? '',
+      // En un dividendo el ticker se muestra en su propio campo, no en la nota
+      notes: p.kind === 'dividend' ? '' : (p.notes ?? ''),
       shares: '',
+      ticker: p.kind === 'dividend' ? dividendTicker(p.notes) : '',
     })
     setFormError(''); setShowForm(true)
   }
@@ -172,6 +189,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       usd:    String(sp.total_paid_usd),
       notes:  sp.notes ?? '',
       shares: String(sp.shares),
+      ticker: '',
     })
     setFormError(''); setShowForm(true)
   }
@@ -276,6 +294,39 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       setStockPurchasesState(prev => prev.map(sp => sp.id === editId ? { ...sp, ...spRow } : sp))
       setShowForm(false)
       router.refresh()   // refleja el nuevo costo promedio en Acciones
+      return
+    }
+
+    // Dividendo / intereses (oct 2026): entran al saldo en USD, sin pesos de
+    // por medio. Dividendo guarda el ticker en la nota ("Dividendo TSM"),
+    // igual que las ventas guardan "Venta GOOGL".
+    if (editKind === 'income') {
+      const amount = parseFloat(form.usd.replace(',', '.'))
+      if (!Number.isFinite(amount) || amount <= 0) { setFormError('¿Cuántos dólares recibiste?'); return }
+      const tk = form.ticker.trim().toUpperCase()
+      if (incomeKind === 'dividend' && !/^[A-Z0-9.\-]{1,10}$/.test(tk)) { setFormError('¿De qué acción fue el dividendo? (ej: TSM)'); return }
+      const incomeNotes = incomeKind === 'dividend'
+        ? `Dividendo ${tk}`
+        : (form.notes.trim() || 'Intereses')
+      setBusy(true)
+      const incomeRow = { usd_amount: Math.round(amount * 100) / 100, purchase_date: form.date, notes: incomeNotes }
+      if (editId) {
+        const { error } = await supabase.from('usd_purchases')
+          .update({ ...incomeRow, kind: incomeKind }).eq('id', editId).eq('user_id', userId)
+        setBusy(false)
+        if (error) { setFormError(error.message); return }
+        setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...incomeRow, kind: incomeKind } : p))
+      } else {
+        const { data, error } = await supabase.from('usd_purchases')
+          .insert({ user_id: userId, kind: incomeKind, total_paid_clp: null, ...incomeRow })
+          .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
+          .single()
+        setBusy(false)
+        if (error) { setFormError(error.message); return }
+        setPurchases(prev => [data as UsdPurchase, ...prev])
+      }
+      setShowForm(false)
+      router.refresh()
       return
     }
 
@@ -394,7 +445,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   type Move = {
     key:   string
     date:  string
-    type:  'aporte' | 'venta' | 'compra'
+    type:  'aporte' | 'venta' | 'compra' | 'dividendo' | 'interes'
     label: string
     sub:   string | null
     usd:   number                 // con signo
@@ -430,9 +481,26 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null, sale: null,
         }
       }
+      // Etiquetas idénticas a la cartola de Racional: "Dividendo TSM",
+      // "Intereses Stock Boost", "Depósito".
+      if (p.kind === 'dividend') {
+        const tk = dividendTicker(p.notes)
+        return {
+          key: `w-${p.id}`, date: p.purchase_date, type: 'dividendo',
+          label: p.notes ?? (tk ? `Dividendo ${tk}` : 'Dividendo'), sub: null,
+          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: tk || null, shares: null, row: p, stockRow: null, sale: null,
+        }
+      }
+      if (p.kind === 'interest') {
+        return {
+          key: `w-${p.id}`, date: p.purchase_date, type: 'interes',
+          label: p.notes ?? 'Intereses', sub: null,
+          usd: Number(p.usd_amount), pnl: null, pnlPct: null, ticker: null, shares: null, row: p, stockRow: null, sale: null,
+        }
+      }
       return {
         key: `w-${p.id}`, date: p.purchase_date, type: 'aporte',
-        label: 'Aporte a la billetera',
+        label: 'Depósito',
         sub: [
           p.total_paid_clp !== null ? `${formatCLP(p.total_paid_clp)} · ${formatCLP(Math.round(p.total_paid_clp / Number(p.usd_amount)))}/USD` : null,
           p.notes,
@@ -471,7 +539,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
         >
           <Plus className="w-4 h-4" strokeWidth={2.5} />
-          Aporte
+          Agregar
         </button>
       </div>
 
@@ -493,8 +561,12 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
                 {editId
-                  ? (editKind === 'sell' ? 'Editar venta' : editKind === 'compra' ? `Editar compra ${editTicker ?? ''}` : 'Editar aporte')
-                  : 'Nuevo aporte'}
+                  ? (editKind === 'sell' ? 'Editar venta'
+                    : editKind === 'compra' ? `Editar compra ${editTicker ?? ''}`
+                    : editKind === 'income' ? (incomeKind === 'dividend' ? 'Editar dividendo' : 'Editar intereses')
+                    : 'Editar depósito')
+                  : editKind === 'income' ? (incomeKind === 'dividend' ? 'Nuevo dividendo' : 'Nuevos intereses')
+                  : 'Nuevo depósito'}
               </h2>
               <button
                 onClick={() => setShowForm(false)}
@@ -507,6 +579,35 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
 
             {/* Body */}
             <div className="px-5 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 120px)' }}>
+              {/* Tipo de movimiento al agregar (oct 2026): la cartola de Racional
+                  trae depósitos, dividendos e intereses — antes solo se podían
+                  registrar depósitos y el saldo no cuadraba por centavos. */}
+              {!editId && (
+                <div className="flex gap-1.5">
+                  {([
+                    { id: 'deposit',  label: 'Depósito' },
+                    { id: 'dividend', label: 'Dividendo' },
+                    { id: 'interest', label: 'Intereses' },
+                  ] as const).map(opt => {
+                    const active = opt.id === 'deposit' ? editKind === 'deposit' : editKind === 'income' && incomeKind === opt.id
+                    return (
+                      <button
+                        key={opt.id} type="button"
+                        onClick={() => {
+                          if (opt.id === 'deposit') setEditKind('deposit')
+                          else { setEditKind('income'); setIncomeKind(opt.id) }
+                        }}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                        style={active
+                          ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
+                          : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               {/* Editar venta (ago 2026, Cas: "quise vender walmart... se
                   vendió mal" — un error de tipeo en Vender dejó el monto
                   recibido en US$28.762 en vez de ~US$268, y esta pantalla no
@@ -545,6 +646,42 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       autoFocus
                     />
                   </div>
+                </>
+              ) : editKind === 'income' ? (
+                <>
+                  <div className={incomeKind === 'dividend' ? 'grid grid-cols-2 gap-3' : ''}>
+                    {incomeKind === 'dividend' && (
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                          Acción
+                        </label>
+                        <input
+                          type="text" placeholder="TSM" maxLength={10}
+                          value={form.ticker}
+                          onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
+                          className="w-full text-sm font-bold border px-4 py-3 outline-none"
+                          style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12, fontFamily: 'ui-monospace, monospace' }}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        Dólares recibidos
+                      </label>
+                      <input
+                        type="text" inputMode="decimal" placeholder="2,05"
+                        value={form.usd}
+                        onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
+                        className="w-full text-sm border px-4 py-3 tabular-nums outline-none"
+                        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
+                        autoFocus={incomeKind === 'interest'}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                    Suma al saldo disponible. No cuenta como aporte: no cambia lo que invertiste de tu bolsillo.
+                  </p>
                 </>
               ) : editKind === 'compra' ? (
                 <>
@@ -649,18 +786,21 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                 />
               </div>
 
+              {/* En un dividendo la nota la arma el ticker ("Dividendo TSM") */}
+              {!(editKind === 'income' && incomeKind === 'dividend') && (
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  Nota (opcional)
+                  {editKind === 'income' ? 'Descripción (opcional)' : 'Nota (opcional)'}
                 </label>
                 <input
-                  type="text" placeholder="Racional" maxLength={60}
+                  type="text" placeholder={editKind === 'income' ? 'Intereses Stock Boost' : 'Racional'} maxLength={60}
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   className="w-full text-sm border px-4 py-3 outline-none"
                   style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)', borderRadius: 12 }}
                 />
               </div>
+              )}
 
               {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
 
@@ -678,7 +818,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 16px var(--shadow)' }}
                 >
                   {busy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  {editId ? 'Guardar cambios' : 'Registrar aporte'}
+                  {editId ? 'Guardar cambios' : editKind === 'income' ? 'Registrar' : 'Registrar depósito'}
                 </button>
               </div>
             </div>
@@ -719,7 +859,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: iconBg }}>
                   {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
-                  {m.type === 'venta'  && <DollarSign className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
+                  {(m.type === 'venta' || m.type === 'dividendo' || m.type === 'interes') && <DollarSign className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
                   {m.type === 'compra' && <ArrowDown className="w-4 h-4" style={{ color: iconColor }} strokeWidth={2.5} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -740,7 +880,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                 <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
-                      {m.type === 'aporte' ? 'Dólares recibidos' : m.type === 'venta' ? 'Dólares recibidos' : 'Monto invertido'}
+                      {m.type === 'compra' ? 'Monto invertido' : 'Dólares recibidos'}
                     </span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(Math.abs(m.usd))}</span>
                   </div>
@@ -947,7 +1087,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                       style={{ background: m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)' }}>
                       {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
-                      {m.type === 'venta'  && <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                      {(m.type === 'venta' || m.type === 'dividendo' || m.type === 'interes') && <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
                       {m.type === 'compra' && <ArrowDown className="w-4 h-4" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
                     </div>
                     <div className="flex-1 min-w-0">

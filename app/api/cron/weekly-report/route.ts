@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { computeWeeklyItems } from '@/lib/weekly-report'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
-import { availableToInvest } from '@/lib/wallet-cash'
+import { availableToInvest, walletKind } from '@/lib/wallet-cash'
 import { fetchAllMacroSeries, type MacroSeriesData } from '@/lib/macro-fetch'
 import { nextFomcMeeting } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
@@ -266,7 +266,7 @@ export async function GET(request: Request) {
         const cashFlows = deposits.map(p => ({ date: p.purchase_date as string, usd: Number(p.usd_amount) }))
         const walletCashUsd = availableToInvest(
           (usdPurchases ?? []).map(p => ({
-            kind: (p.kind === 'sell' ? 'sell' : 'deposit') as 'sell' | 'deposit',
+            kind: walletKind(p.kind),
             usd_amount: Number(p.usd_amount),
           })),
           (stockBuys ?? []).map(b => ({ total_paid_usd: Number(b.total_paid_usd) })),

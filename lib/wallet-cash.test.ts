@@ -1,14 +1,40 @@
 import { describe, it, expect } from 'vitest'
-import { computeWalletCash, availableToInvest } from './wallet-cash'
+import { computeWalletCash, availableToInvest, walletKind } from './wallet-cash'
 
 describe('computeWalletCash', () => {
   it('sin movimientos ni compras, todo en cero', () => {
-    expect(computeWalletCash([], [])).toEqual({ deposited: 0, proceeds: 0, spent: 0, cash: 0 })
+    expect(computeWalletCash([], [])).toEqual({ deposited: 0, proceeds: 0, income: 0, spent: 0, cash: 0 })
   })
 
   it('un aporte sin comprar nada queda íntegro como efectivo', () => {
     const r = computeWalletCash([{ kind: 'deposit', usd_amount: 1000 }], [])
-    expect(r).toEqual({ deposited: 1000, proceeds: 0, spent: 0, cash: 1000 })
+    expect(r).toEqual({ deposited: 1000, proceeds: 0, income: 0, spent: 0, cash: 1000 })
+  })
+
+  // oct 2026: la cartola de Racional lista dividendos e intereses como
+  // movimientos de la billetera. Suman al efectivo pero NO son un aporte
+  // (no mueven la línea gris "invertido" ni el costo en pesos).
+  it('dividendos e intereses suman al efectivo sin contar como aporte', () => {
+    const r = computeWalletCash(
+      [
+        { kind: 'deposit', usd_amount: 1000 },
+        { kind: 'dividend', usd_amount: 2.05 },
+        { kind: 'interest', usd_amount: 0.08 },
+      ],
+      [{ total_paid_usd: 300 }],
+    )
+    expect(r.deposited).toBe(1000)
+    expect(r.income).toBe(2.13)
+    expect(r.cash).toBe(702.13)
+  })
+
+  it('walletKind: desconocido o null se trata como aporte', () => {
+    expect(walletKind('sell')).toBe('sell')
+    expect(walletKind('dividend')).toBe('dividend')
+    expect(walletKind('interest')).toBe('interest')
+    expect(walletKind('deposit')).toBe('deposit')
+    expect(walletKind(null)).toBe('deposit')
+    expect(walletKind('otra-cosa')).toBe('deposit')
   })
 
   it('comprar descuenta del efectivo', () => {
