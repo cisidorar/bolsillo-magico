@@ -84,7 +84,6 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
                 style={active ? {
                   background:  'var(--primary-soft)',
                   color:       'var(--primary)',
-                  boxShadow:   'inset 3px 0 0 var(--primary)',
                 } : {
                   color: 'var(--ink-2)',
                 }}
