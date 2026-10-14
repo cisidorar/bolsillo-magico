@@ -421,7 +421,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
         user_id:         userId,
         ticker:          sale.ticker,
         shares:          sharesSold,
-        avg_cost_usd:    Math.round((costBasis / sharesSold) * 100) / 100,
+        avg_cost_usd:    Math.round((costBasis / sharesSold) * 1e6) / 1e6,
         wallet_cost_usd: Math.round(costBasis * 100) / 100,
         wallet_funded:   true,
       })
