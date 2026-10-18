@@ -75,13 +75,13 @@ Todo lo del Plan 1, más un interruptor **Compartir con…** en el `ExpenseSheet
 
 **Esfuerzo:** el Plan 1 + cambios en `ExpenseSheet`, `RecurringManager` y `auto-register.ts`. Riesgo medio: toca el flujo de registro más usado de la app.
 
-### Plan 3 — "Hogar compartido" (lo más grande)
+### Plan 3 — "Vivir juntos" (feature futura, misma lógica)
 
-Un grupo permanente para la vida en común: presupuesto compartido mensual, cuentas de la casa divididas automáticamente, **saldo mensual** ("este mes Cas puso $52.000 de más") y vista del hogar en `/analisis`.
+Un grupo permanente para la vida en común, con **las mismas reglas** que un viaje: división según sueldo (D1, D3), cada uno ve solo su parte en sus gastos (D2-A) y el saldo dice quién le debe a quién. Lo que cambia es el ritmo: un viaje se cierra una vez, la casa se cuadra **todos los meses**. Detalle en la sección *Fase futura — vivir juntos* más abajo.
 
-**Esfuerzo:** alto. Implica decidir qué ve cada uno del análisis del otro, presupuestos con dos dueños y notificaciones a ambos. Solo vale la pena si el Plan 2 se usa todos los meses.
+**Esfuerzo:** alto, pero casi todo se apoya en lo que construye el Plan 1. Solo vale la pena cuando efectivamente vivan juntos.
 
-**Camino sugerido:** Plan 1 ahora → Plan 2 si se usa → Plan 3 solo si hace falta.
+**Camino sugerido:** Plan 1 ahora → Plan 2 si se usa → Plan 3 al mudarse. El modelo de datos del Plan 1 ya deja preparado el 3 (ver `kind` en `shared_groups`), para no tener que rehacer nada.
 
 ---
 
@@ -92,7 +92,11 @@ Un grupo permanente para la vida en común: presupuesto compartido mensual, cuen
 ```sql
 create table public.shared_groups (
   id          uuid primary key default gen_random_uuid(),
-  name        text not null,                         -- "Vacaciones Chiloé"
+  name        text not null,                         -- "Vacaciones Chiloé" / "Casa"
+  -- 'event' = viaje o evento (Plan 1) · 'household' = vivir juntos (Plan 3).
+  -- Se agrega desde el Plan 1 aunque solo se use 'event', para que la casa
+  -- no necesite otra migración de grupos.
+  kind        text not null default 'event' check (kind in ('event', 'household')),
   created_by  uuid not null references auth.users(id) on delete cascade,
   default_split text not null default 'income'
               check (default_split in ('income', 'equal', 'fixed')),
@@ -181,6 +185,50 @@ $$;
 - **Agregar gasto compartido:** monto, descripción, fecha, quién pagó, división (propuesta según D3 y editable), categoría para tu parte personal.
 - **Invitación:** correo con link; quien invita ve "pendiente" hasta que la otra persona acepta e indica si da su consentimiento para dividir según ingresos.
 - **`/cuenta/[cardId]`:** si un cargo de la tarjeta tiene `shared_expense_id`, una línea "incluye $X de [nombre]" para que el total cuadre con el estado de cuenta.
+
+---
+
+## Fase futura — vivir juntos (Plan 3)
+
+Misma lógica que un viaje, aplicada a la casa. Un grupo `kind = 'household'` ("Casa"), uno por pareja, que no se cierra.
+
+### Qué se reutiliza tal cual
+
+- **Grupo, miembros, invitación y RLS** del Plan 1.
+- **La proporción según sueldo** (`shared_income_ratio`, D1): los dos siguen sin ver el sueldo del otro, solo el %.
+- **Cada uno ve solo su parte** en sus gastos personales (D2-A): tu presupuesto, análisis e insights muestran lo que te costó vivir en la casa, no el total.
+- **Saldo y Saldar** (`groupBalance`, `shared_settlements`).
+
+### Qué cambia respecto de un viaje
+
+| | Viaje (Plan 1) | Casa (Plan 3) |
+|---|---|---|
+| Duración | Se cierra al volver | Permanente |
+| Proporción | Congelada en cada gasto | **Se fija una vez por mes** (el 1 de cada mes con el promedio de 3 meses, D3) y se aplica a todo lo de ese mes. Si a alguien le suben el sueldo, el cambio entra el mes siguiente, sin recalcular meses cerrados |
+| Gastos | Sueltos, los anota quien pagó | Mayormente **recurrentes**: arriendo o dividendo, gastos comunes, luz, agua, gas, internet, streaming |
+| Cuadratura | Una vez, al final | **Cierre mensual**: "en octubre Cas puso $52.000 de más" → Saldar, o arrastrar al mes siguiente |
+| Excepciones | — | Algunos gastos van 50/50 o 100% de uno aunque la regla general sea según sueldo (ej. el plan de celular de cada uno) |
+
+### Piezas nuevas
+
+1. **Recurrentes del hogar.** Columna `recurring_expenses.shared_group_id`: un recurrente marcado como de la casa se divide solo. `auto-register.ts` ya genera las fechas (`monthlyDueDates`, `intervalDueDate` para lo bimestral). Al vencer, crea el `shared_expenses` del mes y la parte de cada uno en su `expenses`, con la proporción del mes.
+2. **Proporción mensual guardada.** Tabla `shared_month_ratios (group_id, month, year, ratio_a)`, que la llena el cron mensual o el primer gasto del mes. Hace que el mes sea reproducible y deja ver el historial ("en marzo era 58/42, ahora 62/38").
+3. **Regla por gasto.** `split_kind` ya existe en `shared_expenses`; la casa solo agrega una regla por defecto por categoría (ej. "Supermercado → según sueldo", "Mascota → 100% Cas").
+4. **Cierre de mes.** Vista del grupo con un resumen por mes: total de la casa, lo que puso cada uno, lo que le correspondía y la diferencia. Un correo de cierre opcional usa la misma infraestructura que `notify-monthly-summary`.
+5. **Presupuesto de la casa (opcional).** Un tope mensual del grupo ("la casa no pasa de $1.400.000") que ven ambos. No se mezcla con `budgets`: cada uno mantiene su presupuesto personal, que ya incluye su parte de la casa.
+
+### Integraciones con lo que ya existe
+
+- **`/inicio` y `/recurrentes`:** tu parte de los recurrentes de la casa aparece como cualquier otro recurrente (flujo de caja 30 días, "Ya comprometido"), por el monto de tu parte, no por el total.
+- **`/ingresos`:** sin cambios. El sueldo sigue siendo privado; solo alimenta el %.
+- **`/propiedad`:** no se toca. Es un mundo aparte (D1 de ese plan) y el depto arrendado no es la casa donde viven. Si algún día viven en una propiedad propia, el dividendo se puede marcar como recurrente de la casa.
+- **Tarjetas:** la misma línea de conciliación del Plan 1 ("incluye $X de [nombre]") para quien paga una cuenta de la casa con su tarjeta.
+
+### Decisiones abiertas para cuando llegue el momento
+
+- ¿El arriendo también va según sueldo o 50/50? (Muchas parejas dividen el arriendo según sueldo y el resto 50/50.)
+- ¿El saldo mensual se salda siempre a fin de mes o se puede arrastrar?
+- ¿Cuenta común real (una cuenta bancaria de los dos) o cada uno paga con lo suyo? Si es cuenta común, se modela como un método de pago del grupo y el saldo pasa a ser "cuánto aportó cada uno a la cuenta".
 
 ---
 
