@@ -13,8 +13,8 @@ import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
-import NextTripCard from '@/components/NextTripCard'
-import { getNextTrip } from '@/lib/next-trip'
+import NextTripCard, { TripSettleChips } from '@/components/NextTripCard'
+import { getNextTrip, getTripsToSettle } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
 import ExpenseRowIcon from '@/components/ExpenseRowIcon'
 import Link from 'next/link'
@@ -114,6 +114,7 @@ export default async function DashboardPage() {
     { data: debitThisMonth },
     { data: usdDepositsThisMonth },
     nextTrip,
+    tripsToSettle,
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -172,6 +173,7 @@ export default async function DashboardPage() {
       .gte('purchase_date', thisMonthStartStr)
       .lt('purchase_date', nextMonthStartStr),
     getNextTrip(supabase, user!.id, dateStr),
+    getTripsToSettle(supabase, user!.id, dateStr),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -999,6 +1001,7 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
+            {tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
             {nextTrip && <NextTripCard trip={nextTrip} />}
 
             {/* ── Ciclo de sueldo ── */}
@@ -1259,7 +1262,8 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {nextTrip && <NextTripCard trip={nextTrip} />}
+          {tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {nextTrip && <NextTripCard trip={nextTrip} />}
 
           {/* Ciclo de sueldo mobile */}
           <CicloSueldo

@@ -3,15 +3,15 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
-  groupBalance, suggestedTransfers, tripStage, spentByCategory, TRIP_CATEGORIES, type SplitMode,
+  groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, spentByCategory, TRIP_CATEGORIES, type SplitMode,
 } from '@/lib/shared-split'
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
-  settleShared, deleteSettlement,
+  settleShared, deleteSettlement, setSharedGroupClosed,
   inviteToSharedGroup, removeSharedMember, setSharedMode, giveSharedConsent,
   type FoundUser,
 } from '@/app/actions/shared'
@@ -29,12 +29,6 @@ import type {
 } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 
-const STAGE_LABEL = {
-  planning:  'Planificando',
-  traveling: 'En viaje',
-  settling:  'Por saldar',
-  closed:    'Cerrado',
-} as const
 
 function fmtRange(start: string | null, end: string | null): string {
   const f = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -95,7 +89,7 @@ export default function SharedTripView({
   const mine = bal.net[meId] ?? 0
   const transfers = suggestedTransfers(bal.net)
   const anyPending = transfers.length > 0
-  const stage = tripStage(group, today, anyPending)
+  const phase = tripPhase(group, today, anyPending)
 
   async function run(fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
     setBusy(true); setError('')
@@ -126,19 +120,232 @@ export default function SharedTripView({
   const myFraction = income && !group.split_error && !alone && people === accepted.length && wSum > 0
     ? (weights[meId] ?? 0) / wSum : null
 
-  // Lo más urgente a mostrar junto a la etapa — distinto según dónde va el viaje.
-  const daysUntil = stage === 'planning' && group.start_date && group.start_date > today
-    ? Math.round((new Date(group.start_date + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86400000)
+  // Lo más relevante según dónde va el viaje, junto al nombre.
+  const dStart = daysToStart(group.start_date, today)
+  const dayInfo = tripDay(group.start_date, group.end_date, today)
+  const headerHint =
+    phase === 'settling' ? `${transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`} para cuadrar`
+    : phase === 'traveling' && dayInfo ? `Día ${dayInfo.day}${dayInfo.total ? ` de ${dayInfo.total}` : ''}`
+    : phase === 'planning' && dStart != null ? (dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : null
-  const headerHint = stage === 'settling' && anyPending
-    ? `${transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`} para cuadrar`
-    : daysUntil != null
-      ? `Sale en ${daysUntil} ${daysUntil === 1 ? 'día' : 'días'}`
-      : null
+
+  const spent = spentByCategory(expenses)
+  const budgetSum = budgetTotal(group.budget ?? {})
+  const todaySpent = expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0)
+  const hasOpenItems = planItems.some(i => !i.paid_at)
+
+  function openInvite() {
+    setInviteOpen(true)
+    document.getElementById('personas')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  // ── Bloques (el orden depende de la fase) ────────────────────────────────
+  const steps = phase === 'planning' && (!group.start_date || budgetSum === 0 || (alone && pending.length === 0 && isCreator)) ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Para planificar:</span>
+      {!group.start_date && (
+        <button onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
+          <CalendarDays className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Fechas
+        </button>
+      )}
+      {budgetSum === 0 && (
+        <button onClick={() => setBudgetOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
+          <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Cuánto costaría
+        </button>
+      )}
+      {alone && pending.length === 0 && isCreator && (
+        <button onClick={openInvite} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
+          <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Invitar
+        </button>
+      )}
+    </div>
+  ) : null
+
+  const saldo = !alone && (expenses.length > 0 || settlements.length > 0) ? (
+    <div className="p-5" style={{ background: balStyle.bg, border: `1.5px solid ${balStyle.border}`, borderRadius: 18 }}>
+      <p className="text-xs font-semibold" style={{ color: balStyle.color }}>
+        {phase === 'settling' ? 'Cuadremos cuentas' : 'Tu saldo del viaje'}
+      </p>
+      <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
+        {owed ? `Te deben ${formatCLP(mine)}` : owes ? `Debes ${formatCLP(-mine)}` : 'Estás a mano'}
+      </p>
+      {phase !== 'settling' && transfers.length > 0 && (
+        <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
+          Pueden saldar ahora o al final del viaje.
+        </p>
+      )}
+
+      {transfers.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {transfers.map(t => {
+            const involvesMe = t.from === meId || t.to === meId
+            return (
+              <div key={`${t.from}-${t.to}`} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--surface)' }}>
+                <p className="flex-1 text-xs" style={{ color: 'var(--ink-2)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.from)}</span> le {t.from === meId ? 'transfieres' : 'transfiere'} a{' '}
+                  <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.to)}</span>{' '}
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(t.amount)}</span>
+                </p>
+                {involvesMe && !closed && (
+                  <button disabled={busy} onClick={() => run(() => settleShared(group.id, t.from, t.to, t.amount, today), 'Transferencia registrada')}
+                    className="inline-flex items-center gap-1 px-3 min-h-[44px] rounded-lg text-xs font-bold disabled:opacity-50 flex-shrink-0"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                    <Handshake className="w-3.5 h-3.5" /> {t.from === meId ? 'Ya transferí' : 'Me llegó'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+            Marcarla solo la anota aquí; no crea gastos ni ingresos.
+          </p>
+        </div>
+      )}
+
+      {accepted.length > 2 && (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+          {accepted.map(m => {
+            const v = bal.net[m.user_id] ?? 0
+            return (
+              <span key={m.user_id} className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                {nameOf(m.user_id)}: {v > 0 ? `+${formatCLP(v)}` : v < 0 ? `−${formatCLP(-v)}` : 'a mano'}
+              </span>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  ) : null
+
+  const summary = (phase === 'settling' || phase === 'done' || phase === 'closed') && expenses.length > 0 ? (
+    <TripClosedSummary
+      total={bal.total} myShare={bal.share[meId] ?? 0} myPaid={bal.paid[meId] ?? 0}
+      budget={budgetSum} spent={spent}
+      people={accepted.length} count={expenses.length}
+      startDate={group.start_date} endDate={group.end_date} />
+  ) : null
+
+  const doneCard = phase === 'done' ? (
+    <div className="card p-4 flex items-center gap-3">
+      <CircleCheck className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Viaje terminado y cuentas cuadradas</p>
+        <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Ciérralo para archivarlo; puedes reabrirlo si falta algo.</p>
+      </div>
+      <button disabled={busy} onClick={() => run(() => setSharedGroupClosed(group.id, true), 'Viaje cerrado')}
+        className="inline-flex items-center gap-1.5 px-4 min-h-[44px] rounded-xl text-xs font-bold border flex-shrink-0 disabled:opacity-50"
+        style={{ borderColor: 'var(--border)', color: 'var(--ink)', background: 'var(--surface)' }}>
+        <Lock className="w-3.5 h-3.5" /> Cerrar viaje
+      </button>
+    </div>
+  ) : null
+
+  const spendHero = (
+    <TripSpendHero
+      budget={group.budget ?? {}} spent={spent} closed={closed}
+      onEditBudget={() => setBudgetOpen(true)}
+      label={phase === 'planning' ? 'Ya pagado o reservado' : 'Gastado del viaje'}
+      todaySpent={phase === 'traveling' ? todaySpent : null}
+      people={accepted.length}
+    />
+  )
+
+  const planCard = phase === 'planning' ? (
+    <TripPlanCard
+      groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
+      people={people} myFraction={myFraction} capacity={capacity}
+      myPaid={bal.share[meId] ?? 0} goal={goal}
+      startDate={group.start_date} today={today} closed={closed}
+      onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
+    />
+  ) : null
+
+  const items = (phase === 'planning' || hasOpenItems) && !closed ? (
+    <TripPlanItems groupId={group.id} items={planItems} paymentMethods={paymentMethods}
+      today={today} closed={closed} people={people} />
+  ) : null
+
+  const addButton = !closed ? (
+    <button onClick={() => setSheet({ expense: null })}
+      className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
+      style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+      <Plus className="w-3.5 h-3.5" /> Gasto
+    </button>
+  ) : null
+
+  const gastos = (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
+            {phase === 'planning' ? 'Reservas y pagos hechos' : 'Gastos del viaje'}
+          </h2>
+          {bal.total > 0 && (
+            <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
+              {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
+            </p>
+          )}
+        </div>
+        {addButton}
+      </div>
+
+      {expenses.length === 0 ? (
+        <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
+          {phase === 'planning'
+            ? 'Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.'
+            : 'Agrega cada gasto apenas lo pagues; la app calcula la parte de cada uno.'}
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {[...byDay.entries()].map(([day, rows]) => (
+            <div key={day}>
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                {relativeDate(day, dateFormat)}
+              </p>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {rows.map(e => {
+                  const myPart = sharesByExp[e.id]?.[meId] ?? 0
+                  const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
+                  const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
+                  return (
+                    <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
+                      className="w-full flex items-center gap-3 py-2.5 text-left"
+                      style={{ cursor: closed ? 'default' : 'pointer' }}>
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+                        <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.description}</p>
+                        <p className="text-xs truncate" style={{ color: 'var(--ink-3)' }}>
+                          {alone ? catLabel(e.trip_category) : `pagó ${payer} · tu parte ${formatCLP(myPart)}`}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
+                      {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
+  const main =
+    phase === 'planning'  ? <>{steps}{planCard}{items}{saldo}{expenses.length > 0 && budgetSum > 0 ? spendHero : null}{gastos}</>
+    : phase === 'traveling' ? <>{spendHero}{saldo}{gastos}{items}</>
+    : phase === 'settling'  ? <>{saldo}{summary}{gastos}</>
+    : phase === 'done'      ? <>{doneCard}{summary}{gastos}</>
+    : <>{summary}{gastos}</>
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5">
-      <Link href="/compartidos" className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+      <Link href="/compartidos" className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[44px] -my-3" style={{ color: 'var(--ink-3)' }}>
         <ArrowLeft className="w-3.5 h-3.5" /> Compartidos
       </Link>
 
@@ -148,15 +355,13 @@ export default function SharedTripView({
             <h1 className="font-display text-2xl lg:text-3xl font-bold truncate" style={{ color: 'var(--ink)' }}>{group.name}</h1>
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
               style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-              {STAGE_LABEL[stage]}
+              {TRIP_PHASE_LABEL[phase]}
             </span>
           </div>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-            {group.start_date || closed
-              ? fmtRange(group.start_date, group.end_date)
-              : <button onClick={() => setEditOpen(true)} className="font-semibold min-h-[44px] -my-3 inline-flex items-center" style={{ color: 'var(--primary)' }}>+ Agregar fechas</button>}
+            {group.start_date ? fmtRange(group.start_date, group.end_date) : 'Fechas por definir'}
             {headerHint && (
-              <span className="font-semibold" style={{ color: stage === 'settling' ? 'var(--gold)' : 'var(--ink-2)' }}> · {headerHint}</span>
+              <span className="font-semibold" style={{ color: phase === 'settling' ? 'var(--gold)' : 'var(--ink-2)' }}> · {headerHint}</span>
             )}
           </p>
         </div>
@@ -170,150 +375,15 @@ export default function SharedTripView({
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
 
       <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: 'minmax(0, 1fr) 340px' }}>
-        {/* Columna principal — lo que se mira seguido: gasto vs. presupuesto, saldo, tu parte, gastos */}
+        {/* Columna principal — su contenido y orden cambian con la fase del viaje */}
         <div className="space-y-5 min-w-0">
-          {closed && (
-            <TripClosedSummary
-              total={bal.total} myShare={bal.share[meId] ?? 0} myPaid={bal.paid[meId] ?? 0}
-              budget={budgetTotal(group.budget ?? {})} spent={spentByCategory(expenses)}
-              people={accepted.length} count={expenses.length}
-              startDate={group.start_date} endDate={group.end_date} />
-          )}
-
-          <TripSpendHero
-            budget={group.budget ?? {}} spent={spentByCategory(expenses)} closed={closed}
-            onEditBudget={() => setBudgetOpen(true)}
-          />
-
-          {/* Saldo */}
-          {!alone && expenses.length > 0 && (
-            <div className="p-5" style={{ background: balStyle.bg, border: `1.5px solid ${balStyle.border}`, borderRadius: 18 }}>
-              <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Tu saldo del viaje</p>
-              <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
-                {owed ? `Te deben ${formatCLP(mine)}`
-                  : owes ? `Debes ${formatCLP(-mine)}`
-                  : 'Estás a mano'}
-              </p>
-
-              {transfers.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {transfers.map(t => {
-                    const involvesMe = t.from === meId || t.to === meId
-                    return (
-                      <div key={`${t.from}-${t.to}`} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--surface)' }}>
-                        <p className="flex-1 text-xs" style={{ color: 'var(--ink-2)' }}>
-                          <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.from)}</span> le {t.from === meId ? 'transfieres' : 'transfiere'} a{' '}
-                          <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.to)}</span>{' '}
-                          <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(t.amount)}</span>
-                        </p>
-                        {involvesMe && !closed && (
-                          <button disabled={busy} onClick={() => run(() => settleShared(group.id, t.from, t.to, t.amount, today), 'Transferencia registrada')}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
-                            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-                            <Handshake className="w-3 h-3" /> {t.from === meId ? 'Ya transferí' : 'Me llegó'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                    Registrar una transferencia solo la anota; no crea gastos ni ingresos.
-                  </p>
-                </div>
-              )}
-
-              {accepted.length > 2 && (
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                  {accepted.map(m => {
-                    const v = bal.net[m.user_id] ?? 0
-                    return (
-                      <span key={m.user_id} className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                        {nameOf(m.user_id)}: {v > 0 ? `+${formatCLP(v)}` : v < 0 ? `−${formatCLP(-v)}` : 'a mano'}
-                      </span>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          <TripPlanCard
-            groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
-            people={people} myFraction={myFraction} capacity={capacity}
-            myPaid={bal.share[meId] ?? 0} goal={goal}
-            startDate={group.start_date} today={today} closed={closed}
-            onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
-          />
-
-          <TripPlanItems groupId={group.id} items={planItems} paymentMethods={paymentMethods}
-            today={today} closed={closed} people={people} />
-
-          {/* Gastos */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gastos del viaje</h2>
-                {bal.total > 0 && (
-                  <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
-                  </p>
-                )}
-              </div>
-              {!closed && (
-                <button onClick={() => setSheet({ expense: null })}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
-                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-                  <Plus className="w-3.5 h-3.5" /> Gasto
-                </button>
-              )}
-            </div>
-
-            {expenses.length === 0 ? (
-              <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
-                Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {[...byDay.entries()].map(([day, rows]) => (
-                  <div key={day}>
-                    <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                      {relativeDate(day, dateFormat)}
-                    </p>
-                    <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                      {rows.map(e => {
-                        const myPart = sharesByExp[e.id]?.[meId] ?? 0
-                        const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
-                        const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
-                        return (
-                          <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
-                            className="w-full flex items-center gap-3 py-2.5 text-left"
-                            style={{ cursor: closed ? 'default' : 'pointer' }}>
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-                              <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.description}</p>
-                              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                                {catLabel(e.trip_category)} · pagó {payer} · tu parte {formatCLP(myPart)}
-                              </p>
-                            </div>
-                            <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
-                            {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {main}
         </div>
 
         {/* Columna lateral — personas, reparto y el historial de transferencias ya hechas */}
         <div className="space-y-5">
           {/* Personas */}
-          <div className="card p-4">
+          <div id="personas" className="card p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />

@@ -74,3 +74,40 @@ export async function getNextTrip(supabase: SupabaseClient, userId: string, toda
       : null,
   }
 }
+
+export interface TripToSettle { id: string; name: string; net: number }
+
+/**
+ * Viajes ya terminados (no cerrados) donde tu saldo no está en cero: el
+ * recordatorio de "después del viaje" en /inicio. net > 0 te deben, < 0 debes.
+ */
+export async function getTripsToSettle(supabase: SupabaseClient, userId: string, today: string): Promise<TripToSettle[]> {
+  const { data: mem } = await supabase
+    .from('shared_group_members').select('group_id').eq('user_id', userId).eq('status', 'accepted')
+  const ids = (mem ?? []).map(m => m.group_id as string)
+  if (!ids.length) return []
+  const { data: groups } = await supabase
+    .from('shared_groups').select('id, name, start_date, end_date').in('id', ids).is('closed_at', null)
+  const ended = (groups ?? []).filter(g => {
+    const end = (g.end_date ?? g.start_date) as string | null
+    return end != null && today > end
+  })
+  if (!ended.length) return []
+  const eids = ended.map(g => g.id as string)
+  const [{ data: exps }, { data: shares }, { data: sets }] = await Promise.all([
+    supabase.from('shared_expenses').select('group_id, amount, paid_by').in('group_id', eids),
+    supabase.from('shared_expense_shares').select('group_id, share').in('group_id', eids).eq('user_id', userId),
+    supabase.from('shared_settlements').select('group_id, from_user, to_user, amount').in('group_id', eids),
+  ])
+  const net = new Map<string, number>()
+  const add = (g: string, v: number) => net.set(g, (net.get(g) ?? 0) + v)
+  for (const e of exps ?? []) if (e.paid_by === userId) add(e.group_id as string, e.amount as number)
+  for (const s of shares ?? []) add(s.group_id as string, -(s.share as number))
+  for (const t of sets ?? []) {
+    if (t.from_user === userId) add(t.group_id as string, t.amount as number)
+    if (t.to_user === userId) add(t.group_id as string, -(t.amount as number))
+  }
+  return ended
+    .map(g => ({ id: g.id as string, name: g.name as string, net: net.get(g.id as string) ?? 0 }))
+    .filter(t => t.net !== 0)
+}

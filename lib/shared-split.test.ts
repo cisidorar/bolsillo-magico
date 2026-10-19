@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   splitByWeights, equalWeights, incomeWeights, exactValid, groupBalance, suggestedTransfers,
-  tripStage, cardAmount, sumCardAmounts, representativeIncome, spentByCategory,
+  tripStage, tripPhase, daysToStart, tripDay, cardAmount, sumCardAmounts, representativeIncome, spentByCategory,
 } from './shared-split'
 
 const A = 'a', B = 'b', C = 'c'
@@ -139,5 +139,36 @@ describe('spentByCategory', () => {
     expect(r.alojamiento).toBe(480000)
     expect(r.comida).toBe(135000)
     expect(r.otros).toBe(0)
+  })
+})
+
+describe('tripPhase', () => {
+  const g = (s: string | null, e: string | null, c: string | null = null) => ({ start_date: s, end_date: e, closed_at: c })
+  it('planificando sin fechas o antes de salir', () => {
+    expect(tripPhase(g(null, null), '2026-10-19', false)).toBe('planning')
+    expect(tripPhase(g('2026-12-01', '2026-12-10'), '2026-10-19', true)).toBe('planning')
+  })
+  it('en viaje el mismo día de salida', () => {
+    expect(tripPhase(g('2026-12-01', '2026-12-10'), '2026-12-01', false)).toBe('traveling')
+  })
+  it('después: por saldar o terminado', () => {
+    expect(tripPhase(g('2026-12-01', '2026-12-10'), '2026-12-11', true)).toBe('settling')
+    expect(tripPhase(g('2026-12-01', '2026-12-10'), '2026-12-11', false)).toBe('done')
+  })
+  it('cerrado a mano gana', () => {
+    expect(tripPhase(g('2026-12-01', '2026-12-10', 'x'), '2026-12-05', true)).toBe('closed')
+  })
+})
+
+describe('daysToStart / tripDay', () => {
+  it('cuenta regresiva', () => {
+    expect(daysToStart('2026-10-29', '2026-10-19')).toBe(10)
+    expect(daysToStart('2026-10-19', '2026-10-19')).toBeNull()
+    expect(daysToStart(null, '2026-10-19')).toBeNull()
+  })
+  it('día del viaje', () => {
+    expect(tripDay('2026-12-01', '2026-12-07', '2026-12-03')).toEqual({ day: 3, total: 7 })
+    expect(tripDay('2026-12-01', null, '2026-12-01')).toEqual({ day: 1, total: null })
+    expect(tripDay('2026-12-01', '2026-12-07', '2026-12-08')).toBeNull()
   })
 })

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Plane, ChevronRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
-import type { NextTrip } from '@/lib/next-trip'
+import type { NextTrip, TripToSettle } from '@/lib/next-trip'
 
 /** "Próximo viaje" en /inicio. Gold/mint solamente (UX5): nunca es urgencia del día. */
 export default function NextTripCard({ trip }: { trip: NextTrip }) {
@@ -53,5 +53,22 @@ export default function NextTripCard({ trip }: { trip: NextTrip }) {
       )}
       <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>Los gastos del viaje no cuentan en tu presupuesto del mes.</p>
     </Link>
+  )
+}
+
+/** Después del viaje: chip gold (UX5: atención pronto, no urgencia del día). */
+export function TripSettleChips({ trips }: { trips: TripToSettle[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {trips.map(t => (
+        <Link key={t.id} href={`/compartidos?g=${t.id}`}
+          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full text-xs font-semibold"
+          style={{ background: 'rgba(255,194,60,0.14)', color: 'var(--gold)' }}>
+          <Plane className="w-3.5 h-3.5" />
+          {t.name}: {t.net < 0 ? `debes ${formatCLP(-t.net)}` : `te deben ${formatCLP(t.net)}`}
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      ))}
+    </div>
   )
 }

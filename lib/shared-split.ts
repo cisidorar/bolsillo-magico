@@ -157,6 +157,48 @@ export function tripStage(
   return 'planning'
 }
 
+// ── Fase del viaje (lo que la vista prioriza) ──────────────────────────────
+
+/**
+ * Como tripStage, pero distingue "terminó y está cuadrado" (done) de "cerrado
+ * a mano" (closed): un viaje terminado sin deudas todavía se puede editar
+ * hasta que alguien lo cierra.
+ */
+export type TripPhase = 'planning' | 'traveling' | 'settling' | 'done' | 'closed'
+
+export const TRIP_PHASE_LABEL: Record<TripPhase, string> = {
+  planning: 'Planificando', traveling: 'En viaje', settling: 'Por saldar', done: 'Terminado', closed: 'Cerrado',
+}
+
+export function tripPhase(
+  g: { start_date: string | null; end_date: string | null; closed_at: string | null },
+  today: string,
+  anyPending: boolean,
+): TripPhase {
+  if (g.closed_at) return 'closed'
+  const end = g.end_date ?? g.start_date
+  if (end && today > end) return anyPending ? 'settling' : 'done'
+  if (g.start_date && today >= g.start_date) return 'traveling'
+  return 'planning'
+}
+
+function dayDiff(a: string, b: string): number {
+  return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000)
+}
+
+/** Días hasta la salida (null sin fecha o si ya salió). */
+export function daysToStart(start: string | null, today: string): number | null {
+  if (!start || start <= today) return null
+  return dayDiff(today, start)
+}
+
+/** "Día 3 de 7" durante el viaje (total null si no hay fecha de vuelta). */
+export function tripDay(start: string | null, end: string | null, today: string): { day: number; total: number | null } | null {
+  if (!start || today < start) return null
+  if (end && today > end) return null
+  return { day: dayDiff(start, today) + 1, total: end ? dayDiff(start, end) + 1 : null }
+}
+
 // ── Cuadratura de tarjeta (D4) ──────────────────────────────────────────────
 
 /**

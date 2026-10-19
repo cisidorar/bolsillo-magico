@@ -366,3 +366,15 @@ El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirma
 - **Chip "Sin viajes"** en `/analisis` (`?sv=1`), visible si el mes tiene gastos de viajes.
 - **Resumen al cerrar** (`TripClosedSummary`): total, por día, tu parte, lo que pusiste, contra presupuesto y por categoría.
 - Pendiente: correo de cierre con el resumen.
+
+## Iteración oct 2026 — la vista cambia con la fase del viaje
+
+`tripPhase()` (lib/shared-split.ts): planning · traveling · settling · done (terminó y cuadrado, aún editable) · closed. La columna principal de `SharedTripView` se ordena por fase:
+
+- **Planificando:** "Para planificar" (Fechas · Cuánto costaría · Invitar, solo lo que falta) → ¿te alcanza?/meta → pagos por hacer → saldo → "Ya pagado o reservado" → reservas. Encabezado: "Sale en N días".
+- **En viaje:** gastado vs presupuesto con "hoy $X · quedan $Y" → saldo → gastos → pagos pendientes. Encabezado: "Día 3 de 7".
+- **Por saldar:** "Cuadremos cuentas" (transferencias) → resumen → gastos.
+- **Terminado:** "Viaje terminado y cuentas cuadradas" + Cerrar viaje → resumen.
+- **Cerrado:** resumen + gastos de solo lectura.
+- Lista `/compartidos`: activos primero (por saldar, en viaje, planificando) con "Sale en / Día X de Y"; terminados y cerrados en "Anteriores".
+- `/inicio`: chips gold `TripSettleChips` para viajes terminados con saldo pendiente (`getTripsToSettle`).

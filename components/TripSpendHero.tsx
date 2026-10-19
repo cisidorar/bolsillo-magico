@@ -6,28 +6,42 @@ import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
 import { budgetTotal, type TripBudget } from '@/lib/trip-plan'
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 
-// Lo primero que se ve al abrir un viaje: cuánto se ha gastado el grupo
-// contra el presupuesto. Antes vivía enterrado al final de TripPlanCard y
-// solo se mostraba si ya había gasto; ahora es el ancla de la página — y
-// cubre también el estado sin presupuesto (antes el early-return de
-// TripPlanCard), para que haya un solo lugar que pide estimar costos.
+// Gastado del grupo contra el presupuesto. Es el ancla de la vista DURANTE el
+// viaje; antes de salir aparece como "ya pagado o reservado" y solo si hay algo.
 export default function TripSpendHero({
-  budget, spent, closed, onEditBudget,
+  budget, spent, closed, onEditBudget, label = 'Gastado del viaje', todaySpent, people,
 }: {
   budget:       TripBudget
   spent:        Record<TripCategory, number>
   closed:       boolean
   onEditBudget: () => void
+  label?:       string
+  /** Lo gastado hoy por el grupo (solo durante el viaje) */
+  todaySpent?:  number | null
+  people?:      number
 }) {
   const total = budgetTotal(budget)
   const spentTotal = Object.values(spent).reduce((s, x) => s + x, 0)
 
-  // Sin presupuesto no hay tarjeta: solo un enlace discreto para estimarlo.
+  // Sin presupuesto: si ya hay gasto, el total a secas (sin barra); si no, nada.
   if (total === 0) {
-    return closed ? null : (
-      <button onClick={onEditBudget} className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
-        <Wallet className="w-3.5 h-3.5" /> Estimar costos del viaje
-      </button>
+    if (spentTotal === 0) return null
+    return (
+      <div className="card p-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
+        <p className="font-display text-3xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
+          {formatCLP(spentTotal)}
+        </p>
+        <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>
+          {todaySpent ? `Hoy ${formatCLP(todaySpent)} · ` : ''}
+          {people && people > 1 ? `${formatCLP(Math.round(spentTotal / people))} por persona · ` : ''}
+          {!closed && (
+            <button onClick={onEditBudget} className="inline-flex items-center gap-1 font-semibold min-h-[44px] -my-3" style={{ color: 'var(--primary)' }}>
+              <Wallet className="w-3.5 h-3.5" /> Agregar presupuesto
+            </button>
+          )}
+        </p>
+      </div>
     )
   }
 
@@ -40,12 +54,14 @@ export default function TripSpendHero({
   return (
     <div className="card p-5 space-y-4">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Gastado del viaje</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
         <p className="font-display text-3xl lg:text-4xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}
         </p>
         <p className="text-xs mt-1.5" style={{ color: over || near ? 'var(--gold)' : 'var(--ink-3)' }}>
           de {formatCLP(total)} · {pct}%{over ? ' — se pasó del presupuesto' : ''}
+          {!over && todaySpent != null ? ` · hoy ${formatCLP(todaySpent)}` : ''}
+          {!over && !closed && spentTotal < total && todaySpent != null ? ` · quedan ${formatCLP(total - spentTotal)}` : ''}
         </p>
         <div className="h-2.5 rounded-full mt-2.5 overflow-hidden" style={{ background: 'var(--surface-2)' }}>
           <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: barColor }} />

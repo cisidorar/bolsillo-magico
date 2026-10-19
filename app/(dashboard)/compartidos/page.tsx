@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plane, ChevronRight } from 'lucide-react'
 import { formatCLP, getNowChile, type DateFormat } from '@/lib/utils'
-import { groupBalance, suggestedTransfers, tripStage } from '@/lib/shared-split'
+import { groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, type TripPhase } from '@/lib/shared-split'
 import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
@@ -19,10 +19,6 @@ export const dynamic = 'force-dynamic'
 // que la RLS deja ver (viajes de los que eres miembro o invitado); todo lo que
 // escribe pasa por funciones de la base (app/actions/shared.ts).
 
-const STAGE_LABEL = {
-  planning: 'Planificando', traveling: 'En viaje',
-  settling: 'Por saldar', closed: 'Cerrado',
-} as const
 
 function fmtRange(start: string | null, end: string | null): string {
   const f = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -147,8 +143,61 @@ export default async function CompartidosPage({
       set, memberIds,
     )
     const net = bal.net[user.id] ?? 0
-    return { g, bal, net, people: memberIds.length, stage: tripStage(g, today, suggestedTransfers(bal.net).length > 0) }
+    return { g, bal, net, people: memberIds.length, phase: tripPhase(g, today, suggestedTransfers(bal.net).length > 0) }
   })
+
+  // Lo que necesita atención primero; lo terminado/cerrado va a "Anteriores".
+  const ORDER: Record<TripPhase, number> = { settling: 0, traveling: 1, planning: 2, done: 3, closed: 4 }
+  const sorted = [...rows].sort((a, b) => ORDER[a.phase] - ORDER[b.phase]
+    || (a.g.start_date ?? '9999').localeCompare(b.g.start_date ?? '9999'))
+  const active = sorted.filter(r => r.phase !== 'done' && r.phase !== 'closed')
+  const past   = sorted.filter(r => r.phase === 'done' || r.phase === 'closed')
+
+  function hint(r: (typeof rows)[number]): string | null {
+    if (r.phase === 'planning') {
+      const d = daysToStart(r.g.start_date, today)
+      return d == null ? null : d === 1 ? 'Sale mañana' : `Sale en ${d} días`
+    }
+    if (r.phase === 'traveling') {
+      const t = tripDay(r.g.start_date, r.g.end_date, today)
+      return t ? `Día ${t.day}${t.total ? ` de ${t.total}` : ''}` : null
+    }
+    return null
+  }
+
+  const tripRow = (r: (typeof rows)[number]) => {
+    const { g, bal, net, people, phase } = r
+    const h = hint(r)
+    return (
+      <Link key={g.id} href={`/compartidos?g=${g.id}`} className="card p-4 flex items-center gap-3 transition-colors hover:brightness-[.99]">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: phase === 'closed' || phase === 'done' ? 'var(--surface-2)' : 'var(--primary-soft)' }}>
+          <Plane className="w-5 h-5" style={{ color: phase === 'closed' || phase === 'done' ? 'var(--ink-3)' : 'var(--primary)' }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{g.name}</p>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+              style={phase === 'settling'
+                ? { background: 'rgba(255,194,60,0.16)', color: 'var(--gold)' }
+                : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{TRIP_PHASE_LABEL[phase]}</span>
+          </div>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
+            {h ? <span className="font-semibold" style={{ color: 'var(--ink-2)' }}>{h} · </span> : null}
+            {fmtRange(g.start_date, g.end_date)} · {people === 1 ? 'solo tú' : `${people} personas`}
+          </p>
+          {people > 1 && bal.total > 0 && (
+            <p className="text-xs mt-1 font-semibold tabular-nums"
+              style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
+              {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
+              <span style={{ color: 'var(--ink-3)' }} className="font-normal"> · {formatCLP(bal.total)} en total</span>
+            </p>
+          )}
+        </div>
+        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+      </Link>
+    )
+  }
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5">
@@ -179,31 +228,21 @@ export default async function CompartidosPage({
           <div className="mt-4 flex justify-center"><NewTripButton label="Crear el primer viaje" /></div>
         </div>
       ) : (
-        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
-          {rows.map(({ g, bal, net, people, stage }) => (
-            <Link key={g.id} href={`/compartidos?g=${g.id}`} className="card p-4 flex items-center gap-3 transition-colors hover:brightness-[.99]">
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-                <Plane className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+        <>
+          {active.length > 0 && (
+            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+              {active.map(tripRow)}
+            </div>
+          )}
+          {past.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Anteriores</p>
+              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+                {past.map(tripRow)}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{g.name}</p>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                    style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{STAGE_LABEL[stage]}</span>
-                </div>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{fmtRange(g.start_date, g.end_date)} · {people === 1 ? 'solo tú' : `${people} personas`}</p>
-                {people > 1 && bal.total > 0 && (
-                  <p className="text-xs mt-1 font-semibold tabular-nums"
-                    style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
-                    {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
-                    <span style={{ color: 'var(--ink-3)' }} className="font-normal"> · {formatCLP(bal.total)} en total</span>
-                  </p>
-                )}
-              </div>
-              <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-            </Link>
-          ))}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
