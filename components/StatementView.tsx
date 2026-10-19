@@ -10,6 +10,7 @@ import { Receipt } from 'lucide-react'
 import ServiceLogo from './ServiceLogo'
 import ExpenseSheet from './ExpenseSheet'
 import { cn } from '@/lib/utils'
+import { cardAmount } from '@/lib/shared-split'
 import type { ExpenseWithRelations, Category, PaymentMethod } from '@/types'
 
 interface Props {
@@ -57,7 +58,7 @@ export default function StatementView({ expenses, categories, paymentMethods, da
 
         {sortedDates.map(date => {
           const dayExpenses = grouped[date]
-          const dayTotal    = dayExpenses.reduce((s, e) => s + e.amount, 0)
+          const dayTotal    = dayExpenses.reduce((s, e) => s + cardAmount(e), 0)
           const label       = relativeDate(date, dateFormat)
 
           return (
@@ -123,7 +124,12 @@ export default function StatementView({ expenses, categories, paymentMethods, da
 
                       {/* Monto */}
                       <p className="text-base font-bold text-gray-900 tabular-nums flex-shrink-0">
-                        {formatCLP(e.amount)}
+                        {formatCLP(cardAmount(e))}
+                        {(e.card_extra ?? 0) > 0 && (
+                          <span className="block text-[10px] font-medium text-gray-400 text-right">
+                            tu parte {formatCLP(e.amount)}
+                          </span>
+                        )}
                       </p>
                     </button>
                   )

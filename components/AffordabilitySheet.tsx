@@ -12,6 +12,7 @@ import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/c
 import { buildCommittedTimeline, type CommittedTimelineItem } from '@/lib/committed-timeline'
 import { evaluateAffordability, type Verdict } from '@/lib/affordability'
 import InfoTap from './InfoTap'
+import { sumCardAmounts } from '@/lib/shared-split'
 import type { PaymentMethod } from '@/types'
 
 interface Props {
@@ -98,7 +99,7 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
         supabase.from('payment_methods').select('*').order('sort_order'),
         supabase.from('incomes').select('amount').order('year', { ascending: false }).order('month', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('profiles').select('payday, payday_last_business_day, monthly_invest_goal').maybeSingle(),
-        supabase.from('expenses').select('amount, date, payment_method_id').gte('date', twoMonthsAgo).lte('date', now.toISOString().split('T')[0]),
+        supabase.from('expenses').select('amount, card_extra, date, payment_method_id').gte('date', twoMonthsAgo).lte('date', now.toISOString().split('T')[0]),
       ])
 
       setPaymentMethods(pms ?? [])
@@ -124,13 +125,13 @@ export default function AffordabilitySheet({ isOpen, onClose }: Props) {
         .filter(c => c.card_type === 'credit' && c.billing_day && c.payment_due_day)
         .map(card => {
           const range = lastClosedStatementRange(card.billing_day!)
-          const total = (expensesWindow ?? [])
+          // sumCardAmounts: el banco cobra también la parte de gastos compartidos que pagaste tú
+          const total = sumCardAmounts((expensesWindow ?? [])
             .filter((e: { payment_method_id: string | null; date: string }) => {
               if (e.payment_method_id !== card.id) return false
               const bp = billingPeriod(e.date, card.billing_day!)
               return bp.month === range.month && bp.year === range.year
-            })
-            .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+            }))
           const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
           return { label: card.name, amount: total, dueDate }
         })

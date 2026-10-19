@@ -79,6 +79,10 @@ export type Expense = {
   date: string
   tags: string[]
   created_at: string
+  // Gastos compartidos (oct 2026): enlace al gasto del viaje y lo que el banco
+  // cobra de más al pagador (la parte de la otra persona) — ver lib/shared-split.ts
+  shared_expense_id?: string | null
+  card_extra?: number
   // joins
   category?: Category
   payment_method?: PaymentMethod

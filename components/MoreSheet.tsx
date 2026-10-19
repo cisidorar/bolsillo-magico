@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import {
   X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings, Calculator,
-  Building2,
+  Building2, Plane,
   type LucideIcon,
 } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -30,6 +30,7 @@ const financeRows: Row[] = [
   { href: '/ingresos',    icon: Wallet,     color: '#1FBE8D', bg: '#E6FAF3', title: 'Ingresos',    subtitle: 'Cuánto ganas cada mes' },
   { href: '/inversiones', icon: TrendingUp, color: '#2B7CF6', bg: '#EEF4FF', title: 'Inversiones', subtitle: 'Acciones, depósitos y ahorro' },
   { href: '/recurrentes', icon: RefreshCw,  color: '#0D9488', bg: '#F0FDFA', title: 'Recurrentes', subtitle: 'Suscripciones y cobros fijos' },
+  { href: '/compartidos', icon: Plane,      color: '#0EA5E9', bg: '#E0F2FE', title: 'Compartidos', subtitle: 'Viajes y gastos con otra persona' },
 ]
 
 const otherRows: Row[] = [

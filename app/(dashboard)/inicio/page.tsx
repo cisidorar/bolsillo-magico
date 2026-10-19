@@ -16,6 +16,7 @@ import CicloSueldo from '@/components/CicloSueldo'
 import InfoTap from '@/components/InfoTap'
 import ExpenseRowIcon from '@/components/ExpenseRowIcon'
 import Link from 'next/link'
+import { sumCardAmounts } from '@/lib/shared-split'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -135,7 +136,7 @@ export default async function DashboardPage() {
       .gte('date', `${year - 10}-01-01`),
     supabase
       .from('expenses')
-      .select('amount, date, payment_method_id, payment_method:payment_methods(id, name, billing_day, card_type, domain)')
+      .select('amount, card_extra, date, payment_method_id, payment_method:payment_methods(id, name, billing_day, card_type, domain)')
       .eq('user_id', user!.id)
       .gte('date', statementFetchStart)
       .lte('date', now.toISOString().split('T')[0]),
@@ -322,7 +323,8 @@ export default async function DashboardPage() {
       id: card.id, name: card.name, domain: card.domain, billingDay: card.billing_day!,
       statementMonth: range.month, statementYear: range.year,
       opensOn: range.start, closesOn: range.end,
-      total: inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0),
+      // card_extra: lo que el banco cobra de más por gastos compartidos que pagaste tú
+      total: sumCardAmounts(inRange),
       count: inRange.length,
     }
   }).filter(c => c.count > 0)
@@ -339,7 +341,7 @@ export default async function DashboardPage() {
       const bp = billingPeriod(e.date, mainCreditCard.billing_day!)
       return bp.month === range.month && bp.year === range.year
     })
-    const statementTotal = inRange.reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+    const statementTotal = sumCardAmounts(inRange)
     const dueDate   = mainCardDueDay ? statementDueDate(range.month, range.year, mainCardDueDay) : null
     const daysToDue = dueDate ? daysBetween(dateStr, dueDate) : null
     return {

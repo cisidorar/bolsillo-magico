@@ -1,5 +1,6 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { sumCardAmounts } from '@/lib/shared-split'
 import { formatCLP, getNowChile, nextPaydayDate, lastClosedStatementRange, billingPeriod, statementDueDate } from '@/lib/utils'
 import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/cash-flow'
 import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
@@ -113,7 +114,7 @@ export default async function RecurrentesPage({
       .maybeSingle(),
     supabase
       .from('expenses')
-      .select('amount, date, payment_method_id')
+      .select('amount, card_extra, date, payment_method_id')
       .eq('user_id', user.id)
       .gte('date', statementFetchStart)
       .lte('date', now.toISOString().split('T')[0]),
@@ -289,13 +290,13 @@ export default async function RecurrentesPage({
     // es el monto real que vence pronto (mismo criterio que Ciclo de sueldo
     // en /inicio, ver lib/utils.ts).
     const range = lastClosedStatementRange(card.billing_day!)
-    const total = (statementExpenses ?? [])
+    // sumCardAmounts: incluye lo que el banco cobra de más por gastos compartidos
+    const total = sumCardAmounts((statementExpenses ?? [])
       .filter((e: { payment_method_id: string | null; date: string }) => {
         if (e.payment_method_id !== card.id) return false
         const bp = billingPeriod(e.date, card.billing_day!)
         return bp.month === range.month && bp.year === range.year
-      })
-      .reduce((s: number, e: { amount: number }) => s + e.amount, 0)
+      }))
     const dueDate = statementDueDate(range.month, range.year, card.payment_due_day!)
     return { label: card.name, amount: total, dueDate, domain: card.domain }
   })

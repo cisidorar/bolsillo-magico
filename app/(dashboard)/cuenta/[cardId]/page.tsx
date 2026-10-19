@@ -2,6 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { formatCLP, currentStatementRange, billingPeriod, billingPeriodRange, type DateFormat } from '@/lib/utils'
 import { ArrowLeft } from 'lucide-react'
+import { sumCardAmounts } from '@/lib/shared-split'
 import Link from 'next/link'
 import ServiceLogo from '@/components/ServiceLogo'
 import StatementView from '@/components/StatementView'
@@ -84,8 +85,13 @@ export default async function CuentaPage({
     return bp.month === prevStatementMonth && bp.year === prevStatementYear
   })
 
-  const currentTotal = currentExpenses.reduce((s, e) => s + e.amount, 0)
-  const prevTotal    = prevExpenses.reduce((s, e)    => s + e.amount, 0)
+  // Lo que cobra el banco: tu parte + lo que pagaste por la otra persona en
+  // gastos compartidos (card_extra). Es el total que tiene que cuadrar con el
+  // estado de cuenta real. "Por categoría" sigue mostrando solo lo tuyo.
+  const currentTotal = sumCardAmounts(currentExpenses)
+  const prevTotal    = sumCardAmounts(prevExpenses)
+  const currentExtra = currentExpenses.reduce((s, e) => s + (e.card_extra ?? 0), 0)
+  const currentOwn   = currentTotal - currentExtra
   const delta        = prevTotal > 0 ? Math.round(((currentTotal - prevTotal) / prevTotal) * 100) : null
 
   // Días restantes del período
@@ -173,6 +179,11 @@ export default async function CuentaPage({
                 <span className="ml-2 text-white/40">· Corte día {card.billing_day}</span>
               )}
             </p>
+            {currentExtra > 0 && (
+              <p className="text-white/60 text-xs mt-1">
+                Incluye {formatCLP(currentExtra)} que pagaste por otra persona en gastos compartidos
+              </p>
+            )}
 
             {/* Comparación vs anterior */}
             {delta !== null && prevTotal > 0 && (
@@ -264,7 +275,7 @@ export default async function CuentaPage({
               <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Por categoría</p>
               <div className="space-y-2.5">
                 {catSummary.map(c => {
-                  const pct = currentTotal > 0 ? Math.round((c.total / currentTotal) * 100) : 0
+                  const pct = currentOwn > 0 ? Math.round((c.total / currentOwn) * 100) : 0
                   return (
                     <div key={c.id}>
                       <div className="flex items-center justify-between mb-1">

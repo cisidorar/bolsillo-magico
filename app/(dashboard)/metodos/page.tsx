@@ -2,6 +2,7 @@ import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PaymentMethodManager from '@/components/PaymentMethodManager'
 import { currentStatementRange, billingPeriod } from '@/lib/utils'
+import { sumCardAmounts } from '@/lib/shared-split'
 import type { PaymentMethod } from '@/types'
 
 export const revalidate = 0
@@ -32,7 +33,7 @@ export default async function MetodosPage() {
 
     const { data: expenses } = await supabase
       .from('expenses')
-      .select('amount, date, payment_method_id')
+      .select('amount, card_extra, date, payment_method_id')
       .eq('user_id', user.id)
       .gte('date', fetchStart)
       .lte('date', today)
@@ -45,7 +46,7 @@ export default async function MetodosPage() {
         return bp.month === range.month && bp.year === range.year
       })
       statementTotals[card.id] = {
-        total: inPeriod.reduce((s, e) => s + e.amount, 0),
+        total: sumCardAmounts(inPeriod),
         start: range.start,
         end: range.end,
       }
