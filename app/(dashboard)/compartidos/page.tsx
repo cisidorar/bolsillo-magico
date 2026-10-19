@@ -7,6 +7,8 @@ import { groupBalance, suggestedTransfers, tripStage } from '@/lib/shared-split'
 import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
+import { monthlyCapacity } from '@/lib/trip-plan'
+import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
 import MyHandle from '@/components/MyHandle'
@@ -41,7 +43,7 @@ export default async function CompartidosPage({
 
   const [{ data: groupsRaw }, { data: membersRaw }] = await Promise.all([
     supabase.from('shared_groups').select('*').order('created_at', { ascending: false }),
-    supabase.from('shared_group_members').select('group_id, user_id, status, income_consent, personal_category_id'),
+    supabase.from('shared_group_members').select('group_id, user_id, status, income_consent, personal_category_id, savings_goal_id'),
   ])
   const groups  = (groupsRaw ?? []) as SharedGroup[]
   const members = (membersRaw ?? []) as SharedMemberRow[]
@@ -64,9 +66,34 @@ export default async function CompartidosPage({
       supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
       supabase.from('profiles').select('date_format').eq('id', user.id).maybeSingle(),
     ])
+    // ¿Cuánto ahorras al mes? Promedio de los últimos 3 meses cerrados
+    // (ingreso registrado − gastos que cuentan para análisis). Es solo tuyo.
+    const now = new Date(today + 'T12:00:00')
+    const months = [1, 2, 3].map(k => {
+      const d = new Date(now.getFullYear(), now.getMonth() - k, 1)
+      return { month: d.getMonth() + 1, year: d.getFullYear() }
+    })
+    const from = `${months[2].year}-${String(months[2].month).padStart(2, '0')}-01`
+    const to   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+    const myMember = members.find(m => m.group_id === selected.id && m.user_id === user.id)
+    const [{ data: incRaw }, { data: spRaw }, { data: goalRow }] = await Promise.all([
+      supabase.from('incomes').select('amount, month, year').eq('user_id', user.id).gte('year', months[2].year),
+      supabase.from('expenses').select('amount, date').eq('user_id', user.id)
+        .gte('date', from).lt('date', to).or('excluded_from_analysis.is.null,excluded_from_analysis.eq.false'),
+      myMember?.savings_goal_id
+        ? supabase.from('savings_goals').select('id, target_amount, current_amount, target_date').eq('id', myMember.savings_goal_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+    const capacity = monthlyCapacity(months.map(m => {
+      const key = `${m.year}-${String(m.month).padStart(2, '0')}`
+      return {
+        income: (incRaw ?? []).filter(i => i.month === m.month && i.year === m.year).reduce((s, i) => s + (i.amount as number), 0),
+        spent:  (spRaw ?? []).filter(e => (e.date as string).startsWith(key)).reduce((s, e) => s + (e.amount as number), 0),
+      }
+    }))
+
     const weights: Record<string, number> = {}
     for (const w of (wRaw ?? []) as { user_id: string; w: number | string }[]) weights[w.user_id] = Number(w.w)
-    const myMember = members.find(m => m.group_id === selected.id && m.user_id === user.id)
 
     return (
       <SharedTripView
@@ -80,6 +107,8 @@ export default async function CompartidosPage({
         paymentMethods={(pms ?? []) as PaymentMethod[]}
         myCategoryId={myMember?.personal_category_id ?? null}
         weights={weights}
+        capacity={capacity}
+        goal={(goalRow ?? null) as TripGoal | null}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}
       />

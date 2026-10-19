@@ -346,3 +346,10 @@ El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirma
 - **Saldos:** neto por persona y transferencias sugeridas (`suggestedTransfers`); `shared_settle(from, to, ...)` registra cada transferencia.
 - **Tarjeta:** igual que antes — el pagador conserva su fila aunque su parte sea 0 y `card_extra` cuadra el estado de cuenta.
 - Bug corregido en 20261021: `sum(bigint)` es numeric y rompía la división entera del reparto.
+
+## Fase 2 (oct 2026) — ¿me alcanza? (migración 20261022)
+
+- `shared_groups.budget` (jsonb categoría → CLP, total del grupo) y `planned_people` (cuántos se espera que vayan, antes de invitar), vía `shared_group_set_plan` (cualquier miembro).
+- `shared_group_members.savings_goal_id`: meta de ahorro PERSONAL (tabla `savings_goals`, solo la ve su dueño) ligada al viaje; objetivo = tu parte estimada − lo que ya pagaste en el viaje.
+- `lib/trip-plan.ts`: tu parte (parejo entre `max(miembros, planned_people)` o según sueldo si todos están dentro), capacidad de ahorro = promedio (ingreso − gasto analizable) de los 3 meses cerrados, veredicto ready/yes (≤70% de tu ahorro)/tight/no/unknown. Sin fecha de salida: "lo juntas en N meses, podrías ir desde…". Colores UX5: mint/gold, nunca coral.
+- UI: la tarjeta "Plan del viaje" va primero; Personas incluye el reparto (oculto si vas solo); totales y "tu categoría"/cerrar viaje pasaron a Ajustes (engranaje).

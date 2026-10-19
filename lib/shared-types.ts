@@ -14,6 +14,10 @@ export interface SharedGroup {
   split_error: 'no_income_data' | null
   closed_at:   string | null
   created_at:  string
+  /** Presupuesto estimado por categoría (CLP) */
+  budget:         Partial<Record<TripCategory, number>>
+  /** Cuántos se espera que vayan (antes de invitar) */
+  planned_people: number | null
 }
 
 export interface SharedMemberRow {
@@ -22,6 +26,7 @@ export interface SharedMemberRow {
   status:               'pending' | 'accepted' | 'declined'
   income_consent:       boolean
   personal_category_id: string | null
+  savings_goal_id?:     string | null
 }
 
 /** Resultado de shared_member_names (incluye invitados pendientes). */

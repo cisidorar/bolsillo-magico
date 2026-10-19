@@ -3,20 +3,22 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Handshake, Lock, Unlock, Clock, Users, Check, Pencil, UserPlus, X } from 'lucide-react'
+import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
-  groupBalance, suggestedTransfers, tripStage, TRIP_CATEGORIES, type SplitMode,
+  groupBalance, suggestedTransfers, tripStage, spentByCategory, TRIP_CATEGORIES, type SplitMode,
 } from '@/lib/shared-split'
 import {
-  settleShared, deleteSettlement, setSharedGroupClosed, setMySharedCategory,
+  settleShared, deleteSettlement,
   inviteToSharedGroup, removeSharedMember, setSharedMode, giveSharedConsent,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
 import TripSettingsSheet from './TripSettingsSheet'
 import UserSearch from './UserSearch'
+import TripPlanCard, { type TripGoal } from './TripPlanCard'
+import TripBudgetSheet from './TripBudgetSheet'
 import type {
   SharedGroup, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo,
 } from '@/lib/shared-types'
@@ -38,7 +40,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, today, dateFormat,
+  myCategoryId, weights, capacity, goal, today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -51,6 +53,9 @@ export default function SharedTripView({
   myCategoryId:   string | null
   /** Pesos del reparto según sueldo (vacío si no se puede calcular) */
   weights:        Record<string, number>
+  /** Lo que ahorras al mes en promedio (null sin ingresos) — solo tuyo */
+  capacity:       number | null
+  goal:           TripGoal | null
   today:          string
   dateFormat:     DateFormat
 }) {
@@ -58,6 +63,7 @@ export default function SharedTripView({
   const { showToast } = useToast()
   const [sheet, setSheet] = useState<{ expense: SharedExpenseRow | null } | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitee, setInvitee] = useState<FoundUser | null>(null)
   const [busy, setBusy] = useState(false)
@@ -109,6 +115,10 @@ export default function SharedTripView({
       : { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--ink-2)' }
 
   const alone = accepted.length <= 1
+  const people = Math.max(accepted.length, group.planned_people ?? accepted.length, 1)
+  const wSum = accepted.reduce((s, m) => s + (weights[m.user_id] ?? 0), 0)
+  const myFraction = income && !group.split_error && !alone && people === accepted.length && wSum > 0
+    ? (weights[meId] ?? 0) / wSum : null
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5">
@@ -118,23 +128,35 @@ export default function SharedTripView({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl lg:text-3xl font-bold truncate" style={{ color: 'var(--ink)' }}>{group.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl lg:text-3xl font-bold truncate" style={{ color: 'var(--ink)' }}>{group.name}</h1>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+              {STAGE_LABEL[stage]}
+            </span>
+          </div>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-            {fmtRange(group.start_date, group.end_date)} · {accepted.length === 1 ? 'solo tú por ahora' : `${accepted.length} personas`}
-            {!closed && (
-              <button onClick={() => setEditOpen(true)} aria-label="Editar viaje" className="ml-2 inline-flex align-middle" style={{ color: 'var(--primary)' }}>
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {group.start_date || closed
+              ? fmtRange(group.start_date, group.end_date)
+              : <button onClick={() => setEditOpen(true)} className="font-semibold" style={{ color: 'var(--primary)' }}>+ Agregar fechas</button>}
           </p>
         </div>
-        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-          {STAGE_LABEL[stage]}
-        </span>
+        <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
+          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-2)' }}>
+          <Settings2 className="w-4 h-4" />
+        </button>
       </div>
 
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+
+      <TripPlanCard
+        groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
+        people={people} myFraction={myFraction} capacity={capacity}
+        myPaid={bal.share[meId] ?? 0} spent={spentByCategory(expenses)} goal={goal}
+        startDate={group.start_date} today={today} closed={closed}
+        onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
+      />
 
       {/* Personas */}
       <div className="card p-4">
@@ -150,7 +172,7 @@ export default function SharedTripView({
           )}
         </div>
 
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        {members.length > 1 && <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
           {members.map(m => (
             <div key={m.user_id} className="flex items-center gap-3 py-2">
               {m.avatar_url ? (
@@ -186,7 +208,7 @@ export default function SharedTripView({
               )}
             </div>
           ))}
-        </div>
+        </div>}
 
         {isCreator && inviteOpen && (
           <div className="mt-3 space-y-2">
@@ -205,9 +227,9 @@ export default function SharedTripView({
           </div>
         )}
 
-        {alone && pending.length === 0 && (
-          <p className="text-xs mt-3" style={{ color: 'var(--ink-3)' }}>
-            Puedes ir cargando gastos desde ya. Cuando invites a alguien, todo se reparte entre los que estén.
+        {alone && pending.length === 0 && !inviteOpen && (
+          <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
+            Solo tú por ahora. Puedes cargar gastos desde ya; cuando invites a alguien se reparten entre los que estén.
           </p>
         )}
         {pending.length > 0 && (
@@ -215,52 +237,49 @@ export default function SharedTripView({
             <Clock className="w-3.5 h-3.5" /> Los invitados que no han aceptado todavía no entran en el reparto.
           </p>
         )}
-      </div>
 
-      {/* Reparto */}
-      <div className="card p-4 space-y-3">
-        <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Cómo se reparte</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {(['equal', 'income'] as SplitMode[]).map(m => (
-            <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold border disabled:cursor-default"
-              style={group.split_mode === m
-                ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
-                : { background: 'var(--surface)', color: 'var(--ink-2)', borderColor: 'var(--border)' }}>
-              {m === 'equal' ? 'Parejo' : 'Según sueldo'}
-            </button>
-          ))}
-        </div>
-        {!isCreator && <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Solo quien creó el viaje cambia el reparto.</p>}
-
-        {income && (
-          <div className="rounded-xl p-3 text-xs space-y-2" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-            {group.split_error ? (
-              <p style={{ color: 'var(--gold)' }}>
-                Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto los gastos «según sueldo» quedan como estaban.
-              </p>
-            ) : accepted.length > 1 && (
-              <p>
-                Porcentajes:{' '}
-                {(() => {
-                  const sum = Object.values(weights).reduce((s, v) => s + v, 0)
-                  return accepted.map(m => `${nameOf(m.user_id)} ${sum ? Math.round(((weights[m.user_id] ?? 0) / sum) * 100) : 0}%`).join(' · ')
-                })()}. Nadie ve el sueldo de otro, solo el porcentaje.
-              </p>
-            )}
-            {me && (
-              <label className="flex items-center gap-2 font-semibold" style={{ color: 'var(--ink)' }}>
-                <input type="checkbox" checked={me.income_consent} disabled={busy || closed}
-                  onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
-                Compartir mi porcentaje en este viaje
-              </label>
+        {/* Reparto (solo importa con más de una persona) */}
+        {(!alone || pending.length > 0 || (group.planned_people ?? 1) > 1) && (
+          <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-2)' }}>Reparto</span>
+              {(['equal', 'income'] as SplitMode[]).map(m => (
+                <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
+                  className="px-3 py-1 rounded-full text-xs font-semibold border disabled:cursor-default"
+                  style={group.split_mode === m
+                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
+                    : { background: 'var(--surface)', color: 'var(--ink-3)', borderColor: 'var(--border)', opacity: isCreator ? 1 : 0.6 }}>
+                  {m === 'equal' ? 'Parejo' : 'Según sueldo'}
+                </button>
+              ))}
+            </div>
+            {income && !alone && (
+              <div className="text-xs space-y-1.5" style={{ color: 'var(--ink-2)' }}>
+                {group.split_error ? (
+                  <p style={{ color: 'var(--gold)' }}>
+                    Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto se usa lo último calculado.
+                  </p>
+                ) : wSum > 0 && (
+                  <p>
+                    {accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(' · ')}
+                    <span style={{ color: 'var(--ink-3)' }}> — nadie ve el sueldo de otro.</span>
+                  </p>
+                )}
+                {me && (
+                  <label className="flex items-center gap-2 font-semibold" style={{ color: 'var(--ink)' }}>
+                    <input type="checkbox" checked={me.income_consent} disabled={busy || closed}
+                      onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
+                    Compartir mi porcentaje en este viaje
+                  </label>
+                )}
+              </div>
             )}
           </div>
         )}
       </div>
 
       {/* Saldo */}
-      {!alone && (
+      {!alone && expenses.length > 0 && (
         <>
           <div className="rounded-3xl p-5 border" style={{ background: balStyle.bg, borderColor: balStyle.border }}>
             <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Tu saldo del viaje</p>
@@ -313,23 +332,17 @@ export default function SharedTripView({
         </>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { l: 'Total gastado', v: bal.total },
-          { l: 'Pusiste tú', v: bal.paid[meId] ?? 0 },
-          { l: 'Te corresponde', v: bal.share[meId] ?? 0 },
-        ].map(s => (
-          <div key={s.l} className="card p-3 lg:p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>{s.l}</p>
-            <p className="text-sm lg:text-lg font-bold tabular-nums mt-1 whitespace-nowrap" style={{ color: 'var(--ink)' }}>{formatCLP(s.v)}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Gastos */}
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gastos del viaje</h2>
+          <div>
+            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gastos del viaje</h2>
+            {bal.total > 0 && (
+              <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
+              </p>
+            )}
+          </div>
           {!closed && (
             <button onClick={() => setSheet({ expense: null })}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
@@ -341,7 +354,7 @@ export default function SharedTripView({
 
         {expenses.length === 0 ? (
           <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
-            Aún no hay gastos. Agrega el primero (el alojamiento, los pasajes…) y la app calcula la parte de cada uno.
+            Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.
           </p>
         ) : (
           <div className="space-y-4">
@@ -398,28 +411,6 @@ export default function SharedTripView({
         </div>
       )}
 
-      {/* Mi categoría + cerrar */}
-      <div className="card p-4 space-y-3">
-        <div>
-          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu parte en tus gastos</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            Cada gasto del viaje queda en tu historial solo con lo que te toca, en esta categoría. Cada persona elige la suya.
-          </p>
-          <select
-            value={myCategoryId ?? ''}
-            onChange={e => e.target.value && run(() => setMySharedCategory(group.id, e.target.value), 'Categoría actualizada')}
-            className="mt-2 w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
-            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
-            {!myCategoryId && <option value="">Sin categoría</option>}
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <button disabled={busy} onClick={() => run(() => setSharedGroupClosed(group.id, !closed), closed ? 'Viaje reabierto' : 'Viaje cerrado')}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
-          {closed ? <><Unlock className="w-3.5 h-3.5" /> Reabrir viaje</> : <><Lock className="w-3.5 h-3.5" /> Cerrar viaje</>}
-        </button>
-      </div>
-
       {sheet && (
         <SharedExpenseSheet
           key={sheet.expense?.id ?? 'new'}
@@ -432,7 +423,12 @@ export default function SharedTripView({
         />
       )}
       {editOpen && (
-        <TripSettingsSheet groupId={group.id} name={group.name} start={group.start_date} end={group.end_date} onClose={() => setEditOpen(false)} />
+        <TripSettingsSheet groupId={group.id} name={group.name} start={group.start_date} end={group.end_date}
+          closed={closed} categories={categories} myCategoryId={myCategoryId} onClose={() => setEditOpen(false)} />
+      )}
+      {budgetOpen && (
+        <TripBudgetSheet groupId={group.id} budget={group.budget ?? {}} people={people} minPeople={accepted.length}
+          onClose={() => setBudgetOpen(false)} />
       )}
     </div>
   )

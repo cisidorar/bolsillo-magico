@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import type { SplitKind, SplitMode, TripCategory } from '@/lib/shared-split'
+import type { TripBudget } from '@/lib/trip-plan'
 import { normalizeUsername, usernameError } from '@/lib/username'
 
 // ── Gastos compartidos (docs/PLAN_GASTOS_COMPARTIDOS.md) ─────────────────────
@@ -31,6 +32,9 @@ const ERRORS: Record<string, string> = {
   member_has_activity:  'Esa persona tiene gastos o transferencias en el viaje; no se puede sacar.',
   creator_cannot_leave: 'Quien creó el viaje no puede salirse.',
   invalid_participants: 'Elige al menos una persona que participe.',
+  invalid_people:       'El número de personas tiene que estar entre 1 y 50.',
+  invalid_budget:       'Revisa los montos del presupuesto.',
+  invalid_goal:         'Esa meta no es tuya.',
   invalid_amount:       'Ingresa un monto mayor a cero.',
   description_required: 'Escribe una descripción.',
   invalid_payer:        'Quien pagó tiene que ser parte del viaje.',
@@ -192,4 +196,53 @@ export async function findSharedUser(raw: string): Promise<FoundUser | null> {
   const row = (data as { username: string; display_name: string; avatar_url: string | null; is_self: boolean }[] | null)?.[0]
   if (!row) return null
   return { username: row.username, displayName: row.display_name, avatarUrl: row.avatar_url, isSelf: row.is_self }
+}
+
+// ── Fase 2: planificación ───────────────────────────────────────────────────
+
+export async function setTripPlan(groupId: string, budget: TripBudget, people: number | null) {
+  return rpc('shared_group_set_plan', { p_group: groupId, p_budget: budget, p_people: people })
+}
+
+/** Crea (o actualiza) tu meta de ahorro personal para el viaje y la deja ligada. */
+export async function saveTripGoal(input: {
+  groupId: string; goalId: string | null; name: string; target: number; targetDate: string | null
+}): Promise<Result<{ id: string }>> {
+  const user = await getServerSession()
+  if (!user) return { ok: false, error: ERRORS.unauthenticated }
+  if (!Number.isInteger(input.target) || input.target <= 0) return { ok: false, error: 'La meta tiene que ser mayor a cero.' }
+  const supabase = await createClient()
+  let id = input.goalId
+  if (id) {
+    const { error } = await supabase.from('savings_goals')
+      .update({ name: input.name, target_amount: input.target, target_date: input.targetDate, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', user.id)
+    if (error) return { ok: false, error: 'No se pudo actualizar la meta.' }
+  } else {
+    const { data, error } = await supabase.from('savings_goals')
+      .insert({ user_id: user.id, name: input.name, target_amount: input.target, target_date: input.targetDate, icon: 'Plane', color: '#0EA5E9' })
+      .select('id').single()
+    if (error || !data) return { ok: false, error: 'No se pudo crear la meta.' }
+    id = data.id as string
+  }
+  const r = await rpc('shared_set_my_goal', { p_group: input.groupId, p_goal: id })
+  if (!r.ok) return r
+  revalidatePath('/presupuesto')
+  return { ok: true, id: id! }
+}
+
+/** Suma a lo ahorrado de la meta del viaje. */
+export async function addToTripGoal(goalId: string, amount: number): Promise<Result> {
+  const user = await getServerSession()
+  if (!user) return { ok: false, error: ERRORS.unauthenticated }
+  if (!Number.isInteger(amount) || amount === 0) return { ok: false, error: 'Ingresa un monto.' }
+  const supabase = await createClient()
+  const { data: g } = await supabase.from('savings_goals').select('current_amount').eq('id', goalId).eq('user_id', user.id).maybeSingle()
+  if (!g) return { ok: false, error: 'Esa meta ya no existe.' }
+  const next = Math.max(0, (g.current_amount as number) + amount)
+  const { error } = await supabase.from('savings_goals').update({ current_amount: next, updated_at: new Date().toISOString() }).eq('id', goalId).eq('user_id', user.id)
+  if (error) return { ok: false, error: 'No se pudo actualizar la meta.' }
+  revalidatePath('/compartidos')
+  revalidatePath('/presupuesto')
+  return { ok: true }
 }
