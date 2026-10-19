@@ -352,7 +352,7 @@ export default function SharedTripView({
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
             {phase === 'planning' ? 'Costos del viaje' : 'Gastos del viaje'}
           </h2>
-          {(bal.total > 0 || openTotal > 0) && (
+          {(bal.total > 0 || (openTotal > 0 && phase !== 'planning')) && (
             <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
               {phase === 'planning' || openTotal > 0
                 ? `${formatCLP(bal.total)} pagado${openTotal > 0 ? ` · ${formatCLP(openTotal)} por pagar` : ''}`

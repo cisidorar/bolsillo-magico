@@ -98,36 +98,25 @@ export default function TripPlanItems({
     const over = overCap(it)
     const off = !isActive(it)
     return (
-      <div className="relative rounded-xl border" style={{ borderColor: 'var(--border)', opacity: off ? 0.75 : 1 }}>
-        <div className="flex items-stretch">
-          <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-stretch gap-3 py-3 pl-3" aria-label={`Ver detalle de ${it.description}`}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 self-center" style={{ background: 'rgba(255,194,60,0.14)' }}>
-              <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
-            </div>
-            <div className="flex-shrink-0 self-stretch my-1" style={{ borderRight: '1.5px dashed var(--border)' }} />
-            <div className="min-w-0 self-center pl-1">
-              <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{it.description}</p>
-              <p className="text-xs" style={{ color: it.due_date && it.due_date < today && it.kind === 'reserva' ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{sub}</p>
-              {over > 0 && (
-                <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(255,194,60,0.18)', color: 'var(--gold-ink)' }}>
-                  {formatCLP(over)} sobre tu tope
-                </span>
-              )}
-            </div>
-          </button>
-          <div className="flex items-center gap-2 pr-3 flex-shrink-0">
-            <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
-            <div className="w-[68px] flex justify-end flex-shrink-0">
-              {action ?? <ChevronRight className="w-4 h-4 mr-1" style={{ color: 'var(--ink-3)' }} aria-hidden />}
-            </div>
+      <div className="flex items-center gap-3" style={{ opacity: off ? 0.6 : 1 }}>
+        <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3 py-3" aria-label={`Ver detalle de ${it.description}`}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
+            <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
           </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{it.description}</p>
+            <p className="text-xs" style={{ color: it.due_date && it.due_date < today && it.kind === 'reserva' ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{sub}</p>
+            {over > 0 && (
+              <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(255,194,60,0.18)', color: 'var(--gold-ink)' }}>
+                {formatCLP(over)} sobre tu tope
+              </span>
+            )}
+          </div>
+        </button>
+        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
+        <div className="w-[60px] flex justify-end flex-shrink-0">
+          {action ?? <ChevronRight className="w-4 h-4 mr-1" style={{ color: 'var(--ink-3)' }} aria-hidden />}
         </div>
-        {off && (
-          <span className="absolute top-1.5 right-2 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border pointer-events-none"
-            style={{ color: 'var(--ink-3)', borderColor: 'var(--border)', transform: 'rotate(-6deg)' }}>
-            Anulado
-          </span>
-        )}
       </div>
     )
   }
@@ -163,15 +152,15 @@ export default function TripPlanItems({
             Pasajes, auto, alojamiento: lo que reservas y pagas antes del viaje.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {reservas.map(it => (
               <div key={it.id}>
                 <Row it={it}
                   sub={`${it.due_date ? fmtDue(it.due_date, today) : (TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? '')}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${share(it.est_amount)}`}
                   action={!closed && paying !== it.id && (
                     <button onClick={() => { setDetail(null); setPaying(it.id); setError('') }}
-                      className="px-3 min-h-[44px] rounded-xl text-xs font-bold border"
-                      style={{ borderColor: 'var(--border)', color: 'var(--primary)', background: 'transparent' }}>Pagar</button>
+                      className="px-2 min-h-[44px] text-xs font-bold"
+                      style={{ color: 'var(--primary)' }}>Pagar</button>
                   )} />
                 {paying === it.id && (
                   <div className="mb-2 rounded-xl p-3 space-y-2" style={{ background: 'var(--surface-2)' }}>
@@ -209,7 +198,7 @@ export default function TripPlanItems({
         {durante.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
             {durante.map(it => (
               <Row key={it.id} it={it}
                 sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${tripDays ? ` · ${formatCLP(perDay(it.est_amount, tripDays))} al día` : ''}${share(it.est_amount)}`} />
@@ -226,7 +215,7 @@ export default function TripPlanItems({
           {opcionales.length === 0 ? (
             <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {opcionales.map(it => (
                 <Row key={it.id} it={it}
                   sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${it.enabled ? share(it.est_amount) : ' · no incluido'}`}

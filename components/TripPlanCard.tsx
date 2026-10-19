@@ -2,25 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PiggyBank, Calendar, Pencil, CircleCheck, TriangleAlert, CircleHelp } from 'lucide-react'
+import { PiggyBank, Calendar, Pencil, CircleCheck } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { saveTripGoal, addToTripGoal } from '@/app/actions/shared'
-import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget, type TripVerdict } from '@/lib/trip-plan'
+import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget } from '@/lib/trip-plan'
 
 export interface TripGoal { id: string; target_amount: number; current_amount: number; target_date: string | null }
-
-// El veredicto que tripAffordability() ya calcula (ready/yes/tight/no/unknown)
-// se mostraba antes solo como un matiz de la frase de abajo. Acá es el primer
-// hecho que se lee — una insignia con la misma jerarquía de severidad del
-// resto de la app (nunca coral: nada acá es urgente hoy).
-const VERDICT_BADGE: Record<TripVerdict, { label: string; color: string; bg: string; icon: typeof CircleCheck }> = {
-  ready:   { label: 'Cubierto',          color: 'var(--mint)',     bg: 'rgba(31,190,141,0.12)',  icon: CircleCheck },
-  yes:     { label: 'Vas bien',          color: 'var(--mint)',     bg: 'rgba(31,190,141,0.12)',  icon: CircleCheck },
-  tight:   { label: 'Justo',             color: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.15)',  icon: TriangleAlert },
-  no:      { label: 'No alcanza a tiempo', color: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.15)', icon: TriangleAlert },
-  unknown: { label: 'Falta info',        color: 'var(--ink-2)',    bg: 'var(--surface-2)',       icon: CircleHelp },
-}
 
 export default function TripPlanCard({
   groupId, groupName, budget, people, myFraction, capacity, myPaid, goal, startDate, today, closed,
@@ -102,14 +90,6 @@ export default function TripPlanCard({
               ? (derived ? 'Suma de lo que agregaste' : 'Según tu presupuesto')
               : `de ${formatCLP(total)} · ${people} personas, ${myFraction != null ? 'según lo que gana cada uno' : 'partes iguales'}`}
           </p>
-          {(() => {
-            const vb = VERDICT_BADGE[a.verdict]
-            return (
-              <span className="inline-flex items-center gap-1.5 mt-2.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: vb.bg, color: vb.color }}>
-                <vb.icon className="w-3.5 h-3.5" /> {vb.label}
-              </span>
-            )
-          })()}
         </div>
         {!closed && (
           <button onClick={onEditBudget} className="inline-flex items-center gap-1 text-xs font-semibold flex-shrink-0 min-h-[44px] px-2 -mt-2 -mr-2" style={{ color: 'var(--primary)' }}>
@@ -124,7 +104,7 @@ export default function TripPlanCard({
           <div className="flex h-2 rounded-full overflow-hidden gap-0.5" role="img"
             aria-label={`Antes de salir ${formatCLP(split.before)}, durante el viaje ${formatCLP(split.during)}`}>
             {split.before > 0 && <div style={{ flex: split.before, background: 'var(--primary)' }} />}
-            {split.during > 0 && <div style={{ flex: split.during, background: 'rgba(77,147,255,0.35)' }} />}
+            {split.during > 0 && <div style={{ flex: split.during, background: 'rgba(148,163,184,0.5)' }} />}
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs">
             <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
@@ -132,16 +112,19 @@ export default function TripPlanCard({
               Antes de salir <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(split.before)}</b>
             </span>
             <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
-              <span className="w-2 h-2 rounded-full" style={{ background: 'rgba(77,147,255,0.35)' }} />
+              <span className="w-2 h-2 rounded-full" style={{ background: 'rgba(148,163,184,0.5)' }} />
               Durante el viaje <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(split.during)}</b>
             </span>
           </div>
         </div>
       )}
 
-      {/* Ritmo: cuánto apartar al mes para llegar con todo pagado — el veredicto ya está arriba */}
-      {covered ? null
-      : a.perMonth != null && a.months != null && a.months > 0 ? (
+      {/* Ritmo: cuánto apartar al mes para llegar con todo pagado (sin veredicto) */}
+      {covered ? (
+        <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--mint)' }}>
+          <CircleCheck className="w-4 h-4" /> Ya está todo pagado o ahorrado
+        </p>
+      ) : a.perMonth != null && a.months != null && a.months > 0 ? (
         <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
           Para llegar con todo pagado: aparta{' '}
           <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(a.perMonth)} al mes</b>
@@ -192,8 +175,8 @@ export default function TripPlanCard({
           </div>
         ) : !closed && goalTarget > 0 && (
           <button disabled={busy} onClick={createGoal}
-            className="w-full flex items-center justify-center gap-1.5 py-3 min-h-[44px] rounded-xl text-xs font-bold border disabled:opacity-50"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink)', background: 'var(--surface)' }}>
+            className="inline-flex items-center gap-1.5 text-sm font-semibold min-h-[44px] -my-2 disabled:opacity-50"
+            style={{ color: 'var(--primary)' }}>
             <PiggyBank className="w-4 h-4" /> Crear meta de ahorro de {formatCLP(goalTarget)}
           </button>
         )
