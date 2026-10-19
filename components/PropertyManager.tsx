@@ -4,17 +4,17 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
-  Pencil, X, CircleCheck, Undo2, Sparkles, Info, Upload, FileText, AlertTriangle,
+  Pencil, X, Undo2, Sparkles, Info, Upload, FileText,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
-  chargeStatus, chargeTotal, chargeOutstanding, propertyHealth, mortgageProgress,
+  chargeStatus, chargeTotal, propertyHealth, mortgageProgress,
   daysBetween, KIND_LABEL, type ChargeStatus, type UtilityKind,
 } from '@/lib/property-charges'
 import {
-  pendingIncome, overdueOwnerBills,
-  monthOf, monthSummary, recentMonthKeys, type MonthSummary,
+  pendingIncome,
+  monthOf, recentMonthKeys,
 } from '@/lib/property-summary'
 import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/lease'
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
+import PropertyEstado from '@/components/PropertyEstado'
 import { suggestUtilities } from '@/lib/cl-utilities'
 
 export interface Property {
@@ -204,25 +205,6 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-/** 'YYYY-MM' → "septiembre 2026", para el header de la lista unificada. */
-function monthLabelFor(monthKey: string): string {
-  const [y, m] = monthKey.split('-').map(Number)
-  return `${MONTH_NAMES[m - 1]} ${y}`
-}
-
-/**
- * Meses de los que viene el atraso, en corto: "abr, may" o "abr, may +2".
- *
- * Se corta en tres porque el punto es reconocer de un vistazo si el atraso es
- * de este mes o viene arrastrado — la lista completa está abajo, en la
- * tarjeta de vencidas.
- */
-function monthsCaption(monthKeys: string[]): string {
-  const short = monthKeys.map(k => MONTH_NAMES[Number(k.slice(5, 7)) - 1].slice(0, 3))
-  if (short.length <= 3) return short.join(', ')
-  return `${short.slice(0, 2).join(', ')} +${short.length - 2}`
-}
-
 export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew }: Props) {
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
@@ -395,58 +377,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   // Arriendo mensual y dividendo ya viven en la pestaña Información, así que
   // acá solo queda lo operativo: qué falta pagar y de qué mes.
   const pending        = useMemo(() => pendingIncome(charges, today), [charges, today])
-  const overdueBills   = useMemo(() => overdueOwnerBills(charges, today), [charges, today])
   const pendingOverdue = pending.filter(c => chargeStatus(c, today) === 'overdue')
 
-  // Atrasado es global a propósito — una deuda de hace tres meses no deja de
-  // importar porque el chip que estás mirando hoy es septiembre.
-  const atrasadoCount = overdueBills.length + pendingOverdue.length
-  const atrasadoTotal =
-    overdueBills.reduce((s, c) => s + chargeOutstanding(c), 0) +
-    pendingOverdue.reduce((s, c) => s + chargeOutstanding(c), 0)
-  // De qué meses viene el atraso — el dato que responde "¿y en otros meses?"
-  // arriba del todo, sin tener que ir mes por mes. Ordenados del más viejo al
-  // más nuevo, que es el orden en que conviene resolverlos.
-  const atrasadoMonths = [...new Set(
-    [...overdueBills, ...pendingOverdue].map(c => monthOf(c.due_date)),
-  )].sort()
-
   const monthKeys = useMemo(() => recentMonthKeys(today, 6), [today])
-
-  // Cargos del mes elegido, todos juntos — dueño y arrendatario. Es la lista
-  // única que reemplaza a "Cuentas del mes" + "Del arrendatario" + la parte
-  // de "Cobros pendientes" que caía en este mes.
-  const monthCharges = useMemo(
-    () => charges
-      .filter(c => monthOf(c.due_date) === selectedMonth)
-      .sort((a, b) => a.due_date.localeCompare(b.due_date)),
-    [charges, selectedMonth],
-  )
-  // Lo que falta del mes va primero y lo ya pagado después, en vez de una
-  // sola lista por fecha: con el arriendo pagado arriba (vence el 5), las
-  // tres cuentas que sí hay que pagar quedaban empujadas hacia abajo — justo
-  // lo contrario de "revisar rápido lo pendiente del mes".
-  const monthTodo = monthCharges.filter(c => chargeStatus(c, today) !== 'paid')
-  const monthDone = monthCharges.filter(c => chargeStatus(c, today) === 'paid')
-  // "Por pagar" del mes = todo lo impago, vencido incluido. Dejar fuera lo
-  // vencido daría un número que no cuadra con la lista de abajo.
-  const monthTodoTotal = monthTodo.reduce((s, c) => s + chargeOutstanding(c), 0)
-
-  // Vencidas que NO son del mes elegido: sin este filtro, cambiar de chip
-  // escondería una deuda vieja en vez de solo dejar de repetirla (cuando el
-  // chip vencido está seleccionado, ya aparece en la lista unificada de abajo).
-  const billsOverdueCross = useMemo(
-    () => overdueBills.filter(c => monthOf(c.due_date) !== selectedMonth),
-    [overdueBills, selectedMonth],
-  )
-  const rentOverdueCross = useMemo(
-    () => pendingOverdue.filter(c => monthOf(c.due_date) !== selectedMonth),
-    [pendingOverdue, selectedMonth],
-  )
-  const overdueCross = useMemo(
-    () => [...billsOverdueCross, ...rentOverdueCross].sort((a, b) => a.due_date.localeCompare(b.due_date)),
-    [billsOverdueCross, rentOverdueCross],
-  )
 
   /** Marca cobrado todo lo vencido de una, con la fecha de hoy y su total. */
   async function markAllPending() {
@@ -462,294 +395,18 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   return (
     <>
       {view === 'estado' ? (
-        <div className="space-y-5">
-          {/* ── Resumen + subir boleta (sep 2026, mockup de Cas) ──────────
-              UX5: coral es el ÚNICO banner posible acá y solo aparece si hay
-              algo vencido (sin importar el mes) — es la única urgencia real
-              de "algo que tú debes/te deben". Sin nada vencido pero con algo
-              por pagar este mes, baja a un chip gold inline (nunca una caja
-              con borde del tamaño de un banner). Sin nada de lo anterior,
-              confirmación mint.
-              El botón de subir vive en la misma fila, a la derecha — mismo
-              trato que "Agregar" en Watchlist (azul, con sombra): antes había
-              que cambiarse a Cobros para subir una boleta; ahora la acción
-              más común de Estado queda a un toque, en la primera vista. */}
-          <div className="flex items-start gap-3 flex-wrap">
-            <div className="flex-1 min-w-[220px]">
-              {atrasadoCount > 0 ? (
-                <div
-                  className="flex items-start gap-3 px-4 py-3 rounded-2xl"
-                  style={{
-                    background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))',
-                    border: '1.5px solid color-mix(in srgb, var(--coral) 30%, var(--border))',
-                  }}
-                >
-                  <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
-                      {atrasadoCount} {atrasadoCount === 1 ? 'cuenta vencida' : 'cuentas vencidas'}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                      {formatCLP(atrasadoTotal)} · {monthsCaption(atrasadoMonths)} — de cualquier mes, no solo del que estés mirando
-                    </p>
-                  </div>
-                </div>
-              ) : monthTodo.length > 0 ? (
-                <span
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-                  style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold)' }}
-                >
-                  <AlertTriangle className="w-3 h-3" />
-                  Faltan {monthTodo.length} {monthTodo.length === 1 ? 'cuenta' : 'cuentas'} por pagar
-                  {selectedMonth === monthOf(today) ? ' este mes' : ` en ${monthLabelFor(selectedMonth)}`}
-                </span>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <CircleCheck className="w-4 h-4" style={{ color: 'var(--mint)' }} />
-                  <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Todo al día</span>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => setBillUploader('electricity')}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
-              style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
-            >
-              <Upload className="w-4 h-4" strokeWidth={2.5} />
-              Subir boleta
-            </button>
-          </div>
-
-          {/* Las dos preguntas del Estado, una por tarjeta: "¿qué me falta
-              este mes?" y "¿quedó algo atrasado de antes?". La segunda nombra
-              los meses de donde viene el atraso — así se responde sin entrar
-              mes por mes, que es justo lo que pidió Cas. */}
-          <div className="grid grid-cols-2 gap-3 lg:gap-4">
-            <div className="card p-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
-                Por pagar
-              </p>
-              <p className="text-xl lg:text-2xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)', fontFamily: 'Fredoka, sans-serif' }}>
-                {formatCLP(monthTodoTotal)}
-              </p>
-              <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
-                <span className="capitalize">{monthLabelFor(selectedMonth)}</span>
-                {monthTodo.length > 0
-                  ? ` · ${monthTodo.length} ${monthTodo.length === 1 ? 'cuenta' : 'cuentas'}`
-                  : ' · todo pagado'}
-              </p>
-            </div>
-            <div
-              className="card p-4"
-              style={atrasadoCount > 0
-                ? { borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--border))' }
-                : undefined}
-            >
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
-                Atrasado
-              </p>
-              <p
-                className="text-xl lg:text-2xl font-extrabold tabular-nums leading-none"
-                style={{ color: atrasadoTotal > 0 ? 'var(--coral)' : 'var(--ink)', fontFamily: 'Fredoka, sans-serif' }}
-              >
-                {formatCLP(atrasadoTotal)}
-              </p>
-              <p className="text-[11px] mt-1.5" style={{ color: atrasadoCount > 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
-                {atrasadoCount > 0
-                  ? `${atrasadoCount} ${atrasadoCount === 1 ? 'cuenta' : 'cuentas'} · ${monthsCaption(atrasadoMonths)}`
-                  : 'ningún mes con deuda vieja'}
-              </p>
-            </div>
-          </div>
-
-          <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0"
-               style={{ gridTemplateColumns: 'minmax(0, 1fr) 300px' }}>
-            {/* Columna izquierda: lo que se mueve mes a mes */}
-            <div className="space-y-5">
-
-              {/* Vencidas de otros meses — las del mes elegido ya salen en su
-                  propia lista, acá abajo. Sin esta tarjeta, una cuenta de un
-                  trimestre atrás que nadie pagó quedaría invisible apenas
-                  cambias de mes. */}
-              {overdueCross.length > 0 && (
-                <div className="card p-4" style={{ borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--border))' }}>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vencidas de otros meses</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--coral)' }}>
-                        {overdueCross.length} {overdueCross.length === 1 ? 'cuenta' : 'cuentas'}
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {billsOverdueCross.length > 0 && overdueBills.length > 1 && (
-                        <button
-                          onClick={() => setBulkPayFor(overdueBills)}
-                          disabled={busy}
-                          className="px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
-                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                        >
-                          Marcar todo pagado
-                        </button>
-                      )}
-                      {rentOverdueCross.length > 0 && pendingOverdue.length > 1 && (
-                        <button
-                          onClick={() => markAllPending()}
-                          disabled={busy}
-                          className="px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
-                          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-                        >
-                          Marcar todo cobrado
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                    {overdueCross.map(c => (
-                      <ChargeRowCompact
-                        key={c.id} charge={c} today={today}
-                        subtitle={billSubtitle(c) ?? `venció ${fmtDate(c.due_date)} · ${relativeDue(c.due_date, today)}`}
-                        actionLabel={c.direction === 'in' ? 'Cobré' : 'Pagué'} onAction={() => setPayFor(c)}
-                        onOpen={() => setDetailCharge(c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Mes elegido: primero lo que falta, después lo ya pagado y
-                  atenuado. Antes iba todo en una sola lista por fecha y el
-                  arriendo pagado (vence el 5) empujaba hacia abajo las tres
-                  cuentas que sí había que pagar — al revés de lo que se viene
-                  a buscar acá. */}
-              <div className="card p-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold capitalize" style={{ color: 'var(--ink)' }}>
-                      {monthLabelFor(selectedMonth)}
-                    </p>
-                    <p
-                      className="text-xs mt-0.5"
-                      style={{ color: monthTodo.length > 0 ? 'var(--gold)' : 'var(--ink-3)' }}
-                    >
-                      {monthCharges.length === 0
-                        ? 'Sin cobros generados'
-                        : monthTodo.length > 0
-                          ? `${monthTodo.length} por pagar · ${formatCLP(monthTodoTotal)}`
-                          : `todo pagado · ${monthCharges.length} ${monthCharges.length === 1 ? 'cobro' : 'cobros'}`}
-                    </p>
-                  </div>
-                </div>
-
-                {monthCharges.length === 0 ? (
-                  <p className="text-sm py-1" style={{ color: 'var(--ink-3)' }}>
-                    {charges.length === 0
-                      ? (lease
-                          ? 'Genera los meses del contrato para ver los arriendos acá.'
-                          : 'Carga el contrato para empezar a seguir los arriendos.')
-                      : 'Nada para este mes.'}
-                  </p>
-                ) : (
-                  <>
-                    {monthTodo.length > 0 && (
-                      <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                        {monthTodo.map(c => (
-                          <ChargeRowCompact
-                            key={c.id} charge={c} today={today}
-                            subtitle={billSubtitle(c)}
-                            actionLabel={c.direction === 'in' ? 'Cobré' : c.responsible === 'tenant' ? 'Pagó' : 'Pagué'}
-                            onAction={() => setPayFor(c)}
-                            onOpen={() => setDetailCharge(c)}
-                            onUploadBill={c.is_estimate
-                              ? () => setBillUploader(c.kind as UtilityKind)
-                              : undefined}
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Lo pagado no se esconde (sirve para confirmar que el
-                        mes cuadra), pero se atenúa: ya no pide nada. */}
-                    {monthDone.length > 0 && (
-                      <div
-                        className={monthTodo.length > 0 ? 'mt-4 pt-3 border-t' : ''}
-                        style={monthTodo.length > 0 ? { borderColor: 'var(--border)' } : undefined}
-                      >
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
-                          Pagado · {monthDone.length}
-                        </p>
-                        <div className="divide-y opacity-60" style={{ borderColor: 'var(--border)' }}>
-                          {monthDone.map(c => (
-                            <ChargeRowCompact
-                              key={c.id} charge={c} today={today}
-                              subtitle={billSubtitle(c)}
-                              onOpen={() => setDetailCharge(c)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Columna derecha: el resto del tiempo. Reemplaza al calendario
-                de vencimientos (sep 2026, Cas: "quita calendario y mejora
-                diseño para revisar de manera rápida lo pendiente del mes y si
-                hay atrasos en otros meses") — el calendario mostraba los
-                mismos cobros repartidos en una grilla de 30 casillas, que es
-                bonito pero no responde ninguna de esas dos preguntas. Esta
-                lista sí: un renglón por mes, con cuánto queda y de qué color. */}
-            <div className="space-y-5">
-              <div className="card p-4">
-                <p className="text-sm font-bold mb-0.5" style={{ color: 'var(--ink)' }}>Meses</p>
-                <p className="text-xs mb-3" style={{ color: 'var(--ink-3)' }}>
-                  Toca uno para ver su detalle.
-                </p>
-                <div className="-mx-1">
-                  {[...monthKeys].reverse().map(key => (
-                    <MonthRow
-                      key={key} monthKey={key} selected={key === selectedMonth}
-                      currentYear={Number(today.slice(0, 4))}
-                      summary={monthSummary(charges, key, today)}
-                      onClick={() => setSelectedMonth(key)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Cargos automáticos que nadie revisó en la cartola */}
-              {health.unconfirmed.length > 0 && (
-                <div className="card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Info className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-                    <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
-                      Sin confirmar en la cartola
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {(health.unconfirmed as Charge[]).map(c => (
-                      <div key={c.id} className="flex items-center justify-between gap-3">
-                        <span className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                          {KIND_LABEL[c.kind] ?? c.kind} · {fmtDate(c.due_date)} · {formatCLP(chargeTotal(c))}
-                        </span>
-                        <button
-                          onClick={() => run(() => confirmCharge(c.id))}
-                          disabled={busy}
-                          className="text-xs font-bold px-2.5 py-1 rounded-lg flex-shrink-0 disabled:opacity-50"
-                          style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}
-                        >
-                          Confirmar
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <PropertyEstado
+          charges={charges} today={today} monthKeys={monthKeys}
+          selectedMonth={selectedMonth} onSelectMonth={setSelectedMonth}
+          busy={busy} unconfirmed={health.unconfirmed as Charge[]}
+          onOpen={c => setDetailCharge(c)}
+          onPay={c => setPayFor(c)}
+          onUnpay={c => { void run(() => unmarkChargePaid(c.id)) }}
+          onUploadBill={kind => setBillUploader(kind ?? 'electricity')}
+          onBulkPay={cs => setBulkPayFor(cs)}
+          onBulkCollect={() => markAllPending()}
+          onConfirm={id => { void run(() => confirmCharge(id)) }}
+        />
       ) : view === 'info' ? (
         // ── Información ──────────────────────────────────────────────────
         // sep 2026 (Cas: "quiero agregar en el toggle información, para ahí
@@ -976,164 +633,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
         />
       )}
     </>
-  )
-}
-
-// ── Renglón de mes ──────────────────────────────────────────────────────────
-
-/**
- * Un mes en la lista de la derecha, donde antes iba el calendario.
- *
- * Es la respuesta a "¿hay atrasos en otros meses?": el punto de color y el
- * monto dicen en qué está cada mes sin tener que abrirlo (mismos colores que
- * ChargeRowCompact — mint = cerrado, gold = queda algo por vencer,
- * coral = algo vencido), y tocarlo cambia el detalle de la izquierda.
- */
-function MonthRow({ monthKey, selected, summary, currentYear, onClick }: {
-  monthKey: string
-  selected: boolean
-  summary: MonthSummary
-  /** Año de hoy: el año solo se escribe cuando NO es el actual, para no repetirlo seis veces. */
-  currentYear: number
-  onClick: () => void
-}) {
-  const [y, m] = monthKey.split('-').map(Number)
-  const overdue = summary.status === 'overdue'
-  const dotColor =
-    overdue ? 'var(--coral)'
-      : summary.status === 'due'    ? 'var(--gold)'
-      : summary.status === 'closed' ? 'var(--mint)'
-      : 'var(--ink-3)' // upcoming
-  const caption =
-    overdue ? `${summary.overdueCount} ${summary.overdueCount === 1 ? 'vencida' : 'vencidas'}`
-      : summary.status === 'due'    ? `${summary.pendingCount} por pagar`
-      : summary.status === 'closed' ? 'cerrado'
-      : 'próximo'
-  const outstanding = summary.overdueTotal + summary.pendingTotal
-
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors hover:brightness-125"
-      style={selected ? { background: 'var(--primary-soft)' } : undefined}
-    >
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: dotColor }} />
-      <p className="flex-1 min-w-0 text-sm font-semibold capitalize truncate"
-         style={{ color: selected ? 'var(--primary)' : 'var(--ink)' }}>
-        {MONTH_NAMES[m - 1]}{y !== currentYear ? ` ${y}` : ''}
-      </p>
-      <div className="text-right flex-shrink-0">
-        {outstanding > 0 && (
-          <p className="text-sm font-bold tabular-nums leading-tight"
-             style={{ color: overdue ? 'var(--coral)' : 'var(--ink)' }}>
-            {formatCLP(outstanding)}
-          </p>
-        )}
-        <p className="text-[10px] leading-tight" style={{ color: overdue ? 'var(--coral)' : 'var(--ink-3)' }}>
-          {caption}
-        </p>
-      </div>
-    </button>
-  )
-}
-
-/** Subtítulo de una cuenta: el número de cliente o la unidad, si lo hay. */
-function billSubtitle(c: Charge): string | undefined {
-  return c.notes?.split('\n')[0] || undefined
-}
-
-/**
- * Fila compacta de cobro para las listas del Estado.
- *
- * El punto de color lleva la severidad y reemplaza al banner por grupo: con
- * una lista mixta (vencidos y por vencer juntos) agrupar por color obligaría
- * a partirla en dos tarjetas que dicen lo mismo.
- */
-/**
- * Fila compacta con el total como protagonista, pero clickeable: tocarla
- * abre el mismo detalle-tarjeta que la pestaña Cobros (ChargeDetailSheet, ver
- * onOpen más abajo) — no el formulario de edición directo. El detalle muestra
- * el desglose completo (base, interés penal, reajuste IPC, N° de giro) de
- * forma legible, con un botón "Editar" propio para quien sí quiere cambiar
- * algo (sep 2026, Cas: "quiero que cuando toque el gasto se despliegue una
- * visualización con tarjeta y botón de editar" — antes tocar la fila saltaba
- * directo al formulario, sin mostrar antes el detalle).
- */
-function ChargeRowCompact({ charge, today, subtitle, actionLabel, onAction, onOpen, onUploadBill }: {
-  charge: Charge
-  today: string
-  subtitle?: string
-  actionLabel?: string
-  onAction?: () => void
-  onOpen?: () => void
-  /** Fila estimada (is_estimate): la acción es subir la boleta real, no marcar pagado con el monto calculado. */
-  onUploadBill?: () => void
-}) {
-  const status  = chargeStatus(charge, today)
-  const style   = STATUS_STYLE[status]
-  const isPaid  = status === 'paid'
-  const recargo = charge.penalty + charge.inflation_adj
-
-  return (
-    <div
-      onClick={onOpen}
-      className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 -mx-1 px-1 rounded-lg ${onOpen ? 'cursor-pointer hover:brightness-125 transition-[filter]' : ''}`}
-    >
-      <span
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: isPaid ? 'var(--mint)' : style.color }}
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
-          {KIND_LABEL[charge.kind] ?? charge.kind}
-          {charge.period_month && charge.kind === 'rent'
-            ? ` ${MONTH_NAMES[charge.period_month - 1]}` : ''}
-          {charge.is_estimate && (
-            <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md flex-shrink-0"
-                  style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}>
-              Estimado
-            </span>
-          )}
-        </p>
-        <p className="text-xs truncate" style={{ color: 'var(--ink-3)' }}>
-          {charge.is_estimate
-            ? `sube la boleta real · ${relativeDue(charge.due_date, today)}`
-            : (subtitle ?? `${fmtDate(charge.due_date)} · ${relativeDue(charge.due_date, today)}`)}
-        </p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-bold tabular-nums" style={{ color: isPaid ? 'var(--ink)' : style.color }}>
-          {formatCLP(chargeTotal(charge))}
-        </p>
-        {recargo > 0 && (
-          <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-            {formatCLP(charge.amount)} + {formatCLP(recargo)} rec.
-          </p>
-        )}
-        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: style.color }}>
-          {style.label}
-        </p>
-      </div>
-      {charge.is_estimate && onUploadBill ? (
-        <button
-          onClick={e => { e.stopPropagation(); onUploadBill() }}
-          className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold"
-          style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}
-        >
-          Subir boleta
-        </button>
-      ) : (
-        actionLabel && onAction && !isPaid && (
-          <button
-            onClick={e => { e.stopPropagation(); onAction() }}
-            className="flex-shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-bold"
-            style={{ background: style.bg, color: style.color }}
-          >
-            {actionLabel}
-          </button>
-        )
-      )}
-    </div>
   )
 }
 
