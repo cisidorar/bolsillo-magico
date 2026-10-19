@@ -168,7 +168,7 @@ export default function CategoryManager({ categories: init, userId, expenseCount
         <button
           onClick={openNew}
           className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold text-white flex-shrink-0 shadow-sm hover:opacity-90 active:scale-[.98] transition-all"
-          style={{ background: 'var(--primary)', boxShadow: '0 4px 14px rgba(43,124,246,.35)' }}
+          style={{ background: 'var(--primary)', boxShadow: '0 4px 14px rgba(43,124,246,.18)' }}
         >
           <Plus className="w-4 h-4" />
           Nueva categoría

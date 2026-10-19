@@ -73,16 +73,18 @@ export default function TripSettingsSheet({
         {saving ? 'Guardando…' : <><Check className="w-4 h-4" /> Guardar</>}
       </PrimaryButton>
 
-      <button disabled={saving} onClick={async () => {
-        setSaving(true); setError('')
-        const r = await setSharedGroupClosed(groupId, !closed)
-        setSaving(false)
-        if (!r.ok) { setError(r.error); return }
-        showToast(closed ? 'Viaje reabierto' : 'Viaje cerrado')
-        router.refresh(); onClose()
-      }} className="w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-gray-500">
-        {closed ? <><Unlock className="w-3.5 h-3.5" /> Reabrir viaje</> : <><Lock className="w-3.5 h-3.5" /> Cerrar viaje (ya no se pueden agregar gastos)</>}
-      </button>
+      <div className="pt-2 border-t border-gray-100">
+        <button disabled={saving} onClick={async () => {
+          setSaving(true); setError('')
+          const r = await setSharedGroupClosed(groupId, !closed)
+          setSaving(false)
+          if (!r.ok) { setError(r.error); return }
+          showToast(closed ? 'Viaje reabierto' : 'Viaje cerrado')
+          router.refresh(); onClose()
+        }} className="w-full inline-flex items-center justify-center gap-1.5 py-2 min-h-[44px] text-xs font-semibold text-gray-500">
+          {closed ? <><Unlock className="w-3.5 h-3.5" /> Reabrir viaje</> : <><Lock className="w-3.5 h-3.5" /> Cerrar viaje (ya no se pueden agregar gastos)</>}
+        </button>
+      </div>
     </SheetShell>
   )
 }

@@ -209,7 +209,7 @@ function LoginForm() {
               height: 52,
               background: btnDisabled ? 'var(--border)' : 'var(--primary)',
               color: 'var(--primary-ink)',
-              boxShadow: btnDisabled ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
+              boxShadow: btnDisabled ? 'none' : '0 6px 20px rgba(43,124,246,.18)',
               border: 'none', cursor: btnDisabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
             }}>
             {loading ? SPINNER

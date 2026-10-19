@@ -134,7 +134,7 @@ export default function UpdatePasswordPage() {
                 style={{
                   height: 52,
                   background: loading ? '#A9C4EE' : '#2B7CF6',
-                  boxShadow: loading ? 'none' : '0 6px 20px rgba(43,124,246,.35)',
+                  boxShadow: loading ? 'none' : '0 6px 20px rgba(43,124,246,.18)',
                   border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                 }}
               >

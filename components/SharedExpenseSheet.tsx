@@ -162,35 +162,40 @@ export default function SharedExpenseSheet({
         </div>
       </div>
 
-      {multi && (
-        <div>
-          <FieldLabel>Quién pagó</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
-            {members.map(m => (
-              <Chip key={m.user_id} active={paidBy === m.user_id}
-                onClick={() => { setPaidBy(m.user_id); if (m.user_id !== meId) setPmId('') }}>
-                {m.user_id === meId ? 'Yo' : m.name}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Quién pagó y con qué — se leen como una sola decisión, no dos campos sueltos */}
+      {(multi || iPaid) && (
+        <div className="space-y-3">
+          {multi && (
+            <div>
+              <FieldLabel>Quién pagó</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {members.map(m => (
+                  <Chip key={m.user_id} active={paidBy === m.user_id}
+                    onClick={() => { setPaidBy(m.user_id); if (m.user_id !== meId) setPmId('') }}>
+                    {m.user_id === meId ? 'Yo' : m.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {iPaid && (
-        <div>
-          <FieldLabel>Método</FieldLabel>
-          <div className="flex flex-wrap gap-1.5">
-            <Chip active={pmId === ''} onClick={() => setPmId('')}>Efectivo / transferencia</Chip>
-            {paymentMethods.map(m => (
-              <Chip key={m.id} active={pmId === m.id} onClick={() => setPmId(m.id)}>
-                {m.name}{m.last_four ? ` ····${m.last_four}` : ''}
-              </Chip>
-            ))}
-          </div>
-          {pmId && preview && myShare < amountN && (
-            <p className="text-[11px] text-gray-400 mt-2">
-              Tu tarjeta cobra {formatCLP(amountN)}; en tus gastos queda {formatCLP(myShare)}.
-            </p>
+          {iPaid && (
+            <div>
+              <FieldLabel>Método</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={pmId === ''} onClick={() => setPmId('')}>Efectivo / transferencia</Chip>
+                {paymentMethods.map(m => (
+                  <Chip key={m.id} active={pmId === m.id} onClick={() => setPmId(m.id)}>
+                    {m.name}{m.last_four ? ` ····${m.last_four}` : ''}
+                  </Chip>
+                ))}
+              </div>
+              {pmId && preview && myShare < amountN && (
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Tu tarjeta cobra {formatCLP(amountN)}; en tus gastos queda {formatCLP(myShare)}.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -202,34 +207,37 @@ export default function SharedExpenseSheet({
         </InputRow>
       </div>
 
-      <div>
-        <FieldLabel>Cómo se reparte</FieldLabel>
-        <div className="flex flex-wrap gap-1.5">
-          {kinds.map(k => (
-            <Chip key={k.key} active={kind === k.key} onClick={() => setKind(k.key)}>{k.label}</Chip>
-          ))}
-        </div>
-        {kind === 'group' && !incomeOk && (
-          <p className="text-[11px] mt-2" style={{ color: 'var(--gold)' }}>
-            Repartir según lo que gana cada uno necesita que todos hayan aceptado mostrar su %. Mientras tanto usa «Partes iguales».
-          </p>
-        )}
-      </div>
-
-      {multi && kind !== 'exact' && (
+      {/* Cómo se reparte y entre quiénes — misma decisión en dos pasos */}
+      <div className="space-y-3">
         <div>
-          <FieldLabel hint={everyone ? 'Si entra alguien al viaje, este gasto se recalcula con él.' : undefined}>Entre quiénes</FieldLabel>
+          <FieldLabel>Cómo se reparte</FieldLabel>
           <div className="flex flex-wrap gap-1.5">
-            <Chip active={everyone} onClick={() => setEveryone(true)}>Todos</Chip>
-            {members.map(m => (
-              <Chip key={m.user_id} active={!everyone && picked.includes(m.user_id)}
-                onClick={() => { if (everyone) { setEveryone(false); setPicked([m.user_id]) } else togglePick(m.user_id) }}>
-                {m.user_id === meId ? 'Yo' : m.name}
-              </Chip>
+            {kinds.map(k => (
+              <Chip key={k.key} active={kind === k.key} onClick={() => setKind(k.key)}>{k.label}</Chip>
             ))}
           </div>
+          {kind === 'group' && !incomeOk && (
+            <p className="text-[11px] mt-2" style={{ color: 'var(--gold)' }}>
+              Repartir según lo que gana cada uno necesita que todos hayan aceptado mostrar su %. Mientras tanto usa «Partes iguales».
+            </p>
+          )}
         </div>
-      )}
+
+        {multi && kind !== 'exact' && (
+          <div>
+            <FieldLabel hint={everyone ? 'Si entra alguien al viaje, este gasto se recalcula con él.' : undefined}>Entre quiénes</FieldLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <Chip active={everyone} onClick={() => setEveryone(true)}>Todos</Chip>
+              {members.map(m => (
+                <Chip key={m.user_id} active={!everyone && picked.includes(m.user_id)}
+                  onClick={() => { if (everyone) { setEveryone(false); setPicked([m.user_id]) } else togglePick(m.user_id) }}>
+                  {m.user_id === meId ? 'Yo' : m.name}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {kind === 'exact' && (
         <div className="space-y-2">

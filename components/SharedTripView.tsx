@@ -9,6 +9,7 @@ import { useToast } from '@/components/ToastProvider'
 import {
   groupBalance, suggestedTransfers, tripStage, spentByCategory, TRIP_CATEGORIES, type SplitMode,
 } from '@/lib/shared-split'
+import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement,
   inviteToSharedGroup, removeSharedMember, setSharedMode, giveSharedConsent,
@@ -18,6 +19,7 @@ import SharedExpenseSheet from './SharedExpenseSheet'
 import TripSettingsSheet from './TripSettingsSheet'
 import UserSearch from './UserSearch'
 import TripPlanCard, { type TripGoal } from './TripPlanCard'
+import TripSpendHero from './TripSpendHero'
 import TripBudgetSheet from './TripBudgetSheet'
 import type {
   SharedGroup, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo,
@@ -120,6 +122,16 @@ export default function SharedTripView({
   const myFraction = income && !group.split_error && !alone && people === accepted.length && wSum > 0
     ? (weights[meId] ?? 0) / wSum : null
 
+  // Lo más urgente a mostrar junto a la etapa — distinto según dónde va el viaje.
+  const daysUntil = stage === 'planning' && group.start_date && group.start_date > today
+    ? Math.round((new Date(group.start_date + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime()) / 86400000)
+    : null
+  const headerHint = stage === 'settling' && anyPending
+    ? `${transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`} para cuadrar`
+    : daysUntil != null
+      ? `Sale en ${daysUntil} ${daysUntil === 1 ? 'día' : 'días'}`
+      : null
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5">
       <Link href="/compartidos" className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
@@ -139,279 +151,297 @@ export default function SharedTripView({
             {group.start_date || closed
               ? fmtRange(group.start_date, group.end_date)
               : <button onClick={() => setEditOpen(true)} className="font-semibold min-h-[44px] -my-3 inline-flex items-center" style={{ color: 'var(--primary)' }}>+ Agregar fechas</button>}
+            {headerHint && (
+              <span className="font-semibold" style={{ color: stage === 'settling' ? 'var(--gold)' : 'var(--ink-2)' }}> · {headerHint}</span>
+            )}
           </p>
         </div>
         <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
-          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--ink-2)' }}>
+          className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full"
+          style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}>
           <Settings2 className="w-4 h-4" />
         </button>
       </div>
 
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
 
-      <TripPlanCard
-        groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
-        people={people} myFraction={myFraction} capacity={capacity}
-        myPaid={bal.share[meId] ?? 0} spent={spentByCategory(expenses)} goal={goal}
-        startDate={group.start_date} today={today} closed={closed}
-        onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
-      />
+      <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: 'minmax(0, 1fr) 340px' }}>
+        {/* Columna principal — lo que se mira seguido: gasto vs. presupuesto, saldo, tu parte, gastos */}
+        <div className="space-y-5 min-w-0">
+          <TripSpendHero
+            budget={group.budget ?? {}} spent={spentByCategory(expenses)} closed={closed}
+            onEditBudget={() => setBudgetOpen(true)}
+          />
 
-      {/* Personas */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Personas</h2>
-          </div>
-          {isCreator && !closed && !inviteOpen && (
-            <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
-              <UserPlus className="w-3.5 h-3.5" /> Invitar
-            </button>
-          )}
-        </div>
+          {/* Saldo */}
+          {!alone && expenses.length > 0 && (
+            <div className="p-5" style={{ background: balStyle.bg, border: `1.5px solid ${balStyle.border}`, borderRadius: 18 }}>
+              <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Tu saldo del viaje</p>
+              <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
+                {owed ? `Te deben ${formatCLP(mine)}`
+                  : owes ? `Debes ${formatCLP(-mine)}`
+                  : 'Estás a mano'}
+              </p>
 
-        {members.length > 1 && <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-          {members.map(m => (
-            <div key={m.user_id} className="flex items-center gap-3 py-2">
-              {m.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={m.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-                  {m.display_name.replace('@', '')[0]?.toUpperCase() ?? '?'}
+              {transfers.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {transfers.map(t => {
+                    const involvesMe = t.from === meId || t.to === meId
+                    return (
+                      <div key={`${t.from}-${t.to}`} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--surface)' }}>
+                        <p className="flex-1 text-xs" style={{ color: 'var(--ink-2)' }}>
+                          <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.from)}</span> le {t.from === meId ? 'transfieres' : 'transfiere'} a{' '}
+                          <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.to)}</span>{' '}
+                          <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(t.amount)}</span>
+                        </p>
+                        {involvesMe && !closed && (
+                          <button disabled={busy} onClick={() => run(() => settleShared(group.id, t.from, t.to, t.amount, today), 'Transferencia registrada')}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                            <Handshake className="w-3 h-3" /> {t.from === meId ? 'Ya transferí' : 'Me llegó'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                    Registrar una transferencia solo la anota; no crea gastos ni ingresos.
+                  </p>
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                  {m.user_id === meId ? 'Tú' : m.display_name}
-                  {m.is_creator && <span className="text-[10px] font-bold ml-1.5" style={{ color: 'var(--ink-3)' }}>creador</span>}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                  @{m.username}
-                  {m.status === 'pending' && ' · invitación pendiente'}
-                  {m.status === 'accepted' && income && !m.income_consent && ' · sin compartir porcentaje'}
-                </p>
-              </div>
-              {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
-                confirmRemove === m.user_id ? (
-                  <button disabled={busy} onClick={async () => { await run(() => removeSharedMember(group.id, m.user_id), m.user_id === meId ? 'Saliste del viaje' : 'Listo'); setConfirmRemove(null) }}
-                    className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral)' }}>Confirmar</button>
-                ) : (
-                  <button onClick={() => setConfirmRemove(m.user_id)} aria-label={m.user_id === meId ? 'Salir del viaje' : m.status === 'pending' ? 'Cancelar invitación' : 'Sacar del viaje'}
-                    className="text-xs font-semibold flex items-center gap-1 min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>
-                    <X className="w-3.5 h-3.5" />{m.user_id === meId ? 'Salir' : m.status === 'pending' ? 'Cancelar' : 'Sacar'}
-                  </button>
-                )
-              )}
-            </div>
-          ))}
-        </div>}
 
-        {isCreator && inviteOpen && (
-          <div className="mt-3 space-y-2">
-            <UserSearch onPick={setInvitee} exclude={members.map(m => m.username)} />
-            <div className="flex gap-2">
-              <button onClick={() => { setInviteOpen(false); setInvitee(null) }}
-                className="flex-1 py-2 text-xs font-semibold rounded-lg border"
-                style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>Cerrar</button>
-              <button disabled={busy || !invitee} onClick={async () => {
-                if (!invitee) return
-                const ok = await run(() => inviteToSharedGroup(group.id, invitee.username), `Invitación enviada a @${invitee.username}`)
-                if (ok) { setInviteOpen(false); setInvitee(null) }
-              }} className="flex-1 py-2 text-xs font-bold rounded-lg disabled:opacity-50"
-                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Invitar</button>
-            </div>
-          </div>
-        )}
-
-        {alone && pending.length === 0 && !inviteOpen && (
-          <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-            Solo tú por ahora. Puedes cargar gastos desde ya; cuando invites a alguien se reparten entre los que estén.
-          </p>
-        )}
-        {pending.length > 0 && (
-          <p className="flex items-center gap-1.5 text-xs mt-3" style={{ color: 'var(--ink-3)' }}>
-            <Clock className="w-3.5 h-3.5" /> Los invitados que no han aceptado todavía no entran en el reparto.
-          </p>
-        )}
-
-        {/* Reparto (solo importa con más de una persona) */}
-        {(!alone || pending.length > 0 || (group.planned_people ?? 1) > 1) && (
-          <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-2)' }}>Reparto</span>
-              {(['equal', 'income'] as SplitMode[]).map(m => (
-                <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
-                  aria-pressed={group.split_mode === m}
-                  className="px-3.5 py-2 min-h-[40px] rounded-full text-xs font-semibold border disabled:cursor-default"
-                  style={group.split_mode === m
-                    ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
-                    : { background: 'var(--surface)', color: 'var(--ink-3)', borderColor: 'var(--border)', opacity: isCreator ? 1 : 0.6 }}>
-                  {m === 'equal' ? 'Partes iguales' : 'Según lo que gana cada uno'}
-                </button>
-              ))}
-            </div>
-            {income && !alone && (
-              <div className="text-xs space-y-1.5" style={{ color: 'var(--ink-2)' }}>
-                {group.split_error ? (
-                  <p style={{ color: 'var(--gold)' }}>
-                    Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto se usa lo último calculado.
-                  </p>
-                ) : wSum > 0 && (
-                  <p>
-                    {accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(' · ')}
-                    <span style={{ color: 'var(--ink-3)' }}> — nadie ve el sueldo de otro.</span>
-                  </p>
-                )}
-                {me && (
-                  <label className="flex items-center gap-3 font-semibold min-h-[44px]" style={{ color: 'var(--ink)' }}>
-                    <input type="checkbox" className="w-5 h-5 flex-shrink-0 accent-[#1B6DD4]" checked={me.income_consent} disabled={busy || closed}
-                      onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
-                    Mostrar solo mi % en este viaje (nunca mi sueldo)
-                  </label>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Saldo */}
-      {!alone && expenses.length > 0 && (
-        <>
-          <div className="rounded-3xl p-5 border" style={{ background: balStyle.bg, borderColor: balStyle.border }}>
-            <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Tu saldo del viaje</p>
-            <p className="font-display text-3xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
-              {owed ? `Te deben ${formatCLP(mine)}`
-                : owes ? `Debes ${formatCLP(-mine)}`
-                : expenses.length === 0 ? 'Sin gastos todavía' : 'Estás a mano'}
-            </p>
-
-            {transfers.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {transfers.map(t => {
-                  const involvesMe = t.from === meId || t.to === meId
-                  return (
-                    <div key={`${t.from}-${t.to}`} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--surface)' }}>
-                      <p className="flex-1 text-xs" style={{ color: 'var(--ink-2)' }}>
-                        <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.from)}</span> le {t.from === meId ? 'transfieres' : 'transfiere'} a{' '}
-                        <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.to)}</span>{' '}
-                        <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(t.amount)}</span>
-                      </p>
-                      {involvesMe && !closed && (
-                        <button disabled={busy} onClick={() => run(() => settleShared(group.id, t.from, t.to, t.amount, today), 'Transferencia registrada')}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
-                          style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-                          <Handshake className="w-3 h-3" /> {t.from === meId ? 'Ya transferí' : 'Me llegó'}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                  Registrar una transferencia solo la anota; no crea gastos ni ingresos.
-                </p>
-              </div>
-            )}
-
-            {accepted.length > 2 && (
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                {accepted.map(m => {
-                  const v = bal.net[m.user_id] ?? 0
-                  return (
-                    <span key={m.user_id} className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                      {nameOf(m.user_id)}: {v > 0 ? `+${formatCLP(v)}` : v < 0 ? `−${formatCLP(-v)}` : 'a mano'}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Gastos */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gastos del viaje</h2>
-            {bal.total > 0 && (
-              <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
-              </p>
-            )}
-          </div>
-          {!closed && (
-            <button onClick={() => setSheet({ expense: null })}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
-              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-              <Plus className="w-3.5 h-3.5" /> Gasto
-            </button>
-          )}
-        </div>
-
-        {expenses.length === 0 ? (
-          <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
-            Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {[...byDay.entries()].map(([day, rows]) => (
-              <div key={day}>
-                <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                  {relativeDate(day, dateFormat)}
-                </p>
-                <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                  {rows.map(e => {
-                    const myPart = sharesByExp[e.id]?.[meId] ?? 0
-                    const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
+              {accepted.length > 2 && (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                  {accepted.map(m => {
+                    const v = bal.net[m.user_id] ?? 0
                     return (
-                      <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
-                        className="w-full flex items-center gap-3 py-2.5 text-left"
-                        style={{ cursor: closed ? 'default' : 'pointer' }}>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.description}</p>
-                          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                            {catLabel(e.trip_category)} · pagó {payer} · tu parte {formatCLP(myPart)}
-                          </p>
-                        </div>
-                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
-                        {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
-                      </button>
+                      <span key={m.user_id} className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                        {nameOf(m.user_id)}: {v > 0 ? `+${formatCLP(v)}` : v < 0 ? `−${formatCLP(-v)}` : 'a mano'}
+                      </span>
                     )
                   })}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
+          )}
 
-      {/* Transferencias */}
-      {settlements.length > 0 && (
-        <div className="card p-4">
-          <h2 className="text-sm font-bold mb-2" style={{ color: 'var(--ink)' }}>Transferencias entre ustedes</h2>
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {settlements.map(s => (
-              <div key={s.id} className="flex items-center gap-3 py-2">
-                <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
-                <p className="flex-1 text-sm" style={{ color: 'var(--ink-2)' }}>
-                  {nameOf(s.from_user)} → {nameOf(s.to_user)}{' '}
-                  <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(s.amount)}</span>
-                  <span style={{ color: 'var(--ink-3)' }}> · {relativeDate(s.date, dateFormat)}</span>
-                </p>
-                {!closed && (
-                  <button disabled={busy} onClick={() => run(() => deleteSettlement(s.id), 'Transferencia eliminada')}
-                    className="text-xs font-semibold min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>Deshacer</button>
+          <TripPlanCard
+            groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
+            people={people} myFraction={myFraction} capacity={capacity}
+            myPaid={bal.share[meId] ?? 0} goal={goal}
+            startDate={group.start_date} today={today} closed={closed}
+            onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
+          />
+
+          {/* Gastos */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Gastos del viaje</h2>
+                {bal.total > 0 && (
+                  <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                    {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
+                  </p>
                 )}
               </div>
-            ))}
+              {!closed && (
+                <button onClick={() => setSheet({ expense: null })}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                  <Plus className="w-3.5 h-3.5" /> Gasto
+                </button>
+              )}
+            </div>
+
+            {expenses.length === 0 ? (
+              <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
+                Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {[...byDay.entries()].map(([day, rows]) => (
+                  <div key={day}>
+                    <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      {relativeDate(day, dateFormat)}
+                    </p>
+                    <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                      {rows.map(e => {
+                        const myPart = sharesByExp[e.id]?.[meId] ?? 0
+                        const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
+                        const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
+                        return (
+                          <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
+                            className="w-full flex items-center gap-3 py-2.5 text-left"
+                            style={{ cursor: closed ? 'default' : 'pointer' }}>
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+                              <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.description}</p>
+                              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                                {catLabel(e.trip_category)} · pagó {payer} · tu parte {formatCLP(myPart)}
+                              </p>
+                            </div>
+                            <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
+                            {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Columna lateral — personas, reparto y el historial de transferencias ya hechas */}
+        <div className="space-y-5">
+          {/* Personas */}
+          <div className="card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />
+                <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Personas</h2>
+              </div>
+              {isCreator && !closed && !inviteOpen && (
+                <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
+                  <UserPlus className="w-3.5 h-3.5" /> Invitar
+                </button>
+              )}
+            </div>
+
+            {members.length > 1 && <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {members.map(m => (
+                <div key={m.user_id} className="flex items-center gap-3 py-2">
+                  {m.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                      style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                      {m.display_name.replace('@', '')[0]?.toUpperCase() ?? '?'}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                      {m.user_id === meId ? 'Tú' : m.display_name}
+                      {m.is_creator && <span className="text-[10px] font-bold ml-1.5" style={{ color: 'var(--ink-3)' }}>creador</span>}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                      @{m.username}
+                      {m.status === 'pending' && ' · invitación pendiente'}
+                      {m.status === 'accepted' && income && !m.income_consent && ' · sin compartir porcentaje'}
+                    </p>
+                  </div>
+                  {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
+                    confirmRemove === m.user_id ? (
+                      <button disabled={busy} onClick={async () => { await run(() => removeSharedMember(group.id, m.user_id), m.user_id === meId ? 'Saliste del viaje' : 'Listo'); setConfirmRemove(null) }}
+                        className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral)' }}>Confirmar</button>
+                    ) : (
+                      <button onClick={() => setConfirmRemove(m.user_id)} aria-label={m.user_id === meId ? 'Salir del viaje' : m.status === 'pending' ? 'Cancelar invitación' : 'Sacar del viaje'}
+                        className="text-xs font-semibold flex items-center gap-1 min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>
+                        <X className="w-3.5 h-3.5" />{m.user_id === meId ? 'Salir' : m.status === 'pending' ? 'Cancelar' : 'Sacar'}
+                      </button>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>}
+
+            {isCreator && inviteOpen && (
+              <div className="mt-3 space-y-2">
+                <UserSearch onPick={setInvitee} exclude={members.map(m => m.username)} />
+                <div className="flex gap-2">
+                  <button onClick={() => { setInviteOpen(false); setInvitee(null) }}
+                    className="flex-1 py-2 text-xs font-semibold rounded-lg border"
+                    style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>Cerrar</button>
+                  <button disabled={busy || !invitee} onClick={async () => {
+                    if (!invitee) return
+                    const ok = await run(() => inviteToSharedGroup(group.id, invitee.username), `Invitación enviada a @${invitee.username}`)
+                    if (ok) { setInviteOpen(false); setInvitee(null) }
+                  }} className="flex-1 py-2 text-xs font-bold rounded-lg disabled:opacity-50"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Invitar</button>
+                </div>
+              </div>
+            )}
+
+            {alone && pending.length === 0 && !inviteOpen && (
+              <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
+                Solo tú por ahora. Puedes cargar gastos desde ya; cuando invites a alguien se reparten entre los que estén.
+              </p>
+            )}
+            {pending.length > 0 && (
+              <p className="flex items-center gap-1.5 text-xs mt-3" style={{ color: 'var(--ink-3)' }}>
+                <Clock className="w-3.5 h-3.5" /> Los invitados que no han aceptado todavía no entran en el reparto.
+              </p>
+            )}
+
+            {/* Reparto (solo importa con más de una persona) */}
+            {(!alone || pending.length > 0 || (group.planned_people ?? 1) > 1) && (
+              <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-2)' }}>Reparto</span>
+                  {(['equal', 'income'] as SplitMode[]).map(m => (
+                    <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
+                      aria-pressed={group.split_mode === m}
+                      className="px-3.5 py-2 min-h-[40px] rounded-full text-xs font-semibold border disabled:cursor-default"
+                      style={group.split_mode === m
+                        ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
+                        : { background: 'var(--surface)', color: 'var(--ink-3)', borderColor: 'var(--border)', opacity: isCreator ? 1 : 0.6 }}>
+                      {m === 'equal' ? 'Partes iguales' : 'Según lo que gana cada uno'}
+                    </button>
+                  ))}
+                </div>
+                {income && !alone && (
+                  <div className="text-xs space-y-1.5" style={{ color: 'var(--ink-2)' }}>
+                    {group.split_error ? (
+                      <p style={{ color: 'var(--gold)' }}>
+                        Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto se usa lo último calculado.
+                      </p>
+                    ) : wSum > 0 && (
+                      <p>
+                        {accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(' · ')}
+                        <span style={{ color: 'var(--ink-3)' }}> — nadie ve el sueldo de otro.</span>
+                      </p>
+                    )}
+                    {me && (
+                      <label className="flex items-center gap-3 font-semibold min-h-[44px]" style={{ color: 'var(--ink)' }}>
+                        <input type="checkbox" className="w-5 h-5 flex-shrink-0 accent-[var(--primary)]" checked={me.income_consent} disabled={busy || closed}
+                          onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
+                        Mostrar solo mi % en este viaje (nunca mi sueldo)
+                      </label>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Transferencias */}
+          {settlements.length > 0 && (
+            <div className="card p-4">
+              <h2 className="text-sm font-bold mb-2" style={{ color: 'var(--ink)' }}>Transferencias entre ustedes</h2>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {settlements.map(s => (
+                  <div key={s.id} className="flex items-center gap-3 py-2">
+                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+                    <p className="flex-1 text-sm" style={{ color: 'var(--ink-2)' }}>
+                      {nameOf(s.from_user)} → {nameOf(s.to_user)}{' '}
+                      <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(s.amount)}</span>
+                      <span style={{ color: 'var(--ink-3)' }}> · {relativeDate(s.date, dateFormat)}</span>
+                    </p>
+                    {!closed && (
+                      <button disabled={busy} onClick={() => run(() => deleteSettlement(s.id), 'Transferencia eliminada')}
+                        className="text-xs font-semibold min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>Deshacer</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {sheet && (
         <SharedExpenseSheet

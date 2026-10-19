@@ -2334,7 +2334,7 @@ export default async function AnalisisPage({
                                 {m.total > 0 ? formatCLP(m.total) : ''}
                               </span>
                               <div
-                                className={`w-full rounded-t-xl transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_14px_rgba(77,147,255,0.4)]' : ''} ${barClass}`}
+                                className={`w-full rounded-t-xl transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_14px_rgba(77,147,255,0.2)]' : ''} ${barClass}`}
                                 style={{
                                   height: barPx,
                                   ...(isSelected ? { backgroundColor: 'var(--primary)' } : {}),

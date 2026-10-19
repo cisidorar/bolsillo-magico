@@ -35,8 +35,8 @@ const config: Config = {
         'panel': '22px',
       },
       boxShadow: {
-        'card':   '0 8px 18px rgba(14,42,82,0.10)',
-        'button': '0 8px 18px rgba(43,124,246,0.35)',
+        'card':   '0 8px 18px rgba(14,42,82,0.06)',
+        'button': '0 8px 18px rgba(43,124,246,0.18)',
       },
     },
   },

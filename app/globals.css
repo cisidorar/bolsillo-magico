@@ -18,7 +18,7 @@
     --gold:         #FFC23C;
     --mint:         #1FBE8D;
     --coral:        #FF6F61;
-    --shadow:       rgba(14,42,82,.10);
+    --shadow:       rgba(14,42,82,.06);
 
     /* Aliases de compatibilidad */
     --bg-page:    var(--bg);
@@ -46,7 +46,7 @@
     --gold:         #FFD166;
     --mint:         #34D6A2;
     --coral:        #FF8478;
-    --shadow:       rgba(0,0,0,.45);
+    --shadow:       rgba(0,0,0,.28);
 
     --bg-page:    var(--bg);
     --bg-surface: var(--surface);
@@ -140,10 +140,10 @@
   /* FAB */
   .fab-gradient {
     background: var(--primary);
-    box-shadow: 0 8px 28px rgba(43,124,246,0.45);
+    box-shadow: 0 8px 28px rgba(43,124,246,0.22);
   }
   .dark .fab-gradient {
-    box-shadow: 0 8px 28px rgba(77,147,255,0.35);
+    box-shadow: 0 8px 28px rgba(77,147,255,0.18);
   }
 
   /* Padding inferior para BottomNav en mobile */

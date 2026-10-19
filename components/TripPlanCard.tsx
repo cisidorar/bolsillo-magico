@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Wallet, ThumbsUp, AlertTriangle, Info, PiggyBank, Calendar, Pencil } from 'lucide-react'
+import { ThumbsUp, AlertTriangle, Info, PiggyBank, Calendar, Pencil } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { saveTripGoal, addToTripGoal } from '@/app/actions/shared'
-import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
 import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget, type TripVerdict } from '@/lib/trip-plan'
 
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -30,7 +29,7 @@ function monthLabel(today: string, plusMonths: number): string {
 export interface TripGoal { id: string; target_amount: number; current_amount: number; target_date: string | null }
 
 export default function TripPlanCard({
-  groupId, groupName, budget, people, myFraction, capacity, myPaid, spent, goal, startDate, today, closed,
+  groupId, groupName, budget, people, myFraction, capacity, myPaid, goal, startDate, today, closed,
   onEditBudget, onEditDates,
 }: {
   groupId:      string
@@ -43,8 +42,6 @@ export default function TripPlanCard({
   capacity:     number | null
   /** Tu parte de los gastos ya registrados en el viaje */
   myPaid:       number
-  /** Gastado del grupo por categoría */
-  spent:        Record<TripCategory, number>
   goal:         TripGoal | null
   startDate:    string | null
   today:        string
@@ -64,10 +61,8 @@ export default function TripPlanCard({
   const saved = goal?.current_amount ?? 0
   const a = tripAffordability({ myShare, covered: myPaid + saved, capacity, startDate, today })
   const v = VERDICT[a.verdict]
-  const spentTotal = Object.values(spent).reduce((s, x) => s + x, 0)
   // La meta es lo que te falta pagar de tu parte (lo ya registrado en el viaje ya salió de tu bolsillo).
   const goalTarget = Math.max(0, myShare - myPaid)
-  const rows = TRIP_CATEGORIES.filter(c => (budget[c.key] ?? 0) > 0 || spent[c.key] > 0)
 
   async function createGoal() {
     setBusy(true); setError('')
@@ -90,31 +85,9 @@ export default function TripPlanCard({
     router.refresh()
   }
 
-  // ── Sin presupuesto: una sola pregunta ────────────────────────────────────
-  if (total === 0) {
-    return (
-      <div className="card p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-            <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>¿Te alcanza para este viaje?</h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-              Estima cuánto costaría (alojamiento, pasajes, comida…) y cuántos van. Con lo que ahorras cada mes te decimos si llegas y cuánto apartar.
-            </p>
-            {!closed && (
-              <button onClick={onEditBudget}
-                className="mt-3 inline-flex items-center gap-1.5 px-4 py-3 min-h-[44px] rounded-xl text-xs font-bold"
-                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-                Estimar costos
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Sin presupuesto no hay nada que mostrar acá — TripSpendHero ya cubre el
+  // estado "¿te alcanza?" inicial con el mismo CTA de estimar costos.
+  if (total === 0) return null
 
   const pct = goal && goal.target_amount > 0 ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) : 0
 
@@ -123,7 +96,7 @@ export default function TripPlanCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Tu parte estimada</p>
-          <p className="font-display text-3xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
+          <p className="font-display text-2xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
             de {formatCLP(total)} en total{people > 1 ? ` · ${people} personas${myFraction != null ? ', según lo que gana cada uno' : ', partes iguales'}` : ''}
           </p>
@@ -248,33 +221,6 @@ export default function TripPlanCard({
       ) : null}
 
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
-
-      {/* Presupuesto vs gastado (solo si ya hay gastos) */}
-      {spentTotal > 0 && (
-        <div className="space-y-2 pt-1">
-          <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
-            Gastado del grupo: {formatCLP(spentTotal)} de {formatCLP(total)}
-          </p>
-          {rows.map(c => {
-            const b = budget[c.key] ?? 0, s = spent[c.key]
-            const over = b > 0 && s > b
-            const w = b > 0 ? Math.min(100, Math.round((s / b) * 100)) : 100
-            return (
-              <div key={c.key}>
-                <div className="flex justify-between text-[11px]">
-                  <span style={{ color: 'var(--ink-2)' }}>{c.label}</span>
-                  <span className="tabular-nums" style={{ color: over ? 'var(--gold)' : 'var(--ink-3)' }}>
-                    {formatCLP(s)}{b > 0 ? ` / ${formatCLP(b)}` : ' (sin estimar)'}
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full mt-1 overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                  <div className="h-full rounded-full" style={{ width: `${w}%`, background: over ? 'var(--gold)' : 'var(--primary)' }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
