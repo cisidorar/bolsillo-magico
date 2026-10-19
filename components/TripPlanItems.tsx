@@ -54,6 +54,7 @@ export default function TripPlanItems({
   const opcionales = open.filter(i => i.optional)
   const totals = planTotals(open)
   const [sheet, setSheet] = useState<SharedPlanItemRow | { kind: 'reserva' | 'durante'; optional: boolean } | null>(null)
+  const [detail, setDetail] = useState<SharedPlanItemRow | null>(null)
   const [paying, setPaying] = useState<string | null>(null)
   const [pm, setPm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -88,7 +89,7 @@ export default function TripPlanItems({
     return (
       <div className="py-2.5" style={{ opacity: off ? 0.55 : 1 }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => !closed && setSheet(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Editar ${it.description}`}>
+          <button onClick={() => setDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Ver detalle de ${it.description}`}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
               <CatIcon className="w-4 h-4" style={{ color: 'var(--gold)' }} />
             </div>
@@ -238,6 +239,51 @@ export default function TripPlanItems({
       )}
 
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+
+      {detail && (() => {
+        const it = items.find(i => i.id === detail.id) ?? detail
+        const over = overCap(it)
+        const catLabel = TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''
+        const q = qtyLabel(it, formatCLP)
+        const rows: [string, string][] = [
+          ['Tipo', it.kind === 'reserva' ? 'Reserva (antes de salir)' : 'Gasto durante el viaje'],
+          ['Categoría', catLabel],
+        ]
+        if (q) rows.push(['Detalle', q])
+        if (it.cap_amount) rows.push(['Tope por unidad', formatCLP(it.cap_amount)])
+        if (it.kind === 'reserva') rows.push(['Vence', it.due_date ? `${fmtDue(it.due_date, today)} · ${new Date(it.due_date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}` : 'Sin fecha'])
+        if (it.kind === 'durante' && tripDays) rows.push(['Por día', `${formatCLP(perDay(it.est_amount, tripDays))} (${tripDays} días)`])
+        if (people > 1) rows.push(['Tu parte aprox.', formatCLP(Math.ceil(it.est_amount / people))])
+        if (it.optional) rows.push(['Opcional', it.enabled ? 'Incluido en el total' : 'No incluido'])
+        return (
+          <SheetShell title={it.description} subtitle={it.kind === 'reserva' ? 'Reserva del viaje' : 'Gasto durante el viaje'} label="Detalle del ítem" onClose={() => setDetail(null)}>
+            <p className="font-display text-3xl font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
+            {over > 0 && (
+              <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
+            )}
+            <div className="rounded-xl divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+              {rows.map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between gap-3 px-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{k}</span>
+                  <span className="text-xs font-semibold text-right tabular-nums" style={{ color: 'var(--ink)' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            {!closed && (
+              <div className="flex gap-2">
+                <button onClick={() => { setDetail(null); setSheet(it) }}
+                  className="flex-1 min-h-[44px] rounded-xl text-sm font-semibold border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--ink)', background: 'var(--surface)' }}>Editar</button>
+                {it.kind === 'reserva' && (
+                  <button onClick={() => { setDetail(null); setPaying(it.id); setError('') }}
+                    className="flex-1 min-h-[44px] rounded-xl text-sm font-bold"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Pagar</button>
+                )}
+              </div>
+            )}
+          </SheetShell>
+        )
+      })()}
 
       {sheet && (
         <PlanItemSheet groupId={groupId} tripDays={tripDays}
