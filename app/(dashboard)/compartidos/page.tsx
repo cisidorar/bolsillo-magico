@@ -11,7 +11,6 @@ import { monthlyCapacity } from '@/lib/trip-plan'
 import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
-import MyHandle from '@/components/MyHandle'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,7 +117,7 @@ export default async function CompartidosPage({
   // ── Lista ─────────────────────────────────────────────────────────────────
   // Todos tienen un @usuario (migración 20261019 lo asigna a los existentes);
   // las cuentas nuevas lo reciben acá la primera vez.
-  const { data: myUsername } = await supabase.rpc('ensure_my_username')
+  await supabase.rpc('ensure_my_username')
   const ids = mine.map(g => g.id)
   const [{ data: allExp }, { data: allShares }, { data: allSet }] = ids.length
     ? await Promise.all([
@@ -157,7 +156,6 @@ export default async function CompartidosPage({
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
             Viajes y gastos que dividen con otras personas. Crea el viaje, carga gastos e invita cuando quieras.
           </p>
-          {myUsername && <div className="mt-2.5"><MyHandle username={myUsername as string} /></div>}
         </div>
         <NewTripButton />
       </div>
