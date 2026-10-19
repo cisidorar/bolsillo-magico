@@ -143,13 +143,9 @@ export default function SharedTripView({
     }
   }
 
-  function openInvite() {
-    setInviteOpen(true)
-    document.getElementById('personas')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
 
   // ── Bloques (el orden depende de la fase) ────────────────────────────────
-  const steps = phase === 'planning' && (!group.start_date || (budgetSum === 0 && !hasOpenItems && expenses.length === 0) || (alone && pending.length === 0 && isCreator)) ? (
+  const steps = phase === 'planning' && (!group.start_date || (budgetSum === 0 && !hasOpenItems && expenses.length === 0)) ? (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Para planificar:</span>
       {!group.start_date && (
@@ -162,12 +158,6 @@ export default function SharedTripView({
         <button onClick={() => setBudgetOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
           <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Cuánto costaría
-        </button>
-      )}
-      {alone && pending.length === 0 && isCreator && (
-        <button onClick={openInvite} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
-          <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Invitar
         </button>
       )}
     </div>
@@ -477,7 +467,7 @@ export default function SharedTripView({
 
             {alone && pending.length === 0 && !inviteOpen && (
               <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-                Solo tú por ahora. Puedes cargar gastos desde ya; cuando invites a alguien se reparten entre los que estén.
+                Solo tú por ahora. Si invitas a alguien, lo ya cargado se reparte entre todos.
               </p>
             )}
             {pending.length > 0 && (

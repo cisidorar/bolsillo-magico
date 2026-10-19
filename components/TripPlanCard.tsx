@@ -2,29 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { ThumbsUp, AlertTriangle, Info, PiggyBank, Calendar, Pencil } from 'lucide-react'
+import { PiggyBank, Calendar, Pencil, CircleCheck } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { saveTripGoal, addToTripGoal } from '@/app/actions/shared'
-import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget, type TripVerdict } from '@/lib/trip-plan'
-
-const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-
-// UX5: nada de esto es urgente "hoy" → nunca coral. mint = confirmación, gold = atención.
-const VERDICT: Record<TripVerdict, { label: string; color: string; bg: string; icon: typeof ThumbsUp }> = {
-  ready:   { label: 'Ya lo tienes cubierto',     color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)', icon: ThumbsUp },
-  yes:     { label: 'Te alcanza',                 color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)', icon: ThumbsUp },
-  tight:   { label: 'Te alcanza, pero justo',     color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)', icon: AlertTriangle },
-  no:      { label: 'Así no te alcanza a tiempo', color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)', icon: AlertTriangle },
-  unknown: { label: 'Falta saber cuánto ahorras', color: 'var(--ink-2)', bg: 'var(--surface-2)',      icon: Info },
-}
-
-function monthLabel(today: string, plusMonths: number): string {
-  const d = new Date(today + 'T12:00:00')
-  d.setMonth(d.getMonth() + plusMonths)
-  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-}
+import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget } from '@/lib/trip-plan'
 
 export interface TripGoal { id: string; target_amount: number; current_amount: number; target_date: string | null }
 
@@ -62,7 +44,6 @@ export default function TripPlanCard({
   const myShare = myBudgetShare(total, people, myFraction)
   const saved = goal?.current_amount ?? 0
   const a = tripAffordability({ myShare, covered: myPaid + saved, capacity, startDate, today })
-  const v = VERDICT[a.verdict]
   // La meta es lo que te falta pagar de tu parte (lo ya registrado en el viaje ya salió de tu bolsillo).
   const goalTarget = Math.max(0, myShare - myPaid)
 
@@ -93,91 +74,47 @@ export default function TripPlanCard({
 
   const pct = goal && goal.target_amount > 0 ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100)) : 0
 
+  const alone = people <= 1
+  const covered = a.remaining === 0 && myShare > 0
+
   return (
     <div className="card p-5 space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Tu parte estimada</p>
-          <p className="font-display text-2xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            de {formatCLP(total)} {derived ? 'sumando lo que agregaste' : 'en total'}{people > 1 ? ` · ${people} personas${myFraction != null ? ', según lo que gana cada uno' : ', partes iguales'}` : ''}
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>{alone ? 'Lo que cuesta el viaje' : 'Tu parte estimada'}</p>
+          <p className="font-display text-3xl font-extrabold tabular-nums mt-0.5 leading-none" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>
+            {alone
+              ? (derived ? 'Suma de lo que agregaste' : 'Según tu presupuesto')
+              : `de ${formatCLP(total)} · ${people} personas, ${myFraction != null ? 'según lo que gana cada uno' : 'partes iguales'}`}
           </p>
         </div>
         {!closed && (
           <button onClick={onEditBudget} className="inline-flex items-center gap-1 text-xs font-semibold flex-shrink-0 min-h-[44px] px-2 -mt-2 -mr-2" style={{ color: 'var(--primary)' }}>
-            <Pencil className="w-3.5 h-3.5" /> Editar
+            <Pencil className="w-3.5 h-3.5" /> {derived ? 'Presupuesto' : 'Editar'}
           </button>
         )}
       </div>
 
-      {/* Veredicto */}
-      <div className="rounded-2xl p-3.5" style={{ background: v.bg }}>
-        <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: v.color }}>
-          <v.icon className="w-4 h-4" /> {v.label}
+      {/* Ritmo: cuánto apartar al mes para llegar con todo pagado (sin veredicto) */}
+      {covered ? (
+        <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--mint)' }}>
+          <CircleCheck className="w-4 h-4" /> Ya está todo pagado o ahorrado
         </p>
-
-        {a.verdict === 'ready' && (
-          <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-            Entre lo que ya pagaste y lo que tienes ahorrado para el viaje, tu parte está cubierta.
-          </p>
-        )}
-
-        {a.verdict === 'unknown' && (
-          <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-            Para saber si llegas a tiempo necesitamos tus ingresos de los últimos meses.{' '}
-            <Link href="/ingresos" className="inline-flex items-center font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
-              Registrar ingresos →
-            </Link>
-          </p>
-        )}
-
-        {(a.verdict === 'yes' || a.verdict === 'tight' || a.verdict === 'no') && (
-          <>
-            {/* La cifra que importa, primero */}
-            {a.perMonth != null && a.months != null && a.months > 0 ? (
-              <div className="mt-2">
-                <p className="font-display text-2xl font-bold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>
-                  {formatCLP(a.perMonth)} <span className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>al mes</span>
-                </p>
-                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
-                  durante {a.months} {a.months === 1 ? 'mes' : 'meses'} para llegar a la salida
-                </p>
-              </div>
-            ) : a.perMonth != null ? (
-              <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-                Te faltan <b className="tabular-nums">{formatCLP(a.remaining)}</b> y la salida ya llegó.
-              </p>
-            ) : a.monthsToSave != null ? (
-              <div className="mt-2">
-                <p className="font-display text-2xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>
-                  {monthLabel(today, a.monthsToSave)}
-                </p>
-                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
-                  podrías ir desde entonces: juntas {formatCLP(a.remaining)} en {a.monthsToSave} {a.monthsToSave === 1 ? 'mes' : 'meses'}
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-                Hoy gastas todo lo que entra, así que no queda margen para el viaje.
-              </p>
-            )}
-
-            <p className="text-[11px] mt-2" style={{ color: 'var(--ink-3)' }}>
-              Hoy ahorras unos {formatCLP(Math.max(0, capacity ?? 0))} al mes.
-              {a.verdict === 'no' && ' Mueve la fecha, baja el presupuesto o recorta otro gasto.'}
-            </p>
-          </>
-        )}
-
-        {!startDate && !closed && a.verdict !== 'ready' && (
-          <button onClick={onEditDates} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] pr-2" style={{ color: 'var(--primary)' }}>
-            <Calendar className="w-3.5 h-3.5" /> Poner fecha de salida
-          </button>
-        )}
-      </div>
+      ) : a.perMonth != null && a.months != null && a.months > 0 ? (
+        <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
+          Para llegar con todo pagado: aparta{' '}
+          <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(a.perMonth)} al mes</b>
+          {' '}durante {a.months} {a.months === 1 ? 'mes' : 'meses'}.
+        </p>
+      ) : !startDate && !closed ? (
+        <button onClick={onEditDates} className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[44px] -my-2" style={{ color: 'var(--primary)' }}>
+          <Calendar className="w-3.5 h-3.5" /> Pon la fecha de salida para saber cuánto apartar al mes
+        </button>
+      ) : null}
 
       {/* Meta de ahorro */}
-      {a.verdict !== 'ready' || goal ? (
+      {!covered || goal ? (
         goal ? (
           <div>
             <div className="flex items-center justify-between text-xs">

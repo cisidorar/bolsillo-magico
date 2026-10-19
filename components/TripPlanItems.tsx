@@ -7,6 +7,7 @@ import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { savePlanItem, deletePlanItem, payPlanItem } from '@/app/actions/shared'
 import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
+import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import type { SharedPlanItemRow } from '@/lib/shared-types'
 import type { PaymentMethod } from '@/types'
 import { SheetShell, FieldLabel, InputRow, inputClass, Chip, PrimaryButton } from './SheetParts'
@@ -83,14 +84,21 @@ export default function TripPlanItems({
         </p>
       ) : (
         <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-          {open.map(it => (
+          {open.map(it => {
+            const CatIcon = TRIP_CATEGORY_ICON[it.trip_category]
+            return (
             <div key={it.id} className="py-2.5">
               <div className="flex items-center gap-3">
-                <button onClick={() => !closed && setSheet(it)} className="flex-1 min-w-0 text-left">
+                <button onClick={() => !closed && setSheet(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Editar ${it.description}`}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
+                    <CatIcon className="w-4 h-4" style={{ color: 'var(--gold)' }} />
+                  </div>
+                  <div className="min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{it.description}</p>
                   <p className="text-xs" style={{ color: it.due_date && it.due_date < today ? 'var(--gold)' : 'var(--ink-3)' }}>
-                    {fmtDue(it.due_date, today)}{people > 1 ? ` · tu parte aprox. ${formatCLP(Math.ceil(it.est_amount / people))}` : ''}
+                    {it.due_date ? fmtDue(it.due_date, today) : (TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? '')}{people > 1 ? ` · tu parte aprox. ${formatCLP(Math.ceil(it.est_amount / people))}` : ''}
                   </p>
+                  </div>
                 </button>
                 <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
                 {!closed && paying !== it.id && (
@@ -121,7 +129,8 @@ export default function TripPlanItems({
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
       {error && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{error}</p>}
