@@ -67,7 +67,8 @@ export default async function PresupuestoPage() {
       .select('category_id, amount, date')
       .eq('user_id', user.id)
       .gte('date', fetchStart)
-      .lte('date', fetchEnd),
+      .lte('date', fetchEnd)
+      .is('shared_expense_id', null),   // viajes compartidos van fuera del presupuesto mensual
     supabase
       .from('recurring_expenses')
       .select('category_id, amount, billing_month, total_installments, paid_installments')

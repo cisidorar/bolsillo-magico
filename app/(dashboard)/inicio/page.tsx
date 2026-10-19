@@ -13,6 +13,8 @@ import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
+import NextTripCard from '@/components/NextTripCard'
+import { getNextTrip } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
 import ExpenseRowIcon from '@/components/ExpenseRowIcon'
 import Link from 'next/link'
@@ -111,6 +113,7 @@ export default async function DashboardPage() {
     { data: lastIncome },
     { data: debitThisMonth },
     { data: usdDepositsThisMonth },
+    nextTrip,
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -118,6 +121,7 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .gte('date', mainStart)
       .lt('date',  mainEndEx)
+      .is('shared_expense_id', null)   // los viajes compartidos van fuera del presupuesto mensual
       .order('date', { ascending: false })
       .order('created_at', { ascending: false }),
     supabase.from('budgets').select('amount, month, year')
@@ -145,7 +149,8 @@ export default async function DashboardPage() {
       .select('amount, date')
       .eq('user_id', user!.id)
       .gte('date', prevStart)
-      .lt('date',  prevEndEx),
+      .lt('date',  prevEndEx)
+      .is('shared_expense_id', null),
     supabase
       .from('incomes')
       .select('amount, month, year')
@@ -166,6 +171,7 @@ export default async function DashboardPage() {
       .eq('kind', 'deposit')
       .gte('purchase_date', thisMonthStartStr)
       .lt('purchase_date', nextMonthStartStr),
+    getNextTrip(supabase, user!.id, dateStr),
   ])
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
@@ -993,6 +999,8 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
+            {nextTrip && <NextTripCard trip={nextTrip} />}
+
             {/* ── Ciclo de sueldo ── */}
             <CicloSueldo
               sueldo={sueldoEstimado}
@@ -1250,6 +1258,8 @@ export default async function DashboardPage() {
               </>
             )}
           </div>
+
+          {nextTrip && <NextTripCard trip={nextTrip} />}
 
           {/* Ciclo de sueldo mobile */}
           <CicloSueldo

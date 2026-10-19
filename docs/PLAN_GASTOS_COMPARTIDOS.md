@@ -353,3 +353,8 @@ El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirma
 - `shared_group_members.savings_goal_id`: meta de ahorro PERSONAL (tabla `savings_goals`, solo la ve su dueño) ligada al viaje; objetivo = tu parte estimada − lo que ya pagaste en el viaje.
 - `lib/trip-plan.ts`: tu parte (parejo entre `max(miembros, planned_people)` o según sueldo si todos están dentro), capacidad de ahorro = promedio (ingreso − gasto analizable) de los 3 meses cerrados, veredicto ready/yes (≤70% de tu ahorro)/tight/no/unknown. Sin fecha de salida: "lo juntas en N meses, podrías ir desde…". Colores UX5: mint/gold, nunca coral.
 - UI: la tarjeta "Plan del viaje" va primero; Personas incluye el reparto (oculto si vas solo); totales y "tu categoría"/cerrar viaje pasaron a Ajustes (engranaje).
+
+### Fase 2, cierre — integración con /inicio y el presupuesto mensual
+
+- `lib/next-trip.ts` + `NextTripCard`: en `/inicio` (columna 3 en desktop, bajo el hero en mobile) aparece el viaje abierto más cercano (en curso o por salir; si no hay con fecha, el sin fecha más nuevo): días para salir, tu parte estimada, avance de tu meta de ahorro y cuánto apartar al mes.
+- **Los gastos de viaje van fuera del límite mensual:** `inicio` (mes actual y mes anterior) y `presupuesto` filtran `shared_expense_id IS NULL`. Siguen en Historial (chip "Compartido"), en los estados de tarjeta (`amount + card_extra`) y quedan `excluded_from_analysis`. Se financian con la meta de ahorro del viaje, no con el presupuesto del mes.
