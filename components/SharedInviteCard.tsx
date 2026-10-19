@@ -52,8 +52,8 @@ export default function SharedInviteCard({
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{inviter} te invitó a «{groupName}»</p>
           <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
             {income
-              ? 'El reparto es según sueldo: cada uno paga en proporción a lo que gana. Nadie ve el sueldo de otro, solo el porcentaje. Si prefieres no compartirlo, puedes entrar igual y el grupo repartirá parejo hasta que cambies de opinión.'
-              : 'El reparto es parejo entre todos.'}
+              ? 'El reparto es según lo que gana cada uno: cada uno paga en proporción a lo que gana. Nadie ve el sueldo de otro, solo el porcentaje. Si prefieres no compartirlo, puedes entrar igual y el grupo repartirá parejo hasta que cambies de opinión.'
+              : 'El reparto es en partes iguales entre todos.'}
           </p>
           <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
             En tus gastos solo aparecerá tu parte; tus ingresos y gastos personales siguen siendo privados.
@@ -63,13 +63,13 @@ export default function SharedInviteCard({
             <button disabled={busy} onClick={() => accept(income)}
               className="px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-              {income ? 'Aceptar y compartir mi porcentaje' : 'Aceptar'}
+              {income ? 'Aceptar y mostrar mi %' : 'Aceptar'}
             </button>
             {income && (
               <button disabled={busy} onClick={() => accept(false)}
                 className="px-4 py-2 rounded-xl text-xs font-semibold border disabled:opacity-50"
                 style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>
-                Entrar sin compartirlo
+                Entrar sin mostrar mi %
               </button>
             )}
             <button disabled={busy} onClick={decline}

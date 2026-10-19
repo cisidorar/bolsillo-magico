@@ -87,8 +87,8 @@ export default function SharedExpenseSheet({
   const myShare = preview?.[meId] ?? 0
 
   const kinds: { key: SplitKind; label: string }[] = [
-    ...(group.split_mode === 'income' ? [{ key: 'group' as SplitKind, label: 'Según sueldo' }] : []),
-    { key: 'equal', label: 'Parejo' },
+    ...(group.split_mode === 'income' ? [{ key: 'group' as SplitKind, label: 'Según lo que gana cada uno' }] : []),
+    { key: 'equal', label: 'Partes iguales' },
     ...(multi ? [{ key: 'exact' as SplitKind, label: 'Montos exactos' }] : []),
   ]
 
@@ -211,7 +211,7 @@ export default function SharedExpenseSheet({
         </div>
         {kind === 'group' && !incomeOk && (
           <p className="text-[11px] mt-2" style={{ color: 'var(--gold)' }}>
-            Según sueldo necesita que todos hayan aceptado compartir su porcentaje. Mientras tanto usa «Parejo».
+            Repartir según lo que gana cada uno necesita que todos hayan aceptado mostrar su %. Mientras tanto usa «Partes iguales».
           </p>
         )}
       </div>

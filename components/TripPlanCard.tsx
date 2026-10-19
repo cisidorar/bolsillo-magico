@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Wallet, ThumbsUp, AlertTriangle, Info, PiggyBank, Calendar, Pencil } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
@@ -36,7 +37,7 @@ export default function TripPlanCard({
   groupName:    string
   budget:       TripBudget
   people:       number
-  /** Tu porción del reparto (según sueldo) o null = parejo */
+  /** Tu porción del reparto (según sueldo) o null = partes iguales */
   myFraction:   number | null
   /** Lo que ahorras al mes en promedio; null sin ingresos registrados */
   capacity:     number | null
@@ -104,7 +105,7 @@ export default function TripPlanCard({
             </p>
             {!closed && (
               <button onClick={onEditBudget}
-                className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold"
+                className="mt-3 inline-flex items-center gap-1.5 px-4 py-3 min-h-[44px] rounded-xl text-xs font-bold"
                 style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                 Estimar costos
               </button>
@@ -124,11 +125,11 @@ export default function TripPlanCard({
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Tu parte estimada</p>
           <p className="font-display text-3xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            de {formatCLP(total)} en total{people > 1 ? ` · ${people} personas${myFraction != null ? ', según sueldo' : ', parejo'}` : ''}
+            de {formatCLP(total)} en total{people > 1 ? ` · ${people} personas${myFraction != null ? ', según lo que gana cada uno' : ', partes iguales'}` : ''}
           </p>
         </div>
         {!closed && (
-          <button onClick={onEditBudget} className="inline-flex items-center gap-1 text-xs font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>
+          <button onClick={onEditBudget} className="inline-flex items-center gap-1 text-xs font-semibold flex-shrink-0 min-h-[44px] px-2 -mt-2 -mr-2" style={{ color: 'var(--primary)' }}>
             <Pencil className="w-3.5 h-3.5" /> Editar
           </button>
         )}
@@ -139,27 +140,62 @@ export default function TripPlanCard({
         <p className="flex items-center gap-1.5 text-sm font-bold" style={{ color: v.color }}>
           <v.icon className="w-4 h-4" /> {v.label}
         </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
-          {a.verdict === 'ready' && 'Entre lo que ya pagaste y lo que tienes ahorrado para el viaje, tu parte está cubierta.'}
-          {a.verdict === 'unknown' && 'Registra tus ingresos de los últimos meses en Ingresos y aquí verás si llegas a tiempo.'}
-          {(a.verdict === 'yes' || a.verdict === 'tight' || a.verdict === 'no') && (
-            <>
-              Ahorras unos {formatCLP(Math.max(0, capacity ?? 0))} al mes.{' '}
-              {a.perMonth != null && a.months != null && a.months > 0
-                ? <>Para llegar a la salida necesitas apartar <b className="tabular-nums">{formatCLP(a.perMonth)}</b> al mes durante {a.months} {a.months === 1 ? 'mes' : 'meses'}.</>
-                : a.perMonth != null
-                  ? <>Te faltan <b className="tabular-nums">{formatCLP(a.remaining)}</b> y la salida ya llegó.</>
-                  : a.monthsToSave != null
-                    ? <>A ese ritmo juntas los {formatCLP(a.remaining)} que faltan en {a.monthsToSave} {a.monthsToSave === 1 ? 'mes' : 'meses'}: podrías ir desde {monthLabel(today, a.monthsToSave)}.</>
-                    : <>Hoy estás gastando todo lo que entra, así que no queda margen para el viaje.</>}
-              {a.verdict === 'no' && a.monthsToSave != null && a.perMonth != null && (
-                <> Al ritmo actual lo juntas en {a.monthsToSave} {a.monthsToSave === 1 ? 'mes' : 'meses'} ({monthLabel(today, a.monthsToSave)}): mueve la fecha, baja el presupuesto o recorta otro gasto.</>
-              )}
-            </>
-          )}
-        </p>
+
+        {a.verdict === 'ready' && (
+          <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+            Entre lo que ya pagaste y lo que tienes ahorrado para el viaje, tu parte está cubierta.
+          </p>
+        )}
+
+        {a.verdict === 'unknown' && (
+          <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+            Para saber si llegas a tiempo necesitamos tus ingresos de los últimos meses.{' '}
+            <Link href="/ingresos" className="inline-flex items-center font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
+              Registrar ingresos →
+            </Link>
+          </p>
+        )}
+
+        {(a.verdict === 'yes' || a.verdict === 'tight' || a.verdict === 'no') && (
+          <>
+            {/* La cifra que importa, primero */}
+            {a.perMonth != null && a.months != null && a.months > 0 ? (
+              <div className="mt-2">
+                <p className="font-display text-2xl font-bold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>
+                  {formatCLP(a.perMonth)} <span className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>al mes</span>
+                </p>
+                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+                  durante {a.months} {a.months === 1 ? 'mes' : 'meses'} para llegar a la salida
+                </p>
+              </div>
+            ) : a.perMonth != null ? (
+              <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+                Te faltan <b className="tabular-nums">{formatCLP(a.remaining)}</b> y la salida ya llegó.
+              </p>
+            ) : a.monthsToSave != null ? (
+              <div className="mt-2">
+                <p className="font-display text-2xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>
+                  {monthLabel(today, a.monthsToSave)}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+                  podrías ir desde entonces: juntas {formatCLP(a.remaining)} en {a.monthsToSave} {a.monthsToSave === 1 ? 'mes' : 'meses'}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+                Hoy gastas todo lo que entra, así que no queda margen para el viaje.
+              </p>
+            )}
+
+            <p className="text-[11px] mt-2" style={{ color: 'var(--ink-3)' }}>
+              Hoy ahorras unos {formatCLP(Math.max(0, capacity ?? 0))} al mes.
+              {a.verdict === 'no' && ' Mueve la fecha, baja el presupuesto o recorta otro gasto.'}
+            </p>
+          </>
+        )}
+
         {!startDate && !closed && a.verdict !== 'ready' && (
-          <button onClick={onEditDates} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+          <button onClick={onEditDates} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] pr-2" style={{ color: 'var(--primary)' }}>
             <Calendar className="w-3.5 h-3.5" /> Poner fecha de salida
           </button>
         )}
@@ -188,14 +224,14 @@ export default function TripPlanCard({
                       onChange={e => setAdd(e.target.value.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.'))}
                       className="w-28 text-sm border px-2.5 py-1.5 rounded-lg outline-none tabular-nums"
                       style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
-                    <button disabled={busy} onClick={addSaving} className="text-xs font-bold" style={{ color: 'var(--primary)' }}>Sumar</button>
-                    <button onClick={() => setAddOpen(false)} className="text-xs" style={{ color: 'var(--ink-3)' }}>Cancelar</button>
+                    <button disabled={busy} onClick={addSaving} className="text-xs font-bold min-h-[44px] px-2" style={{ color: 'var(--primary)' }}>Sumar</button>
+                    <button onClick={() => setAddOpen(false)} className="text-xs min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>Cancelar</button>
                   </div>
                 ) : (
-                  <button onClick={() => setAddOpen(true)} className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>+ Sumar ahorro</button>
+                  <button onClick={() => setAddOpen(true)} className="text-xs font-semibold min-h-[44px] pr-2" style={{ color: 'var(--primary)' }}>+ Sumar ahorro</button>
                 )}
                 {goal.target_amount !== goalTarget && goalTarget > 0 && (
-                  <button disabled={busy} onClick={createGoal} className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
+                  <button disabled={busy} onClick={createGoal} className="text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>
                     Ajustar meta a {formatCLP(goalTarget)}
                   </button>
                 )}
@@ -204,7 +240,7 @@ export default function TripPlanCard({
           </div>
         ) : !closed && goalTarget > 0 && (
           <button disabled={busy} onClick={createGoal}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold border disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-1.5 py-3 min-h-[44px] rounded-xl text-xs font-bold border disabled:opacity-50"
             style={{ borderColor: 'var(--border)', color: 'var(--ink)', background: 'var(--surface)' }}>
             <PiggyBank className="w-4 h-4" /> Crear meta de ahorro de {formatCLP(goalTarget)}
           </button>

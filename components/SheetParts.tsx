@@ -79,8 +79,8 @@ export function Chip({
   active, onClick, children, className,
 }: { active: boolean; onClick: () => void; children: ReactNode; className?: string }) {
   return (
-    <button type="button" onClick={onClick}
-      className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', active ? 'sheet-chip-active' : 'sheet-chip', className)}>
+    <button type="button" onClick={onClick} aria-pressed={active}
+      className={cn('px-3.5 py-2 min-h-[40px] rounded-full text-xs border transition-all', active ? 'sheet-chip-active' : 'sheet-chip', className)}>
       {children}
     </button>
   )

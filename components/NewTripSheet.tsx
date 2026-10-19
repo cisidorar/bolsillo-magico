@@ -8,8 +8,8 @@ import type { SplitMode } from '@/lib/shared-split'
 import { SheetShell, FieldLabel, InputRow, inputClass, Chip, PrimaryButton } from './SheetParts'
 
 export const MODES: { key: SplitMode; title: string; hint: string }[] = [
-  { key: 'equal',  title: 'Parejo',       hint: 'Todos pagan lo mismo. Puedes cambiarlo después.' },
-  { key: 'income', title: 'Según sueldo', hint: 'Cada uno paga en proporción a lo que gana. Nadie ve el sueldo de otro, solo el porcentaje, y cada persona tiene que aceptarlo.' },
+  { key: 'equal',  title: 'Partes iguales', hint: 'Todos pagan lo mismo. Puedes cambiarlo después.' },
+  { key: 'income', title: 'Según lo que gana cada uno', hint: 'Cada uno paga en proporción a lo que gana. Nadie ve el sueldo de otro, solo el porcentaje, y cada persona tiene que aceptarlo.' },
 ]
 
 export default function NewTripSheet({ onClose }: { onClose: () => void }) {

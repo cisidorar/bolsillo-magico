@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X } from 'lucide-react'
+import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, ChevronRight } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
@@ -138,7 +138,7 @@ export default function SharedTripView({
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
             {group.start_date || closed
               ? fmtRange(group.start_date, group.end_date)
-              : <button onClick={() => setEditOpen(true)} className="font-semibold" style={{ color: 'var(--primary)' }}>+ Agregar fechas</button>}
+              : <button onClick={() => setEditOpen(true)} className="font-semibold min-h-[44px] -my-3 inline-flex items-center" style={{ color: 'var(--primary)' }}>+ Agregar fechas</button>}
           </p>
         </div>
         <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
@@ -166,7 +166,7 @@ export default function SharedTripView({
             <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Personas</h2>
           </div>
           {isCreator && !closed && !inviteOpen && (
-            <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+            <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
               <UserPlus className="w-3.5 h-3.5" /> Invitar
             </button>
           )}
@@ -198,10 +198,10 @@ export default function SharedTripView({
               {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
                 confirmRemove === m.user_id ? (
                   <button disabled={busy} onClick={async () => { await run(() => removeSharedMember(group.id, m.user_id), m.user_id === meId ? 'Saliste del viaje' : 'Listo'); setConfirmRemove(null) }}
-                    className="text-xs font-bold" style={{ color: 'var(--coral)' }}>Confirmar</button>
+                    className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral)' }}>Confirmar</button>
                 ) : (
-                  <button onClick={() => setConfirmRemove(m.user_id)} aria-label="Sacar"
-                    className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--ink-3)' }}>
+                  <button onClick={() => setConfirmRemove(m.user_id)} aria-label={m.user_id === meId ? 'Salir del viaje' : m.status === 'pending' ? 'Cancelar invitación' : 'Sacar del viaje'}
+                    className="text-xs font-semibold flex items-center gap-1 min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>
                     <X className="w-3.5 h-3.5" />{m.user_id === meId ? 'Salir' : m.status === 'pending' ? 'Cancelar' : 'Sacar'}
                   </button>
                 )
@@ -245,11 +245,12 @@ export default function SharedTripView({
               <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-2)' }}>Reparto</span>
               {(['equal', 'income'] as SplitMode[]).map(m => (
                 <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
-                  className="px-3 py-1 rounded-full text-xs font-semibold border disabled:cursor-default"
+                  aria-pressed={group.split_mode === m}
+                  className="px-3.5 py-2 min-h-[40px] rounded-full text-xs font-semibold border disabled:cursor-default"
                   style={group.split_mode === m
                     ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
                     : { background: 'var(--surface)', color: 'var(--ink-3)', borderColor: 'var(--border)', opacity: isCreator ? 1 : 0.6 }}>
-                  {m === 'equal' ? 'Parejo' : 'Según sueldo'}
+                  {m === 'equal' ? 'Partes iguales' : 'Según lo que gana cada uno'}
                 </button>
               ))}
             </div>
@@ -266,10 +267,10 @@ export default function SharedTripView({
                   </p>
                 )}
                 {me && (
-                  <label className="flex items-center gap-2 font-semibold" style={{ color: 'var(--ink)' }}>
-                    <input type="checkbox" checked={me.income_consent} disabled={busy || closed}
+                  <label className="flex items-center gap-3 font-semibold min-h-[44px]" style={{ color: 'var(--ink)' }}>
+                    <input type="checkbox" className="w-5 h-5 flex-shrink-0 accent-[#1B6DD4]" checked={me.income_consent} disabled={busy || closed}
                       onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
-                    Compartir mi porcentaje en este viaje
+                    Mostrar solo mi % en este viaje (nunca mi sueldo)
                   </label>
                 )}
               </div>
@@ -345,7 +346,7 @@ export default function SharedTripView({
           </div>
           {!closed && (
             <button onClick={() => setSheet({ expense: null })}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
               <Plus className="w-3.5 h-3.5" /> Gasto
             </button>
@@ -378,6 +379,7 @@ export default function SharedTripView({
                           </p>
                         </div>
                         <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
+                        {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
                       </button>
                     )
                   })}
@@ -403,7 +405,7 @@ export default function SharedTripView({
                 </p>
                 {!closed && (
                   <button disabled={busy} onClick={() => run(() => deleteSettlement(s.id), 'Transferencia eliminada')}
-                    className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Deshacer</button>
+                    className="text-xs font-semibold min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>Deshacer</button>
                 )}
               </div>
             ))}

@@ -39,13 +39,22 @@ export default function TripBudgetSheet({
   const [vals, setVals] = useState<Record<string, string>>(
     Object.fromEntries(TRIP_CATEGORIES.map(c => [c.key, budget[c.key] ? fmtNum(String(budget[c.key])) : ''])),
   )
+  // Quien recién estima parte con un solo total; las categorías son opcionales.
+  const hasDetail = TRIP_CATEGORIES.some(c => c.key !== 'otros' && (budget[c.key] ?? 0) > 0)
+  const [detail, setDetail] = useState(hasDetail)
+  const [totalStr, setTotalStr] = useState(!hasDetail && budget.otros ? fmtNum(String(budget.otros)) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const parsed: TripBudget = {}
-  for (const c of TRIP_CATEGORIES) {
-    const n = parseInt((vals[c.key] ?? '').replace(/\D/g, ''), 10)
-    if (n > 0) parsed[c.key] = n
+  if (detail) {
+    for (const c of TRIP_CATEGORIES) {
+      const n = parseInt((vals[c.key] ?? '').replace(/\D/g, ''), 10)
+      if (n > 0) parsed[c.key] = n
+    }
+  } else {
+    const n = parseInt(totalStr.replace(/\D/g, ''), 10)
+    if (n > 0) parsed.otros = n
   }
   const total = budgetTotal(parsed)
 
@@ -77,24 +86,39 @@ export default function TripBudgetSheet({
         </div>
       </div>
 
-      <div className="space-y-2.5">
-        <FieldLabel hint="Montos totales del grupo, no por persona.">Costos estimados</FieldLabel>
-        {TRIP_CATEGORIES.map(c => (
-          <div key={c.key} className="flex items-center gap-3">
-            <div className="w-32 flex-shrink-0">
-              <p className="text-sm font-semibold text-gray-700">{c.label}</p>
-              <p className="text-[10px] text-gray-400 leading-tight">{HINTS[c.key]}</p>
+      {!detail ? (
+        <div>
+          <FieldLabel hint="Todo el viaje, no por persona. Un número aproximado sirve.">¿Cuánto crees que costaría en total?</FieldLabel>
+          <InputRow icon={<span className="text-sm font-bold">$</span>}>
+            <input inputMode="numeric" value={totalStr} placeholder="Ej: 1.200.000" autoFocus
+              onChange={e => setTotalStr(fmtNum(e.target.value).slice(0, 13))}
+              className={inputClass + ' tabular-nums text-base'} />
+          </InputRow>
+          <button type="button" onClick={() => setDetail(true)}
+            className="mt-1 text-xs font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
+            Prefiero detallar por categoría
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          <FieldLabel hint="Montos totales del grupo, no por persona.">Costos estimados</FieldLabel>
+          {TRIP_CATEGORIES.map(c => (
+            <div key={c.key} className="flex items-center gap-3">
+              <div className="w-32 flex-shrink-0">
+                <p className="text-sm font-semibold text-gray-700">{c.label}</p>
+                <p className="text-[10px] text-gray-400 leading-tight">{HINTS[c.key]}</p>
+              </div>
+              <div className="flex-1">
+                <InputRow icon={<span className="text-sm font-bold">$</span>}>
+                  <input inputMode="numeric" value={vals[c.key]} placeholder="0"
+                    onChange={e => setVals(v => ({ ...v, [c.key]: fmtNum(e.target.value).slice(0, 13) }))}
+                    className={inputClass + ' tabular-nums'} />
+                </InputRow>
+              </div>
             </div>
-            <div className="flex-1">
-              <InputRow icon={<span className="text-sm font-bold">$</span>}>
-                <input inputMode="numeric" value={vals[c.key]} placeholder="0"
-                  onChange={e => setVals(v => ({ ...v, [c.key]: fmtNum(e.target.value).slice(0, 13) }))}
-                  className={inputClass + ' tabular-nums'} />
-              </InputRow>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-1">
         <div className="flex justify-between text-sm">
@@ -103,7 +127,7 @@ export default function TripBudgetSheet({
         </div>
         {people > 1 && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Por persona (parejo)</span>
+            <span className="text-gray-500">Por persona (partes iguales)</span>
             <span className="font-bold text-gray-900 tabular-nums">{formatCLP(Math.ceil(total / people))}</span>
           </div>
         )}
