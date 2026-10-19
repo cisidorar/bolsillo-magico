@@ -1,0 +1,61 @@
+-- ── Compartidos: plan de viaje con reservas, gasto durante, opcionales ─────
+-- Cada ítem del plan es una "reserva" (se paga antes de salir, tiene fecha) o un
+-- gasto "durante" el viaje (presupuesto, no se paga como reserva). Puede tener
+-- cantidad × precio, un tope (precio máximo aceptable) y ser opcional con interruptor.
+-- est_amount sigue siendo el total (= cantidad × precio unitario cuando hay unitario).
+
+ALTER TABLE public.shared_plan_items
+  ADD COLUMN IF NOT EXISTS kind        text    NOT NULL DEFAULT 'reserva' CHECK (kind IN ('reserva', 'durante')),
+  ADD COLUMN IF NOT EXISTS quantity    integer NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+  ADD COLUMN IF NOT EXISTS unit_amount integer CHECK (unit_amount IS NULL OR unit_amount > 0),
+  ADD COLUMN IF NOT EXISTS cap_amount  integer CHECK (cap_amount IS NULL OR cap_amount > 0),
+  ADD COLUMN IF NOT EXISTS optional    boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS enabled     boolean NOT NULL DEFAULT true;
+
+DROP FUNCTION IF EXISTS public.shared_plan_item_save(uuid, uuid, text, text, int, date);
+
+CREATE OR REPLACE FUNCTION public.shared_plan_item_save(
+  p_id uuid, p_group uuid, p_description text, p_category text, p_amount int, p_due date,
+  p_kind text DEFAULT 'reserva', p_qty int DEFAULT 1, p_unit int DEFAULT NULL,
+  p_cap int DEFAULT NULL, p_optional boolean DEFAULT false
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE rid uuid; total int;
+BEGIN
+  IF NOT public.shared_is_member(p_group) THEN RAISE EXCEPTION 'not_member'; END IF;
+  IF EXISTS (SELECT 1 FROM public.shared_groups WHERE id = p_group AND closed_at IS NOT NULL) THEN RAISE EXCEPTION 'group_closed'; END IF;
+  IF coalesce(trim(p_description), '') = '' THEN RAISE EXCEPTION 'description_required'; END IF;
+  IF p_category NOT IN ('alojamiento', 'transporte', 'comida', 'actividades', 'compras', 'otros') THEN RAISE EXCEPTION 'invalid_budget'; END IF;
+  IF p_kind NOT IN ('reserva', 'durante') THEN RAISE EXCEPTION 'invalid_budget'; END IF;
+  IF p_qty IS NULL OR p_qty < 1 THEN RAISE EXCEPTION 'invalid_amount'; END IF;
+  total := CASE WHEN p_unit IS NOT NULL THEN p_unit * p_qty ELSE p_amount END;
+  IF total IS NULL OR total <= 0 THEN RAISE EXCEPTION 'invalid_amount'; END IF;
+  IF p_id IS NULL THEN
+    INSERT INTO public.shared_plan_items
+      (group_id, description, trip_category, est_amount, due_date, created_by, kind, quantity, unit_amount, cap_amount, optional)
+    VALUES (p_group, trim(p_description), p_category, total, p_due, auth.uid(), p_kind, p_qty, p_unit, p_cap, coalesce(p_optional, false))
+    RETURNING id INTO rid;
+  ELSE
+    UPDATE public.shared_plan_items SET description = trim(p_description), trip_category = p_category,
+      est_amount = total, due_date = p_due, kind = p_kind, quantity = p_qty, unit_amount = p_unit,
+      cap_amount = p_cap, optional = coalesce(p_optional, false)
+    WHERE id = p_id AND group_id = p_group AND paid_at IS NULL RETURNING id INTO rid;
+    IF rid IS NULL THEN RAISE EXCEPTION 'expense_not_found'; END IF;
+  END IF;
+  RETURN rid;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.shared_plan_item_toggle(p_id uuid, p_enabled boolean)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE g uuid;
+BEGIN
+  SELECT group_id INTO g FROM public.shared_plan_items WHERE id = p_id;
+  IF g IS NULL OR NOT public.shared_is_member(g) THEN RAISE EXCEPTION 'not_member'; END IF;
+  UPDATE public.shared_plan_items SET enabled = p_enabled WHERE id = p_id AND paid_at IS NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.shared_plan_item_save(uuid, uuid, text, text, int, date, text, int, int, int, boolean) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.shared_plan_item_toggle(uuid, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.shared_plan_item_save(uuid, uuid, text, text, int, date, text, int, int, int, boolean),
+  public.shared_plan_item_toggle(uuid, boolean) TO authenticated;

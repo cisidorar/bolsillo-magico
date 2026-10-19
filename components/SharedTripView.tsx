@@ -7,7 +7,7 @@ import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
-  groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, spentByCategory, TRIP_CATEGORIES, type SplitMode,
+  groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, tripLength, spentByCategory, TRIP_CATEGORIES, type SplitMode,
 } from '@/lib/shared-split'
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
@@ -21,6 +21,7 @@ import UserSearch from './UserSearch'
 import TripPlanCard, { type TripGoal } from './TripPlanCard'
 import TripSpendHero from './TripSpendHero'
 import TripPlanItems from './TripPlanItems'
+import { planByCategory, planTotals } from '@/lib/trip-plan-items'
 import TripClosedSummary from './TripClosedSummary'
 import { budgetTotal, type TripBudget } from '@/lib/trip-plan'
 import TripBudgetSheet from './TripBudgetSheet'
@@ -136,9 +137,13 @@ export default function SharedTripView({
   const hasOpenItems = openItems.length > 0
   // Sin presupuesto explícito, lo que cuesta el viaje = lo ya pagado + lo que falta pagar.
   const derivedBudget: TripBudget = {}
+  const byCat = planByCategory(planItems)
+  const openTotal = planTotals(planItems).before
   if (budgetSum === 0) {
     for (const c of TRIP_CATEGORIES) {
-      const v = spent[c.key] + openItems.filter(i => i.trip_category === c.key).reduce((s, i) => s + i.est_amount, 0)
+      const p = byCat[c.key] ?? { before: 0, during: 0 }
+      // El gasto "durante" es un presupuesto: lo ya gastado en la categoría lo va consumiendo.
+      const v = spent[c.key] + p.before + (phase === 'planning' ? p.during : Math.max(0, p.during - spent[c.key]))
       if (v > 0) derivedBudget[c.key] = v
     }
   }
@@ -263,10 +268,9 @@ export default function SharedTripView({
     />
   ) : null
 
-  const openTotal = openItems.reduce((s, i) => s + i.est_amount, 0)
-  const itemsList = hasOpenItems && !closed ? (
+  const itemsList = (hasOpenItems || phase === 'planning') && !closed ? (
     <TripPlanItems embedded groupId={group.id} items={planItems} paymentMethods={paymentMethods}
-      today={today} closed={closed} people={people} />
+      today={today} closed={closed} people={people} tripDays={dayInfo?.total ?? tripLength(group.start_date, group.end_date)} />
   ) : null
 
   const addButton = !closed ? (
@@ -298,7 +302,7 @@ export default function SharedTripView({
 
       {itemsList && (
         <div className="mb-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gold)' }}>Por pagar</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gold)' }}>Plan de costos</p>
           {itemsList}
         </div>
       )}

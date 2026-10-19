@@ -211,6 +211,11 @@ export function daysToStart(start: string | null, today: string): number | null 
 }
 
 /** "Día 3 de 7" durante el viaje (total null si no hay fecha de vuelta). */
+/** Días totales del viaje (inclusive), o null si faltan fechas. */
+export function tripLength(start: string | null, end: string | null): number | null {
+  return start && end && end >= start ? dayDiff(start, end) + 1 : null
+}
+
 export function tripDay(start: string | null, end: string | null, today: string): { day: number; total: number | null } | null {
   if (!start || today < start) return null
   if (end && today > end) return null

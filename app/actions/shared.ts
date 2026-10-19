@@ -266,14 +266,23 @@ export async function addToTripGoal(goalId: string, amount: number): Promise<Res
 
 export async function savePlanItem(input: {
   id: string | null; groupId: string; description: string; category: TripCategory; amount: number; dueDate: string | null
+  kind?: 'reserva' | 'durante'; quantity?: number; unitAmount?: number | null; capAmount?: number | null; optional?: boolean
 }): Promise<Result<{ id: string }>> {
   const r = await rpc<string>('shared_plan_item_save', {
     p_id: input.id, p_group: input.groupId, p_description: input.description,
     p_category: input.category, p_amount: input.amount, p_due: input.dueDate || null,
+    p_kind: input.kind ?? 'reserva', p_qty: input.quantity ?? 1, p_unit: input.unitAmount ?? null,
+    p_cap: input.capAmount ?? null, p_optional: input.optional ?? false,
   })
   if (!r.ok) return r
   revalidatePath('/recurrentes')
   return { ok: true, id: r.data as string }
+}
+
+export async function togglePlanItem(id: string, enabled: boolean) {
+  const r = await rpc('shared_plan_item_toggle', { p_id: id, p_enabled: enabled })
+  revalidatePath('/recurrentes')
+  return r
 }
 
 export async function deletePlanItem(id: string) {

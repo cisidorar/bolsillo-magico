@@ -83,4 +83,12 @@ export interface SharedPlanItemRow {
   created_by:        string
   shared_expense_id: string | null
   paid_at:           string | null
+  /** reserva = se paga antes de salir; durante = presupuesto del viaje */
+  kind:              'reserva' | 'durante'
+  quantity:          number
+  unit_amount:       number | null
+  /** precio máximo aceptable por unidad */
+  cap_amount:        number | null
+  optional:          boolean
+  enabled:           boolean
 }

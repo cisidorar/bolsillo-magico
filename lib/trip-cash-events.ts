@@ -14,7 +14,8 @@ export async function getTripCashEvents(supabase: SupabaseClient, userId: string
   if (!ids.length) return []
   const [{ data: items }, { data: groups }, { data: members }] = await Promise.all([
     supabase.from('shared_plan_items').select('group_id, description, est_amount, due_date')
-      .in('group_id', ids).is('paid_at', null).not('due_date', 'is', null),
+      .in('group_id', ids).is('paid_at', null).not('due_date', 'is', null)
+      .eq('kind', 'reserva').eq('enabled', true),
     supabase.from('shared_groups').select('id, name, planned_people, closed_at').in('id', ids),
     supabase.from('shared_group_members').select('group_id').in('group_id', ids).eq('status', 'accepted'),
   ])
