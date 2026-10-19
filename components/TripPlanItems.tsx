@@ -91,13 +91,13 @@ export default function TripPlanItems({
         <div className="flex items-center gap-3">
           <button onClick={() => setDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Ver detalle de ${it.description}`}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
-              <CatIcon className="w-4 h-4" style={{ color: 'var(--gold)' }} />
+              <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{it.description}</p>
-              <p className="text-xs" style={{ color: it.due_date && it.due_date < today && it.kind === 'reserva' ? 'var(--gold)' : 'var(--ink-3)' }}>{sub}</p>
+              <p className="text-xs" style={{ color: it.due_date && it.due_date < today && it.kind === 'reserva' ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{sub}</p>
               {over > 0 && (
-                <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }}>
+                <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(255,194,60,0.18)', color: 'var(--gold-ink)' }}>
                   {formatCLP(over)} sobre tu tope
                 </span>
               )}
@@ -213,8 +213,8 @@ export default function TripPlanItems({
                   action={!closed && (
                     <button role="switch" aria-checked={it.enabled} aria-label={`Incluir ${it.description}`} disabled={busy} onClick={() => toggle(it)}
                       className="min-w-[44px] min-h-[44px] flex items-center justify-center">
-                      <span className="relative inline-block w-10 h-6 rounded-full transition-colors" style={{ background: it.enabled ? 'var(--primary)' : 'var(--border)' }}>
-                        <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: it.enabled ? 18 : 2 }} />
+                      <span className="relative inline-block w-10 h-6 rounded-full transition-colors" style={{ background: it.enabled ? 'var(--primary)' : 'var(--ink-3)' }}>
+                        <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: it.enabled ? 18 : 2, boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
                       </span>
                     </button>
                   )} />
@@ -245,7 +245,7 @@ export default function TripPlanItems({
           <SheetShell title={it.description} subtitle={it.kind === 'reserva' ? 'Reserva del viaje' : 'Gasto durante el viaje'} label="Detalle del ítem" onClose={() => setDetail(null)}>
             <p className="font-display text-3xl font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
             {over > 0 && (
-              <p className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
+              <p className="text-xs font-semibold" style={{ color: 'var(--gold-ink)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
             )}
             <div className="rounded-xl divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
               {rows.map(([k, v]) => (
@@ -296,12 +296,20 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
   const [amount, setAmount] = useState(item ? fmtNum(String(item.unit_amount ?? item.est_amount)) : '')
   const [cap, setCap] = useState(item?.cap_amount ? fmtNum(String(item.cap_amount)) : '')
   const [due, setDue] = useState(item?.due_date ?? '')
+  // Cerrado por defecto salvo que el ítem ya tenga algo acá — no esconder un
+  // valor que la persona ya puso.
+  const [moreOpen, setMoreOpen] = useState(!!(item?.cap_amount || item?.due_date))
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
   const q = Math.max(1, parseInt(qty.replace(/\D/g, ''), 10) || 1)
   const unit = parseInt(amount.replace(/\D/g, ''), 10) || 0
   const capN = parseInt(cap.replace(/\D/g, ''), 10) || 0
   const total = unit * q
+  // No bloquea — solo avisa si la cantidad parece un error de tipeo (ej. 999
+  // en vez de 9) antes de que el total salga mal sin que nadie lo note.
+  const qtyThreshold = kind === 'durante' ? (tripDays ? tripDays + 5 : 60) : (cat === 'alojamiento' ? 60 : 20)
+  const qtyImplausible = q > qtyThreshold
 
   async function save() {
     if (!desc.trim()) { setError('Escribe qué es.'); return }
@@ -356,15 +364,22 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
           <InputRow><input inputMode="numeric" value={qty} onChange={e => setQty(e.target.value.replace(/\D/g, '').slice(0, 3))} className={inputClass + ' tabular-nums'} /></InputRow>
         </div>
       </div>
-      {total > 0 && q > 1 && (
-        <p className="text-xs tabular-nums" style={{ color: 'var(--ink-2)' }}>Total: {q} × {formatCLP(unit)} = <span className="font-bold">{formatCLP(total)}</span></p>
+      {total > 0 && (
+        <p className="text-xs tabular-nums font-semibold" style={{ color: 'var(--ink)' }}>
+          {q > 1 ? <>{q} × {formatCLP(unit)} = <span className="font-bold">{formatCLP(total)}</span></> : <>Total: <span className="font-bold">{formatCLP(total)}</span></>}
+        </p>
+      )}
+      {qtyImplausible && (
+        <p className="text-xs font-medium" style={{ color: 'var(--gold-ink)' }}>
+          {q} {qtyUnit} es bastante — revisa que no sea un error de tipeo.
+        </p>
       )}
       <div>
         <FieldLabel hint="Si encuentras algo más caro, te avisamos.">Tope por unidad (opcional)</FieldLabel>
         <InputRow icon={<span className="text-sm font-bold">$</span>}>
           <input inputMode="numeric" value={cap} placeholder="120.000" onChange={e => setCap(fmtNum(e.target.value).slice(0, 13))} className={inputClass + ' tabular-nums'} />
         </InputRow>
-        {capN > 0 && unit > capN && <p className="text-xs mt-1 font-medium" style={{ color: 'var(--gold)' }}>El precio pasa del tope en {formatCLP(unit - capN)}.</p>}
+        {capN > 0 && unit > capN && <p className="text-xs mt-1 font-medium" style={{ color: 'var(--gold-ink)' }}>El precio pasa del tope en {formatCLP(unit - capN)}.</p>}
       </div>
       {kind === 'reserva' && (
         <div>
@@ -378,10 +393,17 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex gap-3">
         {item && (
-          <button onClick={remove} disabled={saving} aria-label="Eliminar del plan"
-            className="logout-btn flex items-center px-4 py-3 text-sm font-semibold text-red-500 border rounded-2xl flex-shrink-0">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          confirmDelete ? (
+            <button onClick={remove} disabled={saving}
+              className="px-4 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60 flex-shrink-0">
+              Confirmar
+            </button>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar del plan"
+              className="logout-btn flex items-center px-4 py-3 text-sm font-semibold text-red-500 border rounded-2xl transition-colors flex-shrink-0">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )
         )}
         <div className="flex-1">
           <PrimaryButton onClick={save} disabled={saving}>

@@ -8,6 +8,7 @@ colors:
   mint: "#1FBE8D"
   coral: "#FF6F61"
   gold: "#FFC23C"
+  gold-ink: "#B45309"
   bg: "#F4F7FB"
   surface: "#FFFFFF"
   surface-2: "#EDF2F8"
@@ -109,6 +110,8 @@ A deliberately narrow palette: one soft, friendly blue carries the brand and nea
 - **Coral** (`#FF6F61` light / `#FF8478` dark, `--coral`) + a full bordered banner (icon + tinted background `rgba(255,111,97,0.08-0.1)` + `1-1.5px solid rgba(255,111,97,0.25)`) = requires action **today**. At most one coral banner per screen; a second urgent condition degrades to a gold chip instead of a second banner.
 - **Gold** (`#FFC23C` light / `#FFD166` dark, `--gold`) + a small inline pill (`rounded-full`, `rgba(255,194,60,0.15)` background, never a banner-sized box) = attention needed soon, not today.
 - **Mint** (`#1FBE8D` light / `#34D6A2` dark, `--mint`) = positive confirmation only — never a banner, never anything actionable, even when the news is good.
+
+**The Gold-Ink Rule.** `--gold` (`#FFC23C`) is a background/icon-tint color only — at ~1.6:1 against white it fails WCAG AA as foreground text. Anywhere gold needs to read as *text or an icon glyph* on a light surface (an overdue-reservation label, an over-cap warning), use `--gold-ink` (`#B45309` light / `#FFD166` dark — in dark mode the bright `--gold` already reads fine on dark surfaces, so the two tokens converge) instead of `--gold` directly.
 
 **The One Interactive Blue Rule.** `--primary` is the only color that means "this is interactive / this is the brand." A second static blue utility (`.text-brand-600` etc., `#2B7CF6`) exists purely as a technical workaround — Tailwind JIT can't generate responsive variants of a CSS-custom-property-backed color — and should be treated as an implementation detail of that workaround, never a second brand hue to design with intentionally.
 

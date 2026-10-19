@@ -8,6 +8,7 @@
       "mint": { "role": "secondary", "displayName": "Confirmation Mint", "canonical": "#1FBE8D", "tonalRamp": ["#06241B", "#0D3F2E", "#117148", "#17995E", "#1FBE8D", "#5ED8B6", "#A6EBD6", "#E3F9EF"] },
       "coral": { "role": "tertiary", "displayName": "Urgent Coral", "canonical": "#FF6F61", "tonalRamp": ["#330F0B", "#5C1C15", "#8A2B20", "#C14233", "#FF6F61", "#FF9B8F", "#FFC7BE", "#FFEBE8"] },
       "gold": { "role": "tertiary", "displayName": "Attention Gold", "canonical": "#FFC23C", "tonalRamp": ["#332607", "#5C440E", "#8A6615", "#C1941E", "#FFC23C", "#FFD676", "#FFE8AC", "#FFF8E3"] },
+      "gold-ink": { "role": "tertiary", "displayName": "Attention Gold (text-safe)", "canonical": "#B45309" },
       "bg": { "role": "neutral", "displayName": "Page Wash", "canonical": "#F4F7FB" },
       "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#FFFFFF" },
       "surface-2": { "role": "neutral", "displayName": "Surface Subtle", "canonical": "#EDF2F8" },
@@ -101,6 +102,7 @@
     ],
     "rules": [
       { "name": "The Alert Severity Hierarchy Rule", "body": "Coral (full bordered banner, max one per screen) = today. Gold (small inline pill, never banner-sized) = soon. Mint = positive confirmation only, never actionable.", "section": "colors" },
+      { "name": "The Gold-Ink Rule", "body": "--gold (#FFC23C) is a background/icon-tint color only; at ~1.6:1 on white it fails WCAG AA as text. Use --gold-ink (#B45309 light / #FFD166 dark) wherever gold needs to read as foreground text or an icon glyph on a light surface.", "section": "colors" },
       { "name": "The One Interactive Blue Rule", "body": "--primary is the only color that means interactive/brand. The static .text-brand-600 utility (#2B7CF6) is a Tailwind-JIT responsive-variant workaround, not a second brand hue.", "section": "colors" },
       { "name": "The Tabular Numerals Rule", "body": "Every monetary amount renders with tabular-nums, no exceptions.", "section": "typography" },
       { "name": "The Flat-by-Default Rule", "body": "Surfaces are flat at rest, told apart by their border; shadow only intensifies as a response to being the primary action on screen, and even then stays soft.", "section": "elevation" }

@@ -16,6 +16,11 @@
     --primary-ink:  #FFFFFF;
     --primary-soft: #E8EFFE;
     --gold:         #FFC23C;
+    /* Texto/ícono sobre superficie clara — #FFC23C puro da ~1.6:1 de contraste
+       contra blanco (falla AA). Mismo matiz, oscurecido para leer como
+       foreground; el fondo tintado (rgba(255,194,60,.15-.18)) sigue usando
+       --gold tal cual. */
+    --gold-ink:     #B45309;
     --mint:         #1FBE8D;
     --coral:        #FF6F61;
     --shadow:       rgba(14,42,82,.06);
@@ -44,6 +49,9 @@
     --primary-ink:  #07122A;
     --primary-soft: #16233D;
     --gold:         #FFD166;
+    /* En oscuro el --gold brillante ya lee bien contra superficies oscuras —
+       no hace falta un segundo tono. */
+    --gold-ink:     #FFD166;
     --mint:         #34D6A2;
     --coral:        #FF8478;
     --shadow:       rgba(0,0,0,.28);
