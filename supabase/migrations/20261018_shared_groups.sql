@@ -165,7 +165,7 @@ $$;
 -- Debe dar exactamente lo mismo que splitAmount() en lib/shared-split.ts.
 CREATE OR REPLACE FUNCTION public.shared__shares(
   g public.shared_groups, p_amount int, p_paid_by uuid, p_kind text, p_exact_a int
-) RETURNS int[] LANGUAGE plpgsql IMMUTABLE AS $$
+) RETURNS int[] LANGUAGE plpgsql IMMUTABLE SET search_path = public AS $$
 DECLARE r numeric; sa int; sb int;
 BEGIN
   IF p_kind = 'only_a' THEN RETURN ARRAY[p_amount, 0]; END IF;
