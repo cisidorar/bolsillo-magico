@@ -62,6 +62,14 @@ export default function TripPlanItems({
 
   if (open.length === 0 && (closed || embedded)) return null
 
+  // Abrir el detalle de un ítem da por cerrado cualquier "¿con qué pagaste?"
+  // que haya quedado abierto para otro ítem — si no, al volver del detalle
+  // ese panel reaparece sin que nadie se acuerde de haberlo abierto.
+  function openDetail(it: SharedPlanItemRow) {
+    setPaying(null); setPm(''); setError('')
+    setDetail(it)
+  }
+
   async function pay(it: SharedPlanItemRow) {
     setBusy(true); setError('')
     const res = await payPlanItem(it.id, it.est_amount, today, pm || null)
@@ -89,7 +97,7 @@ export default function TripPlanItems({
     return (
       <div className="py-2.5" style={{ opacity: off ? 0.55 : 1 }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => setDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Ver detalle de ${it.description}`}>
+          <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Ver detalle de ${it.description}`}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
               <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
             </div>
@@ -113,7 +121,7 @@ export default function TripPlanItems({
   }
 
   const addBtn = (kind: 'reserva' | 'durante', optional = false, label = 'Agregar') => !closed && (
-    <button onClick={() => setSheet({ kind, optional })} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
+    <button onClick={() => { setDetail(null); setPaying(null); setSheet({ kind, optional }) }} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
       <Plus className="w-3.5 h-3.5" /> {label}
     </button>
   )
@@ -149,7 +157,7 @@ export default function TripPlanItems({
                 <Row it={it}
                   sub={`${it.due_date ? fmtDue(it.due_date, today) : (TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? '')}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${share(it.est_amount)}`}
                   action={!closed && paying !== it.id && (
-                    <button onClick={() => { setPaying(it.id); setError('') }}
+                    <button onClick={() => { setDetail(null); setPaying(it.id); setError('') }}
                       className="px-3 min-h-[44px] rounded-xl text-xs font-bold border"
                       style={{ borderColor: 'var(--border)', color: 'var(--primary)', background: 'transparent' }}>Pagar</button>
                   )} />
@@ -232,7 +240,7 @@ export default function TripPlanItems({
         const catLabel = TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''
         const q = qtyLabel(it, formatCLP)
         const rows: [string, string][] = [
-          ['Tipo', it.kind === 'reserva' ? 'Reserva (antes de salir)' : 'Gasto durante el viaje'],
+          ['Tipo', it.kind === 'reserva' ? 'Reserva (antes de salir)' : 'Durante el viaje'],
           ['Categoría', catLabel],
         ]
         if (q) rows.push(['Detalle', q])
@@ -242,7 +250,7 @@ export default function TripPlanItems({
         if (people > 1) rows.push(['Tu parte aprox.', formatCLP(Math.ceil(it.est_amount / people))])
         if (it.optional) rows.push(['Opcional', it.enabled ? 'Incluido en el total' : 'No incluido'])
         return (
-          <SheetShell title={it.description} subtitle={it.kind === 'reserva' ? 'Reserva del viaje' : 'Gasto durante el viaje'} label="Detalle del ítem" onClose={() => setDetail(null)}>
+          <SheetShell title={it.description} subtitle={it.kind === 'reserva' ? 'Reserva (antes de salir)' : 'Durante el viaje'} label="Detalle del ítem" onClose={() => setDetail(null)}>
             <p className="font-display text-3xl font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
             {over > 0 && (
               <p className="text-xs font-semibold" style={{ color: 'var(--gold-ink)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
@@ -312,7 +320,7 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
   const qtyImplausible = q > qtyThreshold
 
   async function save() {
-    if (!desc.trim()) { setError('Escribe qué es.'); return }
+    if (!desc.trim()) { setError('Escribe una descripción.'); return }
     if (unit <= 0) { setError('Ingresa un monto mayor a cero.'); return }
     setSaving(true); setError('')
     const res = await savePlanItem({
@@ -374,21 +382,30 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
           {q} {qtyUnit} es bastante — revisa que no sea un error de tipeo.
         </p>
       )}
-      <div>
-        <FieldLabel hint="Si encuentras algo más caro, te avisamos.">Tope por unidad (opcional)</FieldLabel>
-        <InputRow icon={<span className="text-sm font-bold">$</span>}>
-          <input inputMode="numeric" value={cap} placeholder="120.000" onChange={e => setCap(fmtNum(e.target.value).slice(0, 13))} className={inputClass + ' tabular-nums'} />
-        </InputRow>
-        {capN > 0 && unit > capN && <p className="text-xs mt-1 font-medium" style={{ color: 'var(--gold-ink)' }}>El precio pasa del tope en {formatCLP(unit - capN)}.</p>}
-      </div>
-      {kind === 'reserva' && (
-        <div>
-          <FieldLabel hint="Con fecha aparece en tu flujo de caja a 30 días.">Vence (opcional)</FieldLabel>
-          <InputRow><input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputClass} /></InputRow>
+      {moreOpen ? (
+        <div className="space-y-3">
+          <div>
+            <FieldLabel hint="Si encuentras algo más caro, te avisamos.">Tope por unidad (opcional)</FieldLabel>
+            <InputRow icon={<span className="text-sm font-bold">$</span>}>
+              <input inputMode="numeric" value={cap} placeholder="120.000" onChange={e => setCap(fmtNum(e.target.value).slice(0, 13))} className={inputClass + ' tabular-nums'} />
+            </InputRow>
+            {capN > 0 && unit > capN && <p className="text-xs mt-1 font-medium" style={{ color: 'var(--gold-ink)' }}>El precio pasa del tope en {formatCLP(unit - capN)}.</p>}
+          </div>
+          {kind === 'reserva' && (
+            <div>
+              <FieldLabel hint="Con fecha aparece en tu flujo de caja a 30 días.">Vence (opcional)</FieldLabel>
+              <InputRow><input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputClass} /></InputRow>
+            </div>
+          )}
         </div>
+      ) : (
+        <button type="button" onClick={() => setMoreOpen(true)}
+          className="text-xs font-semibold min-h-[44px] -my-3 inline-flex items-center" style={{ color: 'var(--primary)' }}>
+          + Más opciones {kind === 'reserva' ? '(tope, vencimiento)' : '(tope)'}
+        </button>
       )}
       <div className="flex items-center gap-2">
-        <Chip active={optional} onClick={() => setOptional(!optional)}>Es opcional (con interruptor)</Chip>
+        <Chip active={optional} onClick={() => setOptional(!optional)}>Es opcional</Chip>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
       <div className="flex gap-3">
@@ -396,7 +413,7 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
           confirmDelete ? (
             <button onClick={remove} disabled={saving}
               className="px-4 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60 flex-shrink-0">
-              Confirmar
+              {saving ? 'Eliminando…' : 'Eliminar ítem'}
             </button>
           ) : (
             <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar del plan"
