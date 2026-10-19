@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   splitByWeights, equalWeights, incomeWeights, exactValid, groupBalance, suggestedTransfers,
-  tripStage, tripPhase, daysToStart, tripDay, cardAmount, sumCardAmounts, representativeIncome, spentByCategory,
+  tripStage, tripPhase, guessTripCategory, daysToStart, tripDay, cardAmount, sumCardAmounts, representativeIncome, spentByCategory,
 } from './shared-split'
 
 const A = 'a', B = 'b', C = 'c'
@@ -170,5 +170,21 @@ describe('daysToStart / tripDay', () => {
     expect(tripDay('2026-12-01', '2026-12-07', '2026-12-03')).toEqual({ day: 3, total: 7 })
     expect(tripDay('2026-12-01', null, '2026-12-01')).toEqual({ day: 1, total: null })
     expect(tripDay('2026-12-01', '2026-12-07', '2026-12-08')).toBeNull()
+  })
+})
+
+describe('guessTripCategory', () => {
+  it('reconoce lo típico', () => {
+    expect(guessTripCategory('Airbnb')).toBe('alojamiento')
+    expect(guessTripCategory('Cabaña en Puerto Varas')).toBe('alojamiento')
+    expect(guessTripCategory('Pasajes LATAM')).toBe('transporte')
+    expect(guessTripCategory('bencina')).toBe('transporte')
+    expect(guessTripCategory('Cena en Castro')).toBe('comida')
+    expect(guessTripCategory('Tour a la isla')).toBe('actividades')
+    expect(guessTripCategory('Recuerdos')).toBe('compras')
+  })
+  it('sin pista no adivina', () => {
+    expect(guessTripCategory('Seguro')).toBeNull()
+    expect(guessTripCategory('')).toBeNull()
   })
 })

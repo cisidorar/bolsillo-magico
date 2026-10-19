@@ -157,6 +157,24 @@ export function tripStage(
   return 'planning'
 }
 
+// ── Categoría del viaje según la descripción ───────────────────────────────
+
+const TRIP_CAT_RULES: [TripCategory, RegExp][] = [
+  ['alojamiento', /\b(airbnb|booking|hotel|hostal|hostel|caba[ñn]a|alojamiento|departamento|depto|camping|lodge|posada|arriendo)\b/i],
+  ['transporte',  /\b(vuelo|pasaje|pasajes|avi[oó]n|latam|sky|jetsmart|bus|turbus|pullman|tren|ferry|barcaza|bencina|combustible|peaje|tag|uber|cabify|didi|taxi|auto|rent ?a ?car|arriendo de auto|estacionamiento|transfer)\b/i],
+  ['comida',      /\b(comida|cena|almuerzo|desayuno|once|restor[aá]n|restaurant|super|supermercado|jumbo|lider|unimarc|caf[eé]|bar|pizza|sushi|asado|mercado)\b/i],
+  ['actividades', /\b(tour|excursi[oó]n|entrada|entradas|museo|parque|kayak|trekking|clase|actividad|termas|ski|navegaci[oó]n|paseo)\b/i],
+  ['compras',     /\b(recuerdos?|souvenirs?|ropa|regalos?|compras?|artesan[ií]as?|tiendas?)\b/i],
+]
+
+/** Categoría probable del viaje a partir de la descripción, o null si no hay pista. */
+export function guessTripCategory(description: string): TripCategory | null {
+  const d = description.trim()
+  if (!d) return null
+  for (const [cat, re] of TRIP_CAT_RULES) if (re.test(d)) return cat
+  return null
+}
+
 // ── Fase del viaje (lo que la vista prioriza) ──────────────────────────────
 
 /**

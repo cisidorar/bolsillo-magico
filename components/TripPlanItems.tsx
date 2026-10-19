@@ -62,7 +62,7 @@ export default function TripPlanItems({
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />
-          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Pagos por hacer</h2>
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Por pagar</h2>
         </div>
         {!closed && (
           <button onClick={() => setSheet('new')} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>

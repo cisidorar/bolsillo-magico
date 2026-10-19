@@ -22,7 +22,7 @@ import TripPlanCard, { type TripGoal } from './TripPlanCard'
 import TripSpendHero from './TripSpendHero'
 import TripPlanItems from './TripPlanItems'
 import TripClosedSummary from './TripClosedSummary'
-import { budgetTotal } from '@/lib/trip-plan'
+import { budgetTotal, type TripBudget } from '@/lib/trip-plan'
 import TripBudgetSheet from './TripBudgetSheet'
 import type {
   SharedGroup, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow,
@@ -132,7 +132,16 @@ export default function SharedTripView({
   const spent = spentByCategory(expenses)
   const budgetSum = budgetTotal(group.budget ?? {})
   const todaySpent = expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0)
-  const hasOpenItems = planItems.some(i => !i.paid_at)
+  const openItems = planItems.filter(i => !i.paid_at)
+  const hasOpenItems = openItems.length > 0
+  // Sin presupuesto explícito, lo que cuesta el viaje = lo ya pagado + lo que falta pagar.
+  const derivedBudget: TripBudget = {}
+  if (budgetSum === 0) {
+    for (const c of TRIP_CATEGORIES) {
+      const v = spent[c.key] + openItems.filter(i => i.trip_category === c.key).reduce((s, i) => s + i.est_amount, 0)
+      if (v > 0) derivedBudget[c.key] = v
+    }
+  }
 
   function openInvite() {
     setInviteOpen(true)
@@ -140,7 +149,7 @@ export default function SharedTripView({
   }
 
   // ── Bloques (el orden depende de la fase) ────────────────────────────────
-  const steps = phase === 'planning' && (!group.start_date || budgetSum === 0 || (alone && pending.length === 0 && isCreator)) ? (
+  const steps = phase === 'planning' && (!group.start_date || (budgetSum === 0 && !hasOpenItems && expenses.length === 0) || (alone && pending.length === 0 && isCreator)) ? (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Para planificar:</span>
       {!group.start_date && (
@@ -149,7 +158,7 @@ export default function SharedTripView({
           <CalendarDays className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Fechas
         </button>
       )}
-      {budgetSum === 0 && (
+      {budgetSum === 0 && !hasOpenItems && expenses.length === 0 && (
         <button onClick={() => setBudgetOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-full text-xs font-semibold border"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
           <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} /> Cuánto costaría
@@ -255,7 +264,8 @@ export default function SharedTripView({
 
   const planCard = phase === 'planning' ? (
     <TripPlanCard
-      groupId={group.id} groupName={group.name} budget={group.budget ?? {}}
+      groupId={group.id} groupName={group.name} budget={budgetSum > 0 ? (group.budget ?? {}) : derivedBudget}
+      derived={budgetSum === 0}
       people={people} myFraction={myFraction} capacity={capacity}
       myPaid={bal.share[meId] ?? 0} goal={goal}
       startDate={group.start_date} today={today} closed={closed}
@@ -272,7 +282,7 @@ export default function SharedTripView({
     <button onClick={() => setSheet({ expense: null })}
       className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-      <Plus className="w-3.5 h-3.5" /> Gasto
+      <Plus className="w-3.5 h-3.5" /> {phase === 'planning' ? 'Agregar' : 'Gasto'}
     </button>
   ) : null
 
@@ -537,6 +547,7 @@ export default function SharedTripView({
           shares={sheet.expense ? (sharesByExp[sheet.expense.id] ?? {}) : {}}
           paymentMethods={paymentMethods}
           expense={sheet.expense} today={today} onClose={() => setSheet(null)}
+          defaultPlanned={phase === 'planning'}
         />
       )}
       {editOpen && (

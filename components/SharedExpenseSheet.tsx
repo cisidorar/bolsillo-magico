@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Check, Trash2 } from 'lucide-react'
 import { useToast } from '@/components/ToastProvider'
 import { cn, formatCLP } from '@/lib/utils'
-import { saveSharedExpense, deleteSharedExpense } from '@/app/actions/shared'
+import { saveSharedExpense, deleteSharedExpense, savePlanItem } from '@/app/actions/shared'
 import {
-  splitByWeights, equalWeights, exactValid, TRIP_CATEGORIES,
+  splitByWeights, equalWeights, exactValid, guessTripCategory, TRIP_CATEGORIES,
   type SplitKind, type TripCategory,
 } from '@/lib/shared-split'
 import type { SharedGroup, SharedExpenseRow } from '@/lib/shared-types'
@@ -20,7 +20,7 @@ function fmtNum(raw: string): string {
 }
 
 export default function SharedExpenseSheet({
-  group, meId, members, weights, shares, paymentMethods, expense, today, onClose,
+  group, meId, members, weights, shares, paymentMethods, expense, today, onClose, defaultPlanned = false,
 }: {
   group:          SharedGroup
   meId:           string
@@ -34,6 +34,8 @@ export default function SharedExpenseSheet({
   expense:        SharedExpenseRow | null
   today:          string
   onClose:        () => void
+  /** Antes del viaje: lo nuevo parte como costo planificado (aún sin pagar) */
+  defaultPlanned?: boolean
 }) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -57,6 +59,10 @@ export default function SharedExpenseSheet({
   const [exact, setExact] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(shares).map(([k, v]) => [k, fmtNum(String(v))])),
   )
+  // "Por pagar": un costo que todavía no se paga (no pide método, reparto ni fecha de pago).
+  const [planned, setPlanned] = useState(!expense && defaultPlanned)
+  const [dueDate, setDueDate] = useState('')
+  const catTouched = useRef(!!expense)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
@@ -99,6 +105,16 @@ export default function SharedExpenseSheet({
   async function save() {
     if (amountN <= 0) { setError('Ingresa un monto mayor a cero.'); return }
     if (!desc.trim()) { setError('Escribe una descripción.'); return }
+    if (planned) {
+      setSaving(true); setError('')
+      const res = await savePlanItem({ id: null, groupId: group.id, description: desc.trim(), category: cat, amount: amountN, dueDate: dueDate || null })
+      setSaving(false)
+      if (!res.ok) { setError(res.error); return }
+      showToast('Agregado a lo que cuesta el viaje')
+      router.refresh()
+      onClose()
+      return
+    }
     if (kind === 'exact' && !exactValid(amountN, exactN)) { setError(`Las partes suman ${formatCLP(exactSum)}; tienen que sumar ${formatCLP(amountN)}.`); return }
     if (kind !== 'exact' && parts.length === 0) { setError('Elige al menos una persona.'); return }
     if (kind === 'group' && !incomeOk) { setError('El reparto según sueldo todavía no se puede calcular.'); return }
@@ -131,13 +147,30 @@ export default function SharedExpenseSheet({
 
   return (
     <SheetShell
-      title={expense ? 'Editar gasto' : 'Nuevo gasto'}
-      subtitle={`${group.name} · en tus gastos queda solo tu parte`}
+      title={expense ? 'Editar gasto' : planned ? 'Costo del viaje' : 'Nuevo gasto'}
+      subtitle={planned ? `${group.name} · aún no se paga` : `${group.name} · en tus gastos queda solo tu parte`}
       label={expense ? 'Editar gasto del viaje' : 'Nuevo gasto del viaje'}
       onClose={onClose}
     >
+      {!expense && (
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl" style={{ background: 'var(--surface-2)' }} role="tablist">
+          {[{ v: true, l: 'Por pagar' }, { v: false, l: 'Ya pagado' }].map(o => (
+            <button key={o.l} type="button" role="tab" aria-selected={planned === o.v} onClick={() => setPlanned(o.v)}
+              className="min-h-[44px] rounded-xl text-sm font-semibold transition-colors"
+              style={planned === o.v
+                ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }
+                : { color: 'var(--ink-3)' }}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      )}
+
       <InputRow icon={<FileText className="w-4 h-4" />} invalid={!!error && !desc.trim()}>
-        <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Descripción — Ej: Alojamiento, Cena, Bencina…"
+        <input value={desc} onChange={e => {
+            setDesc(e.target.value)
+            if (!catTouched.current) { const g = guessTripCategory(e.target.value); if (g) setCat(g) }
+          }} placeholder="Descripción — Ej: Alojamiento, Cena, Bencina…"
           className={inputClass} maxLength={80} autoFocus={!expense} />
       </InputRow>
 
@@ -157,11 +190,19 @@ export default function SharedExpenseSheet({
         <FieldLabel>Categoría del viaje</FieldLabel>
         <div className="flex flex-wrap gap-1.5">
           {TRIP_CATEGORIES.map(c => (
-            <Chip key={c.key} active={cat === c.key} onClick={() => setCat(c.key)}>{c.label}</Chip>
+            <Chip key={c.key} active={cat === c.key} onClick={() => { catTouched.current = true; setCat(c.key) }}>{c.label}</Chip>
           ))}
         </div>
       </div>
 
+      {planned ? (
+        <div>
+          <FieldLabel hint="Si tiene fecha, aparece en tu flujo de caja. Cuando lo pagues, lo marcas en «Por pagar».">¿Cuándo hay que pagarlo? (opcional)</FieldLabel>
+          <InputRow>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+          </InputRow>
+        </div>
+      ) : <>
       {/* Quién pagó y con qué — se leen como una sola decisión, no dos campos sueltos */}
       {(multi || iPaid) && (
         <div className="space-y-3">
@@ -207,8 +248,8 @@ export default function SharedExpenseSheet({
         </InputRow>
       </div>
 
-      {/* Cómo se reparte y entre quiénes — misma decisión en dos pasos */}
-      <div className="space-y-3">
+      {/* Cómo se reparte y entre quiénes — solo importa si hay más de una persona */}
+      {multi && <div className="space-y-3">
         <div>
           <FieldLabel>Cómo se reparte</FieldLabel>
           <div className="flex flex-wrap gap-1.5">
@@ -237,7 +278,7 @@ export default function SharedExpenseSheet({
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {kind === 'exact' && (
         <div className="space-y-2">
@@ -270,6 +311,8 @@ export default function SharedExpenseSheet({
         </div>
       )}
 
+      </>}
+
       {error && amountN > 0 && <p className="text-xs text-red-500">{error}</p>}
 
       <div className="flex gap-3">
@@ -287,8 +330,8 @@ export default function SharedExpenseSheet({
           )
         )}
         <div className="flex-1">
-          <PrimaryButton onClick={save} disabled={saving || (!preview && kind !== 'group')}>
-            {saving ? 'Guardando…' : <><Check className="w-4 h-4" /> {expense ? 'Guardar cambios' : 'Guardar gasto'}</>}
+          <PrimaryButton onClick={save} disabled={saving || (!planned && !preview && kind !== 'group')}>
+            {saving ? 'Guardando…' : <><Check className="w-4 h-4" /> {expense ? 'Guardar cambios' : planned ? 'Agregar al viaje' : 'Guardar gasto'}</>}
           </PrimaryButton>
         </div>
       </div>

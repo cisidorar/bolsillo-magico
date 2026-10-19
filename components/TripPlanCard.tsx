@@ -30,8 +30,10 @@ export interface TripGoal { id: string; target_amount: number; current_amount: n
 
 export default function TripPlanCard({
   groupId, groupName, budget, people, myFraction, capacity, myPaid, goal, startDate, today, closed,
-  onEditBudget, onEditDates,
+  onEditBudget, onEditDates, derived = false,
 }: {
+  /** El total sale de lo agregado (por pagar + pagado), no de un presupuesto explícito */
+  derived?:     boolean
   groupId:      string
   groupName:    string
   budget:       TripBudget
@@ -98,7 +100,7 @@ export default function TripPlanCard({
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Tu parte estimada</p>
           <p className="font-display text-2xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            de {formatCLP(total)} en total{people > 1 ? ` · ${people} personas${myFraction != null ? ', según lo que gana cada uno' : ', partes iguales'}` : ''}
+            de {formatCLP(total)} {derived ? 'sumando lo que agregaste' : 'en total'}{people > 1 ? ` · ${people} personas${myFraction != null ? ', según lo que gana cada uno' : ', partes iguales'}` : ''}
           </p>
         </div>
         {!closed && (
