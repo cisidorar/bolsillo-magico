@@ -10,7 +10,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import { suggestCategory, recordCategoryRule, type CategorySuggestion } from '@/app/actions/suggest-category'
 import { useToast } from '@/components/ToastProvider'
 import { saveSharedExpense } from '@/app/actions/shared'
-import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
+import { TRIP_CATEGORIES, guessTripCategory, type TripCategory } from '@/lib/shared-split'
 import type { Category, PaymentMethod, ExpenseWithRelations } from '@/types'
 
 interface Props {
@@ -97,7 +97,7 @@ export default function ExpenseSheet({
 
   // Fase 3 compartidos: "¿Es de un viaje?" — el gasto se registra en el viaje
   // (todos los miembros, modo de reparto del grupo) y en tu historial queda solo tu parte.
-  const [trips, setTrips] = useState<{ id: string; name: string; split_mode: string; split_error: string | null }[]>([])
+  const [trips, setTrips] = useState<{ id: string; name: string; split_mode: string; split_error: string | null; start_date: string | null; end_date: string | null }[]>([])
   const [tripId, setTripId] = useState<string | null>(null)
   const [tripCat, setTripCat] = useState<TripCategory>('otros')
 
@@ -145,12 +145,27 @@ export default function ExpenseSheet({
       const ids = (mem ?? []).map(m => m.group_id as string)
       if (!ids.length) { if (!cancelled) setTrips([]); return }
       const { data: gs } = await supabase.from('shared_groups')
-        .select('id, name, split_mode, split_error').in('id', ids).is('closed_at', null)
-      if (!cancelled) setTrips((gs ?? []) as typeof trips)
+        .select('id, name, split_mode, split_error, start_date, end_date').in('id', ids).is('closed_at', null)
+      if (cancelled) return
+      const list = (gs ?? []) as typeof trips
+      setTrips(list)
+      // Si estás de viaje (hoy entre la salida y la vuelta), el gasto parte asignado a ese viaje.
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const ongoing = list.filter(t => t.start_date && t.start_date <= today && (t.end_date ?? t.start_date) >= today)
+      setTripId(ongoing.length === 1 ? ongoing[0].id : null)
     })()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isEditing])
+
+  // Categoría del viaje según la descripción (mientras no la elijas a mano)
+  const tripCatTouched = useRef(false)
+  useEffect(() => {
+    if (!tripId || tripCatTouched.current) return
+    const g = guessTripCategory(desc)
+    if (g) setTripCat(g)
+  }, [desc, tripId])
 
   // Calcular las 3 categorías más usadas en los últimos 30 días
   useEffect(() => {
@@ -395,7 +410,7 @@ export default function ExpenseSheet({
         <>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {TRIP_CATEGORIES.map(c => (
-              <button key={c.key} type="button" onClick={() => setTripCat(c.key)} aria-pressed={tripCat === c.key}
+              <button key={c.key} type="button" onClick={() => { tripCatTouched.current = true; setTripCat(c.key) }} aria-pressed={tripCat === c.key}
                 className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', tripCat === c.key ? 'sheet-chip-active' : 'sheet-chip')}>{c.label}</button>
             ))}
           </div>

@@ -378,3 +378,11 @@ El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirma
 - **Cerrado:** resumen + gastos de solo lectura.
 - Lista `/compartidos`: activos primero (por saldar, en viaje, planificando) con "Sale en / Día X de Y"; terminados y cerrados en "Anteriores".
 - `/inicio`: chips gold `TripSettleChips` para viajes terminados con saldo pendiente (`getTripsToSettle`).
+
+### Iteración de flujo (oct 2026)
+
+- Una sola tarjeta de costos: "Costos del viaje" (antes de salir) / "Gastos del viaje", con sección **Por pagar** (pagos programados, botón Pagar) y **Pagado**; un único "+ Agregar" que abre el formulario con "Por pagar / Ya pagado".
+- Durante el viaje, sin presupuesto explícito, la barra compara lo gastado con lo previsto (pagado + por pagar).
+- `ExpenseSheet` (botón + global): si hoy estás en un viaje (entre salida y vuelta), el gasto parte asignado a ese viaje y la categoría del viaje se adivina por la descripción.
+- Al cerrar el viaje se archiva tu meta de ahorro ligada (`is_active = false`); al reabrirlo vuelve.
+- Viaje solo: "Viaje terminado" (sin "cuentas cuadradas") y el resumen no repite "Pusiste tú".

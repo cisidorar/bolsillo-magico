@@ -241,7 +241,7 @@ export default function SharedTripView({
     <div className="card p-4 flex items-center gap-3">
       <CircleCheck className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--mint)' }} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Viaje terminado y cuentas cuadradas</p>
+        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{alone ? 'Viaje terminado' : 'Viaje terminado y cuentas cuadradas'}</p>
         <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Ciérralo para archivarlo; puedes reabrirlo si falta algo.</p>
       </div>
       <button disabled={busy} onClick={() => run(() => setSharedGroupClosed(group.id, true), 'Viaje cerrado')}
@@ -254,7 +254,7 @@ export default function SharedTripView({
 
   const spendHero = (
     <TripSpendHero
-      budget={group.budget ?? {}} spent={spent} closed={closed}
+      budget={budgetSum > 0 ? (group.budget ?? {}) : derivedBudget} spent={spent} closed={closed}
       onEditBudget={() => setBudgetOpen(true)}
       label={phase === 'planning' ? 'Ya pagado o reservado' : 'Gastado del viaje'}
       todaySpent={phase === 'traveling' ? todaySpent : null}
@@ -273,8 +273,9 @@ export default function SharedTripView({
     />
   ) : null
 
-  const items = (phase === 'planning' || hasOpenItems) && !closed ? (
-    <TripPlanItems groupId={group.id} items={planItems} paymentMethods={paymentMethods}
+  const openTotal = openItems.reduce((s, i) => s + i.est_amount, 0)
+  const itemsList = hasOpenItems && !closed ? (
+    <TripPlanItems embedded groupId={group.id} items={planItems} paymentMethods={paymentMethods}
       today={today} closed={closed} people={people} />
   ) : null
 
@@ -291,25 +292,38 @@ export default function SharedTripView({
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
-            {phase === 'planning' ? 'Reservas y pagos hechos' : 'Gastos del viaje'}
+            {phase === 'planning' ? 'Costos del viaje' : 'Gastos del viaje'}
           </h2>
-          {bal.total > 0 && (
+          {(bal.total > 0 || openTotal > 0) && (
             <p className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
-              {formatCLP(bal.total)} en total · tu parte {formatCLP(bal.share[meId] ?? 0)}{!alone ? ` · pusiste ${formatCLP(bal.paid[meId] ?? 0)}` : ''}
+              {phase === 'planning' || openTotal > 0
+                ? `${formatCLP(bal.total)} pagado${openTotal > 0 ? ` · ${formatCLP(openTotal)} por pagar` : ''}`
+                : `${formatCLP(bal.total)} en total`}
+              {!alone && bal.total > 0 ? ` · tu parte ${formatCLP(bal.share[meId] ?? 0)}` : ''}
             </p>
           )}
         </div>
         {addButton}
       </div>
 
+      {itemsList && (
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gold)' }}>Por pagar</p>
+          {itemsList}
+        </div>
+      )}
+
       {expenses.length === 0 ? (
-        <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
-          {phase === 'planning'
-            ? 'Cuando reserves o pagues algo (pasajes, alojamiento…) agrégalo aquí. En tus gastos queda solo tu parte.'
-            : 'Agrega cada gasto apenas lo pagues; la app calcula la parte de cada uno.'}
-        </p>
+        !itemsList && (
+          <p className="text-sm py-6 text-center" style={{ color: 'var(--ink-3)' }}>
+            {phase === 'planning'
+              ? 'Agrega lo que va a costar (alojamiento, pasajes…) aunque todavía no lo pagues. Así sabes si te alcanza.'
+              : 'Agrega cada gasto apenas lo pagues; la app calcula la parte de cada uno.'}
+          </p>
+        )
       ) : (
         <div className="space-y-4">
+          {itemsList && <p className="text-[11px] font-bold uppercase tracking-wider -mb-2" style={{ color: 'var(--mint)' }}>Pagado</p>}
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
               <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
@@ -347,8 +361,8 @@ export default function SharedTripView({
   )
 
   const main =
-    phase === 'planning'  ? <>{steps}{planCard}{items}{saldo}{expenses.length > 0 && budgetSum > 0 ? spendHero : null}{gastos}</>
-    : phase === 'traveling' ? <>{spendHero}{saldo}{gastos}{items}</>
+    phase === 'planning'  ? <>{steps}{planCard}{gastos}{saldo}</>
+    : phase === 'traveling' ? <>{spendHero}{saldo}{gastos}</>
     : phase === 'settling'  ? <>{saldo}{summary}{gastos}</>
     : phase === 'done'      ? <>{doneCard}{summary}{gastos}</>
     : <>{summary}{gastos}</>

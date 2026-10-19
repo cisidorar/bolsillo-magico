@@ -27,8 +27,10 @@ function fmtDue(d: string | null, today: string): string {
 
 /** Pagos futuros conocidos del viaje ("saldo del alojamiento el 20 de nov"). */
 export default function TripPlanItems({
-  groupId, items, paymentMethods, today, closed, people,
+  groupId, items, paymentMethods, today, closed, people, embedded = false,
 }: {
+  /** Solo la lista (dentro de la tarjeta de costos del viaje), sin tarjeta ni encabezado propio */
+  embedded?:      boolean
   groupId:        string
   items:          SharedPlanItemRow[]
   paymentMethods: PaymentMethod[]
@@ -45,7 +47,7 @@ export default function TripPlanItems({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  if (open.length === 0 && closed) return null
+  if (open.length === 0 && (closed || embedded)) return null
 
   async function pay(it: SharedPlanItemRow) {
     setBusy(true); setError('')
@@ -57,8 +59,7 @@ export default function TripPlanItems({
     router.refresh()
   }
 
-  return (
-    <div className="card p-4">
+  const header = (
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />
@@ -70,6 +71,11 @@ export default function TripPlanItems({
           </button>
         )}
       </div>
+  )
+
+  return (
+    <div className={embedded ? '' : 'card p-4'}>
+      {!embedded && header}
 
       {open.length === 0 ? (
         <p className="text-xs" style={{ color: 'var(--ink-3)' }}>

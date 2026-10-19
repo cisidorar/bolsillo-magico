@@ -172,7 +172,21 @@ export async function deleteSettlement(id: string) {
 }
 
 export async function setSharedGroupClosed(groupId: string, closed: boolean) {
-  return rpc('shared_group_set_closed', { p_group: groupId, p_closed: closed })
+  const r = await rpc('shared_group_set_closed', { p_group: groupId, p_closed: closed })
+  if (!r.ok) return r
+  // Tu meta de ahorro ligada al viaje se archiva al cerrarlo (y vuelve si lo reabres).
+  const user = await getServerSession()
+  if (user) {
+    const supabase = await createClient()
+    const { data: m } = await supabase.from('shared_group_members')
+      .select('savings_goal_id').eq('group_id', groupId).eq('user_id', user.id).maybeSingle()
+    if (m?.savings_goal_id) {
+      await supabase.from('savings_goals').update({ is_active: !closed, updated_at: new Date().toISOString() })
+        .eq('id', m.savings_goal_id).eq('user_id', user.id)
+      revalidatePath('/presupuesto')
+    }
+  }
+  return r
 }
 
 export async function setMySharedCategory(groupId: string, categoryId: string) {
