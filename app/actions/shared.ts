@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import type { SplitKind, SplitMode, TripCategory } from '@/lib/shared-split'
+import { normalizeUsername, usernameError } from '@/lib/username'
 
 // ── Gastos compartidos (docs/PLAN_GASTOS_COMPARTIDOS.md) ─────────────────────
 // Todo lo que toca datos de dos personas pasa por funciones SECURITY DEFINER
@@ -15,7 +16,7 @@ type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 const ERRORS: Record<string, string> = {
   unauthenticated:      'Tu sesión expiró. Vuelve a entrar.',
   name_required:        'Ponle un nombre al viaje.',
-  invalid_email:        'Ese correo no parece válido.',
+  user_not_found:       'No encontramos a nadie con ese usuario.',
   cannot_invite_self:   'No puedes invitarte a ti mismo.',
   invalid_split_mode:   'Elige cómo repartir.',
   invalid_ratio:        'El porcentaje tiene que estar entre 0 y 100.',
@@ -87,7 +88,8 @@ export interface CreateGroupInput {
   splitMode:  SplitMode
   /** Parte del creador, 0..1 (solo si splitMode = 'fixed'). */
   fixedRatio: number | null
-  email:      string
+  /** @usuario de la otra persona (con o sin @) */
+  username:   string
   categoryId: string | null
 }
 
@@ -95,7 +97,7 @@ export async function createSharedGroup(input: CreateGroupInput): Promise<Result
   const r = await rpc<string>('shared_group_create', {
     p_name: input.name, p_start: input.startDate || null, p_end: input.endDate || null,
     p_split_mode: input.splitMode, p_fixed_ratio: input.fixedRatio,
-    p_email: input.email, p_category: input.categoryId,
+    p_username: input.username, p_category: input.categoryId,
   })
   if (!r.ok) return r
   return { ok: true, id: r.data as string }
@@ -163,4 +165,24 @@ export async function setSharedGroupClosed(groupId: string, closed: boolean) {
 
 export async function setMySharedCategory(groupId: string, categoryId: string) {
   return rpc('shared_set_my_category', { p_group: groupId, p_category: categoryId })
+}
+
+export interface FoundUser {
+  username:    string
+  displayName: string
+  avatarUrl:   string | null
+  isSelf:      boolean
+}
+
+/** Búsqueda exacta por @usuario. Null si no existe o no se deja encontrar. */
+export async function findSharedUser(raw: string): Promise<FoundUser | null> {
+  const user = await getServerSession()
+  if (!user) return null
+  const username = normalizeUsername(raw)
+  if (usernameError(username)) return null
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('shared_find_user', { p_username: username })
+  const row = (data as { username: string; display_name: string; avatar_url: string | null; is_self: boolean }[] | null)?.[0]
+  if (!row) return null
+  return { username: row.username, displayName: row.display_name, avatarUrl: row.avatar_url, isSelf: row.is_self }
 }

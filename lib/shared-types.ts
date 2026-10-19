@@ -22,7 +22,6 @@ export interface SharedGroup {
 
 export interface SharedMemberRow {
   group_id:             string
-  invited_email:        string
   user_id:              string | null
   status:               'pending' | 'accepted' | 'declined'
   income_consent:       boolean

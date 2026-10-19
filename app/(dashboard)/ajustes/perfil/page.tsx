@@ -35,6 +35,8 @@ export default async function PerfilPage() {
             displayName={profile?.display_name ?? null}
             email={user.email ?? ''}
             avatarUrl={profile?.avatar_url ?? null}
+            username={profile?.username ?? null}
+            discoverable={profile?.discoverable ?? true}
           />
         </div>
 

@@ -9,6 +9,7 @@ import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
+import MyHandle from '@/components/MyHandle'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,13 +41,13 @@ export default async function CompartidosPage({
 
   const [{ data: groupsRaw }, { data: membersRaw }] = await Promise.all([
     supabase.from('shared_groups').select('*').order('created_at', { ascending: false }),
-    supabase.from('shared_group_members').select('group_id, invited_email, user_id, status, income_consent, personal_category_id'),
+    supabase.from('shared_group_members').select('group_id, user_id, status, income_consent, personal_category_id'),
   ])
   const groups  = (groupsRaw ?? []) as SharedGroup[]
   const members = (membersRaw ?? []) as SharedMemberRow[]
 
   // Invitaciones: grupos en que mi fila está pendiente
-  const pendingIds = new Set(members.filter(m => m.status === 'pending' && m.user_id == null && groups.some(g => g.id === m.group_id && g.member_a !== user.id)).map(m => m.group_id))
+  const pendingIds = new Set(members.filter(m => m.status === 'pending' && m.user_id === user.id && groups.some(g => g.id === m.group_id && g.member_a !== user.id)).map(m => m.group_id))
   const invites = groups.filter(g => pendingIds.has(g.id))
   const mine = groups.filter(g => !pendingIds.has(g.id))
 
@@ -62,8 +63,11 @@ export default async function CompartidosPage({
       supabase.from('profiles').select('date_format').eq('id', user.id).maybeSingle(),
     ])
     const names: Record<string, string> = {}
-    for (const n of (namesRaw ?? []) as { user_id: string; display_name: string }[]) names[n.user_id] = n.display_name
-    const pendingMember = members.find(m => m.group_id === selected.id && m.status === 'pending')
+    let pendingInvitee: string | null = null
+    for (const n of (namesRaw ?? []) as { user_id: string; display_name: string; username: string; status: string }[]) {
+      names[n.user_id] = n.display_name
+      if (n.status === 'pending') pendingInvitee = `${n.display_name} (@${n.username})`
+    }
     const myMember = members.find(m => m.group_id === selected.id && m.user_id === user.id)
 
     return (
@@ -71,7 +75,7 @@ export default async function CompartidosPage({
         group={selected}
         meId={user.id}
         names={names}
-        inviteEmail={pendingMember?.invited_email ?? null}
+        pendingInvitee={pendingInvitee}
         expenses={(expRaw ?? []) as SharedExpenseRow[]}
         settlements={(setRaw ?? []) as SettlementRow[]}
         categories={(cats ?? []) as Category[]}
@@ -84,6 +88,9 @@ export default async function CompartidosPage({
   }
 
   // ── Lista ─────────────────────────────────────────────────────────────────
+  // Todos tienen un @usuario (migración 20261019 lo asigna a los existentes);
+  // las cuentas nuevas lo reciben acá la primera vez.
+  const { data: myUsername } = await supabase.rpc('ensure_my_username')
   const ids = mine.map(g => g.id)
   const [{ data: allExp }, { data: allSet }] = ids.length
     ? await Promise.all([
@@ -114,6 +121,7 @@ export default async function CompartidosPage({
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
             Viajes y gastos que dividen con otra persona, en proporción a lo que gana cada uno.
           </p>
+          {myUsername && <div className="mt-2.5"><MyHandle username={myUsername as string} /></div>}
         </div>
         <NewTripButton />
       </div>

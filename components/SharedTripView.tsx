@@ -35,13 +35,13 @@ function fmtRange(start: string | null, end: string | null): string {
 }
 
 export default function SharedTripView({
-  group, meId, names, inviteEmail, expenses, settlements, categories, paymentMethods, myCategoryId, today, dateFormat,
+  group, meId, names, pendingInvitee, expenses, settlements, categories, paymentMethods, myCategoryId, today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
   names:          Record<string, string>
-  /** Correo de la invitación pendiente (si la otra persona todavía no acepta) */
-  inviteEmail:    string | null
+  /** Invitado que todavía no acepta, ej. "Pedro (@pedro)" */
+  pendingInvitee: string | null
   expenses:       SharedExpenseRow[]
   settlements:    SettlementRow[]
   categories:     Category[]
@@ -62,7 +62,7 @@ export default function SharedTripView({
 
   const meIsA   = group.member_a === meId
   const otherId = (meIsA ? group.member_b : group.member_a)
-  const otherName = otherId ? (names[otherId] ?? 'la otra persona') : (inviteEmail ?? 'la otra persona')
+  const otherName = otherId ? (names[otherId] ?? 'la otra persona') : (pendingInvitee ?? 'la otra persona')
   const closed  = group.closed_at != null
   const accepted = group.member_b != null
 
@@ -130,9 +130,9 @@ export default function SharedTripView({
         <div className="card p-4 flex items-center gap-3">
           <Clock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--gold)' }} />
           <div className="min-w-0">
-            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Esperando a {inviteEmail ?? 'la otra persona'}</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Esperando a {pendingInvitee ?? 'la otra persona'}</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-              Cuando entre a la app con ese correo verá la invitación. Hasta entonces no se pueden registrar gastos.
+              Cuando entre a la app verá la invitación en Compartidos. Hasta entonces no se pueden registrar gastos.
             </p>
           </div>
         </div>

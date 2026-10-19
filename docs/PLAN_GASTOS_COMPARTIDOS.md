@@ -321,3 +321,16 @@ Es la misma base con otro ritmo: un grupo `kind = 'household'` ("Casa"), sin fec
 - Transferir plata desde la app: Saldar solo registra que la transferencia ocurrió.
 - Grupos de más de dos personas.
 - Monedas distintas de CLP dentro del viaje.
+
+---
+
+## Actualización oct 2026 — invitar por @usuario (estilo Discord)
+
+La invitación ya no pide un correo: cada persona tiene un `@usuario` único (`profiles.username`, migración 20261019) y se busca por él.
+
+- **Búsqueda exacta, nunca una lista.** `shared_find_user` devuelve solo usuario, nombre y foto; jamás el id ni el correo. Hay que saber el usuario completo para encontrar a alguien.
+- **Control de quién te encuentra.** `profiles.discoverable` (Ajustes → Perfil): si está apagado, nadie puede invitarte.
+- **Sin correos entre personas.** `shared_group_members` guarda `user_id` (ya no `invited_email`), así que quien invita nunca puede leer el correo de la otra persona.
+- **Todos tienen usuario.** La migración asignó uno a las cuentas existentes (a partir del nombre) y las cuentas nuevas lo reciben al abrir Compartidos (`ensure_my_username`). Se puede cambiar en Ajustes → Perfil; el único chequeo es que no esté tomado.
+- **Dónde se ve:** chip "Tu usuario @x" con botón copiar en `/compartidos`; el buscador del asistente "Nuevo viaje" muestra una tarjeta con foto y nombre antes de invitar.
+- **Pendiente de decisión:** limitar la cantidad de búsquedas por minuto si algún día hace falta (hoy un usuario autenticado podría probar nombres a mano).
