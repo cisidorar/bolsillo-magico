@@ -12,8 +12,10 @@ export interface TripGoal { id: string; target_amount: number; current_amount: n
 
 export default function TripPlanCard({
   groupId, groupName, budget, people, myFraction, capacity, myPaid, goal, startDate, today, closed,
-  onEditBudget, onEditDates, derived = false,
+  onEditBudget, onEditDates, derived = false, split,
 }: {
+  /** Composición del plan: reservas por pagar vs. gasto durante el viaje */
+  split?:       { before: number; during: number }
   /** El total sale de lo agregado (por pagar + pagado), no de un presupuesto explícito */
   derived?:     boolean
   groupId:      string
@@ -95,6 +97,27 @@ export default function TripPlanCard({
           </button>
         )}
       </div>
+
+      {/* De qué se compone: lo que se paga antes de salir vs. lo que se gasta en ruta */}
+      {split && split.before + split.during > 0 && (
+        <div>
+          <div className="flex h-2 rounded-full overflow-hidden gap-0.5" role="img"
+            aria-label={`Antes de salir ${formatCLP(split.before)}, durante el viaje ${formatCLP(split.during)}`}>
+            {split.before > 0 && <div style={{ flex: split.before, background: 'var(--primary)' }} />}
+            {split.during > 0 && <div style={{ flex: split.during, background: 'rgba(77,147,255,0.35)' }} />}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-xs">
+            <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--primary)' }} />
+              Antes de salir <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(split.before)}</b>
+            </span>
+            <span className="inline-flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: 'rgba(77,147,255,0.35)' }} />
+              Durante el viaje <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(split.during)}</b>
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Ritmo: cuánto apartar al mes para llegar con todo pagado (sin veredicto) */}
       {covered ? (

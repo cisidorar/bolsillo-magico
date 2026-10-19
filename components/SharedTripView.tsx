@@ -261,6 +261,7 @@ export default function SharedTripView({
     <TripPlanCard
       groupId={group.id} groupName={group.name} budget={budgetSum > 0 ? (group.budget ?? {}) : derivedBudget}
       derived={budgetSum === 0}
+      split={budgetSum === 0 && hasOpenItems ? { before: openTotal, during: planTotals(planItems).during } : undefined}
       people={people} myFraction={myFraction} capacity={capacity}
       myPaid={bal.share[meId] ?? 0} goal={goal}
       startDate={group.start_date} today={today} closed={closed}
@@ -273,7 +274,8 @@ export default function SharedTripView({
       today={today} closed={closed} people={people} tripDays={dayInfo?.total ?? tripLength(group.start_date, group.end_date)} />
   ) : null
 
-  const addButton = !closed ? (
+  // En planificación cada sección del plan ya tiene su propio "Agregar".
+  const addButton = !closed && !(phase === 'planning' && itemsList) ? (
     <button onClick={() => setSheet({ expense: null })}
       className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold"
       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
@@ -301,10 +303,7 @@ export default function SharedTripView({
       </div>
 
       {itemsList && (
-        <div className="mb-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gold)' }}>Plan de costos</p>
-          {itemsList}
-        </div>
+        <div className="mb-4">{itemsList}</div>
       )}
 
       {expenses.length === 0 ? (

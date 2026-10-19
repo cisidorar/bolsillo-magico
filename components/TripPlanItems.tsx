@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, Plus, Check, Trash2, Sparkles, Utensils } from 'lucide-react'
+import { CalendarClock, Plus, Check, Trash2, Sparkles, Utensils, Plane, ChevronRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { savePlanItem, deletePlanItem, payPlanItem, togglePlanItem } from '@/app/actions/shared'
@@ -83,7 +83,7 @@ export default function TripPlanItems({
   const share = (n: number) => (people > 1 ? ` · tu parte ${formatCLP(Math.ceil(n / people))}` : '')
 
   function Row({ it, sub, action }: { it: SharedPlanItemRow; sub: string; action?: React.ReactNode }) {
-    const CatIcon = TRIP_CATEGORY_ICON[it.trip_category]
+    const CatIcon = /vuelo|pasaje|avi[oó]n|a[eé]reo/i.test(it.description) ? Plane : TRIP_CATEGORY_ICON[it.trip_category]
     const over = overCap(it)
     const off = !isActive(it)
     return (
@@ -104,7 +104,9 @@ export default function TripPlanItems({
             </div>
           </button>
           <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
-          {action}
+          <div className="w-[68px] flex justify-end flex-shrink-0">
+            {action ?? <ChevronRight className="w-4 h-4 mr-1" style={{ color: 'var(--ink-3)' }} aria-hidden />}
+          </div>
         </div>
       </div>
     )
@@ -132,27 +134,9 @@ export default function TripPlanItems({
 
   return (
     <div className={embedded ? 'space-y-4' : 'card p-4 space-y-4'}>
-      {/* Resumen: lo que hay que tener antes de salir vs. lo que se gasta en ruta */}
-      {(totals.before > 0 || totals.during > 0) && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Antes de salir</p>
-            <p className="font-display text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(totals.before)}</p>
-            {people > 1 && <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>tu parte {formatCLP(Math.ceil(totals.before / people))}</p>}
-          </div>
-          <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Durante el viaje</p>
-            <p className="font-display text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(totals.during)}</p>
-            {tripDays && totals.during > 0
-              ? <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(perDay(totals.during, tripDays))} al día</p>
-              : people > 1 && <p className="text-[11px] tabular-nums" style={{ color: 'var(--ink-3)' }}>tu parte {formatCLP(Math.ceil(totals.during / people))}</p>}
-          </div>
-        </div>
-      )}
-
       {/* Reservas */}
       <div>
-        {sectionHead(<CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Reservas', 0, addBtn('reserva'),
+        {sectionHead(<CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Reservas', totals.before, addBtn('reserva'),
           'Se pagan antes de salir. Con fecha, aparecen en tu flujo de caja.')}
         {reservas.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>
@@ -166,8 +150,8 @@ export default function TripPlanItems({
                   sub={`${it.due_date ? fmtDue(it.due_date, today) : (TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? '')}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${share(it.est_amount)}`}
                   action={!closed && paying !== it.id && (
                     <button onClick={() => { setPaying(it.id); setError('') }}
-                      className="px-3 py-2 min-h-[44px] rounded-xl text-xs font-bold"
-                      style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>Pagar</button>
+                      className="px-3 min-h-[44px] rounded-xl text-xs font-bold border"
+                      style={{ borderColor: 'var(--border)', color: 'var(--primary)', background: 'transparent' }}>Pagar</button>
                   )} />
                 {paying === it.id && (
                   <div className="mb-2 rounded-xl p-3 space-y-2" style={{ background: 'var(--surface-2)' }}>
@@ -198,8 +182,10 @@ export default function TripPlanItems({
 
       {/* Durante el viaje */}
       <div>
-        {sectionHead(<Utensils className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Durante el viaje', 0, addBtn('durante'),
-          'Presupuesto para comida, bencina y actividades. No se reserva: se va gastando.')}
+        {sectionHead(<Utensils className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Durante el viaje', totals.during, addBtn('durante'),
+          tripDays && totals.during > 0
+            ? `Se va gastando en ruta · unos ${formatCLP(perDay(totals.during, tripDays))} al día`
+            : 'Comida, bencina y actividades: se van gastando en ruta.')}
         {durante.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
