@@ -9,7 +9,7 @@ import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 // Gastado del grupo contra el presupuesto. Es el ancla de la vista DURANTE el
 // viaje; antes de salir aparece como "ya pagado o reservado" y solo si hay algo.
 export default function TripSpendHero({
-  budget, spent, closed, onEditBudget, label = 'Gastado del viaje', todaySpent, people,
+  budget, spent, closed, onEditBudget, label = 'Gastado del viaje', todaySpent, people, dayInfo,
 }: {
   budget:       TripBudget
   spent:        Record<TripCategory, number>
@@ -19,7 +19,14 @@ export default function TripSpendHero({
   /** Lo gastado hoy por el grupo (solo durante el viaje) */
   todaySpent?:  number | null
   people?:      number
+  /** Día actual del viaje (solo mientras se viaja) — es el otro hecho que domina la pantalla junto al gasto. */
+  dayInfo?:     { day: number; total: number | null } | null
 }) {
+  const dayBadge = dayInfo && (
+    <span className="inline-flex items-center px-2.5 py-1 mb-2 rounded-full text-xs font-bold" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+      Día {dayInfo.day}{dayInfo.total ? ` de ${dayInfo.total}` : ''}
+    </span>
+  )
   const total = budgetTotal(budget)
   const spentTotal = Object.values(spent).reduce((s, x) => s + x, 0)
 
@@ -27,7 +34,8 @@ export default function TripSpendHero({
   if (total === 0) {
     if (spentTotal === 0) return null
     return (
-      <div className="card p-5">
+      <div className="card p-6">
+        {dayBadge}
         <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
         <p className="font-display text-3xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}
@@ -52,8 +60,9 @@ export default function TripSpendHero({
   const rows = TRIP_CATEGORIES.filter(c => (budget[c.key] ?? 0) > 0 || spent[c.key] > 0)
 
   return (
-    <div className="card p-5 space-y-4">
+    <div className="card p-6 space-y-5">
       <div>
+        {dayBadge}
         <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
         <p className="font-display text-3xl lg:text-4xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}

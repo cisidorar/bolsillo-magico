@@ -143,7 +143,8 @@ export default async function CompartidosPage({
       set, memberIds,
     )
     const net = bal.net[user.id] ?? 0
-    return { g, bal, net, people: memberIds.length, phase: tripPhase(g, today, suggestedTransfers(bal.net).length > 0) }
+    const transferCount = suggestedTransfers(bal.net).length
+    return { g, bal, net, people: memberIds.length, transferCount, phase: tripPhase(g, today, transferCount > 0) }
   })
 
   // Lo que necesita atención primero; lo terminado/cerrado va a "Anteriores".
@@ -162,14 +163,20 @@ export default async function CompartidosPage({
       const t = tripDay(r.g.start_date, r.g.end_date, today)
       return t ? `Día ${t.day}${t.total ? ` de ${t.total}` : ''}` : null
     }
+    if (r.phase === 'settling') {
+      return r.transferCount === 1 ? 'Falta 1 transferencia' : `Faltan ${r.transferCount} transferencias`
+    }
     return null
   }
 
   const tripRow = (r: (typeof rows)[number]) => {
     const { g, bal, net, people, phase } = r
     const h = hint(r)
+    const needsAction = phase === 'settling'
     return (
-      <Link key={g.id} href={`/compartidos?g=${g.id}`} className="card p-4 flex items-center gap-3 transition-colors hover:brightness-[.99]">
+      <Link key={g.id} href={`/compartidos?g=${g.id}`}
+        className="card p-5 flex items-center gap-3 transition-colors hover:brightness-[.99]"
+        style={needsAction ? { borderColor: 'rgba(255,194,60,0.4)' } : undefined}>
         <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: phase === 'closed' || phase === 'done' ? 'var(--surface-2)' : 'var(--primary-soft)' }}>
           <Plane className="w-5 h-5" style={{ color: phase === 'closed' || phase === 'done' ? 'var(--ink-3)' : 'var(--primary)' }} />
@@ -178,17 +185,17 @@ export default async function CompartidosPage({
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{g.name}</p>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-              style={phase === 'settling'
-                ? { background: 'rgba(255,194,60,0.16)', color: 'var(--gold)' }
+              style={needsAction
+                ? { background: 'rgba(255,194,60,0.16)', color: 'var(--gold-ink)' }
                 : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{TRIP_PHASE_LABEL[phase]}</span>
           </div>
           <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            {h ? <span className="font-semibold" style={{ color: 'var(--ink-2)' }}>{h} · </span> : null}
+            {h ? <span className="font-semibold" style={{ color: needsAction ? 'var(--gold-ink)' : 'var(--ink-2)' }}>{h} · </span> : null}
             {fmtRange(g.start_date, g.end_date)} · {people === 1 ? 'solo tú' : `${people} personas`}
           </p>
           {people > 1 && bal.total > 0 && (
             <p className="text-xs mt-1 font-semibold tabular-nums"
-              style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
+              style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
               {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
               <span style={{ color: 'var(--ink-3)' }} className="font-normal"> · {formatCLP(bal.total)} en total</span>
             </p>
@@ -200,7 +207,7 @@ export default async function CompartidosPage({
   }
 
   return (
-    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-5">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold" style={{ color: 'var(--ink)' }}>Compartidos</h1>
@@ -230,14 +237,14 @@ export default async function CompartidosPage({
       ) : (
         <>
           {active.length > 0 && (
-            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
               {active.map(tripRow)}
             </div>
           )}
           {past.length > 0 && (
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Anteriores</p>
-              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
                 {past.map(tripRow)}
               </div>
             </div>

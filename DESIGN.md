@@ -37,6 +37,15 @@ typography:
     fontWeight: 700
     fontSize: "0.625rem"
     letterSpacing: "0.1em"
+  caption:
+    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontWeight: 400
+    fontSize: "0.6875rem"
+  micro:
+    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
+    fontWeight: 700
+    fontSize: "0.5625rem"
+    letterSpacing: "0.05em"
 rounded:
   sm: "8px"
   md: "12px"
@@ -128,6 +137,8 @@ A deliberately narrow palette: one soft, friendly blue carries the brand and nea
 - **Title** (bold/700, `text-sm`, Plus Jakarta Sans): card section headers ("Por categoría", "Flujo de caja").
 - **Body** (regular/400, `text-sm`, Plus Jakarta Sans): list rows, descriptions, form labels.
 - **Label** (bold/700, `text-[10px]`–`text-xs`, uppercase, `tracking-widest`, Plus Jakarta Sans): micro-labels above a stat ("Disponible", "Por día"), nav captions.
+- **Caption** (regular/400, `text-[11px]`, Plus Jakarta Sans): secondary hint text under a field or section header — the single most-repeated size in the app (`FieldLabel`'s hint, section hints), promoted from an undocumented one-off to a real step rather than left as drift.
+- **Micro** (bold/700, `text-[9px]`, uppercase, `tracking-wider`, Plus Jakarta Sans): the smallest live step — a stamp-like status badge ("Anulado"), a chart's rotated month label. Used sparingly; reach for Label (10px) first.
 
 ### Named Rules
 **The Tabular Numerals Rule.** Every monetary amount renders with `tabular-nums`, no exceptions — numbers must line up in lists and never visually jitter as digits change.

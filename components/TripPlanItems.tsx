@@ -90,18 +90,22 @@ export default function TripPlanItems({
 
   const share = (n: number) => (people > 1 ? ` · tu parte ${formatCLP(Math.ceil(n / people))}` : '')
 
+  // Cada ítem es su propio talonario — no una fila más en una lista. La
+  // perforación (línea punteada) separa el campo de categoría del cuerpo,
+  // como un cupón; un opcional apagado queda "anulado", no solo atenuado.
   function Row({ it, sub, action }: { it: SharedPlanItemRow; sub: string; action?: React.ReactNode }) {
     const CatIcon = /vuelo|pasaje|avi[oó]n|a[eé]reo/i.test(it.description) ? Plane : TRIP_CATEGORY_ICON[it.trip_category]
     const over = overCap(it)
     const off = !isActive(it)
     return (
-      <div className="py-2.5" style={{ opacity: off ? 0.55 : 1 }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3" aria-label={`Ver detalle de ${it.description}`}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
+      <div className="relative rounded-xl border" style={{ borderColor: 'var(--border)', opacity: off ? 0.75 : 1 }}>
+        <div className="flex items-stretch">
+          <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-stretch gap-3 py-3 pl-3" aria-label={`Ver detalle de ${it.description}`}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 self-center" style={{ background: 'rgba(255,194,60,0.14)' }}>
               <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
             </div>
-            <div className="min-w-0">
+            <div className="flex-shrink-0 self-stretch my-1" style={{ borderRight: '1.5px dashed var(--border)' }} />
+            <div className="min-w-0 self-center pl-1">
               <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{it.description}</p>
               <p className="text-xs" style={{ color: it.due_date && it.due_date < today && it.kind === 'reserva' ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{sub}</p>
               {over > 0 && (
@@ -111,11 +115,19 @@ export default function TripPlanItems({
               )}
             </div>
           </button>
-          <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
-          <div className="w-[68px] flex justify-end flex-shrink-0">
-            {action ?? <ChevronRight className="w-4 h-4 mr-1" style={{ color: 'var(--ink-3)' }} aria-hidden />}
+          <div className="flex items-center gap-2 pr-3 flex-shrink-0">
+            <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(it.est_amount)}</p>
+            <div className="w-[68px] flex justify-end flex-shrink-0">
+              {action ?? <ChevronRight className="w-4 h-4 mr-1" style={{ color: 'var(--ink-3)' }} aria-hidden />}
+            </div>
           </div>
         </div>
+        {off && (
+          <span className="absolute top-1.5 right-2 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border pointer-events-none"
+            style={{ color: 'var(--ink-3)', borderColor: 'var(--border)', transform: 'rotate(-6deg)' }}>
+            Anulado
+          </span>
+        )}
       </div>
     )
   }
@@ -141,7 +153,7 @@ export default function TripPlanItems({
   )
 
   return (
-    <div className={embedded ? 'space-y-4' : 'card p-4 space-y-4'}>
+    <div className={embedded ? 'space-y-5' : 'card p-5 space-y-5'}>
       {/* Reservas */}
       <div>
         {sectionHead(<CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Reservas', totals.before, addBtn('reserva'),
@@ -151,7 +163,7 @@ export default function TripPlanItems({
             Pasajes, auto, alojamiento: lo que reservas y pagas antes del viaje.
           </p>
         ) : (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div className="space-y-2">
             {reservas.map(it => (
               <div key={it.id}>
                 <Row it={it}
@@ -197,7 +209,7 @@ export default function TripPlanItems({
         {durante.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div className="space-y-2">
             {durante.map(it => (
               <Row key={it.id} it={it}
                 sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${tripDays ? ` · ${formatCLP(perDay(it.est_amount, tripDays))} al día` : ''}${share(it.est_amount)}`} />
@@ -214,7 +226,7 @@ export default function TripPlanItems({
           {opcionales.length === 0 ? (
             <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div className="space-y-2">
               {opcionales.map(it => (
                 <Row key={it.id} it={it}
                   sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${it.enabled ? share(it.est_amount) : ' · no incluido'}`}

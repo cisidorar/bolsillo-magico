@@ -21,7 +21,9 @@
       "display": { "displayName": "Display", "purpose": "Hero monetary amounts only (e.g. /inicio spent-this-month)." },
       "headline": { "displayName": "Headline", "purpose": "Page titles — applied automatically to h1/h2/h3." },
       "body": { "displayName": "Body", "purpose": "Default text: rows, descriptions, form labels." },
-      "label": { "displayName": "Label", "purpose": "Uppercase micro-labels above stats and nav captions." }
+      "label": { "displayName": "Label", "purpose": "Uppercase micro-labels above stats and nav captions." },
+      "caption": { "displayName": "Caption", "purpose": "Secondary hint text under a field or section header." },
+      "micro": { "displayName": "Micro", "purpose": "Smallest live step — stamp-like status badges, rotated chart labels." }
     },
     "shadows": [
       { "name": "ambient-card", "value": "0 8px 18px rgba(14,42,82,.06)", "purpose": "Default resting shadow for any .card surface; supporting role, border carries definition." },

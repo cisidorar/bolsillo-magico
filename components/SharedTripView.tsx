@@ -124,9 +124,10 @@ export default function SharedTripView({
   // Lo más relevante según dónde va el viaje, junto al nombre.
   const dStart = daysToStart(group.start_date, today)
   const dayInfo = tripDay(group.start_date, group.end_date, today)
+  // "Día N de M" ya no va acá en viaje — tiene su propio lugar destacado
+  // junto al gasto en TripSpendHero; repetirlo aquí sería decir lo mismo dos veces.
   const headerHint =
     phase === 'settling' ? `${transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`} para cuadrar`
-    : phase === 'traveling' && dayInfo ? `Día ${dayInfo.day}${dayInfo.total ? ` de ${dayInfo.total}` : ''}`
     : phase === 'planning' && dStart != null ? (dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : null
 
@@ -224,6 +225,66 @@ export default function SharedTripView({
     </div>
   ) : null
 
+  // Por saldar: no es otra card de saldo — es una cuadratura de verdad,
+  // lo que puso cada uno contra lo que le correspondía, columna por columna.
+  // El divisor punteado retoma la perforación de los talonarios del plan.
+  const settlementLedger = !alone && (expenses.length > 0 || settlements.length > 0) ? (
+    <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid var(--border)' }}>
+      <div className="px-5 py-4" style={{ background: balStyle.bg }}>
+        <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Cuadremos cuentas</p>
+        <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
+          {owed ? `Te deben ${formatCLP(mine)}` : owes ? `Debes ${formatCLP(-mine)}` : 'Están a mano'}
+        </p>
+      </div>
+      <div className="grid grid-cols-2" style={{ borderTop: '1.5px solid var(--border)' }}>
+        <div className="p-4" style={{ borderRight: '1.5px dashed var(--border)' }}>
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Pusieron</p>
+          {accepted.map(m => (
+            <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
+              <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
+              <span className="tabular-nums font-semibold flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(bal.paid[m.user_id] ?? 0)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="p-4">
+          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Les corresponde</p>
+          {accepted.map(m => (
+            <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
+              <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
+              <span className="tabular-nums font-semibold flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(bal.share[m.user_id] ?? 0)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {transfers.length > 0 && (
+        <div className="p-4 space-y-2" style={{ borderTop: '1.5px solid var(--border)' }}>
+          {transfers.map(t => {
+            const involvesMe = t.from === meId || t.to === meId
+            return (
+              <div key={`${t.from}-${t.to}`} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--surface-2)' }}>
+                <p className="flex-1 text-xs" style={{ color: 'var(--ink-2)' }}>
+                  <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.from)}</span> le {t.from === meId ? 'transfieres' : 'transfiere'} a{' '}
+                  <span className="font-semibold" style={{ color: 'var(--ink)' }}>{nameOf(t.to)}</span>{' '}
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(t.amount)}</span>
+                </p>
+                {involvesMe && !closed && (
+                  <button disabled={busy} onClick={() => run(() => settleShared(group.id, t.from, t.to, t.amount, today), 'Transferencia registrada')}
+                    className="inline-flex items-center gap-1 px-3 min-h-[44px] rounded-lg text-xs font-bold disabled:opacity-50 flex-shrink-0"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                    <Handshake className="w-3.5 h-3.5" /> {t.from === meId ? 'Ya transferí' : 'Me llegó'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+          <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+            Marcarla solo la anota aquí; no crea gastos ni ingresos.
+          </p>
+        </div>
+      )}
+    </div>
+  ) : null
+
   const summary = (phase === 'settling' || phase === 'done' || phase === 'closed') && expenses.length > 0 ? (
     <TripClosedSummary
       total={bal.total} myShare={bal.share[meId] ?? 0} myPaid={bal.paid[meId] ?? 0}
@@ -254,6 +315,7 @@ export default function SharedTripView({
       label={phase === 'planning' ? 'Ya pagado o reservado' : 'Gastado del viaje'}
       todaySpent={phase === 'traveling' ? todaySpent : null}
       people={accepted.length}
+      dayInfo={phase === 'traveling' ? dayInfo : null}
     />
   )
 
@@ -356,7 +418,7 @@ export default function SharedTripView({
   const main =
     phase === 'planning'  ? <>{steps}{planCard}{gastos}{saldo}</>
     : phase === 'traveling' ? <>{spendHero}{saldo}{gastos}</>
-    : phase === 'settling'  ? <>{saldo}{summary}{gastos}</>
+    : phase === 'settling'  ? <>{settlementLedger}{summary}{gastos}</>
     : phase === 'done'      ? <>{doneCard}{summary}{gastos}</>
     : <>{summary}{gastos}</>
 

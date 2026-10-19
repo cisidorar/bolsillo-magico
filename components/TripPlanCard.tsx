@@ -2,13 +2,25 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { PiggyBank, Calendar, Pencil, CircleCheck } from 'lucide-react'
+import { PiggyBank, Calendar, Pencil, CircleCheck, TriangleAlert, CircleHelp } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { saveTripGoal, addToTripGoal } from '@/app/actions/shared'
-import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget } from '@/lib/trip-plan'
+import { budgetTotal, myBudgetShare, tripAffordability, type TripBudget, type TripVerdict } from '@/lib/trip-plan'
 
 export interface TripGoal { id: string; target_amount: number; current_amount: number; target_date: string | null }
+
+// El veredicto que tripAffordability() ya calcula (ready/yes/tight/no/unknown)
+// se mostraba antes solo como un matiz de la frase de abajo. Acá es el primer
+// hecho que se lee — una insignia con la misma jerarquía de severidad del
+// resto de la app (nunca coral: nada acá es urgente hoy).
+const VERDICT_BADGE: Record<TripVerdict, { label: string; color: string; bg: string; icon: typeof CircleCheck }> = {
+  ready:   { label: 'Cubierto',          color: 'var(--mint)',     bg: 'rgba(31,190,141,0.12)',  icon: CircleCheck },
+  yes:     { label: 'Vas bien',          color: 'var(--mint)',     bg: 'rgba(31,190,141,0.12)',  icon: CircleCheck },
+  tight:   { label: 'Justo',             color: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.15)',  icon: TriangleAlert },
+  no:      { label: 'No alcanza a tiempo', color: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.15)', icon: TriangleAlert },
+  unknown: { label: 'Falta info',        color: 'var(--ink-2)',    bg: 'var(--surface-2)',       icon: CircleHelp },
+}
 
 export default function TripPlanCard({
   groupId, groupName, budget, people, myFraction, capacity, myPaid, goal, startDate, today, closed,
@@ -80,7 +92,7 @@ export default function TripPlanCard({
   const covered = a.remaining === 0 && myShare > 0
 
   return (
-    <div className="card p-5 space-y-4">
+    <div className="card p-6 space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>{alone ? 'Lo que cuesta el viaje' : 'Tu parte estimada'}</p>
@@ -90,6 +102,14 @@ export default function TripPlanCard({
               ? (derived ? 'Suma de lo que agregaste' : 'Según tu presupuesto')
               : `de ${formatCLP(total)} · ${people} personas, ${myFraction != null ? 'según lo que gana cada uno' : 'partes iguales'}`}
           </p>
+          {(() => {
+            const vb = VERDICT_BADGE[a.verdict]
+            return (
+              <span className="inline-flex items-center gap-1.5 mt-2.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: vb.bg, color: vb.color }}>
+                <vb.icon className="w-3.5 h-3.5" /> {vb.label}
+              </span>
+            )
+          })()}
         </div>
         {!closed && (
           <button onClick={onEditBudget} className="inline-flex items-center gap-1 text-xs font-semibold flex-shrink-0 min-h-[44px] px-2 -mt-2 -mr-2" style={{ color: 'var(--primary)' }}>
@@ -119,12 +139,9 @@ export default function TripPlanCard({
         </div>
       )}
 
-      {/* Ritmo: cuánto apartar al mes para llegar con todo pagado (sin veredicto) */}
-      {covered ? (
-        <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--mint)' }}>
-          <CircleCheck className="w-4 h-4" /> Ya está todo pagado o ahorrado
-        </p>
-      ) : a.perMonth != null && a.months != null && a.months > 0 ? (
+      {/* Ritmo: cuánto apartar al mes para llegar con todo pagado — el veredicto ya está arriba */}
+      {covered ? null
+      : a.perMonth != null && a.months != null && a.months > 0 ? (
         <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
           Para llegar con todo pagado: aparta{' '}
           <b className="tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(a.perMonth)} al mes</b>
