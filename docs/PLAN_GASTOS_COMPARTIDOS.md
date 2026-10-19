@@ -334,3 +334,15 @@ La invitación ya no pide un correo: cada persona tiene un `@usuario` único (`p
 - **Todos tienen usuario.** La migración asignó uno a las cuentas existentes (a partir del nombre) y las cuentas nuevas lo reciben al abrir Compartidos (`ensure_my_username`). Se puede cambiar en Ajustes → Perfil; el único chequeo es que no esté tomado.
 - **Dónde se ve:** chip "Tu usuario @x" con botón copiar en `/compartidos`; el buscador del asistente "Nuevo viaje" muestra una tarjeta con foto y nombre antes de invitar.
 - **Pendiente de decisión:** limitar la cantidad de búsquedas por minuto si algún día hace falta (hoy un usuario autenticado podría probar nombres a mano).
+
+
+## Actualización oct 2026 — viajes de N personas, crear primero e invitar después
+
+El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirmación) se reemplazó por (migraciones 20261020 y 20261021):
+
+- **Viaje sin requisitos:** nombre y modo de reparto; fechas opcionales; el creador queda como único miembro y ya puede cargar gastos.
+- **N personas:** el creador invita por @usuario cuando quiera (`shared_group_invite`); al aceptar, los gastos con `everyone = true` se recalculan entre todos los miembros (`shared__recalc_group`). Un miembro con gastos pagados, partes en gastos "no todos" o transferencias no se puede sacar.
+- **Reparto:** modo del grupo `equal` (parejo) o `income` (según sueldo, requiere el consentimiento de cada miembro y sus ingresos; si falta, `split_error` y los gastos "según sueldo" no se tocan hasta resolverlo). Por gasto: `group` (modo del grupo), `equal`, `exact` (monto por persona), y participantes "todos" o un subconjunto.
+- **Saldos:** neto por persona y transferencias sugeridas (`suggestedTransfers`); `shared_settle(from, to, ...)` registra cada transferencia.
+- **Tarjeta:** igual que antes — el pagador conserva su fila aunque su parte sea 0 y `card_extra` cuadra el estado de cuenta.
+- Bug corregido en 20261021: `sum(bigint)` es numeric y rompía la división entera del reparto.

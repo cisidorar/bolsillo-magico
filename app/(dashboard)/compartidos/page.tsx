@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plane, ChevronRight } from 'lucide-react'
 import { formatCLP, getNowChile, type DateFormat } from '@/lib/utils'
-import { groupBalance, balanceFor, tripStage, ratioToPct } from '@/lib/shared-split'
-import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SettlementRow } from '@/lib/shared-types'
+import { groupBalance, suggestedTransfers, tripStage } from '@/lib/shared-split'
+import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
 import SharedInviteCard from '@/components/SharedInviteCard'
@@ -13,13 +13,13 @@ import MyHandle from '@/components/MyHandle'
 
 export const dynamic = 'force-dynamic'
 
-// ── Gastos compartidos, fase 1 (docs/PLAN_GASTOS_COMPARTIDOS.md) ────────────
-// Un viaje compartido entre dos personas de la app. Esta página solo lee lo
+// ── Gastos compartidos (docs/PLAN_GASTOS_COMPARTIDOS.md) ────────────────────
+// Un viaje compartido entre una o más personas de la app (se invita después). Esta página solo lee lo
 // que la RLS deja ver (viajes de los que eres miembro o invitado); todo lo que
 // escribe pasa por funciones de la base (app/actions/shared.ts).
 
 const STAGE_LABEL = {
-  invited: 'Esperando invitación', planning: 'Planificando', traveling: 'En viaje',
+  planning: 'Planificando', traveling: 'En viaje',
   settling: 'Por saldar', closed: 'Cerrado',
 } as const
 
@@ -47,40 +47,39 @@ export default async function CompartidosPage({
   const members = (membersRaw ?? []) as SharedMemberRow[]
 
   // Invitaciones: grupos en que mi fila está pendiente
-  const pendingIds = new Set(members.filter(m => m.status === 'pending' && m.user_id === user.id && groups.some(g => g.id === m.group_id && g.member_a !== user.id)).map(m => m.group_id))
+  const pendingIds = new Set(members.filter(m => m.status === 'pending' && m.user_id === user.id).map(m => m.group_id))
   const invites = groups.filter(g => pendingIds.has(g.id))
   const mine = groups.filter(g => !pendingIds.has(g.id))
 
   // ── Detalle de un viaje ───────────────────────────────────────────────────
   const selected = params.g ? mine.find(g => g.id === params.g) : undefined
   if (selected) {
-    const [{ data: expRaw }, { data: setRaw }, { data: namesRaw }, { data: cats }, { data: pms }, { data: prefRow }] = await Promise.all([
+    const [{ data: expRaw }, { data: shareRaw }, { data: setRaw }, { data: namesRaw }, { data: wRaw }, { data: cats }, { data: pms }, { data: prefRow }] = await Promise.all([
       supabase.from('shared_expenses').select('*').eq('group_id', selected.id),
+      supabase.from('shared_expense_shares').select('*').eq('group_id', selected.id),
       supabase.from('shared_settlements').select('*').eq('group_id', selected.id).order('date', { ascending: false }),
       supabase.rpc('shared_member_names', { p_group: selected.id }),
+      supabase.rpc('shared_group_weights', { p_group: selected.id }),
       supabase.from('categories').select('*').eq('user_id', user.id).order('sort_order'),
       supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
       supabase.from('profiles').select('date_format').eq('id', user.id).maybeSingle(),
     ])
-    const names: Record<string, string> = {}
-    let pendingInvitee: string | null = null
-    for (const n of (namesRaw ?? []) as { user_id: string; display_name: string; username: string; status: string }[]) {
-      names[n.user_id] = n.display_name
-      if (n.status === 'pending') pendingInvitee = `${n.display_name} (@${n.username})`
-    }
+    const weights: Record<string, number> = {}
+    for (const w of (wRaw ?? []) as { user_id: string; w: number | string }[]) weights[w.user_id] = Number(w.w)
     const myMember = members.find(m => m.group_id === selected.id && m.user_id === user.id)
 
     return (
       <SharedTripView
         group={selected}
         meId={user.id}
-        names={names}
-        pendingInvitee={pendingInvitee}
+        members={(namesRaw ?? []) as SharedMemberInfo[]}
         expenses={(expRaw ?? []) as SharedExpenseRow[]}
+        shares={(shareRaw ?? []) as SharedShareRow[]}
         settlements={(setRaw ?? []) as SettlementRow[]}
         categories={(cats ?? []) as Category[]}
         paymentMethods={(pms ?? []) as PaymentMethod[]}
         myCategoryId={myMember?.personal_category_id ?? null}
+        weights={weights}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}
       />
@@ -92,12 +91,13 @@ export default async function CompartidosPage({
   // las cuentas nuevas lo reciben acá la primera vez.
   const { data: myUsername } = await supabase.rpc('ensure_my_username')
   const ids = mine.map(g => g.id)
-  const [{ data: allExp }, { data: allSet }] = ids.length
+  const [{ data: allExp }, { data: allShares }, { data: allSet }] = ids.length
     ? await Promise.all([
-        supabase.from('shared_expenses').select('group_id, amount, paid_by, share_a, share_b').in('group_id', ids),
+        supabase.from('shared_expenses').select('id, group_id, amount, paid_by').in('group_id', ids),
+        supabase.from('shared_expense_shares').select('expense_id, group_id, user_id, share').in('group_id', ids),
         supabase.from('shared_settlements').select('group_id, from_user, to_user, amount').in('group_id', ids),
       ])
-    : [{ data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [] }]
 
   const inviterNames = await Promise.all(invites.map(async g => {
     const { data } = await supabase.rpc('shared_inviter_name', { p_group: g.id })
@@ -108,9 +108,16 @@ export default async function CompartidosPage({
   const rows = mine.map(g => {
     const exp = (allExp ?? []).filter(e => e.group_id === g.id)
     const set = (allSet ?? []).filter(s => s.group_id === g.id)
-    const bal = groupBalance(exp, set, g.member_a, g.member_b ?? '')
-    const net = balanceFor(bal, g.member_a === user.id)
-    return { g, bal, net, stage: tripStage(g, today, bal.netA) }
+    const memberIds = members.filter(m => m.group_id === g.id && m.status === 'accepted').map(m => m.user_id)
+    const bal = groupBalance(
+      exp.map(e => ({
+        amount: e.amount, paid_by: e.paid_by,
+        shares: Object.fromEntries((allShares ?? []).filter(x => x.expense_id === e.id).map(x => [x.user_id, x.share])),
+      })),
+      set, memberIds,
+    )
+    const net = bal.net[user.id] ?? 0
+    return { g, bal, net, people: memberIds.length, stage: tripStage(g, today, suggestedTransfers(bal.net).length > 0) }
   })
 
   return (
@@ -119,21 +126,17 @@ export default async function CompartidosPage({
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold" style={{ color: 'var(--ink)' }}>Compartidos</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-            Viajes y gastos que dividen con otra persona, en proporción a lo que gana cada uno.
+            Viajes y gastos que dividen con otras personas. Crea el viaje, carga gastos e invita cuando quieras.
           </p>
           {myUsername && <div className="mt-2.5"><MyHandle username={myUsername as string} /></div>}
         </div>
         <NewTripButton />
       </div>
 
-      {invites.map(g => {
-        const pct = g.pending_mode !== 'income' && g.pending_ratio_a != null ? ratioToPct(g.pending_ratio_a) : null
-        return (
-          <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name}
-            inviter={inviterById[g.id]} mode={g.pending_mode}
-            pctMine={pct ? pct.b : null} />
-        )
-      })}
+      {invites.map(g => (
+        <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name}
+          inviter={inviterById[g.id]} mode={g.split_mode} />
+      ))}
 
       {rows.length === 0 && invites.length === 0 ? (
         <div className="card p-8 text-center">
@@ -142,13 +145,13 @@ export default async function CompartidosPage({
           </div>
           <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>Todavía no tienes viajes compartidos</p>
           <p className="text-sm mt-1 max-w-sm mx-auto" style={{ color: 'var(--ink-3)' }}>
-            Crea uno, invita a la otra persona y cada gasto se reparte solo. En tus gastos queda únicamente tu parte.
+            Crea uno aunque aún no sepas fechas ni quiénes van. Carga los gastos y, cuando quieras, invita a los demás: todo se reparte solo y en tus gastos queda únicamente tu parte.
           </p>
           <div className="mt-4 flex justify-center"><NewTripButton label="Crear el primer viaje" /></div>
         </div>
       ) : (
         <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
-          {rows.map(({ g, bal, net, stage }) => (
+          {rows.map(({ g, bal, net, people, stage }) => (
             <Link key={g.id} href={`/compartidos?g=${g.id}`} className="card p-4 flex items-center gap-3 transition-colors hover:brightness-[.99]">
               <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
                 <Plane className="w-5 h-5" style={{ color: 'var(--primary)' }} />
@@ -159,8 +162,8 @@ export default async function CompartidosPage({
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                     style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{STAGE_LABEL[stage]}</span>
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{fmtRange(g.start_date, g.end_date)}</p>
-                {g.member_b && bal.total > 0 && (
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{fmtRange(g.start_date, g.end_date)} · {people === 1 ? 'solo tú' : `${people} personas`}</p>
+                {people > 1 && bal.total > 0 && (
                   <p className="text-xs mt-1 font-semibold tabular-nums"
                     style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
                     {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
