@@ -22,28 +22,12 @@ export default function TripSpendHero({
   const total = budgetTotal(budget)
   const spentTotal = Object.values(spent).reduce((s, x) => s + x, 0)
 
+  // Sin presupuesto no hay tarjeta: solo un enlace discreto para estimarlo.
   if (total === 0) {
-    return (
-      <div className="card p-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-            <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>¿Te alcanza para este viaje?</h2>
-            <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-              Estima cuánto costaría (alojamiento, pasajes, comida…) y cuántos van. Con lo que ahorras cada mes te decimos si llegas y cuánto apartar.
-            </p>
-            {!closed && (
-              <button onClick={onEditBudget}
-                className="mt-3 inline-flex items-center gap-1.5 px-4 py-3 min-h-[44px] rounded-xl text-xs font-bold"
-                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-                Estimar costos
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+    return closed ? null : (
+      <button onClick={onEditBudget} className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
+        <Wallet className="w-3.5 h-3.5" /> Estimar costos del viaje
+      </button>
     )
   }
 

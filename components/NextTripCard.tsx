@@ -49,7 +49,7 @@ export default function NextTripCard({ trip }: { trip: NextTrip }) {
           )}
         </div>
       ) : (
-        <p className="text-xs mt-3" style={{ color: 'var(--ink-3)' }}>Estima cuánto costaría y te decimos si te alcanza.</p>
+        <p className="text-xs mt-3" style={{ color: 'var(--ink-3)' }}>Aún sin presupuesto estimado.</p>
       )}
       <p className="text-[10px] mt-2" style={{ color: 'var(--ink-3)' }}>Los gastos del viaje no cuentan en tu presupuesto del mes.</p>
     </Link>
