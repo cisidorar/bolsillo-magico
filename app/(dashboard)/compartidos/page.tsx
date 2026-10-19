@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Plane, ChevronRight } from 'lucide-react'
 import { formatCLP, getNowChile, type DateFormat } from '@/lib/utils'
 import { groupBalance, suggestedTransfers, tripStage } from '@/lib/shared-split'
-import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo } from '@/lib/shared-types'
+import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
 import { monthlyCapacity } from '@/lib/trip-plan'
@@ -55,7 +55,8 @@ export default async function CompartidosPage({
   // ── Detalle de un viaje ───────────────────────────────────────────────────
   const selected = params.g ? mine.find(g => g.id === params.g) : undefined
   if (selected) {
-    const [{ data: expRaw }, { data: shareRaw }, { data: setRaw }, { data: namesRaw }, { data: wRaw }, { data: cats }, { data: pms }, { data: prefRow }] = await Promise.all([
+    const [{ data: planRaw }, { data: expRaw }, { data: shareRaw }, { data: setRaw }, { data: namesRaw }, { data: wRaw }, { data: cats }, { data: pms }, { data: prefRow }] = await Promise.all([
+      supabase.from('shared_plan_items').select('*').eq('group_id', selected.id).order('due_date', { ascending: true, nullsFirst: false }),
       supabase.from('shared_expenses').select('*').eq('group_id', selected.id),
       supabase.from('shared_expense_shares').select('*').eq('group_id', selected.id),
       supabase.from('shared_settlements').select('*').eq('group_id', selected.id).order('date', { ascending: false }),
@@ -108,6 +109,7 @@ export default async function CompartidosPage({
         weights={weights}
         capacity={capacity}
         goal={(goalRow ?? null) as TripGoal | null}
+        planItems={(planRaw ?? []) as SharedPlanItemRow[]}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}
       />

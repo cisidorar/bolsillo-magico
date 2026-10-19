@@ -8,7 +8,7 @@ import { daysBetween } from './utils'
 // sobregiro por *timing* (plata que "existe" en el mes pero no el día que
 // se necesita).
 
-export type CashFlowEventType = 'income' | 'recurring' | 'card'
+export type CashFlowEventType = 'income' | 'recurring' | 'card' | 'trip'
 
 export interface CashFlowEvent {
   date: string                 // YYYY-MM-DD

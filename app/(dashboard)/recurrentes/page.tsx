@@ -10,6 +10,7 @@ import RecurringManager from '@/components/RecurringManager'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
 import FlujoCaja30d from '@/components/FlujoCaja30d'
+import { getTripCashEvents } from '@/lib/trip-cash-events'
 import ServiceLogo from '@/components/ServiceLogo'
 import Link from 'next/link'
 import type { RecurringExpense, PaymentMethod } from '@/types'
@@ -324,6 +325,9 @@ export default async function RecurrentesPage({
         : null,
     }
   })
+
+  // Fase 3 compartidos: pagos programados de viajes (tu parte estimada)
+  cashFlowEvents.push(...await getTripCashEvents(supabase, user!.id))
 
   const cashFlowTimelineFull = buildCashFlowTimeline(cashFlowEvents, dateStr)
   const cashFlowTimeline     = withinWindow(cashFlowTimelineFull, 30)

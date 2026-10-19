@@ -29,9 +29,10 @@ export const revalidate = 0
 export default async function AnalisisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; view?: string; bm?: string }>
+  searchParams: Promise<{ month?: string; year?: string; view?: string; bm?: string; sv?: string }>
 }) {
-  const { month: monthStr, year: yearStr, view, bm } = await searchParams
+  const { month: monthStr, year: yearStr, view, bm, sv } = await searchParams
+  const sinViaje = sv === '1'   // fase 3 compartidos: ocultar gastos de viajes del análisis
   const { now } = getNowChile()
   const isAnual = view === 'anual'
   const isPatrimonio = view === 'patrimonio'
@@ -73,7 +74,7 @@ export default async function AnalisisPage({
   const rateEndD    = new Date(now.getFullYear(), now.getMonth() + 1, 1)
   const rateEnd     = `${rateEndD.getFullYear()}-${String(rateEndD.getMonth() + 1).padStart(2, '0')}-01`
 
-  const [{ data: expenses }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: depositsRaw }, { data: profileRow }, { data: usdDepositsRaw }, { data: monthReviewRaw }] = await Promise.all([
+  const [{ data: expensesAll }, { data: categoryBudgets }, { data: anualExpensesRaw }, { data: prevYearExpensesRaw }, { data: incomeRow }, { data: prevIncomeRow }, { data: monthBudgetRows }, { data: aiInsightsRaw }, { data: incomes12Raw }, { data: expenses12Raw }, { data: savingsRaw }, { data: recurringRaw }, { data: depositsRaw }, { data: profileRow }, { data: usdDepositsRaw }, { data: monthReviewRaw }] = await Promise.all([
     supabase
       .from('expenses')
       .select('*, category:categories(*), payment_method:payment_methods(*)')
@@ -178,6 +179,12 @@ export default async function AnalisisPage({
       .eq('status', 'active')
       .maybeSingle(),
   ])
+
+  // Gastos de viajes compartidos (shared_expense_id): se pueden ocultar con el chip "Sin viajes"
+  const tripRowCount = (expensesAll ?? []).filter((e: { shared_expense_id?: string | null }) => !!e.shared_expense_id).length
+  const expenses = sinViaje
+    ? (expensesAll ?? []).filter((e: { shared_expense_id?: string | null }) => !e.shared_expense_id)
+    : expensesAll
 
   // F4: patrimonio neto — snapshot del mes actual + histórico (solo vista mensual).
   // La llamada real vive más abajo (línea con committedDebtTotal ya calculado):
@@ -1029,7 +1036,20 @@ export default async function AnalisisPage({
             </div>
           </div>
         ) : isPatrimonio ? null : (
-          <MonthNav month={month} year={year} basePath="/analisis" />
+          <div className="flex items-center gap-3 flex-wrap">
+            <MonthNav month={month} year={year} basePath="/analisis" extraParams={sinViaje ? { sv: '1' } : undefined} />
+            {(tripRowCount > 0 || sinViaje) && (
+              <Link
+                href={`/analisis?month=${month}&year=${year}${sinViaje ? '' : '&sv=1'}`}
+                aria-pressed={sinViaje}
+                className="inline-flex items-center min-h-[44px] px-3.5 rounded-full text-xs font-semibold border"
+                style={sinViaje
+                  ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
+                  : { background: 'var(--surface)', color: 'var(--ink-2)', borderColor: 'var(--border)' }}>
+                {sinViaje ? 'Sin viajes ✓' : 'Sin viajes'}
+              </Link>
+            )}
+          </div>
         )}
       </div>
 

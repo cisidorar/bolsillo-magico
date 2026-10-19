@@ -35,6 +35,7 @@ const ERRORS: Record<string, string> = {
   invalid_people:       'El número de personas tiene que estar entre 1 y 50.',
   invalid_budget:       'Revisa los montos del presupuesto.',
   invalid_goal:         'Esa meta no es tuya.',
+  already_paid:         'Ese pago ya está registrado.',
   invalid_amount:       'Ingresa un monto mayor a cero.',
   description_required: 'Escribe una descripción.',
   invalid_payer:        'Quien pagó tiene que ser parte del viaje.',
@@ -245,4 +246,30 @@ export async function addToTripGoal(goalId: string, amount: number): Promise<Res
   revalidatePath('/compartidos')
   revalidatePath('/presupuesto')
   return { ok: true }
+}
+
+// ── Fase 3: pagos programados ───────────────────────────────────────────────
+
+export async function savePlanItem(input: {
+  id: string | null; groupId: string; description: string; category: TripCategory; amount: number; dueDate: string | null
+}): Promise<Result<{ id: string }>> {
+  const r = await rpc<string>('shared_plan_item_save', {
+    p_id: input.id, p_group: input.groupId, p_description: input.description,
+    p_category: input.category, p_amount: input.amount, p_due: input.dueDate || null,
+  })
+  if (!r.ok) return r
+  revalidatePath('/recurrentes')
+  return { ok: true, id: r.data as string }
+}
+
+export async function deletePlanItem(id: string) {
+  const r = await rpc('shared_plan_item_delete', { p_id: id })
+  revalidatePath('/recurrentes')
+  return r
+}
+
+export async function payPlanItem(id: string, amount: number | null, date: string, paymentMethodId: string | null) {
+  const r = await rpc('shared_plan_item_pay', { p_id: id, p_amount: amount, p_date: date, p_payment_method: paymentMethodId })
+  revalidatePath('/recurrentes')
+  return r
 }

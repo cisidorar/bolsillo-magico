@@ -9,6 +9,8 @@ import { cn, formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { suggestCategory, recordCategoryRule, type CategorySuggestion } from '@/app/actions/suggest-category'
 import { useToast } from '@/components/ToastProvider'
+import { saveSharedExpense } from '@/app/actions/shared'
+import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
 import type { Category, PaymentMethod, ExpenseWithRelations } from '@/types'
 
 interface Props {
@@ -93,6 +95,12 @@ export default function ExpenseSheet({
 
   const isEditing = !!editExpense
 
+  // Fase 3 compartidos: "¿Es de un viaje?" — el gasto se registra en el viaje
+  // (todos los miembros, modo de reparto del grupo) y en tu historial queda solo tu parte.
+  const [trips, setTrips] = useState<{ id: string; name: string; split_mode: string; split_error: string | null }[]>([])
+  const [tripId, setTripId] = useState<string | null>(null)
+  const [tripCat, setTripCat] = useState<TripCategory>('otros')
+
   // Pre-fill when editing
   useEffect(() => {
     if (isOpen && editExpense) {
@@ -124,6 +132,25 @@ export default function ExpenseSheet({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, fetchData, isEditing])
+
+  // Viajes abiertos en los que participo (solo al crear un gasto nuevo)
+  useEffect(() => {
+    if (!isOpen || isEditing) return
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: mem } = await supabase.from('shared_group_members')
+        .select('group_id').eq('user_id', user.id).eq('status', 'accepted')
+      const ids = (mem ?? []).map(m => m.group_id as string)
+      if (!ids.length) { if (!cancelled) setTrips([]); return }
+      const { data: gs } = await supabase.from('shared_groups')
+        .select('id, name, split_mode, split_error').in('id', ids).is('closed_at', null)
+      if (!cancelled) setTrips((gs ?? []) as typeof trips)
+    })()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isEditing])
 
   // Calcular las 3 categorías más usadas en los últimos 30 días
   useEffect(() => {
@@ -281,9 +308,28 @@ export default function ExpenseSheet({
 
   async function save() {
     if (!amount || parseInt(amount) === 0) { setError('Ingresa un monto'); return }
-    if (!catId) { setError('Elige una categoría'); return }
+    if (!catId && !tripId) { setError('Elige una categoría'); return }
 
     setSaving(true); setError('')
+
+    if (tripId && !isEditing) {
+      const trip = trips.find(t => t.id === tripId)
+      const { data: { user: u } } = await supabase.auth.getUser()
+      if (!trip || !u) { setSaving(false); setError('No se pudo identificar el viaje.'); return }
+      const res = await saveSharedExpense({
+        id: null, groupId: tripId, tripCategory: tripCat,
+        description: desc.trim() || trip.name, date: dateStr, amount: parseInt(amount), paidBy: u.id,
+        paymentMethodId: pmId,
+        splitKind: trip.split_mode === 'income' && !trip.split_error ? 'group' : 'equal',
+        participants: null, exact: null,
+      })
+      setSaving(false)
+      if (!res.ok) { setError(res.error); return }
+      router.refresh()
+      close()
+      showToast(`Gasto del viaje «${trip.name}» guardado`)
+      return
+    }
 
     if (isEditing && editExpense) {
       const { error: err } = await supabase
@@ -334,6 +380,31 @@ export default function ExpenseSheet({
   if (!isOpen) return null
 
   // ─── Shared sub-components ────────────────────────────────────────────────
+  const tripPicker = !isEditing && trips.length > 0 ? (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-2">¿Es de un viaje?</p>
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" onClick={() => setTripId(null)} aria-pressed={tripId === null}
+          className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', tripId === null ? 'sheet-chip-active' : 'sheet-chip')}>No</button>
+        {trips.map(t => (
+          <button key={t.id} type="button" onClick={() => setTripId(t.id)} aria-pressed={tripId === t.id}
+            className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', tripId === t.id ? 'sheet-chip-active' : 'sheet-chip')}>{t.name}</button>
+        ))}
+      </div>
+      {tripId && (
+        <>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {TRIP_CATEGORIES.map(c => (
+              <button key={c.key} type="button" onClick={() => setTripCat(c.key)} aria-pressed={tripCat === c.key}
+                className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', tripCat === c.key ? 'sheet-chip-active' : 'sheet-chip')}>{c.label}</button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">Se reparte entre todos los del viaje y en tus gastos queda solo tu parte (fuera de tu presupuesto del mes).</p>
+        </>
+      )}
+    </div>
+  ) : null
+
   const methodChips = (
     <div className="flex flex-wrap gap-1.5">
       <button
@@ -729,6 +800,7 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
+            {tripPicker}
             {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -803,6 +875,7 @@ export default function ExpenseSheet({
               </div>
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
+            {tripPicker}
             {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -951,6 +1024,7 @@ export default function ExpenseSheet({
             {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
 
+          {tripPicker && <div>{tripPicker}</div>}
           {/* 3. Categoría */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1019,6 +1093,7 @@ export default function ExpenseSheet({
           </div>
 
           {/* Categories — collapses after selection */}
+          {tripPicker && <div className="px-5 pt-3">{tripPicker}</div>}
           <div className="px-5 pt-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-gray-400">Categoría</p>

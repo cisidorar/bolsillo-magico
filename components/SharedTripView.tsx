@@ -20,9 +20,12 @@ import TripSettingsSheet from './TripSettingsSheet'
 import UserSearch from './UserSearch'
 import TripPlanCard, { type TripGoal } from './TripPlanCard'
 import TripSpendHero from './TripSpendHero'
+import TripPlanItems from './TripPlanItems'
+import TripClosedSummary from './TripClosedSummary'
+import { budgetTotal } from '@/lib/trip-plan'
 import TripBudgetSheet from './TripBudgetSheet'
 import type {
-  SharedGroup, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo,
+  SharedGroup, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow,
 } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 
@@ -42,7 +45,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, capacity, goal, today, dateFormat,
+  myCategoryId, weights, capacity, goal, planItems, today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -58,6 +61,7 @@ export default function SharedTripView({
   /** Lo que ahorras al mes en promedio (null sin ingresos) — solo tuyo */
   capacity:       number | null
   goal:           TripGoal | null
+  planItems:      SharedPlanItemRow[]
   today:          string
   dateFormat:     DateFormat
 }) {
@@ -168,6 +172,14 @@ export default function SharedTripView({
       <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: 'minmax(0, 1fr) 340px' }}>
         {/* Columna principal — lo que se mira seguido: gasto vs. presupuesto, saldo, tu parte, gastos */}
         <div className="space-y-5 min-w-0">
+          {closed && (
+            <TripClosedSummary
+              total={bal.total} myShare={bal.share[meId] ?? 0} myPaid={bal.paid[meId] ?? 0}
+              budget={budgetTotal(group.budget ?? {})} spent={spentByCategory(expenses)}
+              people={accepted.length} count={expenses.length}
+              startDate={group.start_date} endDate={group.end_date} />
+          )}
+
           <TripSpendHero
             budget={group.budget ?? {}} spent={spentByCategory(expenses)} closed={closed}
             onEditBudget={() => setBudgetOpen(true)}
@@ -232,6 +244,9 @@ export default function SharedTripView({
             startDate={group.start_date} today={today} closed={closed}
             onEditBudget={() => setBudgetOpen(true)} onEditDates={() => setEditOpen(true)}
           />
+
+          <TripPlanItems groupId={group.id} items={planItems} paymentMethods={paymentMethods}
+            today={today} closed={closed} people={people} />
 
           {/* Gastos */}
           <div className="card p-4">

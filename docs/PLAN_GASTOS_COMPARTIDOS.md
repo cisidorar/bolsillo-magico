@@ -358,3 +358,11 @@ El modelo de dos personas (member_a/member_b, ratio acordado, propuesta/confirma
 
 - `lib/next-trip.ts` + `NextTripCard`: en `/inicio` (columna 3 en desktop, bajo el hero en mobile) aparece el viaje abierto más cercano (en curso o por salir; si no hay con fecha, el sin fecha más nuevo): días para salir, tu parte estimada, avance de tu meta de ahorro y cuánto apartar al mes.
 - **Los gastos de viaje van fuera del límite mensual:** `inicio` (mes actual y mes anterior) y `presupuesto` filtran `shared_expense_id IS NULL`. Siguen en Historial (chip "Compartido"), en los estados de tarjeta (`amount + card_extra`) y quedan `excluded_from_analysis`. Se financian con la meta de ahorro del viaje, no con el presupuesto del mes.
+
+## Fase 3 (oct 2026) — integrado al día a día (migración 20261023)
+
+- **Pagos por hacer** (`shared_plan_items`, funciones `shared_plan_item_save/delete/pay`): pagos futuros del viaje. Con fecha aparecen en el **Flujo de caja 30 días** de `/recurrentes` (`lib/trip-cash-events.ts`, tu parte estimada = monto ÷ max(miembros, personas planeadas), tipo `trip`). "Pagar" lo convierte en gasto compartido normal (modo del grupo, todos).
+- **¿Es de un viaje?** en `ExpenseSheet` (gastos nuevos): elige el viaje y la categoría del viaje; se guarda como gasto compartido y en tu historial queda solo tu parte.
+- **Chip "Sin viajes"** en `/analisis` (`?sv=1`), visible si el mes tiene gastos de viajes.
+- **Resumen al cerrar** (`TripClosedSummary`): total, por día, tu parte, lo que pusiste, contra presupuesto y por categoría.
+- Pendiente: correo de cierre con el resumen.

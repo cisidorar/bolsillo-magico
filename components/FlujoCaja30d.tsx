@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Wallet, CreditCard, RefreshCw, AlertTriangle, Info } from 'lucide-react'
+import { Wallet, CreditCard, RefreshCw, AlertTriangle, Info, Plane } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
 import InfoTap from './InfoTap'
@@ -22,7 +22,7 @@ const fmtDay = (dateStr: string, daysUntil: number) => {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }).replace('.', '')
 }
 
-const ICONS = { income: Wallet, card: CreditCard, recurring: RefreshCw }
+const ICONS = { income: Wallet, card: CreditCard, recurring: RefreshCw, trip: Plane }
 
 export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithoutDueDay, muteRiskBanner }: Props) {
   const minBalance = events.length > 0 ? Math.min(...events.map(e => e.runningBalance)) : 0

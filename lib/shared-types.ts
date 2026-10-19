@@ -72,3 +72,15 @@ export interface SettlementRow {
   date:       string
   created_at: string
 }
+
+export interface SharedPlanItemRow {
+  id:                string
+  group_id:          string
+  description:       string
+  trip_category:     TripCategory
+  est_amount:        number
+  due_date:          string | null
+  created_by:        string
+  shared_expense_id: string | null
+  paid_at:           string | null
+}
