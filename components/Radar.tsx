@@ -1155,7 +1155,7 @@ export default function Radar({
               )}
             </div>
           </div>
-          <div>
+          <div className="[&>button+button]:border-t [&>button+button]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
             {myPerformance.map(row => {
               const q = quotes[row.ticker]
               // Reportado por Cas: la fila no daba ninguna pista de que había
