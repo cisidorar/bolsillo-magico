@@ -7,6 +7,8 @@ import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { buildCommittedTimeline } from '@/lib/committed-timeline'
 import CommittedTimeline from '@/components/CommittedTimeline'
 import RecurringManager from '@/components/RecurringManager'
+import RecurringSuggestions from '@/components/RecurringSuggestions'
+import { detectRecurring, type DetectExpense } from '@/lib/recurring-detect'
 import CalendarioPagos, { type RecurringWithRelations } from '@/components/CalendarioPagos'
 import RecurringOverdueAlert from '@/components/RecurringOverdueAlert'
 import FlujoCaja30d from '@/components/FlujoCaja30d'
@@ -61,6 +63,9 @@ export default async function RecurrentesPage({
   const twoMonthsAgo        = new Date(year, now.getMonth() - 2, 1)
   const statementFetchStart = twoMonthsAgo.toISOString().split('T')[0]
 
+  const historyDate  = new Date(year, now.getMonth() - 9, 1)
+  const historyStart = `${historyDate.getFullYear()}-${String(historyDate.getMonth() + 1).padStart(2, '0')}-01`
+
   const [
     { data: recurring },
     { data: categories },
@@ -72,6 +77,7 @@ export default async function RecurrentesPage({
     { data: paydayPrefRow },
     { data: lastIncome },
     { data: statementExpenses },
+    { data: historyExpenses },
   ] = await Promise.all([
     supabase
       .from('recurring_expenses')
@@ -119,7 +125,22 @@ export default async function RecurrentesPage({
       .eq('user_id', user.id)
       .gte('date', statementFetchStart)
       .lte('date', now.toISOString().split('T')[0]),
+    // Historial reciente para proponer recurrentes que faltan (ver lib/recurring-detect.ts)
+    supabase
+      .from('expenses')
+      .select('id, description, amount, date, category_id, payment_method_id, recurring_expense_id, shared_expense_id')
+      .eq('user_id', user.id)
+      .gte('date', historyStart)
+      .lte('date', now.toISOString().split('T')[0]),
   ])
+
+  const suggestions = detectRecurring(
+    (historyExpenses ?? []) as DetectExpense[],
+    (recurring ?? []).map(r => r.name as string),
+    dateStr,
+  )
+  const categoryNames = Object.fromEntries((categories ?? []).map(c => [c.id as string, c.name as string]))
+  const methodNames    = Object.fromEntries((paymentMethods ?? []).map(m => [m.id as string, m.name as string]))
 
   const paidMap = (allExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
     if (e.recurring_expense_id) acc[e.recurring_expense_id] = (acc[e.recurring_expense_id] ?? 0) + 1
@@ -370,6 +391,8 @@ export default async function RecurrentesPage({
       {overdueCount > 0 && (
         <RecurringOverdueAlert count={overdueCount} names={overdueNames} />
       )}
+
+      <RecurringSuggestions candidates={suggestions} categoryNames={categoryNames} methodNames={methodNames} />
 
       {/* ── KPI: un solo número (UX3) — antes 4 cards con variaciones del mismo
           concepto ("cuánto pesan mis fijos"). "Próximo cargo" ahora vive en
