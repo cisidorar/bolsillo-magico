@@ -89,7 +89,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
                 )}
               </div>
             </div>
-            <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>−{formatCLP(deuda)}</span>
+            <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>−{formatCLP(deuda)}</span>
           </Link>
         )}
 
@@ -108,7 +108,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
               ) : null}
             </div>
           </div>
-          <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: investedThisMonth > 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
+          <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: investedThisMonth > 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
             {investedThisMonth > 0 ? `−${formatCLP(investedThisMonth)}` : '—'}
           </span>
         </div>
@@ -122,7 +122,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
               <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>gastado este mes</span>
             </div>
           </div>
-          <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink-3)' }}>
+          <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: debitSpentThisMonth > 0 ? 'var(--ink)' : 'var(--ink-3)' }}>
             {debitSpentThisMonth > 0 ? `−${formatCLP(debitSpentThisMonth)}` : '—'}
           </span>
         </div>

@@ -61,7 +61,13 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
       recurring_expense_id: r.id,
     })
     setSaving(false)
-    if (err) { setError('Error al registrar'); return }
+    if (err) {
+      // Mensaje real cuando se puede (ej. RLS, constraint) en vez de uno
+      // genérico que no distingue "sin internet" de "la base lo rechazó" —
+      // y el sheet queda abierto con el botón listo para reintentar.
+      setError(err.message || 'No se pudo registrar. Revisa tu conexión e intenta de nuevo.')
+      return
+    }
     setDone(true)
     setTimeout(() => { setOpen(false); router.refresh() }, 800)
   }
@@ -75,7 +81,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
             onClick={() => setOpen(true)}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold transition-all hover:opacity-80 active:scale-[.98]"
             style={{
-              background: 'rgba(239,91,82,0.28)',
+              background: 'rgba(255,111,97,0.28)',
               color: 'var(--coral)',
             }}
           >
@@ -88,8 +94,8 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
         onClick={() => setOpen(true)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left transition-opacity hover:opacity-80 active:opacity-60"
         style={{
-          borderTop: borderTop ? '1px solid #FAD3CF' : undefined,
-          background: firstItem ? 'rgba(239,91,82,0.04)' : undefined,
+          borderTop: borderTop ? '1px solid rgba(255,111,97,0.3)' : undefined,
+          background: firstItem ? 'rgba(255,111,97,0.04)' : undefined,
         }}
       >
         <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />

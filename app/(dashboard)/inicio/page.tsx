@@ -604,7 +604,7 @@ export default async function DashboardPage() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(card.total)}</p>
-              <p className="text-[10px] font-semibold" style={{ color: daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold)' : 'var(--ink-3)' }}>{daysLabel}</p>
+              <p className="text-[10px] font-semibold" style={{ color: daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{daysLabel}</p>
             </div>
             <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 ml-1" style={{ color: 'var(--ink-3)' }} />
           </Link>
@@ -623,7 +623,7 @@ export default async function DashboardPage() {
           <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
-            <p className="text-[10px] font-semibold" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
+            <p className="text-[10px] font-semibold" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
               {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
             </p>
           </div>
@@ -692,7 +692,7 @@ export default async function DashboardPage() {
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
                       <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Disponible</p>
-                      <p className="text-5xl font-extrabold leading-none" style={{ color: '#34D6A2' }}>
+                      <p className="text-3xl font-bold leading-none" style={{ color: 'var(--mint-on-brand)' }}>
                         {formatCLP(budgetAmount)}
                       </p>
                     </div>
@@ -729,8 +729,8 @@ export default async function DashboardPage() {
                         />
                       )}
                     </p>
-                    <p className="text-5xl font-extrabold leading-none"
-                      style={{ color: budgetAmount ? (isOver ? '#f87171' : '#34D6A2') : 'rgba(255,255,255,0.90)' }}>
+                    <p className="text-3xl font-bold leading-none"
+                      style={{ color: budgetAmount ? (isOver ? 'var(--coral-on-brand)' : 'var(--mint-on-brand)') : 'rgba(255,255,255,0.90)' }}>
                       {budgetAmount
                         ? (isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total))
                         : formatCLP(dailyAvg)}
@@ -747,11 +747,11 @@ export default async function DashboardPage() {
                           className="h-full transition-all"
                           style={{
                             width: `${usedPct}%`,
-                            backgroundColor: isOver ? '#f87171' : '#FFC23C',
+                            backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold)',
                           }}
                         />
                         {!isOver && pendingPct > 0 && (
-                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'rgba(255,224,138,0.45)' }} />
+                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)' }} />
                         )}
                         {!isOver && upcomingPct > 0 && (
                           <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
@@ -762,7 +762,7 @@ export default async function DashboardPage() {
                           {progressPct}% usado
                           {!isOver && pendingChargesAmount > 0 && (
                             <>
-                              <span style={{ color: '#FFE08A' }}>· +{formatCLP(pendingChargesAmount)} por cobrar</span>
+                              <span style={{ color: 'var(--gold-on-brand)' }}>· +{formatCLP(pendingChargesAmount)} por cobrar</span>
                               <InfoTap
                                 explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
                                 color="rgba(255,255,255,0.5)"
@@ -803,13 +803,13 @@ export default async function DashboardPage() {
                   <div className="min-w-0">
                     <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
                       Proyección
-                      {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: '#FCA5A5' }} />}
+                      {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'var(--coral-on-brand-soft)' }} />}
                       <InfoTap
                         explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
                         color="rgba(255,255,255,0.5)"
                       />
                     </p>
-                    <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: projOverBudget ? '#FCA5A5' : 'white' }}>
+                    <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'white' }}>
                       {formatCLP(projection)}
                     </p>
                   </div>
@@ -820,7 +820,7 @@ export default async function DashboardPage() {
                       <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
                     </p>
                     {deltaVsLast !== null ? (
-                      <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
+                      <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: deltaVsLast < 0 ? 'var(--mint-on-brand-soft)' : 'var(--coral-on-brand-soft)' }}>
                         {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}% <span className="font-medium text-white/45">· {formatCLP(Math.abs(total - prevTotal))}</span>
                       </p>
                     ) : (
@@ -889,7 +889,7 @@ export default async function DashboardPage() {
                     const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
                     const mildOver       = over && !isAllRecurring && overPct < 15
                     const hardOver       = over && !isAllRecurring && overPct >= 15
-                    const barColor       = isAllRecurring && over ? c.color : hardOver ? '#FF6F61' : mildOver ? '#FFC23C' : limit && catPct >= 80 ? '#FFC23C' : c.color
+                    const barColor       = isAllRecurring && over ? c.color : hardOver ? 'var(--coral)' : mildOver ? 'var(--gold)' : limit && catPct >= 80 ? 'var(--gold)' : c.color
                     return (
                       <Link
                         key={c.id}
@@ -899,11 +899,11 @@ export default async function DashboardPage() {
                       >
                         {(hardOver || mildOver) && (
                           <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                            style={{ background: hardOver ? '#FF6F61' : '#FFC23C' }} />
+                            style={{ background: hardOver ? 'var(--coral)' : 'var(--gold)' }} />
                         )}
                         <span
                           className="text-[11px] font-extrabold w-5 flex-shrink-0 tabular-nums text-center"
-                          style={{ color: idx === 0 ? '#FFC23C' : idx === 1 ? 'var(--ink-3)' : idx === 2 ? '#FB923C' : 'var(--border)' }}
+                          style={{ color: idx === 0 ? 'var(--gold-ink)' : idx === 1 ? 'var(--ink-3)' : idx === 2 ? 'var(--bronze)' : 'var(--border)' }}
                         >{idx + 1}</span>
                         <div
                           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
@@ -924,7 +924,7 @@ export default async function DashboardPage() {
                               <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
                             </div>
                             <p className="text-[10px] font-semibold flex-shrink-0 w-24 text-right"
-                              style={{ color: hardOver ? '#FF6F61' : mildOver ? '#FFC23C' : 'var(--ink-3)' }}>
+                              style={{ color: hardOver ? 'var(--coral)' : mildOver ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                               {isAllRecurring && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
                             </p>
                           </div>
@@ -1026,7 +1026,7 @@ export default async function DashboardPage() {
                     : daysLeft === 1 ? 'Cierra mañana'
                     : daysLeft > 0   ? `Cierra en ${daysLeft} días`
                     : 'Cerrado'
-                  const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold)' : 'var(--ink-3)'
+                  const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold-ink)' : 'var(--ink-3)'
                   return (
                     <div key={card.id} className="card p-4" style={{ borderColor: 'var(--border)' }}>
                       <div className="flex items-center justify-between mb-3">
@@ -1038,7 +1038,10 @@ export default async function DashboardPage() {
                           <CreditCard className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--ink)' }}>Cupo usado</p>
+                          <p className="text-sm font-semibold leading-tight flex items-center gap-1" style={{ color: 'var(--ink)' }}>
+                            Cupo usado
+                            <InfoTap explanation="Acumulado del período que todavía está abierto — no es la factura por pagar. Si ves un monto distinto en Ciclo de sueldo, ese es el estado de cuenta ya cerrado." />
+                          </p>
                           <p className="text-xs mt-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
                         </div>
                         <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
@@ -1053,8 +1056,8 @@ export default async function DashboardPage() {
 
             {/* ── Pago(s) atrasado(s) ── */}
             {atrasados.length > 0 && (
-              <div className="card overflow-hidden" style={{ background: 'rgba(239,91,82,0.08)', borderColor: 'rgba(239,91,82,0.30)' }}>
-                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(239,91,82,0.15)' }}>
+              <div className="card overflow-hidden" style={{ background: 'rgba(255,111,97,0.08)', borderColor: 'rgba(255,111,97,0.30)' }}>
+                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,111,97,0.15)' }}>
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
                   <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
                     {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
@@ -1096,7 +1099,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold)' : 'var(--ink-3)' }}>
+                        <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                           {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
                         </p>
                       </div>
@@ -1130,7 +1133,7 @@ export default async function DashboardPage() {
               </p>
               {paydayLabel && (
                 <span className="text-[10px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.15)', color: daysToPayday === 0 ? '#34D6A2' : 'rgba(255,255,255,0.85)' }}>
+                  style={{ background: 'rgba(255,255,255,0.15)', color: daysToPayday === 0 ? 'var(--mint-on-brand)' : 'rgba(255,255,255,0.85)' }}>
                   {paydayLabel}
                 </span>
               )}
@@ -1151,7 +1154,7 @@ export default async function DashboardPage() {
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
                       <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Disponible</p>
-                      <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: '#34D6A2' }}>
+                      <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: 'var(--mint-on-brand)' }}>
                         {formatCLP(budgetAmount)}
                       </p>
                     </div>
@@ -1185,7 +1188,7 @@ export default async function DashboardPage() {
                         />
                       </p>
                       <p className="text-2xl font-extrabold leading-none tabular-nums"
-                        style={{ color: isOver ? '#f87171' : '#34D6A2' }}>
+                        style={{ color: isOver ? 'var(--coral-on-brand)' : 'var(--mint-on-brand)' }}>
                         {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
                       </p>
                     </div>
@@ -1198,10 +1201,10 @@ export default async function DashboardPage() {
                     <div className="h-2 bg-white/15 rounded-full overflow-hidden flex">
                       <div className="h-full transition-all" style={{
                         width: `${usedPct}%`,
-                        backgroundColor: isOver ? '#f87171' : '#FFC23C',
+                        backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold)',
                       }} />
                       {!isOver && pendingPct > 0 && (
-                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'rgba(255,224,138,0.45)' }} />
+                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)' }} />
                       )}
                       {!isOver && upcomingPct > 0 && (
                         <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
@@ -1212,7 +1215,7 @@ export default async function DashboardPage() {
                       <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
                     </div>
                     {!isOver && pendingChargesAmount > 0 && (
-                      <p className="text-xs mt-1" style={{ color: '#FFE08A' }}>
+                      <p className="text-xs mt-1" style={{ color: 'var(--gold-on-brand)' }}>
                         + {formatCLP(pendingChargesAmount)} por cobrar (cuotas/recurrentes ya vencidos sin registrar)
                       </p>
                     )}
@@ -1231,18 +1234,18 @@ export default async function DashboardPage() {
                     <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
                   </div>
                   <div className="flex-1 rounded-2xl px-4 py-3"
-                    style={{ background: projOverBudget ? 'rgba(239,91,82,0.25)' : 'rgba(255,255,255,0.15)' }}>
+                    style={{ background: projOverBudget ? 'rgba(255,111,97,0.25)' : 'rgba(255,255,255,0.15)' }}>
                     <p className="text-[10px] font-semibold mb-1 flex items-center gap-1"
-                      style={{ color: projOverBudget ? 'var(--coral)' : 'rgba(255,255,255,0.60)' }}>
+                      style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'rgba(255,255,255,0.60)' }}>
                       Proyección
-                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--coral)' }} />}
+                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--coral-on-brand-soft)' }} />}
                       <InfoTap
                         explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
                         color="rgba(255,255,255,0.5)"
                       />
                     </p>
                     <p className="text-base font-extrabold tabular-nums"
-                      style={{ color: projOverBudget ? 'var(--coral)' : 'white' }}>
+                      style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'white' }}>
                       {formatCLP(projection)}
                     </p>
                   </div>
@@ -1251,7 +1254,7 @@ export default async function DashboardPage() {
                 {/* Vs. mes anterior — antes solo vivía en el KPI grid de desktop */}
                 {deltaVsLast !== null && (
                   <p className="text-xs text-white/50 mt-3 flex items-center gap-1">
-                    <span className="font-bold" style={{ color: deltaVsLast < 0 ? '#6EE7B7' : '#FCA5A5' }}>
+                    <span className="font-bold" style={{ color: deltaVsLast < 0 ? 'var(--mint-on-brand-soft)' : 'var(--coral-on-brand-soft)' }}>
                       {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
                     </span>
                     {' '}vs. {monthName(prevM).slice(0, 3)} · {formatCLP(Math.abs(total - prevTotal))}
@@ -1261,6 +1264,31 @@ export default async function DashboardPage() {
               </>
             )}
           </div>
+
+          {/* Pagos atrasados mobile — justo después del hero: es la única
+              señal "requiere acción hoy" de la página, y en el escritorio ya
+              aparece cerca del tope de su columna. No debería quedar varias
+              secciones más abajo solo porque acá hay más para desplazar. */}
+          {atrasados.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+                <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
+              </div>
+              <div className="card overflow-hidden" style={{ background: 'rgba(255,111,97,0.08)', borderColor: 'rgba(255,111,97,0.30)' }}>
+                {atrasados.map((r, i) => (
+                  <OverduePaySheet
+                    key={r.id}
+                    atrasado={r}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    borderTop={i > 0}
+                    firstItem={i === 0}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
             {nextTrip && <NextTripCard trip={nextTrip} />}
@@ -1282,6 +1310,7 @@ export default async function DashboardPage() {
                 <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
                   <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                   Estado de cuenta
+                  <InfoTap explanation="Acumulado del período todavía abierto — no es la factura por pagar. Si ves otro monto en Ciclo de sueldo, ese es el estado de cuenta ya cerrado." />
                 </h2>
                 <Link href="/historial?view=billing" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver detalle</Link>
               </div>
@@ -1317,7 +1346,7 @@ export default async function DashboardPage() {
                     const isAllRec     = recurringAmt > 0 && recurringAmt >= c.total
                     const mildOver     = over && !isAllRec && overPct < 15
                     const hardOver     = over && !isAllRec && overPct >= 15
-                    const barColor     = isAllRec && over ? c.color : hardOver ? '#FF6F61' : mildOver ? '#FFC23C' : limit && catPct >= 80 ? '#FFC23C' : c.color
+                    const barColor     = isAllRec && over ? c.color : hardOver ? 'var(--coral)' : mildOver ? 'var(--gold)' : limit && catPct >= 80 ? 'var(--gold)' : c.color
                     return (
                       <Link
                         key={c.id}
@@ -1327,7 +1356,7 @@ export default async function DashboardPage() {
                       >
                         {(hardOver || mildOver) && (
                           <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                            style={{ background: hardOver ? '#FF6F61' : '#FFC23C' }} />
+                            style={{ background: hardOver ? 'var(--coral)' : 'var(--gold)' }} />
                         )}
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
@@ -1344,7 +1373,7 @@ export default async function DashboardPage() {
                             <div className="text-right flex-shrink-0">
                               <p className="text-[14px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
                               <p className="text-[10px] font-semibold"
-                                style={{ color: hardOver ? '#FF6F61' : mildOver ? '#FFC23C' : 'var(--ink-3)' }}>
+                                style={{ color: hardOver ? 'var(--coral)' : mildOver ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                                 {isAllRec && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
                               </p>
                             </div>
@@ -1395,28 +1424,6 @@ export default async function DashboardPage() {
                     </div>
                   )
                 })}
-              </div>
-            </div>
-          )}
-
-          {/* Pagos atrasados mobile */}
-          {atrasados.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
-              </div>
-              <div className="card overflow-hidden" style={{ borderColor: '#FAD3CF' }}>
-                {atrasados.map((r, i) => (
-                  <OverduePaySheet
-                    key={r.id}
-                    atrasado={r}
-                    userId={atrasadosUserId}
-                    dateStr={dateStr}
-                    borderTop={i > 0}
-                    firstItem={i === 0}
-                  />
-                ))}
               </div>
             </div>
           )}

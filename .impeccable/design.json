@@ -9,6 +9,12 @@
       "coral": { "role": "tertiary", "displayName": "Urgent Coral", "canonical": "#FF6F61", "tonalRamp": ["#330F0B", "#5C1C15", "#8A2B20", "#C14233", "#FF6F61", "#FF9B8F", "#FFC7BE", "#FFEBE8"] },
       "gold": { "role": "tertiary", "displayName": "Attention Gold", "canonical": "#FFC23C", "tonalRamp": ["#332607", "#5C440E", "#8A6615", "#C1941E", "#FFC23C", "#FFD676", "#FFE8AC", "#FFF8E3"] },
       "gold-ink": { "role": "tertiary", "displayName": "Attention Gold (text-safe)", "canonical": "#B45309" },
+      "mint-on-brand": { "role": "secondary", "displayName": "Confirmation Mint (on hero blue)", "canonical": "#34D6A2" },
+      "mint-on-brand-soft": { "role": "secondary", "displayName": "Confirmation Mint, soft (on hero blue)", "canonical": "#6EE7B7" },
+      "coral-on-brand": { "role": "tertiary", "displayName": "Urgent Coral (on hero blue)", "canonical": "#f87171" },
+      "coral-on-brand-soft": { "role": "tertiary", "displayName": "Urgent Coral, soft (on hero blue)", "canonical": "#FCA5A5" },
+      "gold-on-brand": { "role": "tertiary", "displayName": "Attention Gold (on hero blue)", "canonical": "#FFE08A" },
+      "bronze": { "role": "tertiary", "displayName": "Bronze (3rd-place ranking accent)", "canonical": "#92400E" },
       "bg": { "role": "neutral", "displayName": "Page Wash", "canonical": "#F4F7FB" },
       "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#FFFFFF" },
       "surface-2": { "role": "neutral", "displayName": "Surface Subtle", "canonical": "#EDF2F8" },
@@ -105,6 +111,8 @@
     "rules": [
       { "name": "The Alert Severity Hierarchy Rule", "body": "Coral (full bordered banner, max one per screen) = today. Gold (small inline pill, never banner-sized) = soon. Mint = positive confirmation only, never actionable.", "section": "colors" },
       { "name": "The Gold-Ink Rule", "body": "--gold (#FFC23C) is a background/icon-tint color only; at ~1.6:1 on white it fails WCAG AA as text. Use --gold-ink (#B45309 light / #FFD166 dark) wherever gold needs to read as foreground text or an icon glyph on a light surface.", "section": "colors" },
+      { "name": "The On-Brand Accent Rule", "body": "--mint/--coral/--gold are tuned for neutral grounds, not the hero's solid --primary blue. On that surface use --mint-on-brand (#34D6A2), --coral-on-brand (#f87171), --gold-on-brand (#FFE08A) — theme-invariant like --primary itself. A -soft variant of mint/coral exists for a second, lower-emphasis figure on the same hero; never invent a third shade by hand.", "section": "colors" },
+      { "name": "The Ranking Accent Rule", "body": "A numbered leaderboard position is decorative ranking, not alert severity. 1st place borrows gold by convention (.rank-gold); 3rd place uses --bronze (#92400E light / #D97706 dark, matching .rank-bronze), never a new orange invented for the occasion.", "section": "colors" },
       { "name": "The One Interactive Blue Rule", "body": "--primary is the only color that means interactive/brand. The static .text-brand-600 utility (#2B7CF6) is a Tailwind-JIT responsive-variant workaround, not a second brand hue.", "section": "colors" },
       { "name": "The Tabular Numerals Rule", "body": "Every monetary amount renders with tabular-nums, no exceptions.", "section": "typography" },
       { "name": "The Flat-by-Default Rule", "body": "Surfaces are flat at rest, told apart by their border; shadow only intensifies as a response to being the primary action on screen, and even then stays soft.", "section": "elevation" }

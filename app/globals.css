@@ -25,6 +25,21 @@
     --coral:        #FF6F61;
     --shadow:       rgba(14,42,82,.06);
 
+    /* Acentos sobre el hero-gradient (azul sólido) — el --mint/--coral de
+       superficie clara no estaban pensados para leerse sobre el propio azul
+       de marca; estos son más brillantes a propósito y, como --primary,
+       mantienen el mismo valor en claro y oscuro porque el hero es siempre
+       ese azul. Antes vivían como hex sueltos repetidos en el hero de /inicio. */
+    --mint-on-brand:       #34D6A2;
+    --mint-on-brand-soft:  #6EE7B7;
+    --coral-on-brand:      #f87171;
+    --coral-on-brand-soft: #FCA5A5;
+    --gold-on-brand:       #FFE08A;
+    /* Acento de "3er lugar" en rankings — mismo valor que ya usa .rank-bronze,
+       ahora como variable para que el inline style de /inicio no quede
+       fijo en modo claro. */
+    --bronze:       #92400E;
+
     /* Aliases de compatibilidad */
     --bg-page:    var(--bg);
     --bg-surface: var(--surface);
@@ -55,6 +70,13 @@
     --mint:         #34D6A2;
     --coral:        #FF8478;
     --shadow:       rgba(0,0,0,.28);
+
+    --mint-on-brand:       #34D6A2;
+    --mint-on-brand-soft:  #6EE7B7;
+    --coral-on-brand:      #f87171;
+    --coral-on-brand-soft: #FCA5A5;
+    --gold-on-brand:       #FFE08A;
+    --bronze:       #D97706;
 
     --bg-page:    var(--bg);
     --bg-surface: var(--surface);

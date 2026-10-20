@@ -40,7 +40,7 @@ export default function NextTripCard({ trip }: { trip: NextTrip }) {
               <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
                 Ahorrado {formatCLP(trip.goal.current)} de {formatCLP(trip.goal.target)}
                 {trip.perMonth != null && trip.perMonth > 0 && !trip.inProgress && (
-                  <span style={{ color: 'var(--gold)' }}> · aparta {formatCLP(trip.perMonth)} al mes</span>
+                  <span style={{ color: 'var(--gold-ink)' }}> · aparta {formatCLP(trip.perMonth)} al mes</span>
                 )}
               </p>
             </>
