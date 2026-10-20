@@ -832,9 +832,66 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Grid 3 columnas desktop ── */}
-        <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1.15fr 1fr 310px' }}>
+        <div className="hidden lg:grid gap-5 items-start" style={{ gridTemplateColumns: '1fr 1.15fr 310px' }}>
 
-          {/* Col 1 — Categorías */}
+          {/* Col 1 — Últimos gastos */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
+              <div className="flex items-center gap-2">
+                {typedExpenses.length > 0 && (
+                  <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+                )}
+                <AddExpenseInline
+                  categories={(categories ?? []) as Category[]}
+                  paymentMethods={(paymentMethods ?? []) as PaymentMethod[]}
+                />
+              </div>
+            </div>
+            <div className="card-flat overflow-hidden">
+              {typedExpenses.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center px-6 py-10">
+                  <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+                    Registra un gasto y aparecerá aquí al instante.
+                  </p>
+                </div>
+              ) : (
+                typedExpenses.slice(0, 8).map((e, i) => {
+                  const d = new Date(e.date + 'T12:00:00')
+                  const now2 = new Date()
+                  const isToday2    = e.date === now2.toISOString().split('T')[0]
+                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
+                  const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+                  return (
+                    <div
+                      key={e.id}
+                      className="flex items-center gap-3 px-4 py-3.5 transition-opacity hover:opacity-80"
+                    >
+                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={32} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                          {e.description || e.category?.name || '—'}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {e.category && (
+                            <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>
+                              {e.category.name}
+                            </span>
+                          )}
+                          <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>· {dayLabel}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
+                        {formatCLP(e.amount)}
+                      </p>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Col 2 — Categorías */}
           {catSummary.length === 0 ? (
             <div>
               <div className="flex items-center justify-between mb-2.5">
@@ -925,63 +982,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           )}
-
-          {/* Col 2 — Últimos gastos */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
-              <div className="flex items-center gap-2">
-                {typedExpenses.length > 0 && (
-                  <Link href="/historial" className="text-sm font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
-                )}
-                <AddExpenseInline
-                  categories={(categories ?? []) as Category[]}
-                  paymentMethods={(paymentMethods ?? []) as PaymentMethod[]}
-                />
-              </div>
-            </div>
-            <div className="card-flat overflow-hidden">
-              {typedExpenses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-center px-6 py-10">
-                  <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
-                    Registra un gasto y aparecerá aquí al instante.
-                  </p>
-                </div>
-              ) : (
-                typedExpenses.slice(0, 8).map((e, i) => {
-                  const d = new Date(e.date + 'T12:00:00')
-                  const now2 = new Date()
-                  const isToday2    = e.date === now2.toISOString().split('T')[0]
-                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
-                  const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  return (
-                    <div
-                      key={e.id}
-                      className="flex items-center gap-3 px-4 py-3.5 transition-opacity hover:opacity-80"
-                    >
-                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={32} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                          {e.description || e.category?.name || '—'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {e.category && (
-                            <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>
-                              {e.category.name}
-                            </span>
-                          )}
-                          <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>· {dayLabel}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
-                        {formatCLP(e.amount)}
-                      </p>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
 
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
