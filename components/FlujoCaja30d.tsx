@@ -35,7 +35,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
           <InfoTap explanation="Este saldo NO es tu cuenta bancaria real — parte de $0 hoy y solo suma/resta lo que sabes que va a entrar y salir. Si un evento cae en negativo, es que ese cargo llegaría antes que el ingreso que lo cubre, aunque hoy tengas plata guardada." />
           {hasRisk && muteRiskBanner && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold-ink)' }}>
               Riesgo de saldo negativo
             </span>
           )}
@@ -59,10 +59,10 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
       ) : (
         <>
           {hasRisk && !muteRiskBanner && (
-            <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'rgba(239,91,82,0.10)', border: '1px solid rgba(239,91,82,0.25)' }}>
+            <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
               <p className="text-xs font-semibold" style={{ color: 'var(--coral)' }}>
-                Tu flujo proyectado queda en negativo en algún punto de estos 30 días.
+                Tu flujo proyectado queda en negativo en algún punto de estos 30 días — revisa qué cargo podrías mover o adelantar un ingreso.
               </p>
             </div>
           )}

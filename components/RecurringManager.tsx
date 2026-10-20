@@ -542,85 +542,113 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             return (
               <div
                 key={item.id}
-                onClick={() => openEdit(item)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && openEdit(item)}
                 className={cn(
-                  'w-full px-4 text-left transition-colors hover:bg-gray-50/60 active:bg-brand-50/40 cursor-pointer',
+                  'w-full px-4 transition-colors hover:bg-gray-50/60',
                   isCompleted ? 'py-2.5' : 'py-4',
                   !item.is_active && 'opacity-60'
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <ServiceLogo domain={item.domain} name={item.name} size={isCompleted ? 28 : 40} className="flex-shrink-0" />
-
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {item.category && (
-                        <span className="cat-badge text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ '--cat-bg': item.category.bg_color, '--cat-color': item.category.color } as React.CSSProperties}>
-                          {item.category.name}
-                        </span>
-                      )}
-                      {item.auto_register && !isCuotas && (
-                        <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium">auto</span>
-                      )}
-                      {isAnual && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                          style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>anual</span>
-                      )}
-                      {isInterval && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                          style={{ background: 'rgba(124,58,237,0.15)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.3)' }}>
-                          cada {item.interval_months} meses
-                        </span>
-                      )}
-                      {priceChange?.changed && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(item)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="relative flex-shrink-0">
+                      <ServiceLogo domain={item.domain} name={item.name} size={isCompleted ? 28 : 40} />
+                      {!item.is_active && !isCompleted && (
                         <span
-                          className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                          style={priceChange.delta > 0
-                            ? { background: 'rgba(245,158,11,0.14)', color: 'var(--gold, #B45309)' }
-                            : { background: 'rgba(31,190,141,0.14)', color: 'var(--mint, #0F9D74)' }}
-                        >
-                          {priceChange.delta > 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                          {priceChange.delta > 0 ? 'subió' : 'bajó'} {formatCLP(Math.abs(priceChange.delta))}
-                        </span>
+                          className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white"
+                          style={{ background: 'var(--gold-ink)' }}
+                          role="img"
+                          aria-label="Pausado"
+                        />
                       )}
                     </div>
-                    {!isCuotas && auditExpenses.length > 0 && (
-                      <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
-                        ≈ {formatCLP(annualized)}/año · {formatCLP(paidSoFar)} pagado en total
-                      </p>
-                    )}
-                  </div>
 
-                  {/* Bug reportado por Cas: una cuota ya completa (3/3, badge
-                      "Completado") seguía mostrando "Próximo cargo" con una
-                      fecha futura — nextBillingDate() no sabe de cuotas, solo
-                      hace aritmética de fechas, así que sin este gate mostraba
-                      un cargo que nunca va a existir. */}
-                  {!isCompleted && (
-                    <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
-                      <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
-                      <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {item.category && (
+                          <span className="cat-badge text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ '--cat-bg': item.category.bg_color, '--cat-color': item.category.color } as React.CSSProperties}>
+                            {item.category.name}
+                          </span>
+                        )}
+                        {item.auto_register && !isCuotas && (
+                          <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium">auto</span>
+                        )}
+                        {isAnual && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}>anual</span>
+                        )}
+                        {isInterval && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}>
+                            cada {item.interval_months} meses
+                          </span>
+                        )}
+                        {priceChange?.changed && (
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                            style={priceChange.delta > 0
+                              ? { background: 'color-mix(in srgb, var(--gold) 14%, var(--surface))', color: 'var(--gold-ink)' }
+                              : { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint)' }}
+                          >
+                            {priceChange.delta > 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                            {priceChange.delta > 0 ? 'subió' : 'bajó'} {formatCLP(Math.abs(priceChange.delta))}
+                          </span>
+                        )}
+                      </div>
+                      {!isCuotas && auditExpenses.length > 0 && (
+                        <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+                          ≈ {formatCLP(annualized)}/año · {formatCLP(paidSoFar)} pagado en total
+                        </p>
+                      )}
                     </div>
-                  )}
 
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
-                    <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
-                  </div>
+                    {/* Bug reportado por Cas: una cuota ya completa (3/3, badge
+                        "Completado") seguía mostrando "Próximo cargo" con una
+                        fecha futura — nextBillingDate() no sabe de cuotas, solo
+                        hace aritmética de fechas, así que sin este gate mostraba
+                        un cargo que nunca va a existir. */}
+                    {!isCompleted && (
+                      <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
+                        <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
+                        <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
+                      </div>
+                    )}
 
-                  {/* Botón "Registrar ahora" */}
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
+                      <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
+                    </div>
+
+                    <span className={cn(
+                      'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
+                      item.is_active && !isCompleted ? 'bg-emerald-50 text-emerald-700'
+                        : isCompleted ? 'bg-gray-100 text-gray-500'
+                        : 'bg-amber-50 text-amber-700'
+                    )}>
+                      {isCompleted ? 'Completado' : item.is_active ? 'Activo' : 'Pausado'}
+                    </span>
+
+                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                  </button>
+
+                  {/* Botón "Registrar ahora" — icono visible en todos los
+                      anchos (antes `hidden sm:flex` lo dejaba inalcanzable en
+                      mobile, el único lugar donde no hay otro camino para
+                      registrar el cobro del día). */}
                   {canRegister && (
                     <button
                       onClick={e => registerNow(item, e)}
                       disabled={!!regState}
                       title="Registrar gasto hoy"
+                      aria-label="Registrar gasto hoy"
                       className={cn(
-                        'hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold border transition-all flex-shrink-0',
+                        'flex items-center justify-center gap-1 rounded-xl text-[11px] font-semibold border transition-all flex-shrink-0',
+                        'w-9 h-9 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5',
                         regState === 'done'
                           ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                           : regState === 'loading'
@@ -629,25 +657,14 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       )}
                     >
                       {regState === 'done' ? (
-                        <><Check className="w-3 h-3" /> Registrado</>
+                        <><Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" /><span className="hidden sm:inline">Registrado</span></>
                       ) : regState === 'loading' ? (
-                        <><RefreshCw className="w-3 h-3 animate-spin" /> Guardando</>
+                        <><RefreshCw className="w-3.5 h-3.5 sm:w-3 sm:h-3 animate-spin" /><span className="hidden sm:inline">Guardando</span></>
                       ) : (
-                        <><Plus className="w-3 h-3" /> Registrar</>
+                        <><Plus className="w-3.5 h-3.5 sm:w-3 sm:h-3" /><span className="hidden sm:inline">Registrar</span></>
                       )}
                     </button>
                   )}
-
-                  <span className={cn(
-                    'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
-                    item.is_active && !isCompleted ? 'bg-emerald-50 text-emerald-700'
-                      : isCompleted ? 'bg-gray-100 text-gray-500'
-                      : 'bg-amber-50 text-amber-700'
-                  )}>
-                    {isCompleted ? 'Completado' : item.is_active ? 'Activo' : 'Pausado'}
-                  </span>
-
-                  <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                 </div>
 
                 {isCuotas && !isCompleted && (() => {

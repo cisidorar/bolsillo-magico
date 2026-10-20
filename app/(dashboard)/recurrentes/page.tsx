@@ -419,7 +419,7 @@ export default async function RecurrentesPage({
           Lista
         </Link>
         <Link href="/recurrentes?view=calendar" className={`flex-1 flex items-center justify-center py-1.5 rounded-lg text-xs font-semibold transition-all ${isCalendar ? 'view-toggle-active-purchase' : 'view-toggle-btn'}`}>
-          Calendario
+          Resumen
         </Link>
       </div>
 

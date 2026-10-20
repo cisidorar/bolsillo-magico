@@ -22,8 +22,8 @@ export default function RecurringOverdueAlert({ count, names }: Props) {
     <div
       className="flex items-start gap-3 px-4 py-3 rounded-2xl mb-5"
       style={{
-        background: 'rgba(239,91,82,0.08)',
-        border: '1.5px solid rgba(239,91,82,0.25)',
+        background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))',
+        border: '1.5px solid color-mix(in srgb, var(--coral) 25%, transparent)',
       }}
     >
       <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
