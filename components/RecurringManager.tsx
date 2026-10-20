@@ -474,9 +474,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     <>
       {/* ── Lista ── */}
       <div className="flex flex-col gap-4">
-        <div className="card overflow-hidden divide-gray-50">
+        <div className="space-y-6">
           {items.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-10">Sin gastos recurrentes aún</p>
+            <div className="card-flat"><p className="text-sm text-center py-10" style={{ color: 'var(--ink-3)' }}>Sin gastos recurrentes aún</p></div>
           )}
 
           {(showGroups ? groupOrder : (['all'] as const)).map(groupKey => {
@@ -485,22 +485,24 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             const collapsed = showGroups && collapsedGroups.has(groupKey as GroupKey)
             const subtotal  = groupItems.reduce((s, it) => s + it.amount, 0)
             return (
-              <React.Fragment key={groupKey}>
+              <div key={groupKey}>
                 {showGroups && (
                   <button
                     onClick={() => toggleGroup(groupKey as GroupKey)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gray-50/60"
-                    style={{ background: 'var(--surface-2)' }}
+                    className="w-full flex items-center justify-between gap-3 mb-2 text-left"
                   >
-                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
-                      {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                      {GROUP_LABELS[groupKey as GroupKey]}
-                      <span className="font-medium normal-case tracking-normal">({groupItems.length})</span>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
+                      <span className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{GROUP_LABELS[groupKey as GroupKey]}</span>
+                      <span className="text-xs" style={{ color: 'var(--ink-3)' }}>({groupItems.length})</span>
+                      {collapsed ? <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />}
                     </span>
-                    <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
                   </button>
                 )}
-                {!collapsed && groupItems.map(item => {
+                {!collapsed && (
+                  <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
+                {groupItems.map(item => {
             const isCuotas    = item.total_installments != null && item.total_installments > 0
             const isAnual     = item.billing_month != null
             const isInterval  = !isCuotas && !isAnual && (item.interval_months ?? 1) > 1
@@ -690,7 +692,9 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               </div>
             )
           })}
-              </React.Fragment>
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>
