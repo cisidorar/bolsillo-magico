@@ -147,6 +147,14 @@
     box-shadow: 0 8px 18px var(--shadow);
   }
 
+  /* Tarjeta sin borde ni sombra: se distingue del fondo solo por el tono de
+     la superficie. La usa /inicio, donde el borde de 1.5px en cada tarjeta y
+     cada fila sumaba más líneas que contenido. */
+  .card-flat {
+    background-color: var(--surface);
+    border-radius: 20px;
+  }
+
   .card-brand {
     border-radius: 18px;
     background-color: var(--bg);

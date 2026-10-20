@@ -14,13 +14,13 @@ export default function NextTripCard({ trip }: { trip: NextTrip }) {
   const pct = trip.goal && trip.goal.target > 0 ? Math.min(100, Math.round((trip.goal.current / trip.goal.target) * 100)) : 0
 
   return (
-    <Link href={`/compartidos?g=${trip.id}`} className="card p-4 block transition-colors hover:brightness-[.99]">
+    <Link href={`/compartidos?g=${trip.id}`} className="card-flat p-4 block transition-colors hover:brightness-[.99]">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
           <Plane className="w-5 h-5" style={{ color: 'var(--primary)' }} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>Próximo viaje · {when}</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Próximo viaje · {when}</p>
           <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{trip.name}</p>
         </div>
         <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />

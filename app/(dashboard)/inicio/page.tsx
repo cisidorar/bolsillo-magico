@@ -578,7 +578,7 @@ export default async function DashboardPage() {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const StatementCardList = () => (
-    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+    <div className="card-flat overflow-hidden">
       {statementCards.map((card, i) => {
         const openDate  = new Date(card.opensOn  + 'T12:00:00')
         const closeDate = new Date(card.closesOn + 'T12:00:00')
@@ -595,7 +595,6 @@ export default async function DashboardPage() {
             key={card.id}
             href={`/cuenta/${card.id}`}
             className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:opacity-80"
-            style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
           >
             <ServiceLogo domain={card.domain} name={card.name} size={36} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -616,10 +615,9 @@ export default async function DashboardPage() {
   const atrasadosUserId = user!.id
 
   const ProximosPagosList = () => (
-    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+    <div className="card-flat overflow-hidden">
       {proximosPagos.map((r, i) => (
-        <div key={r.id} className="flex items-center gap-3 px-4 py-3"
-          style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+        <div key={r.id} className="flex items-center gap-3 px-4 py-3">
           <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
@@ -653,7 +651,7 @@ export default async function DashboardPage() {
             {paydayLabel && (
               <div
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
-                style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: daysToPayday === 0 ? 'var(--mint)' : 'var(--ink-2)' }}
+                style={{ background: 'var(--surface)', color: daysToPayday === 0 ? 'var(--mint)' : 'var(--ink-2)' }}
               >
                 <Wallet className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
                 {paydayLabel}
@@ -662,7 +660,7 @@ export default async function DashboardPage() {
             {/* Month badge */}
             <div
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}
+              style={{ background: 'var(--surface)', color: 'var(--ink-2)' }}
             >
               <Calendar className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
               {monthLabelCap}
@@ -681,7 +679,7 @@ export default async function DashboardPage() {
               <div className="flex flex-col gap-5">
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">{gastadoLabel}</p>
+                    <p className="text-sm text-white/70 font-medium mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
                     <p className="text-sm text-white/55 mt-2">
                       {budgetAmount
@@ -691,14 +689,14 @@ export default async function DashboardPage() {
                   </div>
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">Disponible</p>
+                      <p className="text-sm text-white/70 font-medium mb-2">Disponible</p>
                       <p className="text-3xl font-bold leading-none" style={{ color: 'var(--mint-on-brand)' }}>
                         {formatCLP(budgetAmount)}
                       </p>
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-3 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                <div className="flex items-center gap-3 pt-4">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
                     <Zap className="w-4 h-4 text-white" />
                   </div>
@@ -713,14 +711,14 @@ export default async function DashboardPage() {
                 {/* Top row: gastado + te quedan / por día */}
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2">{gastadoLabel}</p>
+                    <p className="text-sm text-white/70 font-medium mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
                     <p className="text-sm text-white/45 mt-2">
                       {budgetAmount ? `de ${formatCLP(budgetAmount)} presupuestado` : `${typedExpenses.length} gasto${typedExpenses.length !== 1 ? 's' : ''} registrado${typedExpenses.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mb-2 flex items-center justify-end gap-1">
+                    <p className="text-sm text-white/70 font-medium mb-2 flex items-center justify-end gap-1">
                       {budgetAmount ? (isOver ? 'Sobre el límite' : 'Te quedan') : 'Por día'}
                       {budgetAmount && (
                         <InfoTap
@@ -794,14 +792,14 @@ export default async function DashboardPage() {
                     Antes eran 3 de las 4 KPI cards aparte (la 4ª, "Disponible",
                     repetía el mismo número que "Te quedan" arriba — se elimina
                     sin pérdida de información, UX1). */}
-                <div className="flex items-center gap-6 mt-5 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                <div className="flex items-center gap-6 mt-5 pt-5">
                   <div className="min-w-0">
-                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Por día</p>
+                    <p className="text-xs text-white/60 font-medium">Por día</p>
                     <p className="text-sm font-bold text-white mt-1 tabular-nums">{formatCLP(dailyAvg)}</p>
                   </div>
                   <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
+                    <p className="text-xs text-white/60 font-medium flex items-center gap-1">
                       Proyección
                       {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'var(--coral-on-brand-soft)' }} />}
                       <InfoTap
@@ -815,7 +813,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
+                    <p className="text-xs text-white/60 font-medium flex items-center gap-1">
                       Vs. {monthName(prevM).slice(0, 3)}
                       <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
                     </p>
@@ -843,7 +841,7 @@ export default async function DashboardPage() {
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
               </div>
               <div
-                className="card flex flex-col items-center justify-center text-center px-6 py-12"
+                className="card-flat flex flex-col items-center justify-center text-center px-6 py-12"
                 style={{ borderColor: 'var(--border)', borderStyle: 'dashed' }}
               >
                 <div
@@ -877,7 +875,7 @@ export default async function DashboardPage() {
                 </div>
                 <Link href="/analisis" className="text-sm font-semibold hover:opacity-70 transition-opacity flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
-              <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              <div className="card-flat overflow-hidden">
                 {(() => {
                   const maxCatTotal = catSummary[0]?.total ?? 1
                   return catSummary.map((c, idx) => {
@@ -894,17 +892,8 @@ export default async function DashboardPage() {
                       <Link
                         key={c.id}
                         href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                        className="flex items-center gap-3 px-4 py-3.5 transition-opacity hover:opacity-80 relative"
-                        style={{ borderTop: idx > 0 ? '1px solid var(--border)' : undefined }}
+                        className="flex items-center gap-3 px-4 py-4 transition-opacity hover:opacity-80"
                       >
-                        {(hardOver || mildOver) && (
-                          <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                            style={{ background: hardOver ? 'var(--coral)' : 'var(--gold)' }} />
-                        )}
-                        <span
-                          className="text-[11px] font-extrabold w-5 flex-shrink-0 tabular-nums text-center"
-                          style={{ color: idx === 0 ? 'var(--gold-ink)' : idx === 1 ? 'var(--ink-3)' : idx === 2 ? 'var(--bronze)' : 'var(--border)' }}
-                        >{idx + 1}</span>
                         <div
                           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
                           style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
@@ -951,7 +940,7 @@ export default async function DashboardPage() {
                 />
               </div>
             </div>
-            <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <div className="card-flat overflow-hidden">
               {typedExpenses.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-center px-6 py-10">
                   <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
@@ -968,12 +957,8 @@ export default async function DashboardPage() {
                   return (
                     <div
                       key={e.id}
-                      className="flex items-center gap-3 px-4 py-3 transition-opacity hover:opacity-80"
-                      style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+                      className="flex items-center gap-3 px-4 py-3.5 transition-opacity hover:opacity-80"
                     >
-                      {e.category && (
-                        <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70" style={{ background: e.category.color }} />
-                      )}
                       <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={32} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
@@ -1028,7 +1013,7 @@ export default async function DashboardPage() {
                     : 'Cerrado'
                   const urgentColor = daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold-ink)' : 'var(--ink-3)'
                   return (
-                    <div key={card.id} className="card p-4" style={{ borderColor: 'var(--border)' }}>
+                    <div key={card.id} className="card-flat p-4">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tarjeta {card.name}</p>
                         <Link href={`/cuenta/${card.id}`} className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver</Link>
@@ -1056,8 +1041,8 @@ export default async function DashboardPage() {
 
             {/* ── Pago(s) atrasado(s) ── */}
             {atrasados.length > 0 && (
-              <div className="card overflow-hidden" style={{ background: 'rgba(255,111,97,0.08)', borderColor: 'rgba(255,111,97,0.30)' }}>
-                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,111,97,0.15)' }}>
+              <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
+                <div className="flex items-center gap-2 px-4 py-3">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
                   <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
                     {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
@@ -1086,7 +1071,7 @@ export default async function DashboardPage() {
 
             {/* ── Próximos pagos ── */}
             {proximosPagos.length > 0 && (
-              <div className="card p-4" style={{ borderColor: 'var(--border)' }}>
+              <div className="card-flat p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos pagos</h2>
                   <Link href="/recurrentes?view=calendar" className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
@@ -1145,7 +1130,7 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">{gastadoLabel}</p>
+                    <p className="text-xs text-white/70 font-medium mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
                     <p className="text-xs text-white/50 mt-1.5">
                       {budgetAmount ? `${formatCLP(budgetAmount)} disponibles` : 'Sin gastos aún'}
@@ -1153,7 +1138,7 @@ export default async function DashboardPage() {
                   </div>
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">Disponible</p>
+                      <p className="text-xs text-white/70 font-medium mb-1">Disponible</p>
                       <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: 'var(--mint-on-brand)' }}>
                         {formatCLP(budgetAmount)}
                       </p>
@@ -1170,7 +1155,7 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1">{gastadoLabel}</p>
+                    <p className="text-xs text-white/70 font-medium mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
                       {formatCLP(total)}
                     </p>
@@ -1180,7 +1165,7 @@ export default async function DashboardPage() {
                   </div>
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest mb-1 flex items-center justify-end gap-1">
+                      <p className="text-xs text-white/70 font-medium mb-1 flex items-center justify-end gap-1">
                         {isOver ? 'Sobre el límite' : 'Te quedan'}
                         <InfoTap
                           explanation="Te quedan = tu presupuesto del período menos lo que ya gastaste."
@@ -1275,7 +1260,7 @@ export default async function DashboardPage() {
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
                 <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
               </div>
-              <div className="card overflow-hidden" style={{ background: 'rgba(255,111,97,0.08)', borderColor: 'rgba(255,111,97,0.30)' }}>
+              <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
                 {atrasados.map((r, i) => (
                   <OverduePaySheet
                     key={r.id}
@@ -1334,7 +1319,7 @@ export default async function DashboardPage() {
                 </div>
                 <Link href="/analisis" className="text-sm font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
-              <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              <div className="card-flat overflow-hidden">
                 {(() => {
                   const maxCatTotal = catSummary[0]?.total ?? 1
                   return catSummary.map((c, idx) => {
@@ -1352,12 +1337,7 @@ export default async function DashboardPage() {
                         key={c.id}
                         href={`/analisis/${c.id}?month=${month}&year=${year}`}
                         className="flex items-center gap-3 px-4 py-3.5 transition-opacity active:opacity-70 relative"
-                        style={{ borderTop: idx > 0 ? '1px solid var(--border)' : undefined }}
                       >
-                        {(hardOver || mildOver) && (
-                          <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-                            style={{ background: hardOver ? 'var(--coral)' : 'var(--gold)' }} />
-                        )}
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
                           style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
@@ -1397,7 +1377,7 @@ export default async function DashboardPage() {
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
                 <Link href="/historial" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver todo</Link>
               </div>
-              <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+              <div className="card-flat overflow-hidden">
                 {typedExpenses.slice(0, 6).map((e, i) => {
                   const d = new Date(e.date + 'T12:00:00')
                   const now2 = new Date()
@@ -1405,9 +1385,7 @@ export default async function DashboardPage() {
                   const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
                   const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
                   return (
-                    <div key={e.id} className="flex items-center gap-3 px-4 py-3"
-                      style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-                      {e.category && <div className="w-[3px] self-stretch rounded-full flex-shrink-0 opacity-70" style={{ background: e.category.color }} />}
+                    <div key={e.id} className="flex items-center gap-3 px-4 py-3">
                       <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={36} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>

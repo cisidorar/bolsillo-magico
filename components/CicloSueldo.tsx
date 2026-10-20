@@ -36,7 +36,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
   const queda = sueldo !== null ? sueldo - deuda - investedThisMonth - debitSpentThisMonth : null
 
   return (
-    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+    <div className="card-flat overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <Wallet className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
@@ -129,7 +129,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
       </div>
 
       {/* Queda para ahorro */}
-      <div className="flex items-center justify-between px-4 py-3.5" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border)' }}>
+      <div className="flex items-center justify-between px-4 py-3.5" style={{ background: 'var(--surface-2)' }}>
         <div className="flex items-center gap-2">
           <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint)' : 'var(--coral)' }} />
           <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Queda para ahorro</span>
