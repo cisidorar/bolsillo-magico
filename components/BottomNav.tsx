@@ -6,7 +6,6 @@ import { Home, List, LayoutGrid, Plus, BarChart2 } from 'lucide-react'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import MoreSheet from './MoreSheet'
-import AffordabilitySheet from './AffordabilitySheet'
 
 const navItems = [
   { href: '/inicio',    icon: Home,      label: 'Inicio'    },
@@ -47,7 +46,6 @@ export default function BottomNav() {
   const activeTab = activeTabFor(pathname)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
-  const [affordOpen, setAffordOpen] = useState(false)
 
   return (
     <>
@@ -128,9 +126,8 @@ export default function BottomNav() {
         />
       )}
 
-      <MoreSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} onOpenAfford={() => setAffordOpen(true)} />
+      <MoreSheet isOpen={moreOpen} onClose={() => setMoreOpen(false)} />
 
-      <AffordabilitySheet isOpen={affordOpen} onClose={() => setAffordOpen(false)} />
     </>
   )
 }
