@@ -152,7 +152,7 @@ export default function TripPlanItems({
             Pasajes, auto, alojamiento: lo que reservas y pagas antes del viaje.
           </p>
         ) : (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {reservas.map(it => (
               <div key={it.id}>
                 <Row it={it}
@@ -198,7 +198,7 @@ export default function TripPlanItems({
         {durante.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {durante.map(it => (
               <Row key={it.id} it={it}
                 sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${tripDays ? ` · ${formatCLP(perDay(it.est_amount, tripDays))} al día` : ''}${share(it.est_amount)}`} />
@@ -215,7 +215,7 @@ export default function TripPlanItems({
           {opcionales.length === 0 ? (
             <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div>
               {opcionales.map(it => (
                 <Row key={it.id} it={it}
                   sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${it.enabled ? share(it.est_amount) : ' · no incluido'}`}
@@ -256,9 +256,9 @@ export default function TripPlanItems({
             {over > 0 && (
               <p className="text-xs font-semibold" style={{ color: 'var(--gold-ink)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
             )}
-            <div className="rounded-xl divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+            <div className="rounded-xl" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
               {rows.map(([k, v]) => (
-                <div key={k} className="flex items-center justify-between gap-3 px-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                <div key={k} className="flex items-center justify-between gap-3 px-3 py-2.5">
                   <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{k}</span>
                   <span className="text-xs font-semibold text-right tabular-nums" style={{ color: 'var(--ink)' }}>{v}</span>
                 </div>

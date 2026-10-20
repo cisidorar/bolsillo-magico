@@ -50,7 +50,7 @@ export default function StatementView({ expenses, categories, paymentMethods, da
     <>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+          <p className="text-xs font-bold text-gray-500">
             Movimientos
           </p>
           <p className="text-xs text-gray-400 font-medium">{expenses.length} transacciones</p>
@@ -69,7 +69,7 @@ export default function StatementView({ expenses, categories, paymentMethods, da
                 <span className="text-xs font-semibold text-gray-400 tabular-nums">{formatCLP(dayTotal)}</span>
               </div>
 
-              <div className="card overflow-hidden divide-y divide-gray-50">
+              <div className="card overflow-hidden divide-gray-50">
                 {dayExpenses.map((e, idx) => {
                   const catColor = e.category?.color ?? 'var(--primary)'
                   const catBg    = e.category?.bg_color ?? '#EEF4FF'

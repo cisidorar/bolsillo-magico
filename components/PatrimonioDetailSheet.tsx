@@ -135,7 +135,7 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
             {/* Header fijo: título + total, siempre visible al hacer scroll */}
             <div className="flex items-start justify-between gap-3 px-5 lg:px-6 pt-4 pb-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Patrimonio neto</p>
+                <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Patrimonio neto</p>
                 <p className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-tight mt-0.5"
                   style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                   {formatCLP(current.total_clp)}
@@ -156,14 +156,14 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
               {/* Resumen: 3 respuestas rápidas */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                     {period === 'all' ? `Desde ${periodFrom}` : `Últ. ${PERIODS.find(p => p.key === period)!.label}`}
                   </p>
                   <p className="text-base font-extrabold mt-0.5"><Signed v={periodDelta} /></p>
                   {periodPct !== null && <p className="text-[10px] font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>{periodPct >= 0 ? '+' : ''}{periodPct}% · incluye aportes</p>}
                 </div>
                 <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                     {prev ? `Vs cierre de ${MONTH_LONG[prev.month - 1]}` : 'Vs mes anterior'}
                   </p>
                   {prev ? (
@@ -178,7 +178,7 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
                   ) : <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>—</p>}
                 </div>
                 <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Neto real</p>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Neto real</p>
                   <p className="text-base font-extrabold tabular-nums mt-0.5" style={{ color: netReal >= 0 ? 'var(--ink)' : 'var(--coral)' }}>
                     {formatCLP(netReal)}
                   </p>
@@ -192,7 +192,7 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
               {chartPoints.length >= 2 && (
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Evolución</p>
+                    <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Evolución</p>
                     {hasHistory && (
                       <div className="flex rounded-full p-0.5" style={{ background: 'var(--surface-2)' }} role="tablist">
                         {PERIODS.map(p => (
@@ -217,7 +217,7 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
 
               {/* Composición */}
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                <p className="text-xs font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
                   Composición {prev && <span className="normal-case font-medium">— cambio vs cierre de {MONTH_LONG[prev.month - 1]}</span>}
                 </p>
                 {cats.length > 1 && (
@@ -263,12 +263,12 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
               {/* Histórico mensual: bruto y neto real */}
               {monthlyRows.length >= 2 && (
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-xs font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
                     Cierre de cada mes
                   </p>
                   <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                    <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] gap-x-4 px-3.5 py-2 text-[10px] font-bold uppercase tracking-widest"
-                      style={{ color: 'var(--ink-3)', borderBottom: '1px solid var(--border)' }}>
+                    <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] gap-x-4 px-3.5 py-2 text-[11px] font-bold"
+                      style={{ color: 'var(--ink-3)', }}>
                       <span>Mes</span>
                       <span className="text-right">Bruto</span>
                       <span className="text-right hidden sm:block">Neto real</span>
@@ -280,8 +280,7 @@ export default function PatrimonioDetailSheet({ history, snapshots, current, com
                       const isCurrent = i === 0
                       return (
                         <div key={`${s.year}-${s.month}`}
-                          className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-3.5 py-2.5"
-                          style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+                          className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-3.5 py-2.5">
                           <span className="text-xs font-semibold capitalize" style={{ color: 'var(--ink-2)' }}>
                             {MONTH_SHORT[s.month - 1]} {s.year}{isCurrent && <span className="normal-case font-medium" style={{ color: 'var(--ink-3)' }}> · hoy</span>}
                           </span>

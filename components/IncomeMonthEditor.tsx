@@ -160,7 +160,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
       <div className="space-y-4">
         {/* Monto principal */}
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
             Total ingreso del mes
           </p>
           <p
@@ -180,7 +180,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
             className="rounded-2xl p-4 space-y-2"
             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
           >
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
               De dónde viene
             </p>
             {savedBreakdown.map((it, idx) => (
@@ -197,7 +197,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
             {savedBreakdown.length > 1 && (
               <div
                 className="flex items-center justify-between text-xs font-semibold pt-2 tabular-nums"
-                style={{ borderTop: '1px solid var(--border)', color: 'var(--ink-3)' }}
+                style={{ color: 'var(--ink-3)' }}
               >
                 <span>Total</span>
                 <span>{formatCLP(savedBreakdown.reduce((s, i) => s + i.amount, 0))}</span>
@@ -245,7 +245,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
 
       {/* Total */}
       <div>
-        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
           Total ingreso del mes
         </label>
         <input
@@ -268,7 +268,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
 
       {/* Nota */}
       <div>
-        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
           Nota <span style={{ textTransform: 'none', fontWeight: 400, letterSpacing: 0 }}>(opcional)</span>
         </label>
         <input
@@ -291,7 +291,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
       >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+            <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
               ¿De dónde viene?
             </span>
             <span
@@ -357,7 +357,7 @@ export default function IncomeMonthEditor({ userId, month, year, current, prevIn
             {validItems.length > 1 && (
               <div
                 className="flex items-center justify-between pt-2 mt-1 text-xs font-semibold tabular-nums"
-                style={{ borderTop: '1px solid var(--border)', color: 'var(--ink-2)' }}
+                style={{ color: 'var(--ink-2)' }}
               >
                 <span>Subtotal ítems</span>
                 <span style={{ color: calza ? 'var(--mint)' : noCalza ? 'var(--gold)' : 'var(--ink-2)' }}>

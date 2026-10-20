@@ -107,7 +107,7 @@ export default function WeekSnapshotCard({ fedSentence, fedMeetingDate, fedMeeti
 
         {upcoming.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Lo que viene</p>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Lo que viene</p>
             <div className="space-y-1">
               {upcoming.map((e, i) => (
                 <p key={i} className="text-xs flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>

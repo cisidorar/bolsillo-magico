@@ -75,10 +75,10 @@ export default function MonthlyBudgetInput({ userId, month, year, currentAmount,
   }
 
   return (
-    <div className="card p-5 mb-6" style={{ borderColor: 'var(--border)' }}>
+    <div className="card p-5 mb-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-xs font-bold mb-0.5" style={{ color: 'var(--ink-3)' }}>
             Presupuesto total — {monthLabel}
           </p>
           <p className="text-xs" style={{ color: 'var(--ink-3)' }}>

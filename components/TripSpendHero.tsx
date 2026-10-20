@@ -36,7 +36,7 @@ export default function TripSpendHero({
     return (
       <div className="card p-6">
         {dayBadge}
-        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
+        <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{label}</p>
         <p className="font-display text-3xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}
         </p>
@@ -63,7 +63,7 @@ export default function TripSpendHero({
     <div className="card p-6 space-y-5">
       <div>
         {dayBadge}
-        <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
+        <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{label}</p>
         <p className="font-display text-3xl lg:text-4xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}
         </p>

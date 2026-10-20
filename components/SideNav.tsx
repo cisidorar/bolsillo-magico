@@ -63,7 +63,7 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
         </Link>
 
         {/* ── Label menú ──────────────────────────────────────── */}
-        <p className="text-[10px] font-semibold uppercase tracking-widest px-2 mb-2" style={{ color: 'var(--ink-3)' }}>
+        <p className="text-[11px] font-semibold px-2 mb-2" style={{ color: 'var(--ink-3)' }}>
           Menú
         </p>
 

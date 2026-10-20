@@ -474,7 +474,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     <>
       {/* ── Lista ── */}
       <div className="flex flex-col gap-4">
-        <div className="card overflow-hidden divide-y divide-gray-50">
+        <div className="card overflow-hidden divide-gray-50">
           {items.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-10">Sin gastos recurrentes aún</p>
           )}
@@ -492,7 +492,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gray-50/60"
                     style={{ background: 'var(--surface-2)' }}
                   >
-                    <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
+                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-3)' }}>
                       {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                       {GROUP_LABELS[groupKey as GroupKey]}
                       <span className="font-medium normal-case tracking-normal">({groupItems.length})</span>
@@ -1074,7 +1074,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         Se registrarán en los estados de facturación anteriores.
                       </p>
                     </div>
-                    <div className="flex items-center" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+                    <div className="flex items-center" style={{ background: 'var(--bg)' }}>
                       <button
                         type="button"
                         onClick={() => set('pastCuotas', String(Math.max(0, past - 1)))}

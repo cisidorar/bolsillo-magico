@@ -38,13 +38,13 @@ function Group({ title, items }: { title: string; items: BreakdownLine[] }) {
   if (items.length === 0) return null
   const subtotal = items.reduce((s, i) => s + i.amount, 0)
   return (
-    <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between px-4 py-2" style={{ borderColor: 'var(--border)' }}>
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{title}</span>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+      <div className="flex items-center justify-between px-4 py-2">
+        <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{title}</span>
         <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
       </div>
       {items.map((it, i) => (
-        <div key={i} className="flex items-center justify-between px-4 py-2" style={{ borderColor: 'var(--border)' }}>
+        <div key={i} className="flex items-center justify-between px-4 py-2">
           <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{it.label}</span>
           <span className="text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(it.amount)}</span>
         </div>
@@ -86,7 +86,7 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
     <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
       <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: 'var(--primary-soft)' }}>
         <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--primary)' }} />
-        <span className="flex-1 text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--primary)' }}>
+        <span className="flex-1 text-xs font-bold" style={{ color: 'var(--primary)' }}>
           Liquidación de {monthName}
         </span>
         <button
@@ -136,21 +136,21 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
         )}
 
         {(payslip.position || payslip.contractType || payslip.daysWorked !== null) && (
-          <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
             {payslip.position && (
-              <div className="flex items-center justify-between px-4 py-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Cargo</span>
                 <span className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>{payslip.position}</span>
               </div>
             )}
             {payslip.contractType && (
-              <div className="flex items-center justify-between px-4 py-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Contrato</span>
                 <span className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>{payslip.contractType}</span>
               </div>
             )}
             {payslip.daysWorked !== null && (
-              <div className="flex items-center justify-between px-4 py-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Días trabajados</span>
                 <span className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>{payslip.daysWorked}</span>
               </div>

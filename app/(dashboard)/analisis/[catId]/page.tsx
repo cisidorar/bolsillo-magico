@@ -342,7 +342,7 @@ export default async function CategoriaDetallePage({
                 {anualMonthGroups.map(mg => (
                   <div key={mg.monthNum} className="card overflow-hidden">
                     {/* Encabezado del mes */}
-                    <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2">
                         <CalendarDays className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                         <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{mg.monthLabel}</span>
@@ -425,7 +425,7 @@ export default async function CategoriaDetallePage({
               </div>
 
               {avgMonthly > 0 && (
-                <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="mt-3 pt-3 flex items-center justify-between">
                   <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Promedio mensual</p>
                   <p className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(avgMonthly)}</p>
                 </div>

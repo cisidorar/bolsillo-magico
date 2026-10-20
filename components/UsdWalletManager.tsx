@@ -624,7 +624,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                     const sale = sales.find(s => s.id === editSaleId)
                     return sale ? (
                       <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface-2)' }}>
-                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                        <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                           Vendiste
                         </span>
                         <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>
@@ -634,7 +634,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                     ) : null
                   })()}
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                       Dólares recibidos
                     </label>
                     <input
@@ -652,7 +652,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   <div className={incomeKind === 'dividend' ? 'grid grid-cols-2 gap-3' : ''}>
                     {incomeKind === 'dividend' && (
                       <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                           Acción
                         </label>
                         <input
@@ -666,7 +666,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       </div>
                     )}
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Dólares recibidos
                       </label>
                       <input
@@ -686,14 +686,14 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               ) : editKind === 'compra' ? (
                 <>
                   <div className="px-4 py-2.5 rounded-xl flex items-center justify-between" style={{ background: 'var(--surface-2)' }}>
-                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                       Ticker
                     </span>
                     <span className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{editTicker}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Acciones
                       </label>
                       <input
@@ -706,7 +706,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Invertido (USD)
                       </label>
                       <input
@@ -726,7 +726,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Pesos pagados (total)
                       </label>
                       <input
@@ -739,7 +739,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Dólares recibidos
                       </label>
                       <input
@@ -762,7 +762,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                         className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                         style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                       >
-                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
+                        <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
                           Tasa implícita
                         </span>
                         <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
@@ -775,7 +775,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               )}
 
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Fecha
                 </label>
                 <input
@@ -789,7 +789,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               {/* En un dividendo la nota la arma el ticker ("Dividendo TSM") */}
               {!(editKind === 'income' && incomeKind === 'dividend') && (
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   {editKind === 'income' ? 'Descripción (opcional)' : 'Nota (opcional)'}
                 </label>
                 <input
@@ -877,7 +877,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
 
               <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
                 {/* Cifras clave */}
-                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                       {m.type === 'compra' ? 'Monto invertido' : 'Dólares recibidos'}
@@ -924,7 +924,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
 
                 {(m.row !== null || m.stockRow !== null) && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                    <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                       Nota
                     </p>
                     <p className="text-sm" style={{ color: (m.row?.notes ?? m.stockRow?.notes) ? 'var(--ink-2)' : 'var(--ink-3)' }}>
@@ -1054,7 +1054,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           {/* ── Hero: SOLO lo que importa — cuánto tienes para gastar hoy ──── */}
           <div className="card overflow-hidden hero-gradient w-full">
             <div className="px-5 pt-5 lg:px-6 lg:pt-6 pb-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              <p className="text-[11px] font-bold mb-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
                 Disponible para comprar
               </p>
               <p className="text-4xl lg:text-5xl font-bold tabular-nums leading-none" style={{ fontFamily: 'Fredoka, sans-serif', color: 'white' }}>
@@ -1077,7 +1077,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   {moves.length} operación{moves.length !== 1 ? 'es' : ''}
                 </p>
               </div>
-              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div>
                 {moves.map(m => (
                   <button
                     key={m.key}

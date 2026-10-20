@@ -128,7 +128,6 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
             {/* Header */}
             <div
               className="flex items-center justify-between px-5 pt-4 pb-3"
-              style={{ borderBottom: '1px solid var(--border)' }}
             >
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Registrar pago</h2>
               <button
@@ -157,7 +156,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
               {/* Monto */}
               <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface-2)' }}>
                 <p
-                  className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                  className="text-[11px] font-bold mb-1"
                   style={{ color: 'var(--ink-3)' }}
                 >
                   Monto a registrar

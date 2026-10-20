@@ -207,7 +207,7 @@ export default function IncomeEditor({ userId, month, year, amount, description,
   return editing ? (
     <div className="flex flex-col gap-2">
       <div>
-        <label className="text-[10px] font-bold uppercase tracking-widest mb-1 block" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[11px] font-bold mb-1 block" style={{ color: 'var(--ink-3)' }}>
           Monto
         </label>
         <input
@@ -226,7 +226,7 @@ export default function IncomeEditor({ userId, month, year, amount, description,
         {amtRaw && <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>{formatCLP(parseInt(amtRaw.replace(/\D/g, '')) || 0)}</p>}
       </div>
       <div>
-        <label className="text-[10px] font-bold uppercase tracking-widest mb-1 block" style={{ color: 'var(--ink-3)' }}>
+        <label className="text-[11px] font-bold mb-1 block" style={{ color: 'var(--ink-3)' }}>
           Descripción (opcional)
         </label>
         <input

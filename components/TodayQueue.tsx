@@ -55,7 +55,7 @@ export default function TodayQueue({
         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Hoy</p>
       </div>
 
-      <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+      <div>
 
         {/* Decisión de compra — el veredicto comparado, mismo cálculo del correo.
             Clickeable (I1 roadmap interacción): antes había que bajar a buscar el

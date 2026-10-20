@@ -243,7 +243,7 @@ export default async function CompartidosPage({
           )}
           {past.length > 0 && (
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Anteriores</p>
+              <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Anteriores</p>
               <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
                 {past.map(tripRow)}
               </div>

@@ -27,7 +27,7 @@ export default function CommittedTimeline({ months, income }: Props) {
 
   return (
     <div className="card overflow-hidden">
-      <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+      <div className="px-5 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <CalendarClock className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Ya comprometido</p>

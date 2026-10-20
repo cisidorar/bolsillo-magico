@@ -556,7 +556,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
             const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
 
             return (
-              <div key={m.id} style={idx > 0 ? { borderTop: '1px solid var(--border)' } : undefined}>
+              <div key={m.id}>
                 {/* Fila del método — clicable, abre el popup de edición */}
                 <button
                   onClick={() => openEdit(m)}

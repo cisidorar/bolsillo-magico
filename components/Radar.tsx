@@ -972,7 +972,7 @@ export default function Radar({
                 font-extrabold) en vez del text-6xl que tenía antes. */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+                <p className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
                 <button
                   type="button"
                   onClick={toggleHideAmounts}
@@ -1021,11 +1021,11 @@ export default function Radar({
                 mismo tono azulado que la tarjeta en vez de un gris genérico. */}
             <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
                 <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}><Masked hidden={hideAmounts} value={fmtUSD(totalCostUsd)} /></p>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
                   <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
                     {hasQ ? <Masked hidden={hideAmounts} value={fmtUSDSigned(totalReturnUsd)} /> : '—'}
@@ -1038,7 +1038,7 @@ export default function Radar({
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
                 <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
                   {walletAvailable !== null ? <Masked hidden={hideAmounts} value={fmtUSD(Math.max(0, walletAvailable))} /> : '—'}
                 </p>
@@ -1053,7 +1053,7 @@ export default function Radar({
             <div className="px-5 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
               <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Rendimiento</p>
             </div>
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div>
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>No realizado</p>
                 <p className="text-sm font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
@@ -1119,7 +1119,7 @@ export default function Radar({
         </div>
       ) : (
         <div className="card overflow-hidden mb-4">
-          <div className="flex items-center justify-between px-4 lg:px-5 py-2.5 border-b text-[10px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
+          <div className="flex items-center justify-between px-4 lg:px-5 py-2.5 border-b text-[11px] font-bold" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
             <span>Acción</span>
             {/* Orden de la tabla (ago 2026, a pedido de Cas): dropdown con los
                 6 criterios de SORT_OPTIONS — reemplaza el label fijo "Valor ·
@@ -1155,7 +1155,7 @@ export default function Radar({
               )}
             </div>
           </div>
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {myPerformance.map(row => {
               const q = quotes[row.ticker]
               // Reportado por Cas: la fila no daba ninguna pista de que había
@@ -1192,7 +1192,6 @@ export default function Radar({
                   className="w-full flex items-center gap-3 px-4 lg:px-5 py-3.5 text-left transition-colors hover:bg-black/5"
                   style={sellNow ? {
                     background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)',
-                    borderLeft: trendReversed ? '3px solid var(--coral)' : undefined,
                   } : undefined}
                 >
                   <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={36} fallbackColor={avatarColor(row.ticker)} />
@@ -1284,7 +1283,7 @@ export default function Radar({
           </button>
           {showOpsHistory && (
             <>
-              <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div className="border-t" style={{ borderColor: 'var(--border)' }}>
                 {operations.slice(0, opsShown).map(op => (
                   <button
                     key={op.id}
@@ -1398,7 +1397,7 @@ export default function Radar({
                 {isSell && cost !== null && (
                   <>
                     <div className="pt-2 pb-1">
-                      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                      <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                         Lo que te habían costado
                       </p>
                     </div>
@@ -1426,7 +1425,7 @@ export default function Radar({
                 {!isSell && nowValue !== null && unrealized !== null && (
                   <>
                     <div className="pt-2 pb-1">
-                      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                      <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                         Cómo va hoy
                       </p>
                     </div>
@@ -1701,7 +1700,7 @@ export default function Radar({
               era una card server-side aparte con su propio título, arriba de
               esta. Es lo mismo accionable-hoy, solo que no es "comprar". */}
           {todaySignals.length > 0 && (
-            <div className="border-t divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div className="border-t" style={{ borderColor: 'var(--border)' }}>
               {todaySignals.map((s, i) => {
                 const ui = s.kind === 'sell'
                   ? { label: 'Vender',            color: 'var(--coral)',   bg: 'rgba(255,111,97,0.06)',  Icon: DollarSign }
@@ -1773,7 +1772,7 @@ export default function Radar({
           </div>
         </div>
       ) : (
-        <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div className="card overflow-hidden">
           {rows.map(ticker => {
             const q = quotes[ticker]
             const a = analyses[ticker]
@@ -1816,7 +1815,7 @@ export default function Radar({
                 onKeyDown={e => e.key === 'Enter' && openDetail(ticker)}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                 style={{
-                  ...(flag ? { borderLeft: `3px solid ${FLAG_UI[flag].color}`, background: FLAG_UI[flag].softBg } : {}),
+                  ...(flag ? { background: FLAG_UI[flag].softBg } : {}),
                   ['--tw-ring-color' as string]: 'var(--primary)',
                 }}
               >

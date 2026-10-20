@@ -317,7 +317,7 @@ export default function PatrimonioCards({
                 <div className="flex items-center justify-between rounded-2xl px-3 py-2.5 mt-3"
                   style={{ background: 'var(--surface-2)' }}>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Neto real</p>
+                    <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Neto real</p>
                     <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
                       Bruto − {formatCLP(committedDebtTotal)} ya comprometidos
                     </p>
@@ -474,7 +474,7 @@ export default function PatrimonioCards({
               {/* Promedios móviles — filas inset */}
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Promedio 6m</p>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Promedio 6m</p>
                   <p className="text-base font-extrabold tabular-nums mt-0.5"
                     style={{ color: avg6 === null ? 'var(--ink-3)' : avg6 >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                     {avg6 !== null ? `${avg6}%` : '—'}
@@ -483,7 +483,7 @@ export default function PatrimonioCards({
                 <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                   {/* sep 2026: con 7 meses de historia decía "Promedio 12m" —
                       el número es real pero la etiqueta prometía un año. */}
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                     {avg12Months >= 12 ? 'Promedio 12m' : `Histórico · ${avg12Months}m`}
                   </p>
                   <p className="text-base font-extrabold tabular-nums mt-0.5"

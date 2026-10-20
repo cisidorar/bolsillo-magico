@@ -33,7 +33,7 @@ export default function StatHeroRow({ variant, label, value, caption, stats }: P
       className={`card overflow-hidden ${isHero ? 'hero-gradient' : ''} flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-5 py-4 lg:py-5`}
     >
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: labelColor }}>
+        <p className="text-[11px] font-bold mb-1.5" style={{ color: labelColor }}>
           {label}
         </p>
         <p
@@ -53,7 +53,7 @@ export default function StatHeroRow({ variant, label, value, caption, stats }: P
         <div className="flex items-center gap-5 lg:gap-8 flex-wrap shrink-0">
           {stats.map((s, i) => (
             <div key={i} className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1 whitespace-nowrap" style={{ color: statLabelColor }}>
+              <p className="text-[11px] font-bold mb-1 whitespace-nowrap" style={{ color: statLabelColor }}>
                 {s.label}
               </p>
               <p className="text-sm lg:text-base font-bold tabular-nums" style={{ color: s.color ?? statValueColor }}>

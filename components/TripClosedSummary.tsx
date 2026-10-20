@@ -44,11 +44,11 @@ export default function TripClosedSummary({
 
       {people > 1 && <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>Tu parte</p>
+          <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Tu parte</p>
           <p className="text-lg font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
         </div>
         <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--ink-3)' }}>Pusiste tú</p>
+          <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Pusiste tú</p>
           <p className="text-lg font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myPaid)}</p>
         </div>
       </div>}

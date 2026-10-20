@@ -1101,7 +1101,7 @@ export default async function AnalisisPage({
 
               {/* M1 — Hero: total + año anterior + círculo de progreso */}
               <div className="lg:hidden hero-gradient rounded-3xl px-5 pt-5 pb-5 text-white">
-                <p className="text-[9px] text-white/50 font-bold uppercase tracking-widest mb-3">Total gastado en {year}</p>
+                <p className="text-[11px] text-white/50 font-bold mb-3">Total gastado en {year}</p>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     {anualGrandTotalReal !== null ? (
@@ -1150,7 +1150,7 @@ export default async function AnalisisPage({
                       <TrendingUp className="w-4 h-4" style={{ color: '#a78bfa' }} />
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase font-bold tracking-wide leading-none mb-1.5" style={{ color: '#a78bfa' }}>Promedio mensual</p>
+                      <p className="text-[11px] font-bold leading-none mb-1.5" style={{ color: '#a78bfa' }}>Promedio mensual</p>
                       <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
                       <p className="text-[9px] text-gray-400 mt-0.5">por mes</p>
                     </div>
@@ -1161,7 +1161,7 @@ export default async function AnalisisPage({
                       <CalendarDays className="w-4 h-4" style={{ color: '#60a5fa' }} />
                     </div>
                     <div>
-                      <p className="text-[9px] uppercase font-bold tracking-wide leading-none mb-1.5" style={{ color: '#60a5fa' }}>Meses con datos</p>
+                      <p className="text-[11px] font-bold leading-none mb-1.5" style={{ color: '#60a5fa' }}>Meses con datos</p>
                       <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 leading-tight">
                         {pastRows.length}<span className="text-gray-400 text-xs font-medium"> / 12</span>
                       </p>
@@ -1177,7 +1177,7 @@ export default async function AnalisisPage({
                         <ArrowUp className="w-4 h-4" style={{ color: '#f87171' }} />
                       </div>
                       <div>
-                        <p className="text-[9px] uppercase font-bold tracking-wide leading-none mb-1.5" style={{ color: '#f87171' }}>Mes más alto</p>
+                        <p className="text-[11px] font-bold leading-none mb-1.5" style={{ color: '#f87171' }}>Mes más alto</p>
                         <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 leading-tight">{anualMonthLabels[peakRow.monthNum - 1]}</p>
                         <p className="text-[9px] text-gray-400 tabular-nums mt-0.5">{formatCLP(peakRow.total)}</p>
                       </div>
@@ -1190,7 +1190,7 @@ export default async function AnalisisPage({
                         <BarChart2 className="w-4 h-4" style={{ color: '#fbbf24' }} />
                       </div>
                       <div>
-                        <p className="text-[9px] uppercase font-bold tracking-wide leading-none mb-1.5" style={{ color: '#fbbf24' }}>Proyección {year}</p>
+                        <p className="text-[11px] font-bold leading-none mb-1.5" style={{ color: '#fbbf24' }}>Proyección {year}</p>
                         <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(anualProjection)}</p>
                         <p className="text-[9px] text-gray-400 mt-0.5">estimado</p>
                       </div>
@@ -1369,7 +1369,7 @@ export default async function AnalisisPage({
                   {/* Tarjeta azul: total + promedio — mismo azul que las cards
                       de /inversiones (.hero-gradient), no var(--primary) */}
                   <div className="rounded-3xl p-5 flex flex-col hero-gradient">
-                    <p className="text-[9px] font-bold uppercase tracking-widest mb-3"
+                    <p className="text-[11px] font-bold mb-3"
                       style={{ color: 'rgba(255,255,255,0.6)' }}>
                       Total gastado en {year}
                     </p>
@@ -1405,7 +1405,7 @@ export default async function AnalisisPage({
                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowUp className="w-3 h-3 flex-shrink-0" style={{ color: '#FFC23C' }} />
-                          <span className="text-[9px] font-bold uppercase tracking-widest"
+                          <span className="text-[11px] font-bold"
                             style={{ color: '#FFC23C' }}>Más alto</span>
                         </div>
                         <p className="text-[14px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>
@@ -1420,7 +1420,7 @@ export default async function AnalisisPage({
                         style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-1 mb-0.5">
                           <ArrowDown className="w-3 h-3 flex-shrink-0" style={{ color: '#34D399' }} />
-                          <span className="text-[9px] font-bold uppercase tracking-widest"
+                          <span className="text-[11px] font-bold"
                             style={{ color: '#34D399' }}>Más bajo</span>
                         </div>
                         <p className="text-[14px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>
@@ -1612,22 +1612,22 @@ export default async function AnalisisPage({
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         <th className="text-left px-6 py-3 min-w-[130px] sticky left-0" style={{ background: 'var(--surface)' }}>
-                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Mes</span>
+                          <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Mes</span>
                         </th>
                         {anualCats.map(c => (
                           <th key={c.id} className="px-2 py-3 text-center min-w-[110px]">
-                            <span className="text-[10px] font-bold uppercase tracking-widest block truncate max-w-[96px] mx-auto" style={{ color: 'var(--ink-3)' }} title={c.name}>
+                            <span className="text-[11px] font-bold block truncate max-w-[96px] mx-auto" style={{ color: 'var(--ink-3)' }} title={c.name}>
                               {c.name.length > 9 ? c.name.slice(0, 8) + '.' : c.name}
                             </span>
                           </th>
                         ))}
                         {hasOtros && (
                           <th className="px-2 py-3 text-center min-w-[90px]">
-                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Otros</span>
+                            <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Otros</span>
                           </th>
                         )}
                         <th className="px-6 py-3 text-right min-w-[140px]" style={{ borderLeft: '1px solid var(--border)' }}>
-                          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Total Mes</span>
+                          <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Total Mes</span>
                         </th>
                       </tr>
                     </thead>
@@ -1648,7 +1648,6 @@ export default async function AnalisisPage({
                             key={row.monthNum}
                             style={{
                               borderBottom: '1px solid var(--border)',
-                              borderLeft: isCurrentM ? '3px solid #4D93FF' : '3px solid transparent',
                             }}
                           >
                             {/* Mes */}
@@ -1659,7 +1658,7 @@ export default async function AnalisisPage({
                                   {anualMonthLabels[row.monthNum - 1]}
                                 </span>
                                 {isCurrentM && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
                                     style={{ background: 'var(--primary)', color: 'white' }}>
                                     Actual
                                   </span>
@@ -1738,7 +1737,7 @@ export default async function AnalisisPage({
                     {/* Footer — totales anuales */}
                     <tfoot>
                       <tr style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-                        <td className="px-5 py-4 font-bold text-[11px] uppercase tracking-widest sticky left-0"
+                        <td className="px-5 py-4 font-bold text-[11px] sticky left-0"
                           style={{ color: 'var(--ink-3)', background: 'var(--surface-2)' }}>
                           Total Año
                         </td>

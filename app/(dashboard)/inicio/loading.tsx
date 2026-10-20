@@ -17,7 +17,7 @@ export default function LoadingInicio() {
       {/* Expense list skeleton */}
       <div>
         <div className="h-4 w-28 bg-gray-200 rounded-full mb-3" />
-        <div className="rounded-3xl overflow-hidden divide-y divide-gray-100 bg-white">
+        <div className="rounded-3xl overflow-hidden divide-gray-100 bg-white">
           {[1,2,3,4,5].map(i => (
             <div key={i} className="flex items-center gap-3 px-4 py-3.5">
               <div className="w-10 h-10 rounded-2xl bg-gray-100 flex-shrink-0" />

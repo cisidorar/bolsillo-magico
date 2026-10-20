@@ -666,7 +666,7 @@ function ChargeList({ title, subtitle, charges, today, onOpen }: {
           Nada registrado todavía.
         </p>
       ) : (
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div>
           {sorted.map(c => {
             const status = chargeStatus(c, today)
             const style  = STATUS_STYLE[status]
@@ -786,7 +786,7 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden divide-y mb-4" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+      <div className="rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
         <Fact label={charge.is_estimate ? 'Monto estimado' : 'Monto base'} value={formatCLP(charge.amount)} />
         {charge.penalty > 0 && <Fact label="Interés penal" value={formatCLP(charge.penalty)} />}
         {charge.inflation_adj > 0 && <Fact label="Reajuste IPC" value={formatCLP(charge.inflation_adj)} />}
@@ -808,7 +808,7 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
 
       {charge.notes && (
         <div className="mb-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Nota</p>
+          <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Nota</p>
           <p className="text-sm" style={{ color: 'var(--ink-2)' }}>{charge.notes}</p>
         </div>
       )}
@@ -1775,7 +1775,7 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
           </div>
         )}
 
-        <div className="divide-y mb-2" style={{ borderColor: 'var(--border)' }}>
+        <div className=" mb-2">
           {charges.map(c => {
             const m = matches.get(c.id)
             return (

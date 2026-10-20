@@ -474,7 +474,7 @@ export default function TransactionModal({
           {(mode === 'new' || mode === 'edit') && (
             <>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Ticker</label>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Ticker</label>
                 <input
                   type="text"
                   value={form.ticker}
@@ -490,7 +490,7 @@ export default function TransactionModal({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
                   <input
                     type="number"
                     value={form.shares}
@@ -504,7 +504,7 @@ export default function TransactionModal({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
                   <input
                     type="number"
                     value={form.totalPaid}
@@ -521,7 +521,7 @@ export default function TransactionModal({
 
               {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
                 <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
                   <span className="text-sm font-bold tabular-nums ml-auto" style={{ color: 'var(--ink)', fontFamily: 'ui-monospace, monospace' }}>
                     {fmtUSD(parseFloat(form.totalPaid) / parseFloat(form.shares))}
                   </span>
@@ -545,7 +545,7 @@ export default function TransactionModal({
               })()}
 
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</label>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</label>
                 <input
                   type="text"
                   value={form.notes}
@@ -566,7 +566,7 @@ export default function TransactionModal({
                 const curated = tk ? defaultRiskTier(tk, quotes[tk]?.name) : null
                 return (
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                       Riesgo {curated && !form.riskTier && `· auto: ${RISK_TIER_LABEL[curated]}`}
                     </label>
                     <div className="flex gap-1.5">
@@ -640,14 +640,14 @@ export default function TransactionModal({
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(43,124,246,0.06)', border: '1px solid rgba(43,124,246,0.2)' }}>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
                       <input type="number" value={buyShares} onChange={e => setBuyShares(e.target.value)}
                         placeholder="5" min="0.0001" step="any"
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
                       <input type="date" value={buyDate} onChange={e => setBuyDate(e.target.value)}
                         max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
@@ -655,7 +655,7 @@ export default function TransactionModal({
                     </div>
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
+                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
                     <input type="number" value={buyTotalPaid} onChange={e => setBuyTotalPaid(e.target.value)}
                       placeholder="450.00" min="0.01" step="0.01"
                       className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
@@ -749,7 +749,7 @@ export default function TransactionModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Acciones</label>
+                        <label className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Acciones</label>
                         <button
                           onClick={() => {
                             const q = quotes[pos.ticker]
@@ -777,7 +777,7 @@ export default function TransactionModal({
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
                       <input type="date" value={sellDate} onChange={e => setSellDate(e.target.value)}
                         max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
@@ -787,7 +787,7 @@ export default function TransactionModal({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Precio de venta (USD/acc.)</label>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Precio de venta (USD/acc.)</label>
                       <input
                         type="number"
                         value={sellPrice}
@@ -802,7 +802,7 @@ export default function TransactionModal({
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total recibido</label>
+                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total recibido</label>
                       <input
                         type="number"
                         value={sellUsd}

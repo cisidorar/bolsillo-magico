@@ -89,7 +89,7 @@ export default function WeekdayBreakdown({ expenses, monthLabel }: Props) {
       )}
 
       {activeDay && activeDay.items.length > 0 && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="mt-3 pt-3">
           <p className="text-[11px] font-semibold mb-2" style={{ color: 'var(--ink-2)' }}>
             {weekdayLabels[selectedDow!]} · {formatCLP(activeDay.total)} en {activeDay.count} gasto{activeDay.count !== 1 ? 's' : ''}
           </p>

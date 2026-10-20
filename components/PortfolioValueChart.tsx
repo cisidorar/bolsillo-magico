@@ -210,7 +210,7 @@ export default function PortfolioValueChart({
   return (
     <div className="card p-4 lg:p-5">
       <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Evolución del portafolio</p>
+        <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Evolución del portafolio</p>
       </div>
 
       <div className="flex items-baseline gap-2 flex-wrap mb-2">

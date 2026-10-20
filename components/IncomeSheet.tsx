@@ -209,7 +209,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
               {/* Total */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Total ingreso del mes
                 </label>
                 <input
@@ -233,7 +233,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
               {/* Nota */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nota (opcional)
                 </label>
                 <input
@@ -253,7 +253,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
               <div className="rounded-2xl p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                    <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                       ¿De dónde viene?
                     </span>
                     <span
@@ -317,7 +317,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                     {validItems.length > 1 && (
                       <div
                         className="flex items-center justify-between pt-2 text-xs font-semibold tabular-nums"
-                        style={{ borderTop: '1px solid var(--border)', color: 'var(--ink-2)' }}
+                        style={{ color: 'var(--ink-2)' }}
                       >
                         <span>Subtotal</span>
                         <span style={{ color: calza ? 'var(--mint)' : noCalza ? 'var(--gold)' : 'var(--ink-2)' }}>

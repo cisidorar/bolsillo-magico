@@ -188,7 +188,7 @@ Generously rounded throughout — the system has no sharp corners outside of hai
 - **Corner Style:** 18px radius (`.card` class), consistent everywhere.
 - **Background:** `--surface`; `.card-brand` variant uses `--bg` instead for a nested card against the page wash.
 - **Shadow Strategy:** ambient card shadow only (see Elevation).
-- **Border:** always `1.5px solid var(--border)`.
+- **Border:** transparent by default (`1.5px solid transparent`) — the card is told apart from the page by surface tone alone. An alert card may tint it with `borderColor` to carry severity; never draw a visible neutral border or hairline dividers between rows.
 - **Internal Padding:** `px-5 py-4` on stat/hero cards, `p-4` on general content cards.
 
 ### Inputs / Fields
@@ -208,11 +208,12 @@ The project's most distinctive, load-bearing component convention: coral banner 
 ### Do:
 - **Do** keep `--primary` as the only color that signals "interactive" — new UI should reach for it before reaching for any other hue.
 - **Do** use `tabular-nums` on every rendered money amount, no exceptions.
-- **Do** let the 1.5px `--border` carry a card's definition; treat shadow as a secondary, near-invisible cue.
+- **Do** let the surface tone (`--surface` against `--bg`) carry a card's definition; spacing, not hairlines, separates rows.
 - **Do** reserve the Primary Action Glow for the one or two true primary CTAs on a screen — not every button with `background: var(--primary)` needs one.
 - **Do** keep every new color token dark-mode-complete (a light value with no `.dark` counterpart is an incomplete token).
 
 ### Don't:
+- **Don't** add visible borders, hairline row dividers, colored side stripes, or uppercase letter-spaced micro-labels — they read as generic AI-dashboard chrome.
 - **Don't** mix severity colors — mint never appears on anything actionable, and coral never appears as mere "soon" information once it already escalated.
 - **Don't** add a second coral banner to a screen that already has one; degrade the lesser condition to a gold chip instead.
 - **Don't** reach for a sharp corner or a hard, high-contrast drop shadow anywhere — both read as off-system immediately.

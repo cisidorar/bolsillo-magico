@@ -2,7 +2,7 @@ export default function LoadingCategorias() {
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-8 space-y-4 animate-pulse">
       <div className="h-5 w-24 bg-gray-200 rounded-full" />
-      <div className="rounded-3xl overflow-hidden bg-white divide-y divide-gray-50">
+      <div className="rounded-3xl overflow-hidden bg-white divide-gray-50">
         {Array.from({ length: 9 }).map((_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3.5">
             <div className="w-9 h-9 rounded-xl bg-gray-100 flex-shrink-0" />

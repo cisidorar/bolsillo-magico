@@ -66,7 +66,7 @@ export default function RecurringSuggestions({
         Los encontré en tu historial. Si los creas, entran a tu carga mensual y al flujo de caja.
       </p>
 
-      <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+      <div>
         {visible.map(c => (
           <div key={c.key} className="py-3 flex items-center gap-3 flex-wrap">
             <div className="flex-1 min-w-[200px]">

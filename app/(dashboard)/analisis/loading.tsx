@@ -30,7 +30,7 @@ export default function LoadingAnalisis() {
       {/* Category list */}
       <div>
         <div className="h-4 w-36 bg-gray-200 rounded-full mb-3" />
-        <div className="rounded-3xl overflow-hidden bg-white divide-y divide-gray-50">
+        <div className="rounded-3xl overflow-hidden bg-white divide-gray-50">
           {[1,2,3,4].map(i => (
             <div key={i} className="flex items-center gap-3 px-4 py-3.5">
               <div className="w-8 h-8 rounded-xl bg-gray-100 flex-shrink-0" />

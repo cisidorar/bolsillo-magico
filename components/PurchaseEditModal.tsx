@@ -178,7 +178,7 @@ export default function PurchaseEditModal({
 
           {validNew && (
             <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
+              <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
               <span className="text-sm font-bold tabular-nums ml-auto" style={{ color: 'var(--ink)' }}>
                 {fmtUSD(nTotal / nShares)}
               </span>

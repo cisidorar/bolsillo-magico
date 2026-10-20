@@ -102,10 +102,10 @@ export default function MoreSheet({ isOpen, onClose, onOpenAfford }: Props) {
         </div>
 
         <div className="px-1 pt-2">
-          <p className="text-[10px] font-semibold uppercase tracking-widest px-4 mb-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] font-semibold px-4 mb-1" style={{ color: 'var(--ink-3)' }}>
             Finanzas
           </p>
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {onOpenAfford && (
               <button
                 onClick={() => { onClose(); onOpenAfford() }}
@@ -124,10 +124,10 @@ export default function MoreSheet({ isOpen, onClose, onOpenAfford }: Props) {
             {financeRows.map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
           </div>
 
-          <p className="text-[10px] font-semibold uppercase tracking-widest px-4 mt-4 mb-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] font-semibold px-4 mt-4 mb-1" style={{ color: 'var(--ink-3)' }}>
             Configuración
           </p>
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {otherRows.map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
             <Link
               href="/ajustes"

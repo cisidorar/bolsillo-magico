@@ -159,7 +159,7 @@ export default async function AjustesPage() {
             <div className="card overflow-hidden">
 
               {/* Solo mobile — ya en sidebar desktop */}
-              <div className="lg:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div className="lg:hidden">
                 <SettingsRow
                   href="/ingresos"
                   icon={
@@ -196,7 +196,7 @@ export default async function AjustesPage() {
               </div>
 
               {/* Siempre visibles */}
-              <div className="divide-y border-t lg:border-t-0" style={{ borderColor: 'var(--border)' }}>
+              <div className=" border-t lg:border-t-0" style={{ borderColor: 'var(--border)' }}>
                 <SettingsRow
                   href="/presupuesto"
                   icon={

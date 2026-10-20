@@ -107,7 +107,7 @@ export default async function PropiedadPage({
                 una propiedad vacía no es una urgencia de hoy. */}
             {property && (
               <span
-                className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full flex-shrink-0"
+                className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
                 style={lease
                   ? { color: 'var(--mint)', background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }
                   : { color: 'var(--ink-3)', background: 'var(--surface-2)' }}

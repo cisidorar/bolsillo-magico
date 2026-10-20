@@ -163,7 +163,7 @@ export default function PropertyEstado({
                   </button>
                 )}
               </div>
-              <div className="divide-y mt-2" style={{ borderColor: 'var(--border)' }}>
+              <div className=" mt-2">
                 {model.tenantOverdueOther.map(c => (
                   <SimpleRow key={c.id} charge={c} today={today} onOpen={onOpen}
                     action={c.direction === 'in' ? 'Cobré' : 'Pagó'} onAction={() => onPay(c)} />
@@ -239,7 +239,7 @@ export default function PropertyEstado({
           {otherOwner.length > 0 && (
             <div className="card p-4">
               <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>Otros pagos tuyos</p>
-              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div>
                 {otherOwner.map(c => (
                   <SimpleRow key={c.id} charge={c} today={today} onOpen={onOpen} action="Pagué" onAction={() => onPay(c)} />
                 ))}

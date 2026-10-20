@@ -338,7 +338,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{d.bank}</span>
               {isMatured && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide inline-flex items-center gap-1"
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                   style={idleLong
                     ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
                     : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
@@ -346,7 +346,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 </span>
               )}
               {!isMatured && d.renewable && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide"
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                   Renovable
                 </span>
@@ -443,7 +443,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Banco */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Banco o institución
                 </label>
                 {/* sep 2026 (Cas: "aquí en banco debería desplegar y mostrar
@@ -473,7 +473,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               {/* Monto + Interés */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Monto (CLP)
                   </label>
                   <input
@@ -488,7 +488,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Interés del período (%)
                   </label>
                   <input
@@ -522,7 +522,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                   style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
                     Al vencimiento recibes
                   </span>
                   <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
@@ -534,7 +534,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               {/* Fecha de inicio + Plazo (días) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Fecha de inicio
                   </label>
                   <input
@@ -555,7 +555,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Plazo (días)
                   </label>
                   <input
@@ -581,7 +581,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Vencimiento — se autocompleta desde Fecha de inicio + Plazo, pero se puede ajustar */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Vencimiento
                 </label>
                 <input
@@ -600,7 +600,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Tipo de depósito */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Tipo de depósito
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -627,7 +627,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Nota */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   ¿Para qué es este ahorro? (opcional)
                 </label>
                 <input
@@ -737,14 +737,14 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{d.bank}</h2>
                     {isMatured ? (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide inline-flex items-center gap-1"
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                         style={daysIdle >= 30
                           ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
                           : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
                         <CheckCircle2 className="w-2.5 h-2.5" /> {daysIdle >= 30 ? 'Reinvierte' : 'Vencido'}
                       </span>
                     ) : d.renewable ? (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 uppercase tracking-wide"
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                         style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                         Renovable
                       </span>
@@ -785,7 +785,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 )}
 
                 {/* Cifras clave */}
-                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Monto invertido</span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(d.amount)}</span>
@@ -815,7 +815,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 {/* Para qué es (pedido de Cas, ago 2026): acá se ve completa,
                     sin truncar — en la fila de la lista solo cabe una línea. */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                     ¿Para qué es este ahorro?
                   </p>
                   <p className="text-sm" style={{ color: d.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
@@ -830,10 +830,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     renovado. */}
                 {history.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    <p className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
                       Historial de renovaciones
                     </p>
-                    <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                       {history.map(h => (
                         <div key={h.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
                           <div className="min-w-0">
@@ -929,7 +929,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       {/* ── Lista de depósitos vigentes ──────────────────────────────────── */}
       {active.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {[...active].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)).map(d => (
               <DepositRow key={d.id} d={d} isMatured={false} />
             ))}
@@ -940,10 +940,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       {/* ── Vencidos ─────────────────────────────────────────────────────── */}
       {matured.length > 0 && (
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-xs font-bold mb-2 px-1" style={{ color: 'var(--ink-3)' }}>
             Vencidos
           </p>
-          <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div className="card overflow-hidden">
             {[...matured].sort((a, b) => b.maturity_date.localeCompare(a.maturity_date)).map(d => (
               <DepositRow key={d.id} d={d} isMatured />
             ))}
@@ -992,7 +992,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
                 {/* Capital del nuevo ciclo */}
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Capital del nuevo ciclo
                   </label>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -1022,7 +1022,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
                 {/* Nueva tasa */}
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Nueva tasa del período (%)
                   </label>
                   <input
@@ -1047,7 +1047,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
                 {/* Preview nuevo ciclo */}
                 {previewNewInterest !== null && previewNewInterest > 0 && (
-                  <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                  <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Capital renovado</span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(newAmount)}</span>

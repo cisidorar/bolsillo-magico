@@ -29,7 +29,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
   const hasRisk    = minBalance < 0
 
   return (
-    <div className="card overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+    <div className="card overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
@@ -75,7 +75,6 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
                 <div
                   key={`${e.type}-${e.label}-${e.date}-${i}`}
                   className="flex items-center gap-3 py-2.5"
-                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
                 >
                   {e.domain !== undefined ? (
                     <ServiceLogo domain={e.domain ?? null} name={e.label} size={28} className="flex-shrink-0" />

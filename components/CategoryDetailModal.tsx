@@ -99,7 +99,7 @@ export default function CategoryDetailModal({
                   {icon}
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{label}</p>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{label}</p>
                   <p className="text-xl font-extrabold tabular-nums leading-tight"
                     style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
                     {formatCLP(value)}
@@ -147,7 +147,7 @@ export default function CategoryDetailModal({
 
               {items && items.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
                     {items.length === 1 ? '1 cuenta' : `${items.length} cuentas`}
                   </p>
                   <div className="space-y-2">

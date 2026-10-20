@@ -153,7 +153,7 @@ export default async function CuentaPage({
               className="flex-shrink-0 rounded-2xl shadow-lg"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-0.5">
+              <p className="text-white/60 text-xs font-semibold mb-0.5">
                 Estado de cuenta
               </p>
               <h1 className="text-xl font-extrabold text-white leading-tight truncate">
@@ -167,7 +167,7 @@ export default async function CuentaPage({
 
           {/* Monto + período */}
           <div className="mt-5">
-            <p className="text-white/55 text-[10px] font-bold uppercase tracking-widest mb-1">
+            <p className="text-white/55 text-[11px] font-bold mb-1">
               {isSpecificStatement ? 'Total del estado' : 'Acumulado período actual'}
             </p>
             <p className="text-white font-extrabold leading-none" style={{ fontSize: 'clamp(32px, 8vw, 48px)' }}>
@@ -207,15 +207,15 @@ export default async function CuentaPage({
 
           {/* Tarjeta de período */}
           <div className="card p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Período de facturación</p>
+            <p className="text-xs font-bold text-gray-500">Período de facturación</p>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-gray-50 rounded-2xl p-3">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Apertura</p>
+                <p className="text-[11px] font-semibold text-gray-400 mb-1">Apertura</p>
                 <p className="text-sm font-bold text-gray-800">{fmtDate(current.start)}</p>
               </div>
               <div className="bg-gray-50 rounded-2xl p-3">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Cierre</p>
+                <p className="text-[11px] font-semibold text-gray-400 mb-1">Cierre</p>
                 <p className="text-sm font-bold text-gray-800">{fmtDate(current.end)}</p>
               </div>
             </div>
@@ -249,7 +249,7 @@ export default async function CuentaPage({
                 { label: 'Período anterior', value: prevTotal > 0 ? formatCLP(prevTotal) : 'Sin datos' },
               ].map(s => (
                 <div key={s.label} className="text-center bg-gray-50 rounded-2xl p-2.5">
-                  <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide leading-tight mb-1">{s.label}</p>
+                  <p className="text-[11px] font-semibold text-gray-400 leading-tight mb-1">{s.label}</p>
                   <p className="text-xs font-extrabold text-gray-800 tabular-nums leading-tight">{s.value}</p>
                 </div>
               ))}
@@ -272,7 +272,7 @@ export default async function CuentaPage({
           {/* Desglose por categoría */}
           {catSummary.length > 0 && (
             <div className="card p-4 space-y-3">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Por categoría</p>
+              <p className="text-xs font-bold text-gray-500">Por categoría</p>
               <div className="space-y-2.5">
                 {catSummary.map(c => {
                   const pct = currentOwn > 0 ? Math.round((c.total / currentOwn) * 100) : 0
@@ -303,7 +303,7 @@ export default async function CuentaPage({
 
           {/* Info de la tarjeta */}
           <div className="card p-4 space-y-3">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Datos de la tarjeta</p>
+            <p className="text-xs font-bold text-gray-500">Datos de la tarjeta</p>
             <div className="space-y-2">
               {[
                 { label: 'Tipo', value: 'Crédito' },

@@ -148,7 +148,7 @@ export default async function IngresosPage() {
         {/* Ingreso este mes */}
         <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
               Ingreso este mes
             </p>
             <p
@@ -167,7 +167,7 @@ export default async function IngresosPage() {
         {/* Promedio 6 meses */}
         <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
               Promedio 6 meses
             </p>
             <p
@@ -191,7 +191,7 @@ export default async function IngresosPage() {
 
         {/* Variación vs mes anterior */}
         <div className="card p-4 lg:p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
             Variación vs mes anterior
           </p>
           {varPct !== null ? (
@@ -225,7 +225,7 @@ export default async function IngresosPage() {
 
         {/* Meses sin registrar */}
         <div className="card p-4 lg:p-5">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
             Meses sin registrar
           </p>
           <div className="flex items-center gap-2">
@@ -246,7 +246,7 @@ export default async function IngresosPage() {
         {/* Tasa de ahorro — misma métrica que /analisis, cerrando el loop del link "Ver" */}
         <div className="card p-4 lg:p-5 col-span-2 lg:col-span-1 flex flex-col justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
               Tasa de ahorro
             </p>
             <p
@@ -279,7 +279,7 @@ export default async function IngresosPage() {
         <div className="px-4 lg:px-6 pt-4 pb-3">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Historial de ingresos</p>
         </div>
-        <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+        <div>
         {periods.slice(1).map(({ month, year }) => {
           const key     = `${year}-${month}`
           const income  = incomeMap[key] ?? null

@@ -67,7 +67,7 @@ function LineGroup({
   return (
     <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>{title}</span>
+        <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{title}</span>
         {items.length > 0 && (
           <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
         )}
@@ -448,7 +448,7 @@ export default function PayslipUploader() {
                   {/* Totales */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Total haberes</label>
+                      <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total haberes</label>
                       <input
                         type="text" inputMode="numeric" value={fmtInput(form.totalHaberes)}
                         onChange={e => setForm({ ...form, totalHaberes: parseAmt(e.target.value) })}
@@ -457,7 +457,7 @@ export default function PayslipUploader() {
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: 'var(--ink-3)' }}>Total descuentos</label>
+                      <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total descuentos</label>
                       <input
                         type="text" inputMode="numeric" value={fmtInput(form.totalDescuentos)}
                         onChange={e => setForm({ ...form, totalDescuentos: parseAmt(e.target.value) })}
@@ -469,7 +469,7 @@ export default function PayslipUploader() {
 
                   {/* Líquido — lo más importante, va a Ingresos */}
                   <div className="rounded-2xl p-4" style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary)' }}>
-                    <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--primary)' }}>
+                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--primary)' }}>
                       Líquido a recibir — se registra en Ingresos
                     </label>
                     <input

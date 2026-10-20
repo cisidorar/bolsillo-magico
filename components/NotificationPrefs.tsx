@@ -156,7 +156,7 @@ export default function NotificationPrefs({
   ]
 
   return (
-    <div className="card overflow-hidden divide-y divide-gray-50 dark:divide-[#1a2744]">
+    <div className="card overflow-hidden divide-gray-50 dark:divide-[#1a2744]">
       {items.map(item => (
         <div key={item.key}>
         <div className="flex items-center gap-4 px-4 py-4">

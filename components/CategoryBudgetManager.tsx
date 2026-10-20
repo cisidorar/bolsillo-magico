@@ -138,7 +138,7 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
     <div className="flex flex-col gap-3">
 
       {/* Category rows */}
-      <div className="card overflow-hidden !rounded-2xl divide-y divide-gray-100">
+      <div className="card overflow-hidden !rounded-2xl divide-gray-100">
         {rows.map(row => {
           const c = row.category
           const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
@@ -150,14 +150,6 @@ export default function CategoryBudgetManager({ categories, budgets, recurringBy
           return (
             <React.Fragment key={c.id}>
             <div className="flex items-center gap-3 px-4 py-3.5 relative">
-
-              {/* Left accent stripe when budget is set */}
-              {hasBudget && (
-                <div
-                  className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full"
-                  style={{ background: c.color }}
-                />
-              )}
 
               {/* Category icon */}
               <div

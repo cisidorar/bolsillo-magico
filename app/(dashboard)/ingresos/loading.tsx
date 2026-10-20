@@ -8,7 +8,7 @@ export default function Loading() {
           <div key={i} className="card p-4 h-20" style={{ background: 'var(--surface-2)' }} />
         ))}
       </div>
-      <div className="card overflow-hidden divide-y" style={{ borderColor: 'var(--border)' }}>
+      <div className="card overflow-hidden">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="px-4 py-4 flex gap-4">
             <div className="h-5 w-20 rounded-lg" style={{ background: 'var(--surface-2)' }} />

@@ -527,7 +527,7 @@ export default function TechnicalDetail({
       {/* 0. Cabecera fija: score + acción con monto + el porqué en 2 líneas
           (U3 del roadmap UX) — esto es lo único que hace falta leer para
           decidir; el resto de bloques son profundización opcional. */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: HEADER_BG[headerColor] ?? 'var(--surface-2)', borderLeft: `3px solid ${headerColor}` }}>
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: HEADER_BG[headerColor] ?? 'var(--surface-2)' }}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <ConvictionChip score={conviction.score} tier={conviction.tier} />
@@ -581,7 +581,7 @@ export default function TechnicalDetail({
         const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
         return (
           <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-base font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(valueUsd)}</p>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
@@ -599,7 +599,7 @@ export default function TechnicalDetail({
       {/* X2: escalera de precios — reemplaza las frases sueltas de costo,
           salida, techo/piso por un solo dibujo. */}
       <div className="rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-        <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>
+        <p className="flex items-center gap-1 text-[11px] font-bold mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>
           Dónde está el precio
           <InfoTap explanation="Tu costo (si tienes la posición), la salida (el precio donde el plan dice vender — sube con el trailing si viene ganando, nunca baja) y el próximo techo, todos en una misma recta." />
         </p>
@@ -641,8 +641,8 @@ export default function TechnicalDetail({
         const retPct = ((px - position.avgCost) / position.avgCost) * 100
         const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
         return (
-          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)', borderLeft: '3px solid var(--gold)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición · plan de salida</p>
+          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición · plan de salida</p>
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
               <p className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                 {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. · costo prom. {fmtUSD(position.avgCost)}
@@ -655,7 +655,7 @@ export default function TechnicalDetail({
             {/* X3: fila estructurada (condición | acción+monto) en vez de
                 oraciones corridas — antes "100% solo si pierde $419 dos
                 cierres seguidos" mezclaba los tres datos en una sola frase. */}
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div>
               {a.sell.map((t, i) => {
                 const currentValue = position.shares * (livePrice ?? a.price)
                 const usdAmount = currentValue * (t.pct / 100)
@@ -691,10 +691,10 @@ export default function TechnicalDetail({
       })()}
 
       {/* 1.5 Zona de compra + plan — el número primero, la explicación después */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)', borderLeft: '3px solid var(--primary)' }}>
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--primary)' }}>Plan de compra</p>
+      <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(43,124,246,0.07)' }}>
+        <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--primary)' }}>Plan de compra</p>
         {a.buy.length > 0 ? (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {a.buy.map((t, i) => {
               const usd = trancheUsd(t.pct, t.now)
               const noCash = t.now && cashCap !== null && cashCap < 1
@@ -732,12 +732,12 @@ export default function TechnicalDetail({
       {movements.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1.5 px-0.5">
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Movimientos</p>
+            <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Movimientos</p>
             <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
               {movements.length} operación{movements.length !== 1 ? 'es' : ''}
             </p>
           </div>
-          <div className="rounded-xl divide-y overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
             {movements.map((m, i) => {
               const editable = !!(m.purchaseId && onEditPurchase)
               return (
@@ -802,7 +802,7 @@ export default function TechnicalDetail({
           </p>
         ) : (
           <>
-            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
               <Newspaper className="w-3 h-3" /> Noticias recientes
             </p>
             <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--ink)' }}>
@@ -835,7 +835,7 @@ export default function TechnicalDetail({
       {/* 2. Gráfico 12 meses con niveles y SMA200 */}
       <div className="rounded-2xl px-3 pt-3 pb-2" style={{ background: 'var(--surface-2)' }}>
         <div className="flex items-center justify-between mb-1 px-0.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Últimos 12 meses</p>
+          <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Últimos 12 meses</p>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>
               <span className="inline-block w-3 border-t-2" style={{ borderColor: 'var(--primary)' }} /> precio
@@ -854,7 +854,7 @@ export default function TechnicalDetail({
           {/* 3. Tendencia de fondo + rendimiento */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                 {a.trend.aboveSma200 === false
                   ? <TrendingDown className="w-3 h-3" style={{ color: trendColor }} />
                   : <TrendingUp className="w-3 h-3" style={{ color: trendColor }} />}
@@ -870,14 +870,14 @@ export default function TechnicalDetail({
                     {a.trend.distPct !== null && `${a.trend.distPct > 0 ? '+' : ''}${a.trend.distPct}% vs su promedio largo`}
                     {a.trend.sma200Rising !== null && ` · promedio ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
                   </p>
-                  <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>
                     {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su SMA200
                   </p>
                 </>
               ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
                 <BarChart3 className="w-3 h-3" />
                 Rendimiento
               </p>
@@ -897,7 +897,7 @@ export default function TechnicalDetail({
           {/* 6. Momentum (secundario): RSI + rango 52 semanas */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                 <Activity className="w-3 h-3" />
                 Impulso · RSI
               </p>
@@ -912,7 +912,7 @@ export default function TechnicalDetail({
               ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>—</p>}
             </div>
             <div className="rounded-2xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <p className="flex items-center gap-1 text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
                 <Gauge className="w-3 h-3" />
                 Rango del año
               </p>
@@ -941,7 +941,7 @@ export default function TechnicalDetail({
                       <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
                       {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                       {crossedUp && (
-                        <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                        <span className="ml-1.5 text-[11px] font-extrabold px-1.5 py-0.5 rounded-full"
                           style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
                           hoy por encima
                         </span>
@@ -961,7 +961,7 @@ export default function TechnicalDetail({
                       <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
                       {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                       {brokenDown && (
-                        <span className="ml-1.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                        <span className="ml-1.5 text-[11px] font-extrabold px-1.5 py-0.5 rounded-full"
                           style={{ background: 'rgba(255,111,97,0.14)', color: 'var(--coral)' }}>
                           hoy por debajo — ojo
                         </span>
@@ -992,7 +992,7 @@ export default function TechnicalDetail({
                     <div className="min-w-0">
                       <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
-                      <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>{s.tech}</p>
+                      <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>{s.tech}</p>
                     </div>
                   </div>
                 )
@@ -1008,18 +1008,18 @@ export default function TechnicalDetail({
               (sus distancias vienen del cierre anterior y quedan obsoletas) */}
           {!bigMove && a.watch.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest pt-1" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[11px] font-bold pt-1" style={{ color: 'var(--ink-3)' }}>
                 Para revisar pronto — cerca de pasar
               </p>
               {a.watch.map(w => {
                 const t = TONE_STYLE[w.tone]
                 return (
                   <div key={w.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5"
-                    style={{ background: 'var(--surface-2)', borderLeft: `2.5px solid ${t.color}` }}>
+                    style={{ background: 'var(--surface-2)' }}>
                     <div className="min-w-0">
                       <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{w.title}</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{w.detail}</p>
-                      <p className="text-[9px] mt-1 font-semibold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>{w.tech}</p>
+                      <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>{w.tech}</p>
                     </div>
                   </div>
                 )
@@ -1056,7 +1056,7 @@ export default function TechnicalDetail({
           </p>
         ) : (
           <>
-            <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ink-3)' }}>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
               <BarChart3 className="w-3 h-3" /> Cómo le fue a esta señal en {ticker} (último año)
             </p>
             <div className="space-y-2">

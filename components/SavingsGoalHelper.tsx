@@ -39,7 +39,7 @@ export default function SavingsGoalHelper({ userId, month, year, avgIncome, comm
 
   if (!avgIncome) {
     return (
-      <div className="card p-4 mb-5 flex items-start gap-3" style={{ borderColor: 'var(--border)' }}>
+      <div className="card p-4 mb-5 flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
           <Sparkles className="w-4 h-4" style={{ color: 'var(--primary)' }} />
         </div>
@@ -71,7 +71,7 @@ export default function SavingsGoalHelper({ userId, month, year, avgIncome, comm
   }
 
   return (
-    <div className="card p-4 lg:p-5 mb-5" style={{ borderColor: 'var(--border)' }}>
+    <div className="card p-4 lg:p-5 mb-5">
       <div className="flex items-center gap-2.5 mb-3">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
           <Sparkles className="w-4 h-4" style={{ color: 'var(--primary)' }} />

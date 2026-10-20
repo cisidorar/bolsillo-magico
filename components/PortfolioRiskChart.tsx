@@ -163,7 +163,7 @@ export default function PortfolioRiskChart({ data }: { data: RiskTierBucket[] })
         {selectedBucket ? (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: RISK_TIER_COLOR[selectedBucket.tier] }}>
+              <p className="text-[11px] font-bold" style={{ color: RISK_TIER_COLOR[selectedBucket.tier] }}>
                 {RISK_TIER_LABEL[selectedBucket.tier]} · {selectedBucket.holdings.length} {selectedBucket.holdings.length === 1 ? 'posición' : 'posiciones'}
               </p>
               <button

@@ -111,7 +111,6 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                     key={e.id}
                     onClick={() => setDetailExpense(e)}
                     className="flex items-center gap-3 px-4 py-3.5 w-full text-left transition-colors hover:bg-[var(--surface-2)] group"
-                    style={{ borderTop: isFirst ? undefined : '1px solid var(--border)' }}
                   >
                     {logoDomain ? (
                       <ServiceLogo domain={logoDomain} name={logoName} size={36} className="flex-shrink-0" />
@@ -172,7 +171,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
             >
               <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
-              <div className="flex items-center gap-3 px-5 pt-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-3 px-5 pt-4 pb-4">
                 {logoDomain ? (
                   <ServiceLogo domain={logoDomain} name={logoName} size={40} className="flex-shrink-0" />
                 ) : (
@@ -208,7 +207,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                     </span>
                   </div>
                   {e.category && (
-                    <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Categoría</span>
                       <span
                         className="cat-badge inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
@@ -223,7 +222,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                     </div>
                   )}
                   {e.payment_method && (
-                    <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Método de pago</span>
                       <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
                         <PaymentIcon cardType={e.payment_method.card_type} />
@@ -232,7 +231,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                     </div>
                   )}
                   {e.recurring_expense && (
-                    <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Recurrente</span>
                       <span className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{e.recurring_expense.name}</span>
                     </div>
@@ -272,7 +271,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
               </div>
 
               {!confirmDelete && (
-                <div className="px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+                <div className="px-5 py-3 flex items-center gap-2 flex-shrink-0" style={{ background: 'var(--surface)' }}>
                   <button
                     onClick={() => setConfirmDelete(true)}
                     className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"

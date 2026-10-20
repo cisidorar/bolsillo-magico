@@ -402,7 +402,7 @@ export default async function RecurrentesPage({
         <div className="rounded-3xl p-5 text-white mb-6 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-2">Carga mensual</p>
+              <p className="text-[11px] font-bold text-white/70 mb-2">Carga mensual</p>
               <p className="text-3xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
               <p className="text-[11px] text-white/60 mt-1.5">
                 {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}

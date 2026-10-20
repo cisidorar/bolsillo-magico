@@ -122,7 +122,7 @@ export default function CalendarioPagos({ items }: Props) {
         {/* Cabecera días de semana */}
         <div className="grid grid-cols-7 border-b" style={{ borderColor: 'var(--border)' }}>
           {WEEKDAYS.map(d => (
-            <div key={d} className="py-2 text-center text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
+            <div key={d} className="py-2 text-center text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
               {d}
             </div>
           ))}
@@ -212,7 +212,7 @@ export default function CalendarioPagos({ items }: Props) {
         </div>
 
         {/* Total programado */}
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ background: 'var(--surface-2)' }}>
           <span className="text-xs font-semibold capitalize" style={{ color: 'var(--ink-3)' }}>
             Total programado en {monthName(month)}
           </span>
@@ -244,7 +244,7 @@ export default function CalendarioPagos({ items }: Props) {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {selectedItems.map(item => (
               <div key={item.id} className="flex items-center gap-3 px-4 py-3.5">
                 <ServiceLogo domain={item.domain} name={item.name} size={36} />

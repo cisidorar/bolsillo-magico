@@ -236,9 +236,9 @@ export default function SharedTripView({
           {owed ? `Te deben ${formatCLP(mine)}` : owes ? `Debes ${formatCLP(-mine)}` : 'Están a mano'}
         </p>
       </div>
-      <div className="grid grid-cols-2" style={{ borderTop: '1.5px solid var(--border)' }}>
-        <div className="p-4" style={{ borderRight: '1.5px dashed var(--border)' }}>
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Pusieron</p>
+      <div className="grid grid-cols-2">
+        <div className="p-4">
+          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Pusieron</p>
           {accepted.map(m => (
             <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
               <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
@@ -247,7 +247,7 @@ export default function SharedTripView({
           ))}
         </div>
         <div className="p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--ink-3)' }}>Les corresponde</p>
+          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Les corresponde</p>
           {accepted.map(m => (
             <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
               <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
@@ -257,7 +257,7 @@ export default function SharedTripView({
         </div>
       </div>
       {transfers.length > 0 && (
-        <div className="p-4 space-y-2" style={{ borderTop: '1.5px solid var(--border)' }}>
+        <div className="p-4 space-y-2">
           {transfers.map(t => {
             const involvesMe = t.from === meId || t.to === meId
             return (
@@ -378,13 +378,13 @@ export default function SharedTripView({
         )
       ) : (
         <div className="space-y-4">
-          {itemsList && <p className="text-[11px] font-bold uppercase tracking-wider -mb-2" style={{ color: 'var(--mint)' }}>Pagado</p>}
+          {itemsList && <p className="text-[11px] font-bold -mb-2" style={{ color: 'var(--mint)' }}>Pagado</p>}
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
-              <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
                 {relativeDate(day, dateFormat)}
               </p>
-              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div>
                 {rows.map(e => {
                   const myPart = sharesByExp[e.id]?.[meId] ?? 0
                   const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
@@ -475,7 +475,7 @@ export default function SharedTripView({
               )}
             </div>
 
-            {members.length > 1 && <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            {members.length > 1 && <div>
               {members.map(m => (
                 <div key={m.user_id} className="flex items-center gap-3 py-2">
                   {m.avatar_url ? (
@@ -586,7 +586,7 @@ export default function SharedTripView({
           {settlements.length > 0 && (
             <div className="card p-4">
               <h2 className="text-sm font-bold mb-2" style={{ color: 'var(--ink)' }}>Transferencias entre ustedes</h2>
-              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              <div>
                 {settlements.map(s => (
                   <div key={s.id} className="flex items-center gap-3 py-2">
                     <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />

@@ -293,7 +293,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
               {/* Nombre */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nombre de la cuenta
                 </label>
                 <input
@@ -312,7 +312,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               {/* Saldo + Tasa */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Saldo actual (CLP)
                   </label>
                   <input
@@ -327,7 +327,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Tasa anual (% TAE)
                   </label>
                   <input
@@ -351,7 +351,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                   style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mint)' }}>
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
                     Ganas por día
                   </span>
                   <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
@@ -369,7 +369,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   más, $1.734 inflados. La etiqueta ahora pregunta lo que de
                   verdad necesita saber. */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   ¿De qué día es ese saldo?
                 </label>
                 <input
@@ -388,7 +388,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
               {/* Nota */}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nota (opcional)
                 </label>
                 <input
@@ -510,7 +510,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                 </p>
 
                 {/* Cifras clave */}
-                <div className="rounded-2xl overflow-hidden divide-y" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Saldo depositado</span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(acc.balance)}</span>
@@ -535,7 +535,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
                 {/* Nota completa, sin truncar — en la fila de la lista solo cabe una línea */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                     Nota
                   </p>
                   <p className="text-sm" style={{ color: acc.notes ? 'var(--ink-2)' : 'var(--ink-3)' }}>
@@ -612,7 +612,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
           {/* Fila única (mockup de Cas): antes había una tabla ancha para
               desktop y otra fila compacta para mobile — se unificaron en
               una sola, más legible y sin duplicar markup. */}
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+          <div>
             {savings.map(acc => {
               const earned = earnedSoFar(acc.balance, acc.annual_rate, acc.start_date)
               const days   = daysElapsed(acc.start_date)
@@ -639,11 +639,11 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Saldo</p>
+                    <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Saldo</p>
                     <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                       {formatCLP(acc.balance)}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: 'var(--ink-3)' }}>Ganado</p>
+                    <p className="text-[11px] font-bold mt-1" style={{ color: 'var(--ink-3)' }}>Ganado</p>
                     <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
                       +{formatCLP(earned)}
                     </p>

@@ -123,7 +123,6 @@ export default function PropertySwitcher({
           <button
             onClick={goNew}
             className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left transition-colors"
-            style={{ borderTop: '1.5px solid var(--border)' }}
           >
             <Plus className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
             <span className="text-sm font-bold" style={{ color: 'var(--primary)' }}>

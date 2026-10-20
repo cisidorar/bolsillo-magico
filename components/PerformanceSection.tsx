@@ -102,11 +102,11 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
               </p>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="rounded-2xl p-3 text-center" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Tu portafolio</p>
+                  <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Tu portafolio</p>
                   <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(b.realValueUsd)}</p>
                 </div>
                 <div className="rounded-2xl p-3 text-center" style={{ background: 'var(--surface-2)' }}>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>En SPY habrías tenido</p>
+                  <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>En SPY habrías tenido</p>
                   <p className="text-base font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(b.shadowValueUsd)}</p>
                 </div>
               </div>
@@ -181,7 +181,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
           </div>
           <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-3.5 text-center">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Win rate</p>
+              <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Win rate</p>
               <p className="text-lg font-bold tabular-nums" style={{ color: salesStats.winRate >= 50 ? 'var(--mint)' : 'var(--coral)' }}>
                 {salesStats.winRate.toFixed(0)}%
               </p>
@@ -190,7 +190,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
               </p>
             </div>
             <div className="p-3.5 text-center">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Relación G/P</p>
+              <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Relación G/P</p>
               <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                 {salesStats.wlRatio !== null ? `${salesStats.wlRatio.toFixed(1)}×` : '—'}
               </p>
@@ -199,7 +199,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
               </p>
             </div>
             <div className="p-3.5 text-center">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>Realizado total</p>
+              <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Realizado total</p>
               <p className="text-lg font-bold tabular-nums" style={{ color: salesStats.totalPnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
                 {fmtUSDSigned(salesStats.totalPnl)}
               </p>
@@ -240,7 +240,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
           </div>
           <div className="grid grid-cols-2 divide-x" style={{ borderColor: 'var(--border)' }}>
             <div className="p-3.5 text-center">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                 Compraste con score ≥70
               </p>
               <p className="text-lg font-bold tabular-nums" style={{ color: scoreVsOutcome.highAvgPct !== null && scoreVsOutcome.highAvgPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
@@ -251,7 +251,7 @@ export default function PerformanceSection({ sales = [], spyBenchmark = null, pu
               </p>
             </div>
             <div className="p-3.5 text-center">
-              <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--ink-3)' }}>
+              <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
                 Compraste con score &lt;55
               </p>
               <p className="text-lg font-bold tabular-nums" style={{ color: scoreVsOutcome.lowAvgPct !== null && scoreVsOutcome.lowAvgPct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>

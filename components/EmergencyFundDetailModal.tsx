@@ -82,7 +82,7 @@ export default function EmergencyFundDetailModal({
                   {icon}
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Fondo de emergencia</p>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Fondo de emergencia</p>
                   <p className="text-xl font-extrabold tabular-nums leading-tight"
                     style={{ fontFamily: 'Fredoka, sans-serif', color: coveredColor }}>
                     {fmtMonths(monthsCovered)} {monthsCovered === 1 ? 'mes cubierto' : 'meses cubiertos'}
@@ -109,13 +109,13 @@ export default function EmergencyFundDetailModal({
               )}
 
               <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>Guardado hoy</p>
+                <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Guardado hoy</p>
                 <p className="text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(totalSavings)}</p>
               </div>
 
               {goals.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                     Cuánto necesitas en total
                   </p>
                   {goals.map(g => (
