@@ -346,7 +346,7 @@ export default function SharedTripView({
   ) : null
 
   const gastos = (
-    <div className="card p-4">
+    <div className={itemsList ? 'space-y-4' : 'card p-4'}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
@@ -365,7 +365,7 @@ export default function SharedTripView({
       </div>
 
       {itemsList && (
-        <div className="mb-4">{itemsList}</div>
+        <div className="mb-6">{itemsList}</div>
       )}
 
       {expenses.length === 0 ? (
@@ -381,17 +381,18 @@ export default function SharedTripView({
           {itemsList && <p className="text-[11px] font-bold -mb-2" style={{ color: 'var(--mint)' }}>Pagado</p>}
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
-              <p className="text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>
-                {relativeDate(day, dateFormat)}
-              </p>
-              <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
+                <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{relativeDate(day, dateFormat)}</p>
+              </div>
+              <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
                 {rows.map(e => {
                   const myPart = sharesByExp[e.id]?.[meId] ?? 0
                   const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
                   const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
                   return (
                     <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
-                      className="w-full flex items-center gap-3 py-2.5 text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left"
                       style={{ cursor: closed ? 'default' : 'pointer' }}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
                         <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />

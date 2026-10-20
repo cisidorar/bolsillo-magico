@@ -98,7 +98,7 @@ export default function TripPlanItems({
     const over = overCap(it)
     const off = !isActive(it)
     return (
-      <div className="flex items-center gap-3" style={{ opacity: off ? 0.6 : 1 }}>
+      <div className="flex items-center gap-3 px-4" style={{ opacity: off ? 0.6 : 1 }}>
         <button onClick={() => openDetail(it)} className="flex-1 min-w-0 text-left flex items-center gap-3 py-3" aria-label={`Ver detalle de ${it.description}`}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,194,60,0.14)' }}>
             <CatIcon className="w-4 h-4" style={{ color: 'var(--gold-ink)' }} />
@@ -128,31 +128,31 @@ export default function TripPlanItems({
   )
 
   const sectionHead = (icon: React.ReactNode, title: string, total: number, right?: React.ReactNode, hint?: string) => (
-    <div className="flex items-center justify-between mb-0.5 mt-1">
+    <div className="flex items-center justify-between mb-2">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          {icon}
-          <h3 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{title}</h3>
+          <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
+          <h3 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{title}</h3>
           {total > 0 && <span className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(total)}</span>}
         </div>
-        {hint && <p className="text-[11px] ml-6" style={{ color: 'var(--ink-3)' }}>{hint}</p>}
+        {hint && <p className="text-[11px] ml-[11px]" style={{ color: 'var(--ink-3)' }}>{hint}</p>}
       </div>
       {right}
     </div>
   )
 
   return (
-    <div className={embedded ? 'space-y-5' : 'card p-5 space-y-5'}>
+    <div className={embedded ? 'space-y-6' : 'card p-5 space-y-6'}>
       {/* Reservas */}
       <div>
         {sectionHead(<CalendarClock className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Reservas', totals.before, addBtn('reserva'),
           'Se pagan antes de salir. Con fecha, aparecen en tu flujo de caja.')}
         {reservas.length === 0 ? (
-          <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-xs px-4 py-4 card-flat" style={{ color: 'var(--ink-3)' }}>
             Pasajes, auto, alojamiento: lo que reservas y pagas antes del viaje.
           </p>
         ) : (
-          <div className="[&>*]:border-t [&>*:last-child]:border-b [&>*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
+          <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
             {reservas.map(it => (
               <div key={it.id}>
                 <Row it={it}
@@ -163,7 +163,7 @@ export default function TripPlanItems({
                       style={{ color: 'var(--primary)' }}>Pagar</button>
                   )} />
                 {paying === it.id && (
-                  <div className="mb-2 rounded-xl p-3 space-y-2" style={{ background: 'var(--surface-2)' }}>
+                  <div className="mx-3 mb-3 rounded-xl p-3 space-y-2" style={{ background: 'var(--surface-2)' }}>
                     <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
                       Pagaste {formatCLP(it.est_amount)}. Se registra como gasto del viaje y se reparte entre todos. ¿Con qué?
                     </p>
@@ -196,9 +196,9 @@ export default function TripPlanItems({
             ? `Se va gastando en ruta · unos ${formatCLP(perDay(totals.during, tripDays))} al día`
             : 'Comida, bencina y actividades: se van gastando en ruta.')}
         {durante.length === 0 ? (
-          <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
+          <p className="text-xs px-4 py-4 card-flat" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
-          <div className="[&>*]:border-t [&>*:last-child]:border-b [&>*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
+          <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
             {durante.map(it => (
               <Row key={it.id} it={it}
                 sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${tripDays ? ` · ${formatCLP(perDay(it.est_amount, tripDays))} al día` : ''}${share(it.est_amount)}`} />
@@ -213,9 +213,9 @@ export default function TripPlanItems({
           {sectionHead(<Sparkles className="w-4 h-4" style={{ color: 'var(--primary)' }} />, 'Opcionales', 0, addBtn('durante', true),
             'Actívalos o apágalos y el total se ajusta.')}
           {opcionales.length === 0 ? (
-            <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
+            <p className="text-xs px-4 py-4 card-flat" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
           ) : (
-            <div className="[&>*]:border-t [&>*:last-child]:border-b [&>*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
+            <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
               {opcionales.map(it => (
                 <Row key={it.id} it={it}
                   sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${it.enabled ? share(it.est_amount) : ' · no incluido'}`}
