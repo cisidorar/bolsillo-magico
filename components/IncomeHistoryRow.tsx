@@ -55,7 +55,8 @@ export default function IncomeHistoryRow({
     <>
       <button
         onClick={() => setDetailOpen(true)}
-        className="w-full text-left group px-4 lg:px-6 py-4 flex items-center gap-3 lg:gap-5 transition-colors hover:bg-[var(--surface-2)]"
+        className="w-full text-left group px-4 lg:px-6 py-4 flex items-center gap-3 lg:gap-5 transition-colors hover:bg-[var(--surface-2)] border-t"
+        style={{ borderColor: 'color-mix(in srgb, var(--border) 55%, transparent)' }}
       >
         {/* Mes */}
         <div className="flex items-center gap-2 w-32 shrink-0">
