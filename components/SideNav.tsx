@@ -39,7 +39,6 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
         className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 py-6 px-3"
         style={{
           background:   'var(--surface)',
-          borderRight:  '1px solid var(--border)',
           boxShadow:    '2px 0 16px var(--shadow)',
         }}
       >

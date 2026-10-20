@@ -36,7 +36,8 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear()
 
   return (
-    <div className="flex items-center gap-0.5 bg-white dark:bg-[#1a2744] border border-gray-200 dark:border-[#2d4f7a] rounded-xl shadow-sm dark:shadow-none p-0.5">
+    <div className="flex items-center gap-0.5 rounded-xl p-0.5"
+      style={{ background: 'var(--surface)' }}>
       <button
         onClick={() => navigate(-1)}
         className="flex items-center justify-center rounded-lg text-brand-600 dark:text-blue-300 hover:bg-brand-50 dark:hover:bg-[#0d1b2e] transition-colors"
