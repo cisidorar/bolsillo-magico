@@ -152,7 +152,7 @@ export default function TripPlanItems({
             Pasajes, auto, alojamiento: lo que reservas y pagas antes del viaje.
           </p>
         ) : (
-          <div>
+          <div className="[&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
             {reservas.map(it => (
               <div key={it.id}>
                 <Row it={it}
@@ -198,7 +198,7 @@ export default function TripPlanItems({
         {durante.length === 0 ? (
           <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Ej: comida $30.000 por persona al día.</p>
         ) : (
-          <div>
+          <div className="[&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
             {durante.map(it => (
               <Row key={it.id} it={it}
                 sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${tripDays ? ` · ${formatCLP(perDay(it.est_amount, tripDays))} al día` : ''}${share(it.est_amount)}`} />
@@ -215,7 +215,7 @@ export default function TripPlanItems({
           {opcionales.length === 0 ? (
             <p className="text-xs py-2" style={{ color: 'var(--ink-3)' }}>Actividades que harías si alcanza: kayak, un tour, una cena especial.</p>
           ) : (
-            <div>
+            <div className="[&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
               {opcionales.map(it => (
                 <Row key={it.id} it={it}
                   sub={`${TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''}${qtyLabel(it, formatCLP) ? ` · ${qtyLabel(it, formatCLP)}` : ''}${it.enabled ? share(it.est_amount) : ' · no incluido'}`}
