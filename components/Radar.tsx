@@ -123,10 +123,12 @@ function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owne
   return null
 }
 
-const FLAG_UI: Record<'buy' | 'sell' | 'caution', { color: string; bg: string; softBg: string }> = {
-  buy:     { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.16)', softBg: 'rgba(31,190,141,0.06)' },
-  sell:    { color: 'var(--coral)', bg: 'rgba(255,111,97,0.16)', softBg: 'rgba(255,111,97,0.06)' },
-  caution: { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.18)', softBg: 'rgba(255,194,60,0.07)' },
+// `color` tiñe el ícono (--gold funciona ahí); `textColor` es para texto sobre
+// superficie clara, donde --gold falla WCAG — ver Gold-Ink Rule en DESIGN.md.
+const FLAG_UI: Record<'buy' | 'sell' | 'caution', { color: string; textColor: string; bg: string; softBg: string }> = {
+  buy:     { color: 'var(--mint)',  textColor: 'var(--mint)',    bg: 'rgba(31,190,141,0.16)', softBg: 'rgba(31,190,141,0.06)' },
+  sell:    { color: 'var(--coral)', textColor: 'var(--coral)',   bg: 'rgba(255,111,97,0.16)', softBg: 'rgba(255,111,97,0.06)' },
+  caution: { color: 'var(--gold)',  textColor: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.18)', softBg: 'rgba(255,194,60,0.07)' },
 }
 
 function fmtUSD(n: number): string {
@@ -999,7 +1001,7 @@ export default function Radar({
                   <span className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>USD</span>
                 </div>
                 {hasQ && (
-                  <p className="flex items-center gap-1 text-xs font-bold" style={{ color: dailyChangeUsd >= 0 ? '#7EEBC7' : '#FFB4AB' }}>
+                  <p className="flex items-center gap-1 text-xs font-bold" style={{ color: dailyChangeUsd >= 0 ? 'var(--mint-on-brand)' : 'var(--coral-on-brand)' }}>
                     {dailyChangeUsd >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
                     <Masked hidden={hideAmounts} value={fmtUSDSigned(dailyChangeUsd)} /> ({fmtPct(dailyChangePct)}) hoy
                   </p>
@@ -1027,11 +1029,11 @@ export default function Radar({
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
                 <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
-                  <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61') : 'rgba(255,255,255,0.5)' }}>
+                  <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? 'var(--mint-on-brand)' : 'var(--coral-on-brand)') : 'rgba(255,255,255,0.5)' }}>
                     {hasQ ? <Masked hidden={hideAmounts} value={fmtUSDSigned(totalReturnUsd)} /> : '—'}
                   </p>
                   {hasQ && (
-                    <p className="text-xs font-bold tabular-nums" style={{ color: totalReturnUsd >= 0 ? '#1FBE8D' : '#FF6F61' }}>
+                    <p className="text-xs font-bold tabular-nums" style={{ color: totalReturnUsd >= 0 ? 'var(--mint-on-brand)' : 'var(--coral-on-brand)' }}>
                       {fmtPct(totalReturnPct)}
                     </p>
                   )}
@@ -1039,7 +1041,7 @@ export default function Radar({
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
                 <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
-                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? '#FFB4AB' : 'white' }}>
+                <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral-on-brand)' : 'white' }}>
                   {walletAvailable !== null ? <Masked hidden={hideAmounts} value={fmtUSD(Math.max(0, walletAvailable))} /> : '—'}
                 </p>
               </div>
@@ -1169,7 +1171,7 @@ export default function Radar({
               const a = analyses[row.ticker]
               const sellNow = typeof a === 'object' && a.sell.find(t => t.now)
               const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
-              const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold)'
+              const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold-ink)'
               const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
               // sep 2026 (Cas: "en el correo no se ve tan grave como se
               // muestra en la pagina" — el correo del digest manda una caja
@@ -1504,7 +1506,7 @@ export default function Radar({
               <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--gold)' }} />
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
                 Plata parada
               </span>
               <p className="text-[11px] leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
@@ -1581,7 +1583,7 @@ export default function Radar({
               <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
             ) : !topIsBuyTier && bestActionable === null ? (
               <>
-                <p className="text-sm font-extrabold" style={{ color: 'var(--coral)' }}>Hoy no compres nada de tu lista.</p>
+                <p className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>Hoy no compres nada de tu lista.</p>
                 <p className="text-xs leading-relaxed mt-1" style={{ color: 'var(--ink-2)' }}>
                   Ni siquiera <TickerLink t={top.ticker} onOpen={openDetail} />, tu mejor candidata ({top.conviction.score}/100), tiene caso suficiente para comprar ahora mismo. {top.conviction.verdict}
                 </p>
@@ -1594,7 +1596,7 @@ export default function Radar({
                     detalle del ticker (fix jul 2026, a pedido de Cas). Acá ya se
                     revisó TODO el ranking (bestActionable === null), no solo el
                     top: si nadie tiene gatillo hoy, este mensaje es correcto. */}
-                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold)' }}>
+                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold-ink)' }}>
                   <TickerLink t={top.ticker} onOpen={openDetail} bold /> es tu mejor candidata ({top.conviction.score}/100), pero todavía no hay entrada.
                 </p>
                 <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{top.a.entryPlan}</p>
@@ -1627,7 +1629,7 @@ export default function Radar({
                 {/* D3 (roadmap de calidad de decisión): earnings a la vuelta de
                     la esquina — el monto de abajo ya viene reducido a la mitad. */}
                 {topDaysToEarnings !== null && topDaysToEarnings <= 5 && (
-                  <p className="text-[11px] leading-relaxed mt-1 font-semibold" style={{ color: 'var(--gold)' }}>
+                  <p className="text-[11px] leading-relaxed mt-1 font-semibold" style={{ color: 'var(--gold-ink)' }}>
                     Reporta resultados {topDaysToEarnings === 0 ? 'hoy' : `en ${topDaysToEarnings} día${topDaysToEarnings !== 1 ? 's' : ''} hábil${topDaysToEarnings !== 1 ? 'es' : ''}`}
                     {topEarningsVeryClose ? ' — monto reducido a la mitad por esto.' : ' — el gráfico pesa menos hasta entonces.'}
                   </p>
@@ -1828,7 +1830,7 @@ export default function Radar({
                     {typeof a === 'object' && a.priceZone && <PriceZoneChip zone={a.priceZone} />}
                     {flag === 'caution' && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.color }}>
+                        style={{ background: FLAG_UI.caution.bg, color: FLAG_UI.caution.textColor }}>
                         <AlertTriangle className="w-3 h-3" /> Toma de ganancias
                       </span>
                     )}

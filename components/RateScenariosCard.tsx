@@ -52,7 +52,7 @@ export default function RateScenariosCard({ scenarios, excludedTickers, consider
           {scenarios.map(s => {
             const ui = SCENARIO_UI[s.label]
             // UX5: tope gold — un escenario hipotético no es acción-para-hoy.
-            const color = s.label === 'mantiene' ? 'var(--ink-2)' : (s.totalImpactUsd < 0 ? 'var(--gold)' : 'var(--mint)')
+            const color = s.label === 'mantiene' ? 'var(--ink-2)' : (s.totalImpactUsd < 0 ? 'var(--gold-ink)' : 'var(--mint)')
             return (
               <div key={s.label} className="rounded-xl px-2.5 py-2.5" style={{ background: 'var(--surface-2)' }}>
                 <p className="text-[10px] font-bold leading-tight" style={{ color: 'var(--ink-3)' }}>{ui.title}</p>

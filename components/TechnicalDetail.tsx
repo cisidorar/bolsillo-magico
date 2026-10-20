@@ -33,6 +33,14 @@ function fmtUSD(n: number): string {
   return '$' + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// --gold funciona para fondos/íconos/trazos, pero falla WCAG como texto —
+// Gold-Ink Rule en DESIGN.md. Los colores de esta vista son semánticos
+// (mint/gold/coral/ink-3) y se reusan tanto para texto como para decoración;
+// este helper los corrige solo donde terminan pintando texto real.
+function toTextColor(c: string): string {
+  return c === 'var(--gold)' ? 'var(--gold-ink)' : c
+}
+
 const TONE_STYLE: Record<SignalTone, { color: string; bg: string }> = {
   mint:    { color: 'var(--mint)',  bg: 'rgba(31,190,141,0.12)' },
   gold:    { color: 'var(--gold)',  bg: 'rgba(255,194,60,0.14)' },
@@ -106,7 +114,7 @@ function PriceChart({ a }: { a: TechnicalAnalysis }) {
         return (
           <g key={`${l.kind}-${l.price}`}>
             <line x1={padL} y1={l.lineY} x2={W - padR} y2={l.lineY} stroke={color} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.7" />
-            <text x={W - padR + 4} y={l.labelY + 3} fontSize="10" fontWeight="700" fill={color}>
+            <text x={W - padR + 4} y={l.labelY + 3} fontSize="10" fontWeight="700" fill={toTextColor(color)}>
               {fmtUSD(l.price)}
             </text>
           </g>
@@ -171,7 +179,7 @@ function PriceLadder({ points }: { points: LadderPoint[] }) {
         <g key={i}>
           <line x1={p.dotX} y1={H / 2 - 4} x2={p.dotX} y2={H / 2 + 4} stroke={p.color} strokeWidth="2" />
           <circle cx={p.dotX} cy={H / 2} r={p.emphasis ? 5 : 3.5} fill={p.color} />
-          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 - 10} fontSize="10" fontWeight="700" fill={p.color} textAnchor="middle">
+          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 - 10} fontSize="10" fontWeight="700" fill={toTextColor(p.color)} textAnchor="middle">
             {fmtUSD(p.price)}
           </text>
           <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 + 22} fontSize="9" fontWeight="600" fill="var(--ink-3)" textAnchor="middle">
@@ -482,7 +490,7 @@ export default function TechnicalDetail({
           de las secciones de abajo ya viene dividido por el factor. */}
       {leverage && (
         <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
-          <p className="text-xs font-bold" style={{ color: 'var(--gold)' }}>
+          <p className="text-xs font-bold" style={{ color: 'var(--gold-ink)' }}>
             Apalancado {leverage.factor}× — pensado para días u horas, no para mantener
           </p>
           <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -500,7 +508,7 @@ export default function TechnicalDetail({
         <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
           <CalendarClock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
           <div>
-            <p className="text-xs font-bold" style={{ color: 'var(--gold)' }}>
+            <p className="text-xs font-bold" style={{ color: 'var(--gold-ink)' }}>
               Reporta resultados {daysToEarnings === 0 ? 'hoy' : `en ${daysToEarnings} día${daysToEarnings !== 1 ? 's' : ''} hábil${daysToEarnings !== 1 ? 'es' : ''}`}
             </p>
             <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -532,16 +540,16 @@ export default function TechnicalDetail({
           <div className="flex items-center gap-2 min-w-0">
             <ConvictionChip score={conviction.score} tier={conviction.tier} />
             {rateSensitivity && <RateSensitivityChip result={rateSensitivity} />}
-            <p className="text-sm font-extrabold truncate" style={{ color: headerColor }}>{headerAction}</p>
+            <p className="text-sm font-extrabold truncate" style={{ color: toTextColor(headerColor) }}>{headerAction}</p>
           </div>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
-            style={{ background: 'var(--surface)', color: headerColor }}>
+            style={{ background: 'var(--surface)', color: toTextColor(headerColor) }}>
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
         <p className="text-xs leading-relaxed font-semibold mt-1.5" style={{ color: 'var(--ink)' }}>{rationale}</p>
         {position && a.rating.caution && (
-          <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold)' }}>
+          <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold-ink)' }}>
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
           </p>
         )}
@@ -663,7 +671,7 @@ export default function TechnicalDetail({
                   <div key={i} className="flex items-center justify-between gap-3 py-1.5">
                     <p className="text-xs leading-snug flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>{t.cond}</p>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--gold)' : 'var(--ink-3)' }}>
+                      <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                         {t.now ? `Vende ${fmtUSD(usdAmount)}` : `${t.pct}%`}
                       </p>
                       {t.now && <p className="text-[9px] font-semibold" style={{ color: 'var(--ink-3)' }}>{t.pct}% de la posición</p>}
@@ -675,7 +683,7 @@ export default function TechnicalDetail({
             <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>{sellPlanPersonal}</p>
             {/* Trailing persistido (ratchet del cron): si quedó por sobre el alarm del día, manda él */}
             {rawPosition?.trail_stop_usd != null && Number(rawPosition.trail_stop_usd) > (a.alarm ?? -Infinity) + 0.005 && (
-              <p className="text-[11px] font-semibold mt-1.5" style={{ color: 'var(--gold)' }}>
+              <p className="text-[11px] font-semibold mt-1.5" style={{ color: 'var(--gold-ink)' }}>
                 Tu salida móvil quedó en {fmtUSD(Number(rawPosition.trail_stop_usd))}: subió junto al precio y no baja aunque los niveles del día bajen.
               </p>
             )}
@@ -863,7 +871,7 @@ export default function TechnicalDetail({
               </p>
               {a.trend.aboveSma200 !== null ? (
                 <>
-                  <p className="text-xs font-extrabold" style={{ color: trendColor }}>
+                  <p className="text-xs font-extrabold" style={{ color: toTextColor(trendColor) }}>
                     {a.trend.aboveSma200 ? 'Subiendo' : 'Cayendo'} hace {a.trend.weeksInState} sem.
                   </p>
                   <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
@@ -904,7 +912,7 @@ export default function TechnicalDetail({
               {a.rsi14 !== null ? (
                 <>
                   <p className="text-xl font-extrabold tabular-nums leading-none mb-1.5"
-                    style={{ color: a.rsi14 <= 30 ? 'var(--mint)' : a.rsi14 >= 70 ? 'var(--gold)' : 'var(--ink)' }}>
+                    style={{ color: a.rsi14 <= 30 ? 'var(--mint)' : a.rsi14 >= 70 ? 'var(--gold-ink)' : 'var(--ink)' }}>
                     {Math.round(a.rsi14)}
                   </p>
                   <RsiBar value={a.rsi14} />
@@ -937,7 +945,7 @@ export default function TechnicalDetail({
                   <div key={`r-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--gold)' }} />
                     <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                      <span className="font-bold" style={{ color: 'var(--gold)' }}>Techo {fmtUSD(l.price)}</span>
+                      <span className="font-bold" style={{ color: 'var(--gold-ink)' }}>Techo {fmtUSD(l.price)}</span>
                       <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
                       {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                       {crossedUp && (
@@ -990,7 +998,7 @@ export default function TechnicalDetail({
                   <div key={s.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5" style={{ background: t.bg }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block mt-1.5 flex-shrink-0" style={{ background: t.color }} />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{s.title}</p>
+                      <p className="text-xs font-bold leading-tight" style={{ color: toTextColor(t.color) }}>{s.title}</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{s.detail}</p>
                       <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>{s.tech}</p>
                     </div>
@@ -1017,7 +1025,7 @@ export default function TechnicalDetail({
                   <div key={w.kind} className="flex items-start gap-2.5 rounded-2xl px-3 py-2.5"
                     style={{ background: 'var(--surface-2)' }}>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold leading-tight" style={{ color: t.color }}>{w.title}</p>
+                      <p className="text-xs font-bold leading-tight" style={{ color: toTextColor(t.color) }}>{w.title}</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{w.detail}</p>
                       <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>{w.tech}</p>
                     </div>

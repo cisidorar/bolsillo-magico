@@ -36,6 +36,8 @@ export default function InversionesToggle({
         <Link
           key={view}
           href={href}
+          aria-label={label}
+          aria-current={active === view ? 'page' : undefined}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             active === view ? 'view-toggle-active-purchase' : 'view-toggle-btn'
           }`}

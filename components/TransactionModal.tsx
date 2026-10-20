@@ -461,7 +461,7 @@ export default function TransactionModal({
 
         <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{title}</h2>
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Cerrar"
             className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
             style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
             <X className="w-4 h-4" />
@@ -474,8 +474,9 @@ export default function TransactionModal({
           {(mode === 'new' || mode === 'edit') && (
             <>
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Ticker</label>
+                <label htmlFor="tx-ticker" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Ticker</label>
                 <input
+                  id="tx-ticker"
                   type="text"
                   value={form.ticker}
                   disabled={mode === 'edit' && !!pos}
@@ -490,8 +491,9 @@ export default function TransactionModal({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
+                  <label htmlFor="tx-shares" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
                   <input
+                    id="tx-shares"
                     type="number"
                     value={form.shares}
                     onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
@@ -504,8 +506,9 @@ export default function TransactionModal({
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
+                  <label htmlFor="tx-total-paid" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
                   <input
+                    id="tx-total-paid"
                     type="number"
                     value={form.totalPaid}
                     onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
@@ -545,8 +548,9 @@ export default function TransactionModal({
               })()}
 
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</label>
+                <label htmlFor="tx-notes" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Nota (opcional)</label>
                 <input
+                  id="tx-notes"
                   type="text"
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -640,23 +644,23 @@ export default function TransactionModal({
                 <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(43,124,246,0.06)', border: '1px solid rgba(43,124,246,0.2)' }}>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
-                      <input type="number" value={buyShares} onChange={e => setBuyShares(e.target.value)}
+                      <label htmlFor="tx-buy-shares" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
+                      <input id="tx-buy-shares" type="number" value={buyShares} onChange={e => setBuyShares(e.target.value)}
                         placeholder="5" min="0.0001" step="any"
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
-                      <input type="date" value={buyDate} onChange={e => setBuyDate(e.target.value)}
+                      <label htmlFor="tx-buy-date" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
+                      <input id="tx-buy-date" type="date" value={buyDate} onChange={e => setBuyDate(e.target.value)}
                         max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                   </div>
                   <div>
-                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
-                    <input type="number" value={buyTotalPaid} onChange={e => setBuyTotalPaid(e.target.value)}
+                    <label htmlFor="tx-buy-total" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
+                    <input id="tx-buy-total" type="number" value={buyTotalPaid} onChange={e => setBuyTotalPaid(e.target.value)}
                       placeholder="450.00" min="0.01" step="0.01"
                       className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
                       style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
@@ -749,7 +753,7 @@ export default function TransactionModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Acciones</label>
+                        <label htmlFor="tx-sell-shares" className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Acciones</label>
                         <button
                           onClick={() => {
                             const q = quotes[pos.ticker]
@@ -763,6 +767,7 @@ export default function TransactionModal({
                         </button>
                       </div>
                       <input
+                        id="tx-sell-shares"
                         type="number"
                         value={sellShares}
                         onChange={e => {
@@ -777,8 +782,8 @@ export default function TransactionModal({
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
-                      <input type="date" value={sellDate} onChange={e => setSellDate(e.target.value)}
+                      <label htmlFor="tx-sell-date" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha</label>
+                      <input id="tx-sell-date" type="date" value={sellDate} onChange={e => setSellDate(e.target.value)}
                         max={maxFutureStr()}
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
@@ -787,8 +792,9 @@ export default function TransactionModal({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Precio de venta (USD/acc.)</label>
+                      <label htmlFor="tx-sell-price" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Precio de venta (USD/acc.)</label>
                       <input
+                        id="tx-sell-price"
                         type="number"
                         value={sellPrice}
                         onChange={e => {
@@ -802,8 +808,9 @@ export default function TransactionModal({
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total recibido</label>
+                      <label htmlFor="tx-sell-total" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total recibido</label>
                       <input
+                        id="tx-sell-total"
                         type="number"
                         value={sellUsd}
                         onChange={e => {

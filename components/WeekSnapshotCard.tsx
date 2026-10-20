@@ -98,7 +98,7 @@ export default function WeekSnapshotCard({ fedSentence, fedMeetingDate, fedMeeti
             {fedSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{fedSentence}</p>}
             {inflationSentence && <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-2)' }}>{inflationSentence}</p>}
             {yieldCurveInverted && (
-              <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--gold)' }}>
+              <p className="text-xs leading-relaxed font-semibold" style={{ color: 'var(--gold-ink)' }}>
                 La curva de tasas está invertida (el bono a 10 años rinde menos que el de 2) — el mercado anticipa una desaceleración. No cambia tu plan de largo plazo, pero es una señal a tener presente.
               </p>
             )}
