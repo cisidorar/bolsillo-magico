@@ -1,3 +1,4 @@
+import { registerRecurringForAllUsers } from '@/lib/auto-register-core'
 import { NextResponse } from 'next/server'
 import { createClient as createAdminClient, type SupabaseClient } from '@supabase/supabase-js'
 import { syncTicker, readCandles } from '@/lib/price-providers'
@@ -744,10 +745,19 @@ export async function GET(request: Request) {
     // es historia perdida para siempre (los meses pasados quedan congelados).
     await refreshUsdClp(supabase)
     const netWorthSnapshots = await snapshotAllNetWorths(supabase)
+    // Gastos recurrentes automáticos: se registran aunque nadie abra la app
+    // (oct 2026, ADT llegó a registrarse con 11 días de retraso). Idempotente
+    // con el auto-registro de la app. Un fallo acá no debe frenar el resto del cron.
+    let recurringRegistered: { users: number; registered: number; failed: number } | null = null
+    try {
+      recurringRegistered = await registerRecurringForAllUsers(supabase)
+    } catch (err) {
+      console.error('[sync-prices] auto-registro de recurrentes falló:', err instanceof Error ? err.message : err)
+    }
     const fomcAlert = await updateFomcAlert(supabase)
 
     if (!isTradingDay()) {
-      return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert })
+      return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert, recurringRegistered })
     }
 
     // Tickers en uso: watchlist ∪ posiciones (todos los usuarios) ∪ SPY.
