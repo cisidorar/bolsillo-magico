@@ -44,6 +44,7 @@ const ERRORS: Record<string, string> = {
   invalid_payment_method: 'Ese método de pago no es de quien pagó.',
   expense_not_found:    'Ese gasto ya no existe.',
   invalid_recipient:    'Destinatario inválido.',
+  invalid_link:         'El link tiene que empezar con http:// o https://',
 }
 
 function friendly(message: string | undefined): string {
@@ -267,12 +268,14 @@ export async function addToTripGoal(goalId: string, amount: number): Promise<Res
 export async function savePlanItem(input: {
   id: string | null; groupId: string; description: string; category: TripCategory; amount: number; dueDate: string | null
   kind?: 'reserva' | 'durante'; quantity?: number; unitAmount?: number | null; capAmount?: number | null; optional?: boolean
+  link?: string | null; reference?: string | null; notes?: string | null
 }): Promise<Result<{ id: string }>> {
   const r = await rpc<string>('shared_plan_item_save', {
     p_id: input.id, p_group: input.groupId, p_description: input.description,
     p_category: input.category, p_amount: input.amount, p_due: input.dueDate || null,
     p_kind: input.kind ?? 'reserva', p_qty: input.quantity ?? 1, p_unit: input.unitAmount ?? null,
     p_cap: input.capAmount ?? null, p_optional: input.optional ?? false,
+    p_link: input.link ?? null, p_reference: input.reference ?? null, p_notes: input.notes ?? null,
   })
   if (!r.ok) return r
   revalidatePath('/recurrentes')

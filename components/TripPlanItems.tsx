@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarClock, Plus, Check, Trash2, Sparkles, Utensils, Plane, ChevronRight } from 'lucide-react'
+import { CalendarClock, Plus, Check, Trash2, Sparkles, Utensils, Plane, ChevronRight, ExternalLink, Copy } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { savePlanItem, deletePlanItem, payPlanItem, togglePlanItem } from '@/app/actions/shared'
@@ -25,6 +25,22 @@ function fmtDue(d: string | null, today: string): string {
   if (days < 0) return `venció hace ${-days} d`
   if (days <= 45) return `en ${days} días`
   return new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }).replace('.', '')
+}
+
+/** Dominio legible de un link (sin www), o null si no es un http(s) válido. */
+function linkHost(link: string | null): string | null {
+  if (!link) return null
+  try {
+    const u = new URL(link)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.hostname.replace(/^www\./, '') : null
+  } catch { return null }
+}
+
+/** Acepta "airbnb.cl/rooms/1" sin esquema: se guarda con https://. */
+function normalizeLink(raw: string): string | null {
+  const t = raw.trim()
+  if (!t) return null
+  return /^https?:\/\//i.test(t) ? t : `https://${t}`
 }
 
 /**
@@ -119,6 +135,11 @@ export default function TripPlanItems({
         </div>
       </div>
     )
+  }
+
+  async function copyRef(text: string) {
+    try { await navigator.clipboard.writeText(text); showToast('Código copiado') }
+    catch { showToast('No se pudo copiar') }
   }
 
   const addBtn = (kind: 'reserva' | 'durante', optional = false, label = 'Agregar') => !closed && (
@@ -240,6 +261,7 @@ export default function TripPlanItems({
         const over = overCap(it)
         const catLabel = TRIP_CATEGORIES.find(c => c.key === it.trip_category)?.label ?? ''
         const q = qtyLabel(it, formatCLP)
+        const host = linkHost(it.link)
         const rows: [string, string][] = [
           ['Tipo', it.kind === 'reserva' ? 'Reserva (antes de salir)' : 'Durante el viaje'],
           ['Categoría', catLabel],
@@ -256,6 +278,29 @@ export default function TripPlanItems({
             {over > 0 && (
               <p className="text-xs font-semibold" style={{ color: 'var(--gold-ink)' }}>{formatCLP(over)} sobre tu tope por unidad</p>
             )}
+            {host && (
+              <a href={it.link!} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl px-3 min-h-[52px]"
+                style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-bold">Abrir {it.kind === 'reserva' ? 'la reserva' : 'el link'}</span>
+                  <span className="block text-xs truncate opacity-80">{host}</span>
+                </span>
+                <ChevronRight className="w-4 h-4 flex-shrink-0" />
+              </a>
+            )}
+            {it.reference && (
+              <button type="button" onClick={() => copyRef(it.reference!)}
+                className="w-full flex items-center justify-between gap-3 rounded-xl px-3 min-h-[48px] text-left"
+                style={{ background: 'var(--surface-2)' }} aria-label="Copiar código de reserva">
+                <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Código de reserva</span>
+                <span className="flex items-center gap-2 text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                  {it.reference}
+                  <Copy className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />
+                </span>
+              </button>
+            )}
             <div className="rounded-xl" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
               {rows.map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between gap-3 px-3 py-2.5">
@@ -264,6 +309,9 @@ export default function TripPlanItems({
                 </div>
               ))}
             </div>
+            {it.notes && (
+              <p className="text-sm whitespace-pre-line px-1" style={{ color: 'var(--ink-2)' }}>{it.notes}</p>
+            )}
             {!closed && (
               <div className="flex gap-2">
                 <button onClick={() => { setDetail(null); setSheet(it) }}
@@ -305,9 +353,12 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
   const [amount, setAmount] = useState(item ? fmtNum(String(item.unit_amount ?? item.est_amount)) : '')
   const [cap, setCap] = useState(item?.cap_amount ? fmtNum(String(item.cap_amount)) : '')
   const [due, setDue] = useState(item?.due_date ?? '')
+  const [link, setLink] = useState(item?.link ?? '')
+  const [reference, setReference] = useState(item?.reference ?? '')
+  const [notes, setNotes] = useState(item?.notes ?? '')
   // Cerrado por defecto salvo que el ítem ya tenga algo acá — no esconder un
   // valor que la persona ya puso.
-  const [moreOpen, setMoreOpen] = useState(!!(item?.cap_amount || item?.due_date))
+  const [moreOpen, setMoreOpen] = useState(!!(item?.cap_amount || item?.due_date || item?.link || item?.reference || item?.notes))
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
@@ -323,11 +374,14 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
   async function save() {
     if (!desc.trim()) { setError('Escribe una descripción.'); return }
     if (unit <= 0) { setError('Ingresa un monto mayor a cero.'); return }
+    const linkN = normalizeLink(link)
+    if (linkN && !linkHost(linkN)) { setError('Ese link no parece válido.'); return }
     setSaving(true); setError('')
     const res = await savePlanItem({
       id: item?.id ?? null, groupId, description: desc.trim(), category: cat, amount: total,
       dueDate: kind === 'reserva' ? (due || null) : null,
       kind, quantity: q, unitAmount: unit, capAmount: capN > 0 ? capN : null, optional,
+      link: linkN, reference: reference.trim() || null, notes: notes.trim() || null,
     })
     setSaving(false)
     if (!res.ok) { setError(res.error); return }
@@ -398,11 +452,25 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
               <InputRow><input type="date" value={due} onChange={e => setDue(e.target.value)} className={inputClass} /></InputRow>
             </div>
           )}
+          <div>
+            <FieldLabel hint="La publicación, la reserva o la página para pagar.">Link (opcional)</FieldLabel>
+            <InputRow><input type="url" inputMode="url" value={link} onChange={e => setLink(e.target.value)} placeholder="airbnb.cl/rooms/…" className={inputClass} maxLength={500} /></InputRow>
+          </div>
+          {kind === 'reserva' && (
+            <div>
+              <FieldLabel>Código de reserva (opcional)</FieldLabel>
+              <InputRow><input value={reference} onChange={e => setReference(e.target.value)} placeholder="HMXYZ123" className={inputClass} maxLength={60} /></InputRow>
+            </div>
+          )}
+          <div>
+            <FieldLabel>Notas (opcional)</FieldLabel>
+            <InputRow><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Check-in 15:00, pedir llave a Marta…" className={inputClass + ' resize-none'} maxLength={500} /></InputRow>
+          </div>
         </div>
       ) : (
         <button type="button" onClick={() => setMoreOpen(true)}
           className="text-xs font-semibold min-h-[44px] -my-3 inline-flex items-center" style={{ color: 'var(--primary)' }}>
-          + Más opciones {kind === 'reserva' ? '(tope, vencimiento)' : '(tope)'}
+          + Más opciones {kind === 'reserva' ? '(link, código, notas, tope, vencimiento)' : '(link, notas, tope)'}
         </button>
       )}
       <div className="flex items-center gap-2">

@@ -91,4 +91,8 @@ export interface SharedPlanItemRow {
   cap_amount:        number | null
   optional:          boolean
   enabled:           boolean
+  /** ficha de la reserva: dónde está, cómo se identifica y qué recordar */
+  link:              string | null
+  reference:         string | null
+  notes:             string | null
 }
