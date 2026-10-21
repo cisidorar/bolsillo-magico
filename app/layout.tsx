@@ -53,6 +53,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Read theme from DB so it syncs across devices (SSR — no flash)
   let serverTheme: 'dark' | '' = ''
+  let themeKnown = false
   try {
     const user = await getServerSession()
     if (user) {
@@ -62,6 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         .select('theme')
         .eq('id', user.id)
         .maybeSingle()
+      themeKnown = true
       if (data?.theme === 'dark') serverTheme = 'dark'
     }
   } catch (err) {
@@ -74,7 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="es" className={serverTheme} suppressHydrationWarning>
       <body className={`${fredoka.variable} ${jakarta.variable}`} suppressHydrationWarning>
-        <ThemeProvider />
+        <ThemeProvider serverTheme={themeKnown ? (serverTheme === 'dark' ? 'dark' : 'light') : null} />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

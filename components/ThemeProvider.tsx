@@ -3,16 +3,20 @@
 import { useEffect } from 'react'
 
 /**
- * Syncs localStorage to match whatever class SSR applied.
- * Does NOT override the server-rendered class — that prevents dark mode
- * from bleeding into unauthenticated pages like login.
+ * Mantiene la clase `dark` de <html> igual al tema guardado del usuario.
+ *
+ * El layout raíz persiste entre pantallas: si se renderizó sin sesión (login),
+ * el <html> quedó sin tema y una navegación suave a /inicio no lo corregía,
+ * así que el modo oscuro "se perdía" al volver a entrar. Cuando el servidor
+ * conoce el tema (`serverTheme` no es null) se aplica acá también.
+ * Con `null` (sin sesión) no se toca nada: así el oscuro no se filtra al login.
  */
-export default function ThemeProvider() {
+export default function ThemeProvider({ serverTheme }: { serverTheme: 'dark' | 'light' | null }) {
   useEffect(() => {
-    // Write SSR state to localStorage so ThemeToggle stays in sync
-    const isDark = document.documentElement.classList.contains('dark')
-    localStorage.setItem('theme', isDark ? 'dark' : 'light')
-  }, [])
+    if (serverTheme === null) return
+    document.documentElement.classList.toggle('dark', serverTheme === 'dark')
+    try { localStorage.setItem('theme', serverTheme) } catch { /* sin storage */ }
+  }, [serverTheme])
 
   return null
 }

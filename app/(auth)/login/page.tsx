@@ -107,7 +107,10 @@ function LoginForm() {
       setError(error.message); return
     }
     setAttempts(0)
-    router.push('/inicio'); router.refresh()
+    // Navegación completa (no router.push): el <html> lleva la clase del tema
+    // que decide el servidor según el usuario, y la pantalla de login se
+    // renderizó sin sesión (sin tema). Un push suave dejaba el modo claro.
+    window.location.assign('/inicio')
   }
 
   async function handleForgotPassword() {
