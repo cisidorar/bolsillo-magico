@@ -202,7 +202,10 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                 {logoDomain ? (
                   <ServiceLogo domain={logoDomain} name={logoName} size={40} className="flex-shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg }}>
+                  <div
+                    className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
+                  >
                     <Icon className="w-5 h-5" style={{ color }} />
                   </div>
                 )}

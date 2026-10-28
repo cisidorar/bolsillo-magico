@@ -774,7 +774,7 @@ export default function ExpenseSheet({
           <Trash2 className="w-4 h-4" />
           Eliminar
         </button>
-        <button onClick={save} disabled={saving || deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl disabled:opacity-60 transition-colors" style={{ backgroundColor: 'var(--primary)' }}>
+        <button onClick={save} disabled={saving || deleting} className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl disabled:opacity-60 transition-colors" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}>
           {saving ? 'Guardando...' : <><Check className="w-4 h-4" /> Guardar cambios</>}
         </button>
       </div>
@@ -1054,20 +1054,7 @@ export default function ExpenseSheet({
           <div className="flex items-start gap-6">
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-2">Método</p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => { pmUserPicked.current = true; setPmId(null) }}
-                  className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-                    pmId === null ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
-                >Efectivo</button>
-                {pms.map(pm => (
-                  <button key={pm.id}
-                    onClick={() => { pmUserPicked.current = true; setPmId(pm.id) }}
-                    className={cn('px-3 py-1.5 rounded-full text-xs border transition-all',
-                      pmId === pm.id ? 'border-brand-600 bg-brand-50 text-brand-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-600')}
-                  >{pm.name}</button>
-                ))}
-              </div>
+              {methodChips}
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-2">Fecha</p>
@@ -1079,8 +1066,8 @@ export default function ExpenseSheet({
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-3 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
-            style={{ backgroundColor: 'var(--primary)' }}
+            className="w-full py-3 font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
             {saving ? 'Guardando...' : 'Guardar gasto'}
           </button>
@@ -1178,8 +1165,8 @@ export default function ExpenseSheet({
             <button
               onClick={save}
               disabled={saving}
-              className="w-full py-3.5 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
-              style={{ backgroundColor: 'var(--primary)' }}
+              className="w-full py-3.5 font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
+              style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
             >
               {saving ? 'Guardando...' : 'Guardar gasto'}
             </button>
