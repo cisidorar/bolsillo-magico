@@ -591,11 +591,26 @@ export async function generateUtilityReminders(
     const month = Number(dueDate.slice(5, 7))
     const ref   = utilityReminderRef(kind, year, month)
 
+    // Estas cuentas cambian cada mes (gastos comunes: $91.073 → $87.141), así
+    // que copiar solo la última boleta deja un estimado que casi nunca acierta.
+    // Se promedian hasta las 3 últimas boletas REALES (nunca estimados).
+    const { data: recent } = await supabase
+      .from('property_charges')
+      .select('amount')
+      .eq('user_id', user.id).eq('property_id', propertyId).eq('kind', kind)
+      .eq('is_estimate', false)
+      .order('due_date', { ascending: false })
+      .limit(3)
+    const amounts = (recent ?? []).map(r => r.amount as number).filter(a => a > 0)
+    const estimatedAmount = amounts.length > 0
+      ? Math.round(amounts.reduce((a, b) => a + b, 0) / amounts.length)
+      : last.amount
+
     rows.push({
       user_id: user.id, property_id: propertyId,
       kind, direction: 'out' as const,
       due_date: dueDate,
-      amount: last.amount,
+      amount: estimatedAmount,
       // Hereda de la última boleta real, no un fijo 'tenant': para gastos
       // comunes quién paga se elige al subir la boleta (ver saveUtilityBill),
       // así que el siguiente recordatorio estimado debe seguir esa misma
@@ -604,7 +619,9 @@ export async function generateUtilityReminders(
       is_estimate: true,
       external_ref: ref,
       period_year: year, period_month: month,
-      notes: 'Estimado — monto y fecha son un cálculo, no la boleta real. Súbela cuando llegue.',
+      notes: amounts.length > 1
+        ? `Estimado — promedio de tus últimas ${amounts.length} boletas; monto y fecha son un cálculo. Súbela cuando llegue.`
+        : 'Estimado — monto y fecha son un cálculo, no la boleta real. Súbela cuando llegue.',
     })
     created.push(
       kind === 'electricity' ? 'Luz (estimado)'

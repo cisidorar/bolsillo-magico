@@ -25,9 +25,13 @@ export interface EstadoCharge extends ChargeLike {
 /** 'paid' = pagado · 'overdue' = vencido · 'soon' = por vencer · 'pending' = aún lejos */
 export type Tone = 'paid' | 'overdue' | 'soon' | 'pending'
 
-export function cellTone(c: ChargeLike, today: string): Tone {
+export function cellTone(c: ChargeLike & { is_estimate?: boolean }, today: string): Tone {
   const s = chargeStatus(c, today)
   if (s === 'paid') return 'paid'
+  // Un cobro ESTIMADO cuya fecha ya pasó no está "vencido": la fecha y el monto
+  // son un cálculo nuestro y la boleta real aún no se sube. Se avisa con tono
+  // suave (por vencer / esperando boleta), no con el rojo de algo impago.
+  if (c.is_estimate && (s === 'overdue' || s === 'partial')) return 'soon'
   if (s === 'overdue' || s === 'partial') return 'overdue'
   if (s === 'due_soon') return 'soon'
   return 'pending'

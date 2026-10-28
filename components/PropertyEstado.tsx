@@ -30,6 +30,7 @@ function monthTitle(key: string): string {
 function badgeFor(c: Charge, today: string): { text: string; tone: Tone | 'neutral' } {
   const tone = cellTone(c, today)
   if (tone === 'paid') return { text: 'Pagó', tone }
+  if (c.is_estimate && daysBetween(today, c.due_date) < 0) return { text: 'Esperando boleta', tone: 'soon' }
   if (tone === 'overdue') return { text: 'Vencido', tone }
   if (c.is_estimate) return { text: 'Sin boleta', tone: 'neutral' }
   const days = daysBetween(today, c.due_date)
