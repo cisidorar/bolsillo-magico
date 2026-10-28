@@ -748,15 +748,25 @@ export async function GET(request: Request) {
     // Gastos recurrentes automáticos: se registran aunque nadie abra la app
     // (oct 2026, ADT llegó a registrarse con 11 días de retraso). Idempotente
     // con el auto-registro de la app. Un fallo acá no debe frenar el resto del cron.
-    let recurringRegistered: { users: number; registered: number; failed: number } | null = null
-    try {
-      recurringRegistered = await registerRecurringForAllUsers(supabase)
-    } catch (err) {
-      console.error('[sync-prices] auto-registro de recurrentes falló:', err instanceof Error ? err.message : err)
+    //
+    // Va DESPUÉS de los correos en días de trading (ver abajo), no antes del
+    // sync de precios: el cron tiene 60s duros y los pasos de inversiones
+    // (señales + correo) no pueden pagar el tiempo de este. Oct 2026: el día 27
+    // price_history quedó actualizado pero no daily_signals ni el correo —
+    // el cron murió por timeout con este paso corriendo primero.
+    const runRecurring = async () => {
+      try {
+        return await registerRecurringForAllUsers(supabase)
+      } catch (err) {
+        console.error('[sync-prices] auto-registro de recurrentes falló:', err instanceof Error ? err.message : err)
+        return null as { users: number; registered: number; failed: number } | null
+      }
     }
     const fomcAlert = await updateFomcAlert(supabase)
 
     if (!isTradingDay()) {
+      // Sin presión de tiempo (no hay sync de precios ni correos): corre acá.
+      const recurringRegistered = await runRecurring()
       return NextResponse.json({ skipped: 'non-trading day (fin de semana o feriado NYSE)', netWorthSnapshots, fomcAlert, recurringRegistered })
     }
 
@@ -850,6 +860,9 @@ export async function GET(request: Request) {
       ? await invokeEdgeFunction(url, key, 'notify-fomc-reminder')
       : { ok: true, body: { skipped: 'sin reunión FOMC vigente' } }
 
+    // Último paso: lo menos urgente. Si el tiempo se acaba acá, ya salieron los correos.
+    const recurringRegistered = await runRecurring()
+
     return NextResponse.json({
       synced: ok,
       total:  tickers.length,
@@ -861,6 +874,7 @@ export async function GET(request: Request) {
       netWorthSnapshots,
       portfolioSnapshots,
       fomcAlert,
+      recurringRegistered,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
