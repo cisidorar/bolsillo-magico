@@ -1493,18 +1493,30 @@ function ChargeForm({ charge, propertyId, busy, error, backdrop, onCancel, onSav
                  onChange={e => setDueDate(e.target.value)} />
         </Field>
         <Field label="Monto base">
-          <input className={inputCls} style={inputStyle} value={amount} inputMode="numeric" required
-                 onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="14330" />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+                  style={{ color: 'var(--ink-3)' }}>$</span>
+            <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }} value={fmtClpInput(amount)} inputMode="numeric" required
+                   onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} placeholder="14.330" />
+          </div>
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Interés penal">
-            <input className={inputCls} style={inputStyle} value={penalty} inputMode="numeric"
+            <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+                  style={{ color: 'var(--ink-3)' }}>$</span>
+            <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }} value={fmtClpInput(penalty)} inputMode="numeric"
                    onChange={e => setPenalty(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+          </div>
           </Field>
           <Field label="Reajuste IPC">
-            <input className={inputCls} style={inputStyle} value={ipc} inputMode="numeric"
+            <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+                  style={{ color: 'var(--ink-3)' }}>$</span>
+            <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }} value={fmtClpInput(ipc)} inputMode="numeric"
                    onChange={e => setIpc(e.target.value.replace(/\D/g, ''))} placeholder="0" />
+          </div>
           </Field>
         </div>
 
@@ -1650,8 +1662,12 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
           label="Monto"
           hint={partial ? `Queda un saldo de ${formatCLP(total - Number(amount || 0))}` : undefined}
         >
-          <input className={inputCls} style={inputStyle} value={amount} inputMode="numeric" required
-                 onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} />
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
+                  style={{ color: 'var(--ink-3)' }}>$</span>
+            <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }} value={fmtClpInput(amount)} inputMode="numeric" required
+                   onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} />
+          </div>
         </Field>
 
         <Field label="Comprobante (opcional)">
