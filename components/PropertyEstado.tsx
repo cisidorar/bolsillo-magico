@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Upload, Info } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { chargeTotal, chargeOutstanding, daysBetween, KIND_LABEL, type UtilityKind } from '@/lib/property-charges'
 import {
-  estadoModel, monthGrid, cuotasOfYear, cellTone, monthName, MONTH_NAMES, type Tone,
+  estadoModel, monthGrid, cuotasOfYear, cellTone, monthName, MONTH_NAMES, estimateRange, type Tone, type EstimateRange,
 } from '@/lib/property-estado'
 import type { Charge } from './PropertyManager'
 
@@ -141,6 +141,7 @@ export default function PropertyEstado({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {model.tenantCards.map(({ kind, charge }) => (
               <TenantCard key={kind} kind={kind} charge={charge} today={today}
+                range={charge?.is_estimate ? estimateRange(charges, charge) : null}
                 onOpen={onOpen} onPay={onPay} onUnpay={onUnpay} busy={busy}
                 onUploadBill={() => onUploadBill(kind === 'electricity' || kind === 'water' || kind === 'gastos_comunes' ? kind : null)} />
             ))}
@@ -364,8 +365,8 @@ function StatusTile({ who, tone, text }: { who: string; tone: Tone; text: string
   )
 }
 
-function TenantCard({ kind, charge, today, busy, onOpen, onPay, onUnpay, onUploadBill }: {
-  kind: string; charge: Charge | null; today: string; busy: boolean
+function TenantCard({ kind, charge, today, range, busy, onOpen, onPay, onUnpay, onUploadBill }: {
+  kind: string; charge: Charge | null; today: string; range: EstimateRange | null; busy: boolean
   onOpen: (c: Charge) => void; onPay: (c: Charge) => void; onUnpay: (c: Charge) => void; onUploadBill: () => void
 }) {
   const title = KIND_LABEL[kind] ?? kind
@@ -381,11 +382,23 @@ function TenantCard({ kind, charge, today, busy, onOpen, onPay, onUnpay, onUploa
   const badge = badgeFor(charge, today)
   const isPaid = tone === 'paid'
   const note = charge.notes?.split('\n')[0]
+  const estimated = !isPaid && !!charge.is_estimate
+  const dueIn = daysBetween(today, charge.due_date)
+  // Estimado: el número es aprox. — se muestra el rango de las últimas boletas
+  // reales y que el monto se confirma recién al subir la boleta.
+  const rangeText = range
+    ? range.count > 1 && range.min !== range.max
+      ? `Entre ${formatCLP(range.min)} y ${formatCLP(range.max)} en tus últimas ${range.count} boletas`
+      : `Tu última boleta fue ${formatCLP(range.max)}`
+    : 'Sin boletas anteriores para comparar'
   const sub = isPaid
     ? `Pagado el ${shortDay(charge.paid_date ?? charge.due_date)}`
-    : charge.is_estimate
-      ? `Monto estimado · la boleta real llega ${daysBetween(today, charge.due_date) >= 0 ? `en ~${daysBetween(today, charge.due_date)} días` : 'atrasada'}`
+    : estimated
+      ? rangeText
       : `Vence ${shortDay(charge.due_date)}${note ? ` · ${note}` : ''}`
+  const estimateNote = estimated
+    ? `Se confirma al subir la boleta${dueIn >= 0 ? ` · llega en ~${dueIn} ${dueIn === 1 ? 'día' : 'días'}` : ' · viene atrasada'}`
+    : null
   const rent = charge.kind === 'rent'
 
   return (
@@ -396,10 +409,12 @@ function TenantCard({ kind, charge, today, busy, onOpen, onPay, onUnpay, onUploa
           <Badge tone={badge.tone} text={badge.text} />
         </div>
         <p className="font-display text-2xl font-extrabold mt-3 tabular-nums"
-          style={{ color: isPaid || tone === 'pending' ? 'var(--ink)' : TONE_COLOR[tone] }}>
+          style={{ color: estimated ? 'var(--ink-2)' : isPaid || tone === 'pending' ? 'var(--ink)' : TONE_COLOR[tone] }}>
+          {estimated && <span className="text-base font-bold mr-1" style={{ color: 'var(--ink-3)' }} aria-label="aproximadamente">≈</span>}
           {formatCLP(chargeTotal(charge))}
         </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>{sub}</p>
+        <p className="text-xs mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>{sub}</p>
+        {estimateNote && <p className="text-xs mt-0.5" style={{ color: tone === 'soon' ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{estimateNote}</p>}
       </button>
       <div className="mt-3">
         {isPaid ? (

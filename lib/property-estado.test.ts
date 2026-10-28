@@ -96,3 +96,27 @@ describe('cuotasOfYear', () => {
     expect(q.map(c => [c.short, c.text])).toEqual([['jun', 'Pagada'], ['sep', 'Vencida']])
   })
 })
+
+describe('estimateRange', () => {
+  const est = { id: 'e', kind: 'gastos_comunes', direction: 'out', responsible: 'tenant', due_date: '2026-10-24', amount: 91073, is_estimate: true } as unknown as EstadoCharge
+  const real = (id: string, due: string, amount: number, kind = 'gastos_comunes') =>
+    ({ id, kind, direction: 'out', responsible: 'tenant', due_date: due, amount, is_estimate: false }) as unknown as EstadoCharge
+
+  it('usa hasta las 3 últimas boletas reales anteriores, del mismo tipo', async () => {
+    const { estimateRange } = await import('./property-estado')
+    const r = estimateRange([
+      est,
+      real('a', '2026-06-24', 70000),
+      real('b', '2026-07-24', 87141),
+      real('c', '2026-08-24', 89500),
+      real('d', '2026-09-24', 91073),
+      real('w', '2026-09-22', 8070, 'water'),
+    ], est)
+    expect(r).toEqual({ count: 3, min: 87141, max: 91073 })
+  })
+
+  it('null sin boletas reales de referencia', async () => {
+    const { estimateRange } = await import('./property-estado')
+    expect(estimateRange([est], est)).toBeNull()
+  })
+})

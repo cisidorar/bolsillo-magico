@@ -192,3 +192,27 @@ export function cuotasOfYear<T extends EstadoCharge>(charges: T[], kind: string,
 }
 
 export { chargeTotal }
+
+export interface EstimateRange {
+  /** cuántas boletas reales se usaron (máx. 3) */
+  count: number
+  min: number
+  max: number
+}
+
+/**
+ * Rango de referencia para un cobro ESTIMADO: el mínimo y el máximo de las
+ * últimas boletas reales del mismo tipo (hasta 3, anteriores a este cobro).
+ * Las cuentas cambian cada mes (gastos comunes $91.073 → $87.141), así que
+ * mostrar un rango comunica mejor "aprox." que un número exacto que no es.
+ * null si no hay ninguna boleta real de referencia.
+ */
+export function estimateRange(charges: EstadoCharge[], estimate: EstadoCharge, max = 3): EstimateRange | null {
+  const real = charges
+    .filter(c => c.kind === estimate.kind && !c.is_estimate && c.id !== estimate.id && c.due_date < estimate.due_date && chargeTotal(c) > 0)
+    .sort((a, b) => b.due_date.localeCompare(a.due_date))
+    .slice(0, max)
+    .map(c => chargeTotal(c))
+  if (real.length === 0) return null
+  return { count: real.length, min: Math.min(...real), max: Math.max(...real) }
+}
