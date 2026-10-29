@@ -546,7 +546,9 @@ export default async function AnalisisPage({
   for (const e of prevExpensesForDelta) {
     if (e.category) prevByCat[e.category.id] = (prevByCat[e.category.id] ?? 0) + e.amount
   }
-  const drivers = categoryDrivers(catSummary, prevByCat)
+  // El neto sale de los totales reales (mismo número que el chip del hero), no
+  // de la suma por categoría: los gastos sin categoría también cuentan.
+  const drivers = { ...categoryDrivers(catSummary, prevByCat, { maxUp: 3, maxDown: 1 }), netDelta: totalSelected - prevTotal }
   const anomalies = findAnomalies(typedExpenses, selectedKey)
   const merchants = topMerchants(typedExpenses, selectedKey, prevMonthKey2)
   // Línea base por categoría (promedio de los meses previos de la ventana). En el
@@ -2045,38 +2047,13 @@ export default async function AnalisisPage({
                       )}
                     </>
                   )}
-                  <div className="grid grid-cols-3 gap-3 mt-4">
-                    {isCurrentMonth && pace?.allowancePerDay != null && (
-                      <div>
-                        <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>Margen por día</p>
-                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(pace.allowancePerDay)}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>{isCurrentMonth && fixedStillDueThisMonth > 0 ? 'Fijo (con pendientes)' : 'Fijo'}</p>
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
-                        {formatCLP(recurringSpentSoFar + (isCurrentMonth ? fixedStillDueThisMonth : 0))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>Variable</p>
-                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(variableSpentSoFar)}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* A3: aviso temprano — el gasto va bien vs el presupuesto, pero al ritmo
-                  actual no alcanzaría a completarse la meta de inversión del mes */}
-              {isCurrentMonth && investGoalAtRisk && disposableIncome !== null && (
-                <div className="mt-4 rounded-2xl p-3 flex items-start gap-2.5" style={{ background: 'rgba(255,193,60,0.12)' }}>
-                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--gold-ink)' }} />
-                  <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    A este ritmo proyectas gastar <span style={{ fontWeight: 700 }}>{formatCLP(projection ?? 0)}</span>, por sobre los{' '}
-                    <span style={{ fontWeight: 700 }}>{formatCLP(disposableIncome)}</span> que te dejarían completar tu meta de aporte este mes.
+                  <p className="text-[11px] mt-3 tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                    {isCurrentMonth && pace?.allowancePerDay != null && <>Margen {formatCLP(pace.allowancePerDay)}/día · </>}
+                    Fijo {formatCLP(recurringSpentSoFar + (isCurrentMonth ? fixedStillDueThisMonth : 0))} · Variable {formatCLP(variableSpentSoFar)}
                   </p>
                 </div>
               )}
+
             </div>
           )
         })()}
@@ -2134,8 +2111,8 @@ export default async function AnalisisPage({
           } as const
           const greenCount = 4 - chips.length
           return (
-            <div className="card p-4 lg:p-5 mb-5">
-              <div className="flex items-center gap-3">
+            <details className="card p-4 lg:p-5 mb-5 group">
+              <summary className="flex items-center gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }} role="img" aria-label={`Salud financiera ${healthScore} de 100, ${healthLabel}`}>
                   <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
                     <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
@@ -2145,11 +2122,15 @@ export default async function AnalisisPage({
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{healthScore}</span>
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Salud financiera · {healthLabel}</p>
-                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{healthSummary}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                    {chips.length === 0 ? 'Las 4 señales en orden' : `${chips.length} señal${chips.length > 1 ? 'es' : ''} por revisar`}
+                  </p>
                 </div>
-              </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} aria-hidden />
+              </summary>
+              <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{healthSummary}</p>
               {chips.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {chips.map(c => {
@@ -2167,7 +2148,7 @@ export default async function AnalisisPage({
                   {greenCount === 4 ? 'Las 4 señales en orden' : `${greenCount} de 4 señales en orden`}
                 </p>
               )}
-            </div>
+            </details>
           )
         })()}
 
@@ -2186,7 +2167,7 @@ export default async function AnalisisPage({
 
         {/* ── Oportunidades de mejora ── colapsada bajo el informe de cierre en meses cerrados (UX4) ── */}
         {finalOportunidades.length > 0 && (
-          isClosedMonth && monthReview ? (
+          true ? (
             <details className="card p-4 lg:p-5 mb-5 group">
               <summary className="flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Oportunidades de mejora</p>
@@ -2275,21 +2256,6 @@ export default async function AnalisisPage({
         {/* ── Bottom 2-col: Tendencia + Categorías ────────────────────────────── */}
         {totalSelected > 0 ? (
           <>
-          {/* R4: resumen narrativo rule-based — solo cuando NO hay insights de IA
-              (los de IA son más ricos y compiten por el mismo espacio mental) */}
-          {insight && !hasAiInsights && (
-            <div className="card p-4 mb-5 flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(255,194,60,0.15)' }}>
-                <Zap className="w-4 h-4" style={{ color: 'var(--gold)' }} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu mes en una frase</p>
-                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{insight}</p>
-              </div>
-            </div>
-          )}
-
           <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0">
 
             {/* Columna izquierda: Tendencia + Con qué pagaste + Cuándo gastas
@@ -2477,8 +2443,6 @@ export default async function AnalisisPage({
                   const baseExpected = base ? base.avg * monthFraction : 0
                   const aboveBase = base && (!isCurrentMonth || now.getDate() >= 7) && c.total >= baseExpected * 1.8 && c.total - baseExpected >= 20000
                   const baseMult = base && baseExpected > 0 ? Math.round((c.total / baseExpected) * 10) / 10 : null
-                  const prevCatTotal = prevByCat[c.id] ?? 0
-                  const catDelta = c.total - prevCatTotal
                   return (
                     <Link
                       key={c.id}
@@ -2518,24 +2482,10 @@ export default async function AnalisisPage({
                               {totalSelected > 0 ? `${pct(c.total, totalSelected)}% del total` : ''}
                             </p>
                           )}
-                          {(paceHigh || aboveBase || (prevTotal > 0 && Math.abs(catDelta) >= 1000)) && (
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                              {prevTotal > 0 && Math.abs(catDelta) >= 1000 && (
-                                <span className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                                  {catDelta > 0 ? <ArrowUp className="inline w-3 h-3 -mt-0.5" aria-hidden /> : <ArrowDown className="inline w-3 h-3 -mt-0.5" aria-hidden />} {formatCLP(Math.abs(catDelta))} vs. {prevMonthName}
-                                </span>
-                              )}
-                              {aboveBase && baseMult !== null && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
-                                  {baseMult.toLocaleString('es-CL')}× tu promedio
-                                </span>
-                              )}
-                              {paceHigh && pace && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
-                                  {budgetPct}% usado, va el {pace.expectedPct}% del mes
-                                </span>
-                              )}
-                            </div>
+                          {!over && (paceHigh || aboveBase) && (
+                            <span className="inline-block mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                              {paceHigh && pace ? `${budgetPct}% usado, va el ${pace.expectedPct}% del mes` : `${baseMult?.toLocaleString('es-CL')}× tu promedio`}
+                            </span>
                           )}
                         </div>
                         <div className="text-right flex-shrink-0">

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { formatCLP, isEmoji } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import type { Anomaly, Merchant } from '@/lib/analysis-drivers'
@@ -24,10 +25,23 @@ export default function SpendingPatterns({
 }) {
   if (anomalies.length === 0 && merchants.length === 0) return null
 
+  const parts = [
+    anomalies.length > 0 ? `${anomalies.length} compra${anomalies.length > 1 ? 's' : ''} inusual${anomalies.length > 1 ? 'es' : ''}` : null,
+    merchants.length > 0 ? `${merchants.length} gasto${merchants.length > 1 ? 's' : ''} repetido${merchants.length > 1 ? 's' : ''}` : null,
+  ].filter(Boolean).join(' · ')
+
   return (
-    <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0 mb-5">
+    <details className="card p-4 lg:p-5 mb-5 group">
+      <summary className="flex items-center gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Patrones del mes</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>{parts}</p>
+        </div>
+        <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} aria-hidden />
+      </summary>
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-5 lg:space-y-0 mt-3">
       {anomalies.length > 0 && (
-        <div className="card p-4 lg:p-5">
+        <div>
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Compras fuera de lo normal</p>
           <p className="text-[11px] mt-0.5 mb-2" style={{ color: 'var(--ink-2)' }}>
             Mucho sobre lo que sueles gastar en la misma categoría
@@ -65,7 +79,7 @@ export default function SpendingPatterns({
       )}
 
       {merchants.length > 0 && (
-        <div className="card p-4 lg:p-5">
+        <div>
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Dónde se repite tu gasto</p>
           <p className="text-[11px] mt-0.5 mb-2" style={{ color: 'var(--ink-2)' }}>
             Compras variables con la misma descripción, 2 veces o más en el mes
@@ -84,6 +98,7 @@ export default function SpendingPatterns({
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </details>
   )
 }

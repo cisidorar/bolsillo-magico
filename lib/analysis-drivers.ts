@@ -123,8 +123,8 @@ function median(xs: number[]): number {
 
 /**
  * Compras variables del mes que superan claramente lo habitual de su categoría.
- * Compara contra la mediana de las compras variables de la misma categoría en
- * los demás meses de la ventana (la mediana no se infla por la propia compra).
+ * Compara contra la mediana y el percentil 90 de las compras variables de la
+ * misma categoría en los demás meses de la ventana (no se inflan con la propia compra).
  * Exige historial suficiente: con pocas muestras no hay "normal" que comparar.
  */
 export function findAnomalies(
@@ -144,7 +144,12 @@ export function findAnomalies(
     const h = history[e.category.id]
     if (!h || h.length < minSamples) continue
     const typical = median(h)
-    if (typical <= 0 || e.amount < minAmount || e.amount < typical * minMultiple) continue
+    // Además de superar la mediana, debe pasar el percentil 90 de su propia
+    // categoría: en Supermercado la mediana son compras chicas y una compra
+    // grande de la semana es lo normal, no una anomalía.
+    const sorted = [...h].sort((a, b) => a - b)
+    const p90 = sorted[Math.floor(0.9 * (sorted.length - 1))]
+    if (typical <= 0 || e.amount < minAmount || e.amount < typical * minMultiple || e.amount <= p90 * 1.3) continue
     out.push({
       id: e.id,
       description: (e.description ?? '').trim() || e.category.name,

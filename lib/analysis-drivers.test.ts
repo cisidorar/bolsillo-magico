@@ -114,3 +114,11 @@ describe('categoryBaseline', () => {
     expect(categoryBaseline(list.slice(0, 2), '2026-07').c1).toBeUndefined()
   })
 })
+
+describe('findAnomalies: compras grandes normales de la categoría', () => {
+  it('no marca una compra que cae dentro del rango alto habitual (p90)', () => {
+    const small = Array.from({ length: 6 }, (_, i) => ex(`s${i}`, 5_000, `2026-05-0${i + 1}`))
+    const bigs = Array.from({ length: 3 }, (_, i) => ex(`g${i}`, 40_000, `2026-06-0${i + 1}`))
+    expect(findAnomalies([...small, ...bigs, ex('now', 42_000, '2026-07-04', 'Súper')], '2026-07')).toHaveLength(0)
+  })
+})
