@@ -2122,7 +2122,7 @@ export default async function AnalisisPage({
             key: 'fondo', href: '/analisis?view=patrimonio',
             tone: monthsCovered === null ? 'neutral' : 'gold',
             text: monthsCovered === null ? 'Registra tus ahorros para medir tu fondo'
-              : `Fondo cubre ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} (meta 3)`,
+              : `Fondo cubre ${(Math.floor(monthsCovered * 10) / 10).toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} (meta 3)`,
           })
           if (!compromisoGreen) chips.push({
             key: 'deuda', href: '/analisis?view=patrimonio',

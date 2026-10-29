@@ -137,8 +137,10 @@ function RateBars({ points }: { points: RatePoint[] }) {
   )
 }
 
+// Se trunca (no se redondea): 2,96 meses no debe mostrarse como "3,0" cuando el
+// hito de 3 meses todavía "falta $45.486".
 function fmtMonths(v: number): string {
-  return v.toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return (Math.floor(v * 10) / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
 export default function PatrimonioCards({
@@ -297,12 +299,13 @@ export default function PatrimonioCards({
                   </p>
                   {isCurrentMonth && contributedThisMonth > 0 && (
                     <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                      Aportaste {formatCLP(contributedThisMonth)} este mes · el resto del cambio
-                      ({nwDelta - contributedThisMonth >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta - contributedThisMonth))})
-                      es rendimiento y otros movimientos
+                      Aportaste {formatCLP(contributedThisMonth)} · rendimiento y otros movimientos:{' '}
+                      <span className="font-semibold" style={{ color: nwDelta - contributedThisMonth >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
+                        {nwDelta - contributedThisMonth >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta - contributedThisMonth))}
+                      </span>
                     </p>
                   )}
-                  {nwDrivers.length > 0 && (
+                  {nwDrivers.length > 0 && !(isCurrentMonth && contributedThisMonth > 0) && (
                     <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
                       {nwDrivers.map((d, i) => (
                         <span key={d.key}>
