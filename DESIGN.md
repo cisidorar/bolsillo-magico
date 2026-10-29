@@ -107,7 +107,7 @@ Depth is intentionally quiet. Elevation is a small ambient hint, not a design st
 A deliberately narrow palette: one soft, friendly blue carries the brand and nearly all interaction; three semantic colors are reserved exclusively for alert severity; everything else is a quiet blue-navy-tinted neutral ramp.
 
 ### Primary
-- **Soft Trust Blue** (`#4D93FF`, `--primary`): the only brand/interactive color. Active nav states, icons, focus rings, chart bars, CTA backgrounds, the `/inicio` hero. Identical hex in light and dark mode — only its surrounding neutrals shift.
+- **Soft Trust Blue** (`#4D93FF`, `--primary`): the only brand/interactive color. Active nav states, icons, focus rings, chart bars, CTA backgrounds, the `/inicio` hero (the hero *surface* itself, `.hero-gradient`, is `#1B6DD4` in light mode so white text on it clears ~5:1; `#4D93FF` only reached 3.2:1). Identical hex in light and dark mode — only its surrounding neutrals shift.
 - **Primary Ink** (`#FFFFFF` light / `#07122A` dark, `--primary-ink`): text/icon color placed on top of a primary-filled surface (always flips with theme so it stays legible).
 - **Primary Soft** (`#E8EFFE` light / `#16233D` dark, `--primary-soft`): the tint behind an active/selected state (active nav pill, selected chip, focus halo) — never the primary itself at full strength for a background.
 
@@ -127,6 +127,8 @@ A deliberately narrow palette: one soft, friendly blue carries the brand and nea
 - **Mint** (`#1FBE8D` light / `#34D6A2` dark, `--mint`) = positive confirmation only — never a banner, never anything actionable, even when the news is good.
 
 **The Gold-Ink Rule.** `--gold` (`#FFC23C`) is a background/icon-tint color only — at ~1.6:1 against white it fails WCAG AA as foreground text. Anywhere gold needs to read as *text or an icon glyph* on a light surface (an overdue-reservation label, an over-cap warning), use `--gold-ink` (`#B45309` light / `#FFD166` dark — in dark mode the bright `--gold` already reads fine on dark surfaces, so the two tokens converge) instead of `--gold` directly.
+
+**The Ink-Token Rule.** `--coral` and `--mint` are fill/graphic colors (bars, banners' tint, dots); as *text* on a light surface they only reach ~2.7:1 and ~2.4:1. Any coral or mint text uses `--coral-ink` (`#B84136` light / `#FF8478` dark) and `--mint-ink` (`#0F7A5A` light / `#34D6A2` dark). `--ink-3` was darkened to `#5F6F86` (light) / `#8396B3` (dark) so tertiary text clears 4.5:1 on `--surface`.
 
 **The On-Brand Accent Rule.** `--mint`/`--coral`/`--gold` are tuned for neutral (`--surface`/`--bg`) grounds, not for sitting directly on the hero's solid `--primary` blue — on that one surface, use `--mint-on-brand` (`#34D6A2`), `--coral-on-brand` (`#f87171`), and `--gold-on-brand` (`#FFE08A`) instead, each theme-invariant like `--primary` itself since the hero is always that blue regardless of light/dark. A `-soft` variant of mint/coral (`--mint-on-brand-soft` `#6EE7B7`, `--coral-on-brand-soft` `#FCA5A5`) exists for a second, lower-emphasis figure on the same hero (e.g. a month-over-month delta next to the primary remaining-budget figure) — never introduce a third shade by hand; reach for `-soft` first.
 

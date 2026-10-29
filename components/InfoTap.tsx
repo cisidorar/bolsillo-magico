@@ -27,11 +27,11 @@ export default function InfoTap({ explanation, size = 11, className, color }: Pr
     <button
       type="button"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); showToast(explanation) }}
-      className={`inline-flex items-center justify-center align-middle rounded-full transition-opacity hover:opacity-70 ${className ?? ''}`}
-      style={{ color: color ?? 'var(--ink-3)', opacity: color ? 1 : 0.6, verticalAlign: 'middle' }}
+      className={`inline-flex items-center justify-center align-middle rounded-full p-3 -m-3 transition-opacity hover:opacity-70 ${className ?? ''}`}
+      style={{ color: color ?? 'var(--ink-2)', opacity: color ? 1 : 0.8, verticalAlign: 'middle' }}
       aria-label={`Qué significa: ${explanation}`}
     >
-      <Info style={{ width: size, height: size }} />
+      <Info style={{ width: size, height: size }} aria-hidden="true" />
     </button>
   )
 }

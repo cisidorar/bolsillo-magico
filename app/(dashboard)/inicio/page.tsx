@@ -5,7 +5,7 @@ import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { getCategoryIcon } from '@/lib/category-icons'
 import {
   CreditCard, Calendar, Sun, Moon, AlertTriangle,
-  Wallet, BarChart3, ArrowRight, Zap,
+  Wallet, BarChart3, ArrowRight, Zap, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import EmptyStateCTA from '@/components/EmptyStateCTA'
@@ -603,7 +603,7 @@ export default async function DashboardPage() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(card.total)}</p>
-              <p className="text-[10px] font-semibold" style={{ color: daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>{daysLabel}</p>
+              <p className="text-[11px] font-semibold" style={{ color: daysLeft <= 3 && daysLeft >= 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>{daysLabel}</p>
             </div>
             <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 ml-1" style={{ color: 'var(--ink-3)' }} />
           </Link>
@@ -611,6 +611,92 @@ export default async function DashboardPage() {
       })}
     </div>
   )
+
+  const CategoryRows = ({ mobile = false }: { mobile?: boolean }) => {
+    const maxCatTotal = catSummary[0]?.total ?? 1
+    return (
+      <>
+        {catSummary.map(c => {
+          const limit        = catBudgetMap.get(c.id) ?? null
+          const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
+          const over         = limit ? c.total > limit : false
+          const overPct      = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
+          const recurringAmt = recurringByCatInicio[c.id] ?? 0
+          const isAllRec     = recurringAmt > 0 && recurringAmt >= c.total
+          const mildOver     = over && !isAllRec && overPct < 15
+          const hardOver     = over && !isAllRec && overPct >= 15
+          const barColor     = isAllRec && over ? c.color : hardOver ? 'var(--coral)' : mildOver ? 'var(--gold)' : limit && catPct >= 80 ? 'var(--gold)' : c.color
+          const status       = isAllRec && over ? 'Gasto fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'
+          const statusColor  = hardOver ? 'var(--coral-ink)' : mildOver ? 'var(--gold-ink)' : 'var(--ink-2)'
+          return (
+            <Link
+              key={c.id}
+              href={`/analisis/${c.id}?month=${month}&year=${year}`}
+              className="flex items-center gap-3 px-4 py-3.5 lg:py-4 transition-opacity hover:opacity-80 active:opacity-70"
+            >
+              <div
+                className="w-10 h-10 lg:w-9 lg:h-9 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
+                style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
+              >
+                {isEmoji(c.icon)
+                  ? <span className="text-lg lg:text-sm">{c.icon}</span>
+                  : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-5 h-5 lg:w-4 lg:h-4" style={{ color: c.color }} /> })()
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                  <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[14px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
+                    {mobile && <p className="text-[11px] font-semibold" style={{ color: statusColor }}>{status}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
+                  </div>
+                  {!mobile && <p className="text-[11px] font-semibold flex-shrink-0 w-32 text-right" style={{ color: statusColor }}>{status}</p>}
+                </div>
+              </div>
+            </Link>
+          )
+        })}
+      </>
+    )
+  }
+
+  const RecentRows = ({ limit, mobile = false }: { limit: number; mobile?: boolean }) => {
+    const todayStr = dateStr
+    const yesterdayStr = new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+    return (
+      <>
+        {typedExpenses.slice(0, limit).map(e => {
+          const dayLabel = e.date === todayStr ? 'Hoy' : e.date === yesterdayStr ? 'Ayer'
+            : new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+          return (
+            <div key={e.id} className="flex items-center gap-3 px-4 py-3 lg:py-3.5">
+              <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={mobile ? 36 : 32} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                  {e.description || e.category?.name || '—'}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {e.category && (
+                    <span className="flex items-center gap-1 min-w-0 text-[11px] font-medium truncate" style={{ color: 'var(--ink-2)' }}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: e.category.color }} />
+                      <span className="truncate">{e.category.name}</span>
+                    </span>
+                  )}
+                  <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--ink-2)' }}>· {dayLabel}</span>
+                </div>
+              </div>
+              <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
+            </div>
+          )
+        })}
+      </>
+    )
+  }
 
   const atrasadosUserId = user!.id
 
@@ -621,7 +707,7 @@ export default async function DashboardPage() {
           <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
-            <p className="text-[10px] font-semibold" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
+            <p className="text-[11px] font-semibold" style={{ color: r.isToday ? 'var(--coral-ink)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
               {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
             </p>
           </div>
@@ -651,9 +737,9 @@ export default async function DashboardPage() {
             {paydayLabel && (
               <div
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold"
-                style={{ background: 'var(--surface)', color: daysToPayday === 0 ? 'var(--mint)' : 'var(--ink-2)' }}
+                style={{ background: 'var(--surface)', color: daysToPayday === 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}
               >
-                <Wallet className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+                <Wallet className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint-ink)' }} />
                 {paydayLabel}
               </div>
             )}
@@ -679,28 +765,20 @@ export default async function DashboardPage() {
               <div className="flex flex-col gap-5">
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-sm text-white/70 font-medium mb-2">{gastadoLabel}</p>
+                    <p className="text-sm text-white font-medium mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
-                    <p className="text-sm text-white/55 mt-2">
+                    <p className="text-sm text-white mt-2">
                       {budgetAmount
                         ? `Tienes ${formatCLP(budgetAmount)} disponibles ${periodWord}`
                         : 'Aún no hay gastos registrados'}
                     </p>
                   </div>
-                  {budgetAmount && (
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm text-white/70 font-medium mb-2">Disponible</p>
-                      <p className="text-3xl font-bold leading-none" style={{ color: 'var(--mint-on-brand)' }}>
-                        {formatCLP(budgetAmount)}
-                      </p>
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center gap-3 pt-4">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.15)' }}>
                     <Zap className="w-4 h-4 text-white" />
                   </div>
-                  <p className="text-sm text-white/70">
+                  <p className="text-sm text-white">
                     ¡Nuevo mes! Registra tu primer gasto para empezar a hacer seguimiento.
                   </p>
                 </div>
@@ -711,24 +789,25 @@ export default async function DashboardPage() {
                 {/* Top row: gastado + te quedan / por día */}
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <p className="text-sm text-white/70 font-medium mb-2">{gastadoLabel}</p>
+                    <p className="text-sm text-white font-medium mb-2">{gastadoLabel}</p>
                     <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
-                    <p className="text-sm text-white/45 mt-2">
+                    <p className="text-sm text-white mt-2">
                       {budgetAmount ? `de ${formatCLP(budgetAmount)} presupuestado` : `${typedExpenses.length} gasto${typedExpenses.length !== 1 ? 's' : ''} registrado${typedExpenses.length !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm text-white/70 font-medium mb-2 flex items-center justify-end gap-1">
+                    <p className="text-sm text-white font-medium mb-2 flex items-center justify-end gap-1">
+                      {budgetAmount && isOver && <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />}
                       {budgetAmount ? (isOver ? 'Sobre el límite' : 'Te quedan') : 'Por día'}
                       {budgetAmount && (
                         <InfoTap
                           explanation="Te quedan = tu presupuesto del período menos lo que ya gastaste."
-                          color="rgba(255,255,255,0.5)"
+                          color="#fff"
                         />
                       )}
                     </p>
                     <p className="text-3xl font-bold leading-none"
-                      style={{ color: budgetAmount ? (isOver ? 'var(--coral-on-brand)' : 'var(--mint-on-brand)') : 'rgba(255,255,255,0.90)' }}>
+                      style={{ color: '#fff' }}>
                       {budgetAmount
                         ? (isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total))
                         : formatCLP(dailyAvg)}
@@ -740,7 +819,7 @@ export default async function DashboardPage() {
                 <div className="mt-7">
                   {budgetAmount ? (
                     <>
-                      <div className="h-3 rounded-full overflow-hidden flex" style={{ background: 'rgba(255,255,255,0.18)' }}>
+                      <div className="h-3 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct} style={{ background: 'rgba(255,255,255,0.18)' }}>
                         <div
                           className="h-full transition-all"
                           style={{
@@ -756,34 +835,34 @@ export default async function DashboardPage() {
                         )}
                       </div>
                       <div className="flex justify-between mt-2">
-                        <span className="text-xs text-white/45 flex items-center gap-1">
+                        <span className="text-xs text-white flex items-center gap-1">
                           {progressPct}% usado
                           {!isOver && pendingChargesAmount > 0 && (
                             <>
-                              <span style={{ color: 'var(--gold-on-brand)' }}>· +{formatCLP(pendingChargesAmount)} por cobrar</span>
+                              <span className="font-semibold text-white">· +{formatCLP(pendingChargesAmount)} por cobrar</span>
                               <InfoTap
                                 explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
-                                color="rgba(255,255,255,0.5)"
+                                color="#fff"
                               />
                             </>
                           )}
                           {!isOver && upcomingChargesAmount > 0 && (
                             <>
-                              <span className="text-white/40">· +{formatCLP(upcomingChargesAmount)} vienen este mes</span>
+                              <span className="text-white">· +{formatCLP(upcomingChargesAmount)} vienen este mes</span>
                               <InfoTap
                                 explanation="Cuotas y recurrentes que todavía no vencen pero se van a cobrar antes de fin de mes."
-                                color="rgba(255,255,255,0.5)"
+                                color="#fff"
                               />
                             </>
                           )}
                         </span>
-                        <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                        <span className="text-xs text-white">{daysRemaining} días restantes</span>
                       </div>
                     </>
                   ) : (
                     <div className="flex justify-between">
-                      <span className="text-xs text-white/45">Día {daysElapsed} de {daysInMonth}{periodRangeLabel ? ` · ${periodRangeLabel}` : ''}</span>
-                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                      <span className="text-xs text-white">Día {daysElapsed} de {daysInMonth}{periodRangeLabel ? ` · ${periodRangeLabel}` : ''}</span>
+                      <span className="text-xs text-white">{daysRemaining} días restantes</span>
                     </div>
                   )}
                 </div>
@@ -794,35 +873,32 @@ export default async function DashboardPage() {
                     sin pérdida de información, UX1). */}
                 <div className="flex items-center gap-6 mt-5 pt-5">
                   <div className="min-w-0">
-                    <p className="text-xs text-white/60 font-medium">Por día</p>
-                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{formatCLP(dailyAvg)}</p>
-                  </div>
-                  <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
-                  <div className="min-w-0">
-                    <p className="text-xs text-white/60 font-medium flex items-center gap-1">
+                    <p className="text-xs text-white font-medium flex items-center gap-1">
                       Proyección
-                      {projOverBudget && <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: 'var(--coral-on-brand-soft)' }} />}
+                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0 text-white" />}
                       <InfoTap
                         explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
-                        color="rgba(255,255,255,0.5)"
+                        color="#fff"
                       />
                     </p>
-                    <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'white' }}>
+                    <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: 'white' }}>
                       {formatCLP(projection)}
                     </p>
                   </div>
                   <div className="w-px h-8 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.14)' }} />
                   <div className="min-w-0">
-                    <p className="text-xs text-white/60 font-medium flex items-center gap-1">
+                    <p className="text-xs text-white font-medium flex items-center gap-1">
                       Vs. {monthName(prevM).slice(0, 3)}
-                      <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
+                      <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="#fff" />
                     </p>
                     {deltaVsLast !== null ? (
-                      <p className="text-sm font-bold mt-1 tabular-nums" style={{ color: deltaVsLast < 0 ? 'var(--mint-on-brand-soft)' : 'var(--coral-on-brand-soft)' }}>
-                        {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}% <span className="font-medium text-white/45">· {formatCLP(Math.abs(total - prevTotal))}</span>
+                      <p className="text-sm font-bold mt-1 tabular-nums text-white flex items-center gap-1">
+                        {deltaVsLast !== 0 && (deltaVsLast < 0 ? <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />)}
+                        <span className="sr-only">{deltaVsLast < 0 ? 'Bajó' : deltaVsLast > 0 ? 'Subió' : 'Sin cambio'}</span>
+                        {Math.abs(deltaVsLast)}% <span className="font-medium text-white">· {formatCLP(Math.abs(total - prevTotal))}</span>
                       </p>
                     ) : (
-                      <p className="text-sm font-bold mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>—</p>
+                      <p className="text-sm font-bold mt-1" style={{ color: '#fff' }}>—</p>
                     )}
                   </div>
                 </div>
@@ -856,37 +932,7 @@ export default async function DashboardPage() {
                   </p>
                 </div>
               ) : (
-                typedExpenses.slice(0, 8).map((e, i) => {
-                  const d = new Date(e.date + 'T12:00:00')
-                  const now2 = new Date()
-                  const isToday2    = e.date === now2.toISOString().split('T')[0]
-                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
-                  const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  return (
-                    <div
-                      key={e.id}
-                      className="flex items-center gap-3 px-4 py-3.5 transition-opacity hover:opacity-80"
-                    >
-                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={32} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                          {e.description || e.category?.name || '—'}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {e.category && (
-                            <span className="text-[10px] font-medium truncate" style={{ color: e.category.color }}>
-                              {e.category.name}
-                            </span>
-                          )}
-                          <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>· {dayLabel}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
-                        {formatCLP(e.amount)}
-                      </p>
-                    </div>
-                  )
-                })
+                <RecentRows limit={8} />
               )}
             </div>
           </div>
@@ -924,8 +970,8 @@ export default async function DashboardPage() {
                   <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
                   {catsConLimite.length > 0 && (
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      <span style={{ color: 'var(--mint)' }}>{catsDentro} dentro</span>
-                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral)' }}>{catsExcedidas} excedidas</span></>}
+                      <span style={{ color: 'var(--mint-ink)' }}>{catsDentro} dentro</span>
+                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral-ink)' }}>{catsExcedidas} excedidas</span></>}
                       {' '}de {catsConLimite.length} con límite
                     </p>
                   )}
@@ -933,52 +979,7 @@ export default async function DashboardPage() {
                 <Link href="/analisis" className="text-sm font-semibold hover:opacity-70 transition-opacity flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
               <div className="card-flat overflow-hidden">
-                {(() => {
-                  const maxCatTotal = catSummary[0]?.total ?? 1
-                  return catSummary.map((c, idx) => {
-                    const limit          = catBudgetMap.get(c.id) ?? null
-                    const catPct         = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
-                    const over           = limit ? c.total > limit : false
-                    const overPct        = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
-                    const recurringAmt   = recurringByCatInicio[c.id] ?? 0
-                    const isAllRecurring = recurringAmt > 0 && recurringAmt >= c.total
-                    const mildOver       = over && !isAllRecurring && overPct < 15
-                    const hardOver       = over && !isAllRecurring && overPct >= 15
-                    const barColor       = isAllRecurring && over ? c.color : hardOver ? 'var(--coral)' : mildOver ? 'var(--gold)' : limit && catPct >= 80 ? 'var(--gold)' : c.color
-                    return (
-                      <Link
-                        key={c.id}
-                        href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                        className="flex items-center gap-3 px-4 py-4 transition-opacity hover:opacity-80"
-                      >
-                        <div
-                          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                        >
-                          {isEmoji(c.icon)
-                            ? <span className="text-sm">{c.icon}</span>
-                            : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-4 h-4" style={{ color: c.color }} /> })()
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                            <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
-                            <p className="text-[14px] font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
-                              <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
-                            </div>
-                            <p className="text-[10px] font-semibold flex-shrink-0 w-24 text-right"
-                              style={{ color: hardOver ? 'var(--coral)' : mildOver ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
-                              {isAllRecurring && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    )
-                  })
-                })()}
+                <CategoryRows />
               </div>
             </div>
           )}
@@ -1027,7 +1028,7 @@ export default async function DashboardPage() {
                             Cupo usado
                             <InfoTap explanation="Acumulado del período que todavía está abierto — no es la factura por pagar. Si ves un monto distinto en Ciclo de sueldo, ese es el estado de cuenta ya cerrado." />
                           </p>
-                          <p className="text-xs mt-0.5" style={{ color: urgentColor }}>{daysLabel}</p>
+                          <p className="text-xs mt-0.5" style={{ color: urgentColor }}>Período abierto · {daysLabel}</p>
                         </div>
                         <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                           {formatCLP(card.total)}
@@ -1043,8 +1044,8 @@ export default async function DashboardPage() {
             {atrasados.length > 0 && (
               <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
                 <div className="flex items-center gap-2 px-4 py-3">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>
                     {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
                   </h2>
                 </div>
@@ -1084,7 +1085,7 @@ export default async function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
-                        <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
+                        <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral-ink)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                           {r.isToday ? 'Hoy' : `${r.label} · en ${r.daysUntil} día${r.daysUntil !== 1 ? 's' : ''}`}
                         </p>
                       </div>
@@ -1130,24 +1131,16 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
-                    <p className="text-xs text-white/70 font-medium mb-1">{gastadoLabel}</p>
+                    <p className="text-xs text-white font-medium mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">$0</p>
-                    <p className="text-xs text-white/50 mt-1.5">
-                      {budgetAmount ? `${formatCLP(budgetAmount)} disponibles` : 'Sin gastos aún'}
+                    <p className="text-xs text-white mt-1.5">
+                      {budgetAmount ? `Tienes ${formatCLP(budgetAmount)} disponibles ${periodWord}` : 'Sin gastos aún'}
                     </p>
                   </div>
-                  {budgetAmount && (
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-white/70 font-medium mb-1">Disponible</p>
-                      <p className="text-2xl font-extrabold leading-none tabular-nums" style={{ color: 'var(--mint-on-brand)' }}>
-                        {formatCLP(budgetAmount)}
-                      </p>
-                    </div>
-                  )}
                 </div>
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl" style={{ background: 'rgba(255,255,255,0.12)' }}>
-                  <Zap className="w-3.5 h-3.5 text-white/70 flex-shrink-0" />
-                  <p className="text-xs text-white/65">Registra tu primer gasto del mes</p>
+                  <Zap className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                  <p className="text-xs text-white">Registra tu primer gasto del mes</p>
                 </div>
               </>
             ) : (
@@ -1155,25 +1148,26 @@ export default async function DashboardPage() {
               <>
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white/70 font-medium mb-1">{gastadoLabel}</p>
+                    <p className="text-xs text-white font-medium mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
                       {formatCLP(total)}
                     </p>
                     {budgetAmount && (
-                      <p className="text-xs text-white/45 mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>
+                      <p className="text-xs text-white mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>
                     )}
                   </div>
                   {budgetAmount && (
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-white/70 font-medium mb-1 flex items-center justify-end gap-1">
+                      <p className="text-xs text-white font-medium mb-1 flex items-center justify-end gap-1">
+                        {isOver && <AlertTriangle className="w-3 h-3 flex-shrink-0" />}
                         {isOver ? 'Sobre el límite' : 'Te quedan'}
                         <InfoTap
                           explanation="Te quedan = tu presupuesto del período menos lo que ya gastaste."
-                          color="rgba(255,255,255,0.5)"
+                          color="#fff"
                         />
                       </p>
                       <p className="text-2xl font-extrabold leading-none tabular-nums"
-                        style={{ color: isOver ? 'var(--coral-on-brand)' : 'var(--mint-on-brand)' }}>
+                        style={{ color: '#fff' }}>
                         {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
                       </p>
                     </div>
@@ -1183,7 +1177,7 @@ export default async function DashboardPage() {
                 {/* Barra de presupuesto */}
                 {budgetAmount && (
                   <div className="mt-4 mb-4">
-                    <div className="h-2 bg-white/15 rounded-full overflow-hidden flex">
+                    <div className="h-2 bg-white/15 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct}>
                       <div className="h-full transition-all" style={{
                         width: `${usedPct}%`,
                         backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold)',
@@ -1196,17 +1190,25 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <div className="flex justify-between mt-1.5">
-                      <span className="text-xs text-white/45">{progressPct}% usado</span>
-                      <span className="text-xs text-white/45">{daysRemaining} días restantes</span>
+                      <span className="text-xs text-white">{progressPct}% usado</span>
+                      <span className="text-xs text-white">{daysRemaining} días restantes</span>
                     </div>
                     {!isOver && pendingChargesAmount > 0 && (
-                      <p className="text-xs mt-1" style={{ color: 'var(--gold-on-brand)' }}>
-                        + {formatCLP(pendingChargesAmount)} por cobrar (cuotas/recurrentes ya vencidos sin registrar)
+                      <p className="text-xs mt-1 flex items-center gap-1 font-semibold text-white">
+                        +{formatCLP(pendingChargesAmount)} por cobrar
+                        <InfoTap
+                          explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
+                          color="#fff"
+                        />
                       </p>
                     )}
                     {!isOver && upcomingChargesAmount > 0 && (
-                      <p className="text-xs mt-1 text-white/40">
-                        + {formatCLP(upcomingChargesAmount)} vienen este mes (aún no vencen)
+                      <p className="text-xs mt-1 text-white flex items-center gap-1">
+                        +{formatCLP(upcomingChargesAmount)} vienen este mes
+                        <InfoTap
+                          explanation="Cuotas y recurrentes que todavía no vencen pero se van a cobrar antes de fin de mes."
+                          color="#fff"
+                        />
                       </p>
                     )}
                   </div>
@@ -1214,36 +1216,51 @@ export default async function DashboardPage() {
 
                 {/* Chips: Por día + Proyección */}
                 <div className="flex gap-2 mt-1">
-                  <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3">
-                    <p className="text-[10px] text-white/60 font-semibold mb-1">Por día</p>
-                    <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
-                  </div>
+                  {budgetAmount && deltaVsLast !== null ? (
+                    <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3">
+                      <p className="text-[11px] text-white font-semibold mb-1 flex items-center gap-1">
+                        Vs. {monthName(prevM).slice(0, 3)}
+                        <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="#fff" />
+                      </p>
+                      <p className="text-base font-extrabold tabular-nums text-white flex items-center gap-1">
+                        {deltaVsLast !== 0 && (deltaVsLast < 0 ? <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" /> : <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />)}
+                        <span className="sr-only">{deltaVsLast < 0 ? 'Bajó' : deltaVsLast > 0 ? 'Subió' : 'Sin cambio'}</span>
+                        {Math.abs(deltaVsLast)}%
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex-1 bg-white/15 rounded-2xl px-4 py-3">
+                      <p className="text-[11px] text-white font-semibold mb-1">Por día</p>
+                      <p className="text-base font-extrabold tabular-nums text-white">{formatCLP(dailyAvg)}</p>
+                    </div>
+                  )}
                   <div className="flex-1 rounded-2xl px-4 py-3"
-                    style={{ background: projOverBudget ? 'rgba(255,111,97,0.25)' : 'rgba(255,255,255,0.15)' }}>
-                    <p className="text-[10px] font-semibold mb-1 flex items-center gap-1"
-                      style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'rgba(255,255,255,0.60)' }}>
+                    style={{ background: projOverBudget ? 'rgba(14,42,82,0.30)' : 'rgba(255,255,255,0.15)' }}>
+                    <p className="text-[11px] font-semibold mb-1 flex items-center gap-1 text-white">
                       Proyección
-                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--coral-on-brand-soft)' }} />}
+                      {projOverBudget && <AlertTriangle className="w-3 h-3 flex-shrink-0 text-white" />}
                       <InfoTap
                         explanation="Proyección = lo que ya gastaste en variables prorrateado a fin de mes, más los fijos que aún faltan por registrar."
-                        color="rgba(255,255,255,0.5)"
+                        color="#fff"
                       />
                     </p>
                     <p className="text-base font-extrabold tabular-nums"
-                      style={{ color: projOverBudget ? 'var(--coral-on-brand-soft)' : 'white' }}>
+                      style={{ color: 'white' }}>
                       {formatCLP(projection)}
                     </p>
                   </div>
                 </div>
 
                 {/* Vs. mes anterior — antes solo vivía en el KPI grid de desktop */}
-                {deltaVsLast !== null && (
-                  <p className="text-xs text-white/50 mt-3 flex items-center gap-1">
-                    <span className="font-bold" style={{ color: deltaVsLast < 0 ? 'var(--mint-on-brand-soft)' : 'var(--coral-on-brand-soft)' }}>
-                      {deltaVsLast < 0 ? '' : '+'}{deltaVsLast}%
+                {deltaVsLast !== null && !budgetAmount && (
+                  <p className="text-xs text-white mt-3 flex items-center gap-1">
+                    <span className="font-bold text-white inline-flex items-center gap-0.5">
+                      {deltaVsLast !== 0 && (deltaVsLast < 0 ? <ArrowDown className="w-3 h-3" aria-hidden="true" /> : <ArrowUp className="w-3 h-3" aria-hidden="true" />)}
+                      <span className="sr-only">{deltaVsLast < 0 ? 'Bajó' : deltaVsLast > 0 ? 'Subió' : 'Sin cambio'}</span>
+                      {Math.abs(deltaVsLast)}%
                     </span>
                     {' '}vs. {monthName(prevM).slice(0, 3)} · {formatCLP(Math.abs(total - prevTotal))}
-                    <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="rgba(255,255,255,0.5)" />
+                    <InfoTap explanation="Compara el gasto hasta hoy con el mismo día del mes pasado (no el mes completo)." color="#fff" />
                   </p>
                 )}
               </>
@@ -1257,8 +1274,8 @@ export default async function DashboardPage() {
           {atrasados.length > 0 && (
             <div>
               <div className="flex items-center gap-1.5 mb-2.5">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-                <h2 className="text-sm font-bold" style={{ color: 'var(--coral)' }}>Pagos atrasados</h2>
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+                <h2 className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>Pagos atrasados</h2>
               </div>
               <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
                 {atrasados.map((r, i) => (
@@ -1294,10 +1311,10 @@ export default async function DashboardPage() {
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--ink-2)' }}>
                   <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                  Estado de cuenta
+                  Cupo usado · período abierto
                   <InfoTap explanation="Acumulado del período todavía abierto — no es la factura por pagar. Si ves otro monto en Ciclo de sueldo, ese es el estado de cuenta ya cerrado." />
                 </h2>
-                <Link href="/historial?view=billing" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver detalle</Link>
+                <Link href="/historial?view=billing" className="text-sm font-semibold inline-flex items-center min-h-[44px] -my-3 pl-3" style={{ color: 'var(--primary)' }}>Ver detalle</Link>
               </div>
               <StatementCardList />
             </div>
@@ -1311,61 +1328,16 @@ export default async function DashboardPage() {
                   <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Por categoría</h2>
                   {catsConLimite.length > 0 && (
                     <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                      <span style={{ color: 'var(--mint)' }}>{catsDentro} dentro</span>
-                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral)' }}>{catsExcedidas} excedidas</span></>}
+                      <span style={{ color: 'var(--mint-ink)' }}>{catsDentro} dentro</span>
+                      {catsExcedidas > 0 && <> · <span style={{ color: 'var(--coral-ink)' }}>{catsExcedidas} excedidas</span></>}
                       {' '}de {catsConLimite.length} con límite
                     </p>
                   )}
                 </div>
-                <Link href="/analisis" className="text-sm font-semibold flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
+                <Link href="/analisis" className="text-sm font-semibold flex-shrink-0 inline-flex items-center min-h-[44px] -my-3 pl-3" style={{ color: 'var(--primary)' }}>Ver análisis</Link>
               </div>
               <div className="card-flat overflow-hidden">
-                {(() => {
-                  const maxCatTotal = catSummary[0]?.total ?? 1
-                  return catSummary.map((c, idx) => {
-                    const limit        = catBudgetMap.get(c.id) ?? null
-                    const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
-                    const over         = limit ? c.total > limit : false
-                    const overPct      = limit && over ? Math.round(((c.total - limit) / limit) * 100) : 0
-                    const recurringAmt = recurringByCatInicio[c.id] ?? 0
-                    const isAllRec     = recurringAmt > 0 && recurringAmt >= c.total
-                    const mildOver     = over && !isAllRec && overPct < 15
-                    const hardOver     = over && !isAllRec && overPct >= 15
-                    const barColor     = isAllRec && over ? c.color : hardOver ? 'var(--coral)' : mildOver ? 'var(--gold)' : limit && catPct >= 80 ? 'var(--gold)' : c.color
-                    return (
-                      <Link
-                        key={c.id}
-                        href={`/analisis/${c.id}?month=${month}&year=${year}`}
-                        className="flex items-center gap-3 px-4 py-3.5 transition-opacity active:opacity-70 relative"
-                      >
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 cat-icon-bg"
-                          style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
-                        >
-                          {isEmoji(c.icon)
-                            ? <span className="text-lg">{c.icon}</span>
-                            : (() => { const Icon = getCategoryIcon(c.icon); return <Icon className="w-5 h-5" style={{ color: c.color }} /> })()
-                          }
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                            <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>{c.name}</p>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-[14px] font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(c.total)}</p>
-                              <p className="text-[10px] font-semibold"
-                                style={{ color: hardOver ? 'var(--coral)' : mildOver ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
-                                {isAllRec && over ? '↻ fijo' : hardOver ? `+${formatCLP(c.total - limit!)} sobre` : mildOver ? `+${overPct}% · cuidado` : limit ? `${catPct}% de ${formatCLP(limit)}` : 'Sin límite'}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="progress-track h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
-                            <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
-                          </div>
-                        </div>
-                      </Link>
-                    )
-                  })
-                })()}
+                <CategoryRows mobile />
               </div>
             </div>
           )}
@@ -1375,33 +1347,10 @@ export default async function DashboardPage() {
             <div>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Últimos gastos</h2>
-                <Link href="/historial" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver todo</Link>
+                <Link href="/historial" className="text-sm font-semibold inline-flex items-center min-h-[44px] -my-3 pl-3" style={{ color: 'var(--primary)' }}>Ver todo</Link>
               </div>
               <div className="card-flat overflow-hidden">
-                {typedExpenses.slice(0, 6).map((e, i) => {
-                  const d = new Date(e.date + 'T12:00:00')
-                  const now2 = new Date()
-                  const isToday2    = e.date === now2.toISOString().split('T')[0]
-                  const isYesterday = e.date === new Date(now2.getTime() - 86400000).toISOString().split('T')[0]
-                  const dayLabel    = isToday2 ? 'Hoy' : isYesterday ? 'Ayer' : d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-                  return (
-                    <div key={e.id} className="flex items-center gap-3 px-4 py-3">
-                      <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={36} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                          {e.description || e.category?.name || '—'}
-                        </p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {e.category && <span className="text-[10px] font-medium" style={{ color: e.category.color }}>{e.category.name}</span>}
-                          <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>· {dayLabel}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
-                        {formatCLP(e.amount)}
-                      </p>
-                    </div>
-                  )
-                })}
+                <RecentRows limit={6} mobile />
               </div>
             </div>
           )}
@@ -1414,7 +1363,7 @@ export default async function DashboardPage() {
                   <Calendar className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                   Próximos pagos
                 </h2>
-                <Link href="/recurrentes?view=calendar" className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>Ver calendario</Link>
+                <Link href="/recurrentes?view=calendar" className="text-sm font-semibold inline-flex items-center min-h-[44px] -my-3 pl-3" style={{ color: 'var(--primary)' }}>Ver calendario</Link>
               </div>
               <ProximosPagosList />
             </div>

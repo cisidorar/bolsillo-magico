@@ -11,7 +11,7 @@
     --border:       #E4EAF1;
     --ink:          #0E2A52;
     --ink-2:        #5B6B82;
-    --ink-3:        #94A3B8;
+    --ink-3:        #5F6F86;
     --primary:      #4D93FF;
     --primary-ink:  #FFFFFF;
     --primary-soft: #E8EFFE;
@@ -22,7 +22,9 @@
        --gold tal cual. */
     --gold-ink:     #B45309;
     --mint:         #1FBE8D;
+    --mint-ink:     #0F7A5A; /* mint como TEXTO sobre superficie clara (--mint solo da 2.4:1) */
     --coral:        #FF6F61;
+    --coral-ink:    #B84136; /* coral como TEXTO sobre superficie clara (--coral solo da 2.7:1) */
     --shadow:       rgba(14,42,82,.06);
 
     /* Acentos sobre el hero-gradient (azul sólido) — el --mint/--coral de
@@ -59,7 +61,7 @@
     --border:       #25324C;
     --ink:          #EAF1FB;
     --ink-2:        #9DB0CC;
-    --ink-3:        #64748B;
+    --ink-3:        #8396B3;
     --primary:      #4D93FF;
     --primary-ink:  #07122A;
     --primary-soft: #16233D;
@@ -68,7 +70,9 @@
        no hace falta un segundo tono. */
     --gold-ink:     #FFD166;
     --mint:         #34D6A2;
+    --mint-ink:     #34D6A2;
     --coral:        #FF8478;
+    --coral-ink:    #FF8478;
     --shadow:       rgba(0,0,0,.28);
 
     --mint-on-brand:       #34D6A2;
@@ -163,7 +167,9 @@
      bug real reportado por Cas (mobile: la tarjeta "Valor del portafolio"
      no se veía, solo quedaban sus bordes). */
   .hero-gradient {
-    background: #4D93FF;
+    /* #1B6DD4: blanco encima da ~5:1 (con #4D93FF eran 3.2:1 y el texto
+       chico del hero no pasaba AA). El dark ya tenía su propio azul. */
+    background: #1B6DD4;
   }
   .dark .hero-gradient {
     background: #2256C8;

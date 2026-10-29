@@ -49,7 +49,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
         {/* Sueldo */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <Wallet className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+            <Wallet className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--mint-ink)' }} />
             <div className="min-w-0">
               <span className="text-sm block" style={{ color: 'var(--ink-2)' }}>Sueldo</span>
               {sueldo === null && (
@@ -59,7 +59,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
               )}
             </div>
           </div>
-          <span className="text-sm font-bold tabular-nums" style={{ color: sueldo !== null ? 'var(--mint)' : 'var(--ink-3)' }}>
+          <span className="text-sm font-bold tabular-nums" style={{ color: sueldo !== null ? 'var(--mint-ink)' : 'var(--ink-3)' }}>
             {sueldo !== null ? `+${formatCLP(sueldo)}` : '—'}
           </span>
         </div>
@@ -75,14 +75,14 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
               <div className="min-w-0">
                 <span className="text-sm block truncate" style={{ color: 'var(--ink-2)' }}>{card.name}</span>
                 {card.dueDate ? (
-                  <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                  <span className="text-[11px] block truncate" style={{ color: 'var(--ink-2)' }}>
                     {/* Este es el ciclo ya vencido (lastDueStatementRange), no uno próximo —
                         siempre "venció", nunca countdown ("en Xd") ni color de urgencia. */}
                     {card.daysToDue === 0
-                      ? `Vence hoy · ${fmtShort(card.dueDate)}`
+                      ? `Factura · vence hoy ${fmtShort(card.dueDate)}`
                       : card.daysToDue === -1
-                        ? `Venció ayer · ${fmtShort(card.dueDate)}`
-                        : `Venció ${fmtShort(card.dueDate)} · hace ${Math.abs(card.daysToDue ?? 0)}d`}
+                        ? `Factura · venció ayer ${fmtShort(card.dueDate)}`
+                        : `Factura · venció ${fmtShort(card.dueDate)} · hace ${Math.abs(card.daysToDue ?? 0)}d`}
                   </span>
                 ) : (
                   <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>Sin día de pago configurado</span>
@@ -131,11 +131,11 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
       {/* Queda para ahorro */}
       <div className="flex items-center justify-between px-4 py-3.5" style={{ background: 'var(--surface-2)' }}>
         <div className="flex items-center gap-2">
-          <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint)' : 'var(--coral)' }} />
+          <PiggyBank className="w-4 h-4 flex-shrink-0" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }} />
           <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Queda para ahorro</span>
           <InfoTap explanation="Sueldo menos la tarjeta por pagar, menos lo que ya invertiste este mes, menos lo que ya gastaste en débito/efectivo este mes. Es tu saldo real hasta hoy, no una proyección — por eso necesita que registres tu sueldo primero." />
         </div>
-        <span className="text-base font-extrabold tabular-nums" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+        <span className="text-base font-extrabold tabular-nums" style={{ color: queda === null ? 'var(--ink-3)' : queda >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
           {queda === null ? '—' : `${queda < 0 ? '−' : ''}${formatCLP(Math.abs(queda))}`}
         </span>
       </div>
