@@ -41,6 +41,7 @@ export interface EmergencyFundItem {
 }
 
 interface Props {
+  afterNetWorth?: React.ReactNode  // se renderiza justo bajo la tarjeta de patrimonio neto
   contributedThisMonth?: number    // CLP aportados este mes a la billetera USD (no es rendimiento)
   ratePoints: RatePoint[]          // 12 puntos, más antiguo → más reciente
   currentRate: number | null       // % del mes seleccionado
@@ -150,7 +151,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal, stockTickers, netWorthHistory, contributedThisMonth = 0,
+  netWorth, committedDebtTotal, stockTickers, netWorthHistory, contributedThisMonth = 0, afterNetWorth,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -406,6 +407,8 @@ export default function PatrimonioCards({
           </div>
         </div>
       )}
+
+      {afterNetWorth}
 
       <div className="grid gap-3 lg:grid-cols-2 lg:items-stretch">
 
@@ -731,7 +734,7 @@ export default function PatrimonioCards({
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1.5 min-w-0">
                       <p className="text-[9px] font-bold tabular-nums whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
-                        {m.total > 0 ? formatCLP(m.total) : ''}
+                        {m.total > 0 && (i === 0 || m.total !== commitMonths[i - 1].total) ? formatCLP(m.total) : ''}
                       </p>
                       <div className="w-full flex flex-col justify-end" style={{ minHeight: 2 }}>
                         {m.card > 0 && (

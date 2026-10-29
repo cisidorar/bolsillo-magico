@@ -23,6 +23,10 @@ import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import CategoryDrivers from '@/components/CategoryDrivers'
 import SpendingPatterns from '@/components/SpendingPatterns'
 import TrendInsights from '@/components/TrendInsights'
+import PatrimonioHighlights from '@/components/PatrimonioHighlights'
+import PatrimonioExtras from '@/components/PatrimonioExtras'
+import { liquidityLadder, gainSinceStart, activeLeases } from '@/lib/patrimonio-insights'
+import { fetchSharedPosition } from '@/lib/shared-position'
 import { fixedShare, risingCategories, budgetMismatches } from '@/lib/trend-insights'
 import { categoryDrivers, monthPace, findAnomalies, topMerchants, categoryBaseline } from '@/lib/analysis-drivers'
 import { earnedSoFar } from '@/lib/savings-accounts'
@@ -777,13 +781,30 @@ export default async function AnalisisPage({
     netWorthHistory = await computeNetWorthWeeklyHistory(supabase, user!.id, netWorth.current)
   }
 
+  // Fuentes extra de Patrimonio: aportes históricos al mundo USD, contratos de
+  // arriendo y saldo de viajes compartidos (solo se piden en esta pestaña).
+  const [allUsdDeposits, leaseRows, sharedPos] = isPatrimonio
+    ? await Promise.all([
+        supabase.from('usd_purchases').select('total_paid_clp, purchase_date').eq('user_id', user!.id).eq('kind', 'deposit').then(r => r.data ?? []),
+        supabase.from('lease_contracts').select('rent_amount, start_date, end_date, property:properties(alias)').eq('user_id', user!.id).then(r => r.data ?? []),
+        fetchSharedPosition(supabase, user!.id).catch(() => null),
+      ])
+    : [[], [], null]
+
   // ── B2/R3: Proyección de patrimonio a interés compuesto (solo pestaña
   // Patrimonio). Aporte mensual a proyectar: la META si está definida, o lo
   // efectivamente invertido este mes como fallback. Punto de partida:
   // patrimonio neto real (activos − deuda comprometida) si está disponible.
+  // Promedio de aportes de los últimos 6 meses (incluye el actual): un mes con
+  // un aporte extraordinario no debe proyectarse como si se repitiera siempre.
+  const contribLast6 = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    return investedByKey[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`] ?? 0
+  })
+  const avgContribution6 = Math.round(contribLast6.reduce((s, v) => s + v, 0) / 6)
   const wealthMonthlyContribution = monthlyInvestGoal && monthlyInvestGoal > 0
     ? monthlyInvestGoal
-    : investedThisMonth > 0 ? investedThisMonth : 0
+    : avgContribution6
   const wealthTable = isPatrimonio && wealthMonthlyContribution > 0
     ? buildWealthProjectionTable(netWorth?.current.net_clp ?? netWorth?.current.total_clp ?? 0, wealthMonthlyContribution)
     : null
@@ -1839,8 +1860,48 @@ export default async function AnalisisPage({
       {/* ── Vista patrimonio (R2): construcción de patrimonio + proyección ────── */}
       {isPatrimonio && (
         <>
+          {showPatrimonio && (() => {
+            // Depósitos vencidos que no se renovaron: plata que dejó de rendir
+            const idle = depositsWithInterest.filter(x => x.d.maturity_date < emergencyTodayStr)
+            const nwCur = netWorth?.current ?? null
+            const usdTotal = nwCur ? nwCur.stocks_clp + nwCur.usd_clp : 0
+            // Crecimiento promedio mensual del patrimonio (snapshots de cierre)
+            const snaps = (netWorth?.snapshots ?? []).slice(-7)
+            const diffs = snaps.slice(1).map((sn, i) => sn.total_clp - snaps[i].total_clp)
+            const growthMonths = diffs.length
+            return (
+              <PatrimonioHighlights
+                idleDeposits={{ total: idle.reduce((s, x) => s + x.d.amount + x.interest, 0), count: idle.length }}
+                usdShare={nwCur && nwCur.total_clp > 0 ? { pct: Math.round((usdTotal / nwCur.total_clp) * 100), total: usdTotal } : null}
+                growth={growthMonths > 0 ? {
+                  avgMonthly: Math.round(diffs.reduce((s, v) => s + v, 0) / growthMonths),
+                  months: growthMonths,
+                  avgContribution: Math.round(contribLast6.slice(0, growthMonths).reduce((s, v) => s + v, 0) / growthMonths),
+                } : null}
+              />
+            )
+          })()}
           {showPatrimonio ? (
             <PatrimonioCards
+              afterNetWorth={(() => {
+                const nwCur = netWorth?.current ?? null
+                const invested = nwCur ? nwCur.stocks_clp + nwCur.usd_clp : 0
+                const gain = nwCur && netWorth?.stocksPriced
+                  ? gainSinceStart(allUsdDeposits as { total_paid_clp: number | null; purchase_date: string }[], invested)
+                  : null
+                const ladder = liquidityLadder({
+                  savings: savingsBalances.reduce((s, v) => s + v, 0),
+                  deposits: depositsWithInterest.map(x => ({ value: x.d.amount + x.interest, maturity_date: x.d.maturity_date })),
+                  invested,
+                  today: emergencyTodayStr,
+                })
+                const rentals = activeLeases(
+                  (leaseRows as unknown as { rent_amount: number; start_date: string; end_date: string | null; property: { alias: string } | { alias: string }[] | null }[])
+                    .map(l => ({ ...l, property: Array.isArray(l.property) ? (l.property[0] ?? null) : l.property })),
+                  emergencyTodayStr,
+                )
+                return <PatrimonioExtras gain={gain} ladder={ladder} rentals={rentals} shared={sharedPos} />
+              })()}
               ratePoints={trimmedRatePoints}
               currentRate={surplusPct}
               currentSaved={surplus}
