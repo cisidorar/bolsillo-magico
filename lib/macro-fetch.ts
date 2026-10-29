@@ -57,7 +57,7 @@ export async function fetchMacroSeries(
 
   try {
     const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${fredKey}&file_type=json&sort_order=desc&limit=${meta.days}`
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
 
     const raw = await res.json() as { observations?: { date: string; value: string }[] }

@@ -41,6 +41,7 @@ export interface EmergencyFundItem {
 }
 
 interface Props {
+  contributedThisMonth?: number    // CLP aportados este mes a la billetera USD (no es rendimiento)
   ratePoints: RatePoint[]          // 12 puntos, más antiguo → más reciente
   currentRate: number | null       // % del mes seleccionado
   currentSaved: number | null      // CLP ahorrados (o déficit) del mes seleccionado
@@ -147,7 +148,7 @@ export default function PatrimonioCards({
   projectedRate, dayOfMonth, isCurrentMonth,
   commitMonths, commitNext, commitRatio,
   cuotasPendingTotal, fixedMonthlyTotal, cardNextTotal, freeMonthLabel,
-  netWorth, committedDebtTotal, stockTickers, netWorthHistory,
+  netWorth, committedDebtTotal, stockTickers, netWorthHistory, contributedThisMonth = 0,
 }: Props) {
   const hasRateData = ratePoints.some(p => p.rate !== null) || currentRate !== null
   const hasSavings  = savingsCount > 0
@@ -294,6 +295,13 @@ export default function PatrimonioCards({
                     {nwDelta >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta))}
                     {nwDeltaPct !== null && ` (${nwDelta >= 0 ? '+' : ''}${nwDeltaPct}%)`} vs cierre de {MONTH_LONG[nwPrev.month - 1]}
                   </p>
+                  {isCurrentMonth && contributedThisMonth > 0 && (
+                    <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                      Aportaste {formatCLP(contributedThisMonth)} este mes · el resto del cambio
+                      ({nwDelta - contributedThisMonth >= 0 ? '+' : '−'}{formatCLP(Math.abs(nwDelta - contributedThisMonth))})
+                      es rendimiento y otros movimientos
+                    </p>
+                  )}
                   {nwDrivers.length > 0 && (
                     <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
                       {nwDrivers.map((d, i) => (

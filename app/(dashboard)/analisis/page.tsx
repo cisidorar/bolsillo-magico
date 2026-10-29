@@ -1868,6 +1868,7 @@ export default async function AnalisisPage({
               committedDebtTotal={committedDebtTotal}
               stockTickers={stockTickers}
               netWorthHistory={netWorthHistory}
+              contributedThisMonth={investedThisMonth}
             />
           ) : (
             <div className="card text-center py-14 flex flex-col items-center gap-3">

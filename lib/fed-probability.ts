@@ -110,7 +110,7 @@ export async function fetchFedMeetingProbability(
   if (!eventTicker) return null
 
   try {
-    const res = await fetch(`https://api.elections.kalshi.com/trade-api/v2/markets?event_ticker=${eventTicker}`, { cache: 'no-store' })
+    const res = await fetch(`https://api.elections.kalshi.com/trade-api/v2/markets?event_ticker=${eventTicker}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const raw = await res.json() as { markets?: KalshiFedMarket[] }
     const result = computeFedMeetingProbability(raw.markets ?? [], currentRateDff)

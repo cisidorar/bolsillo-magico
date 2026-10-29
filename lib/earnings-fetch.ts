@@ -34,7 +34,7 @@ export async function fetchEarnings(supabase: SupabaseClient, symbol: string): P
   try {
     const fhRes = await fetch(
       `https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&symbol=${symbol}&token=${fhKey}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', signal: AbortSignal.timeout(5000) },
     )
     if (!fhRes.ok) {
       const empty: EarningsInfo = { symbol, nextDate: null, asOf: new Date().toISOString() }
