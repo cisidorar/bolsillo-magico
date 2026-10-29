@@ -28,7 +28,14 @@ export default function AutoRegister() {
     // "la persona está usando la app ahora", no solo el montaje de React.
     // runAutoRegister() ya es idempotente por día (cookie server-side), así
     // que llamarlo de más no duplica nada ni genera trabajo extra.
+    let lastRun = 0
     function check() {
+      // focus + visibilitychange suelen disparar juntos (y varias veces al
+      // alternar pestañas); la acción ya es idempotente por día, pero cada
+      // llamada es un POST al servidor — no repetir dentro de 60s.
+      const now = Date.now()
+      if (now - lastRun < 60_000) return
+      lastRun = now
       runAutoRegister().then(({ registered }) => {
         if (registered.length > 0) {
           setToast(registered)

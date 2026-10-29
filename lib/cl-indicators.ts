@@ -34,23 +34,27 @@ async function fetchCached<T>(supabase: SupabaseClient, cacheKey: string, fetche
     return cached.history7d as unknown as T
   }
 
+  // Si mindicador.cl está lento o caído, una página que lo necesita (Anual,
+  // Patrimonio) no debe colgarse: el fetch corta a los 5s y se sirve el último
+  // valor cacheado aunque esté vencido.
+  const stale = (cached?.history7d ?? null) as unknown as T | null
   try {
     const result = await fetcher()
-    if (result === null) return null
+    if (result === null) return stale
     await supabase.from('price_cache').upsert({
       ticker: cacheKey, price: 0, history7d: result as unknown as object, fetched_at: new Date().toISOString(),
     })
     return result
   } catch (err) {
     console.error(`[cl-indicators] ${cacheKey} unhandled:`, err)
-    return null
+    return stale
   }
 }
 
 /** Serie de IPC (% variación mensual), últimos ~12-13 meses según mindicador.cl. Cache-first (24h). */
 export async function fetchClIpcSeries(supabase: SupabaseClient): Promise<IpcObservation[] | null> {
   return fetchCached(supabase, 'CL_IPC', async () => {
-    const res = await fetch('https://mindicador.cl/api/ipc', { cache: 'no-store' })
+    const res = await fetch('https://mindicador.cl/api/ipc', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const raw = await res.json() as MindicadorSerie<unknown>
     const obs = (raw.serie ?? [])
@@ -63,7 +67,7 @@ export async function fetchClIpcSeries(supabase: SupabaseClient): Promise<IpcObs
 /** Valor actual de la UF. Cache-first (24h) — la UF cambia una vez al día. */
 export async function fetchClUf(supabase: SupabaseClient): Promise<UfObservation | null> {
   return fetchCached(supabase, 'CL_UF', async () => {
-    const res = await fetch('https://mindicador.cl/api/uf', { cache: 'no-store' })
+    const res = await fetch('https://mindicador.cl/api/uf', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const raw = await res.json() as MindicadorSerie<unknown>
     const latest = (raw.serie ?? [])[0]
@@ -90,7 +94,7 @@ export interface UsdClpObservation {
  */
 export async function fetchClDolarYear(supabase: SupabaseClient, year: number): Promise<UsdClpObservation[] | null> {
   return fetchCached(supabase, `CL_DOLAR_${year}`, async () => {
-    const res = await fetch(`https://mindicador.cl/api/dolar/${year}`, { cache: 'no-store' })
+    const res = await fetch(`https://mindicador.cl/api/dolar/${year}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const raw = await res.json() as MindicadorSerie<unknown>
     const obs = (raw.serie ?? [])

@@ -22,6 +22,8 @@ import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import CategoryDrivers from '@/components/CategoryDrivers'
 import SpendingPatterns from '@/components/SpendingPatterns'
+import TrendInsights from '@/components/TrendInsights'
+import { fixedShare, risingCategories, budgetMismatches } from '@/lib/trend-insights'
 import { categoryDrivers, monthPace, findAnomalies, topMerchants, categoryBaseline } from '@/lib/analysis-drivers'
 import { earnedSoFar } from '@/lib/savings-accounts'
 import { earnedToDate, withoutSuperseded } from '@/lib/term-deposits'
@@ -543,17 +545,33 @@ export default async function AnalisisPage({
   // Qué categorías explican el cambio vs. el mes anterior (misma ventana
   // pro-rata que `delta`) y ritmo del mes contra el presupuesto.
   const prevByCat: Record<string, number> = {}
+  const prevCatMeta: Record<string, (typeof catSummary)[number]> = {}
   for (const e of prevExpensesForDelta) {
-    if (e.category) prevByCat[e.category.id] = (prevByCat[e.category.id] ?? 0) + e.amount
+    if (!e.category) continue
+    prevByCat[e.category.id] = (prevByCat[e.category.id] ?? 0) + e.amount
+    prevCatMeta[e.category.id] ??= { ...e.category, total: 0 }
   }
+  // Una categoría con gasto el mes anterior y $0 este mes también explica la
+  // variación (suele ser la baja más grande): entra con total 0.
+  const driverCats = [
+    ...catSummary,
+    ...Object.values(prevCatMeta).filter(c => !catSummary.some(x => x.id === c.id)),
+  ]
   // El neto sale de los totales reales (mismo número que el chip del hero), no
   // de la suma por categoría: los gastos sin categoría también cuentan.
-  const drivers = { ...categoryDrivers(catSummary, prevByCat, { maxUp: 3, maxDown: 1 }), netDelta: totalSelected - prevTotal }
+  const drivers = { ...categoryDrivers(driverCats, prevByCat, { maxUp: 3, maxDown: 2 }), netDelta: totalSelected - prevTotal }
   const anomalies = findAnomalies(typedExpenses, selectedKey)
   const merchants = topMerchants(typedExpenses, selectedKey, prevMonthKey2)
   // Línea base por categoría (promedio de los meses previos de la ventana). En el
   // mes en curso se compara contra la fracción del promedio que ya "toca" a hoy.
   const catBaseline = categoryBaseline(typedExpenses, selectedKey)
+  // Tendencia (vista Anual): meses completos de la ventana de 6 (sin el actual)
+  const completeKeys = monthData.map(m => m.key).filter(k => k !== currentKey)
+  const trendFixed = isAnual ? fixedShare(typedExpenses, completeKeys) : []
+  const trendRising = isAnual ? risingCategories(typedExpenses, completeKeys) : []
+  const trendMismatch = isAnual
+    ? budgetMismatches(typedExpenses, completeKeys, Object.fromEntries(catBudgetMap))
+    : []
   const monthFraction = isCurrentMonth ? now.getDate() / new Date(year, month, 0).getDate() : 1
   const pace = isCurrentMonth
     ? monthPace({ budget: globalBudget, spent: totalSelected, projection, fixedStillDue: fixedStillDueThisMonth, day: now.getDate(), daysInMonth })
@@ -1119,6 +1137,12 @@ export default async function AnalisisPage({
             </div>
           ) : (
             <>
+              <TrendInsights
+                fixed={trendFixed}
+                rising={trendRising}
+                mismatches={trendMismatch}
+                savingsAvg={{ avg6: rateAvg6, avg12: rateAvg12, months12: rateAvg12Months }}
+              />
               {/* ══════════════════════ MOBILE (< lg) ══════════════════════ */}
 
               {/* M1 — Hero: total + año anterior + círculo de progreso */}
@@ -1920,6 +1944,26 @@ export default async function AnalisisPage({
       {!isAnual && !isPatrimonio && (() => {
         return (
           <>
+        {/* ── Veredicto del mes: una frase con lo esencial antes de las cifras ── */}
+        {totalSelected > 0 && (() => {
+          const gap = pace?.gap ?? null
+          const first = isCurrentMonth && projection !== null
+            ? `Cerrarás el mes en ${formatCLP(projection)}${gap === null ? '' : gap > 0 ? `, ${formatCLP(gap)} sobre tu presupuesto` : `, ${formatCLP(Math.abs(gap))} bajo tu presupuesto`}.`
+            : `Gastaste ${formatCLP(totalSelected)} en ${monthName(month)}.`
+          const names = (l: { name: string }[]) => l.map(c => c.name).join(' y ')
+          const ups = drivers.up.slice(0, 2)
+          const downs = drivers.down.slice(0, 1)
+          const second = [
+            ups.length > 0 ? `Subió ${names(ups)}` : null,
+            downs.length > 0 ? `bajó ${names(downs)}` : null,
+          ].filter(Boolean).join('; ')
+          return (
+            <p className="text-base lg:text-lg font-semibold leading-snug mb-4" style={{ color: 'var(--ink)' }}>
+              {first}{second ? ` ${second.charAt(0).toUpperCase()}${second.slice(1)} vs. ${prevMonthName}.` : ''}
+            </p>
+          )
+        })()}
+
         {/* ── R1: Hero — Flujo del mes absorbe los KPIs ───────────────────────── */}
         {/* ── Flujo del mes: sueldo → gastado / invertido / líquido (A1/A2) ───── */}
         {(totalSelected > 0 || investedThisMonth > 0 || prevMonthIncome > 0) && (() => {
@@ -2274,7 +2318,7 @@ export default async function AnalisisPage({
                 )}
               </div>
               {(() => {
-                const nonZero   = monthData.filter(m => m.total > 0)
+                const nonZero   = monthData.filter(m => m.total > 0 && m.key !== currentKey)
                 const avg       = nonZero.length > 0 ? Math.round(nonZero.reduce((s, m) => s + m.total, 0) / nonZero.length) : 0
                 const BAR_H     = 160  // px — height of bar area
                 const avgPx     = avg > 0 ? Math.round((avg / maxMonth) * BAR_H) : 0
@@ -2285,7 +2329,7 @@ export default async function AnalisisPage({
                     <div className="flex items-center gap-1.5 mb-3">
                       <span className="inline-block w-5 border-t-2 border-dashed flex-shrink-0" style={{ borderColor: '#4D93FF' }} />
                       <p className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>
-                        Promedio {avgLabel}/mes
+                        Promedio {avgLabel}/mes · meses completos
                       </p>
                     </div>
                     {/* Max label */}
