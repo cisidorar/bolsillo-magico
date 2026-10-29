@@ -6,6 +6,9 @@ import { buildCashFlowTimeline, withinWindow, type CashFlowEvent } from '@/lib/c
 import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { buildCommittedTimeline } from '@/lib/committed-timeline'
 import CommittedTimeline from '@/components/CommittedTimeline'
+import RecurringInsights from '@/components/RecurringInsights'
+import { upcomingCharges, priceImpact, categoryWeights } from '@/lib/recurring-insights'
+import { detectPriceChange } from '@/lib/recurring-audit'
 import RecurringManager from '@/components/RecurringManager'
 import RecurringSuggestions from '@/components/RecurringSuggestions'
 import { detectRecurring, type DetectExpense } from '@/lib/recurring-detect'
@@ -229,9 +232,16 @@ export default async function RecurrentesPage({
   const overdueNames = overdueItems.map(r => r.name)
 
   // Promedio mensual real (últimos 3 meses)
+  // Solo de los gastos que SIGUEN activos y solo meses COMPLETOS: antes sumaba
+  // también planes de cuotas ya terminados y el mes en curso a medias, y el
+  // número ($312.938) no se podía comparar con la "carga mensual" ($158.865).
+  const ongoingIds = new Set(ongoingItems.map(r => r.id))
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthlyTotals: Record<string, number> = {}
   ;(recentExpenses ?? []).forEach(e => {
+    if (!e.recurring_expense_id || !ongoingIds.has(e.recurring_expense_id)) return
     const key = e.date.slice(0, 7) // YYYY-MM
+    if (key === currentMonthKey) return
     monthlyTotals[key] = (monthlyTotals[key] ?? 0) + e.amount
   })
   const monthKeys      = Object.keys(monthlyTotals).sort().slice(-3)
@@ -250,6 +260,49 @@ export default async function RecurrentesPage({
   const hasPayday         = nextPayday !== null
   type IncomeRowRec = { amount: number; month: number; year: number }
   const sueldoEstimado    = (lastIncome as IncomeRowRec | null)?.amount ?? null
+
+  // Próxima fecha de cobro (YYYY-MM-DD) de un recurrente en curso. La usan el
+  // flujo de caja (solo los que no van a tarjeta) y "Esta semana" (todos).
+  const chargeDateStr = (r: (typeof ongoingItems)[number]): string => {
+    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
+    let dStr: string
+    if (isIntervalItem) {
+      dStr = projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at).date
+    } else {
+      // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
+      // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
+      // billing_day y seguía apareciendo en el flujo de caja como si fuera a
+      // cobrarse "mañana" — nextBillingDate() es pura aritmética de fechas y
+      // no sabe si YA se registró un gasto este mes. Si es mensual y ya está
+      // pagado este mes, se calcula la ocurrencia del PRÓXIMO mes en vez de
+      // dejar que nextBillingDate devuelva la de este mes.
+      const from = (r.billing_month === null && paidThisMonthSet.has(r.id))
+        ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        : now
+      const d = nextBillingDate(r.billing_day, from, r.billing_month)
+      dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    return dStr
+  }
+
+  // Qué mirar: cargos de la semana (todos, vayan o no a tarjeta), impacto anual
+  // de cambios de precio y peso por categoría.
+  const upcomingWeek = upcomingCharges(
+    ongoingItems.map(r => ({ id: r.id, name: r.name, amount: r.amount, dateStr: chargeDateStr(r) })),
+    getNowChile().dateStr, 7,
+  )
+  const priceMoveInput = ongoingItems
+    .filter(r => !(r.total_installments && r.total_installments > 0))
+    .map(r => {
+      const ch = detectPriceChange(expensesByRecurring[r.id] ?? [])
+      return ch.changed ? { id: r.id, name: r.name, delta: ch.delta, current: ch.currentAmount ?? r.amount, interval_months: r.interval_months ?? 1, annual: r.billing_month !== null } : null
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+  const { moves: priceMoves, netAnnual: priceNetAnnual } = priceImpact(priceMoveInput)
+  const weights = categoryWeights(ongoingItems.map(r => ({
+    amount: r.amount, interval_months: r.interval_months ?? 1, annual: r.billing_month !== null,
+    category: r.category ? { id: r.category.id, name: r.category.name, color: r.category.color } : null,
+  })))
 
   const cashFlowEvents: CashFlowEvent[] = []
 
@@ -273,24 +326,7 @@ export default async function RecurrentesPage({
     // semanas, adelantando el cobro casi 2 meses. Usan projectedIntervalDate,
     // igual que overdueItems arriba, anclado al último gasto real (o al alta
     // si todavía no hay ninguno).
-    const isIntervalItem = r.billing_month === null && (r.interval_months ?? 1) > 1
-    let dStr: string
-    if (isIntervalItem) {
-      dStr = projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at).date
-    } else {
-      // Bug reportado por Cas (mismo patrón que "Próximos pagos" en /inicio,
-      // fix 6890a33): "Corretaje departamento" se pagó un día ANTES de su
-      // billing_day y seguía apareciendo en el flujo de caja como si fuera a
-      // cobrarse "mañana" — nextBillingDate() es pura aritmética de fechas y
-      // no sabe si YA se registró un gasto este mes. Si es mensual y ya está
-      // pagado este mes, se calcula la ocurrencia del PRÓXIMO mes en vez de
-      // dejar que nextBillingDate devuelva la de este mes.
-      const from = (r.billing_month === null && paidThisMonthSet.has(r.id))
-        ? new Date(now.getFullYear(), now.getMonth() + 1, 1)
-        : now
-      const d = nextBillingDate(r.billing_day, from, r.billing_month)
-      dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    }
+    const dStr = chargeDateStr(r)
     cashFlowEvents.push({
       date: dStr, type: 'recurring', label: r.name, amount: -r.amount,
       sublabel: r.category?.name, domain: r.domain ?? null,
@@ -402,16 +438,24 @@ export default async function RecurrentesPage({
         <div className="rounded-3xl p-5 text-white mb-6 hero-gradient" style={{ boxShadow: '0 8px 18px var(--shadow)' }}>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-white/70 mb-2">Carga mensual</p>
+              <p className="text-[11px] font-bold text-white/85 mb-2">Carga mensual</p>
               <p className="text-3xl font-extrabold tabular-nums leading-tight">{formatCLP(totalMonthly)}</p>
-              <p className="text-[11px] text-white/60 mt-1.5">
-                {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''}
-                {' '}· ≈{formatCLP(avgMonthly)} promedio real (3m) · {formatCLP(yearlyEstimate)} al año
+              <p className="text-xs text-white/80 mt-1.5">
+                {activeCount} gasto{activeCount !== 1 ? 's' : ''} activo{activeCount !== 1 ? 's' : ''} · {formatCLP(yearlyEstimate)} al año
               </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-white/80">
+                {monthKeys.length > 0 && Math.abs(avgMonthly - totalMonthly) / Math.max(totalMonthly, 1) >= 0.15 && (
+                  <span>
+                    Pagaste en promedio <span className="font-bold text-white">{formatCLP(avgMonthly)}/mes</span> ({monthKeys.length} {monthKeys.length === 1 ? 'mes completo' : 'meses completos'})
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      <RecurringInsights upcoming={upcomingWeek} priceMoves={priceMoves} netAnnual={priceNetAnnual} weights={weights} />
 
       {/* Toggle móvil */}
       <div className="view-toggle-wrap flex items-center gap-1.5 rounded-xl p-1 mb-5 lg:hidden">

@@ -456,6 +456,14 @@ export default function RecurringManager({ items: init, categories, paymentMetho
     else if (isAnual) groups.anuales.push(item)
     else groups.mensuales.push(item)
   }
+  // Dentro de cada grupo, lo que se cobra primero va arriba (antes iban por
+  // billing_day: lo de hoy quedaba al final y lo del 5 de noviembre primero).
+  // Pausados y "cada N meses" (fecha propia) van después de los fechados.
+  const sortKey = (it: RecurringExpense): number =>
+    !it.is_active ? 2e15
+      : it.billing_month == null && (it.interval_months ?? 1) > 1 ? 1e15
+      : nextBillingDate(it.billing_day, it.billing_month).getTime()
+  for (const g of ['mensuales', 'cuotas', 'anuales'] as const) groups[g].sort((a, b) => sortKey(a) - sortKey(b))
   const groupOrder: GroupKey[] = ['mensuales', 'cuotas', 'anuales', 'completados']
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set(['completados']))
   const toggleGroup = (g: GroupKey) => setCollapsedGroups(prev => {
@@ -528,13 +536,23 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               : null
 
             const next        = nextBillingDate(item.billing_day, item.billing_month)
+            // Relativo cuando es cercano (Hoy / Mañana / En N días): "29 oct 2026"
+            // obligaba a restar fechas para saber si el cargo era hoy.
+            const relativeDay = (d: Date): string => {
+              const t = new Date(getNowChile().dateStr + 'T12:00:00')
+              const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime() - t.getTime()) / 86_400_000)
+              if (days === 0) return 'Hoy'
+              if (days === 1) return 'Mañana'
+              if (days > 1 && days <= 7) return `En ${days} días`
+              return d.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: d.getFullYear() !== t.getFullYear() ? 'numeric' : undefined })
+            }
             const nextLabel   = isAnual
-              ? `${String(item.billing_day).padStart(2, '0')}/${String(item.billing_month).padStart(2, '0')}`
+              ? relativeDay(next)
               : isInterval
                 ? (intervalDue
                     ? `Vencido · ${new Date(intervalDue.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
                     : 'Sin cargo pendiente')
-                : next.toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
+                : relativeDay(next)
             const progress    = isCuotas
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
               : null
@@ -577,9 +595,6 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                             {item.category.name}
                           </span>
                         )}
-                        {item.auto_register && !isCuotas && (
-                          <span className="text-[10px] bg-brand-50 text-brand-600 border border-brand-100 px-1.5 py-0.5 rounded-full font-medium">auto</span>
-                        )}
                         {isAnual && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                             style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}>anual</span>
@@ -602,6 +617,11 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                           </span>
                         )}
                       </div>
+                      {!isCompleted && (
+                        <p className="sm:hidden text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                          {isAnual ? 'Cobro' : 'Próximo'}: <span className="font-semibold">{nextLabel}</span>
+                        </p>
+                      )}
                       {!isCuotas && auditExpenses.length > 0 && (
                         <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
                           ≈ {formatCLP(annualized)}/año · {formatCLP(paidSoFar)} pagado en total
@@ -626,14 +646,14 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
                     </div>
 
-                    <span className={cn(
-                      'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
-                      item.is_active && !isCompleted ? 'bg-emerald-50 text-emerald-700'
-                        : isCompleted ? 'bg-gray-100 text-gray-500'
-                        : 'bg-amber-50 text-amber-700'
-                    )}>
-                      {isCompleted ? 'Completado' : item.is_active ? 'Activo' : 'Pausado'}
-                    </span>
+                    {(isCompleted || !item.is_active) && (
+                      <span className={cn(
+                        'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
+                        isCompleted ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-700'
+                      )}>
+                        {isCompleted ? 'Completado' : 'Pausado'}
+                      </span>
+                    )}
 
                     <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
                   </button>

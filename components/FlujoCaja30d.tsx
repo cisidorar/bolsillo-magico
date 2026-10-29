@@ -27,6 +27,8 @@ const ICONS = { income: Wallet, card: CreditCard, recurring: RefreshCw, trip: Pl
 export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithoutDueDay, muteRiskBanner }: Props) {
   const minBalance = events.length > 0 ? Math.min(...events.map(e => e.runningBalance)) : 0
   const hasRisk    = minBalance < 0
+  // Primer cargo que deja el saldo en negativo y cuánto falta para cubrirlo
+  const firstNeg   = events.find(e => e.runningBalance < 0) ?? null
 
   return (
     <div className="card overflow-hidden">
@@ -35,12 +37,12 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
           <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos 30 días</h2>
           <InfoTap explanation="Este saldo NO es tu cuenta bancaria real — parte de $0 hoy y solo suma/resta lo que sabes que va a entrar y salir. Si un evento cae en negativo, es que ese cargo llegaría antes que el ingreso que lo cubre, aunque hoy tengas plata guardada." />
           {hasRisk && muteRiskBanner && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold-ink)' }}>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--gold) 15%, var(--surface))', color: 'var(--gold-ink)' }}>
               Riesgo de saldo negativo
             </span>
           )}
         </div>
-        <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>flujo neto proyectado</span>
+        <span className="text-[11px]" style={{ color: 'var(--ink-2)' }}>flujo neto proyectado</span>
       </div>
 
       {events.length === 0 ? (
@@ -60,9 +62,11 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
         <>
           {hasRisk && !muteRiskBanner && (
             <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
-              <p className="text-xs font-semibold" style={{ color: 'var(--coral)' }}>
-                Tu flujo proyectado queda en negativo en algún punto de estos 30 días — revisa qué cargo podrías mover o adelantar un ingreso.
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+              <p className="text-xs font-semibold leading-snug" style={{ color: 'var(--coral-ink)' }}>
+                {firstNeg
+                  ? <>{fmtDay(firstNeg.date, firstNeg.daysUntil)}: {firstNeg.label} deja el saldo {formatCLP(Math.abs(firstNeg.runningBalance))} bajo cero. Cubre esa diferencia o mueve el cargo a después de tu próximo ingreso.</>
+                  : 'Tu flujo proyectado queda en negativo en algún punto de estos 30 días.'}
               </p>
             </div>
           )}
@@ -85,15 +89,15 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.label}</p>
-                    <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
+                    <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>
                       {fmtDay(e.date, e.daysUntil)}{e.sublabel ? ` · ${e.sublabel}` : ''}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold tabular-nums" style={{ color: isIncome ? 'var(--mint)' : 'var(--coral)' }}>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: isIncome ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                       {isIncome ? '+' : '−'}{formatCLP(Math.abs(e.amount))}
                     </p>
-                    <p className="text-[9px] tabular-nums" style={{ color: e.runningBalance < 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
+                    <p className="text-[11px] tabular-nums" style={{ color: e.runningBalance < 0 ? 'var(--coral-ink)' : 'var(--ink-2)' }}>
                       saldo {formatCLP(e.runningBalance)}
                     </p>
                   </div>

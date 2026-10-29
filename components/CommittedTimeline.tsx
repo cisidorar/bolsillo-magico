@@ -41,12 +41,17 @@ export default function CommittedTimeline({ months, income }: Props) {
       </div>
 
       <div className="px-5 pt-4 pb-2">
-        <div className="flex items-end justify-between" style={{ gap: '4px', minHeight: '90px' }}>
+        <div className="flex items-end justify-between" style={{ gap: '4px', minHeight: '104px' }}>
           {months.map((m, i) => {
-            const barH = m.total > 0 ? Math.max(6, Math.round((m.total / maxVal) * 84)) : 2
+            const barH = m.total > 0 ? Math.max(6, Math.round((m.total / maxVal) * 76)) : 2
             const isCurrent = i === 0
             return (
-              <div key={`${m.year}-${m.month}`} className="flex-1 flex flex-col items-center justify-end" style={{ height: '90px' }}>
+              <div key={`${m.year}-${m.month}`} className="flex-1 flex flex-col items-center justify-end" style={{ height: '104px' }}>
+                {m.total > 0 && (i === 0 || m.total !== months[i - 1].total) && (
+                  <span className="text-[10px] tabular-nums leading-none mb-1 whitespace-nowrap" style={{ color: i === 0 ? 'var(--ink)' : 'var(--ink-2)', fontWeight: i === 0 ? 700 : 500 }}>
+                    {formatCLP(m.total)}
+                  </span>
+                )}
                 <div
                   className="w-full rounded-t-[3px]"
                   style={{
