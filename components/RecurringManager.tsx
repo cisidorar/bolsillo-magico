@@ -10,7 +10,7 @@ import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
 import { suggestCategory, type CategorySuggestion } from '@/app/actions/suggest-category'
 import { annualizedCost, totalPaid, detectPriceChange, type AuditExpense } from '@/lib/recurring-audit'
-import { intervalDueDate } from '@/lib/recurring-due'
+import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import ServiceLogo from './ServiceLogo'
 import type { RecurringExpense, Category, PaymentMethod } from '@/types'
 
@@ -64,8 +64,8 @@ const INTERVAL_OPTIONS: { value: string; label: string }[] = [
   { value: '6', label: 'Cada 6 meses' },
 ]
 
-function nextBillingDate(billingDay: number, billingMonth?: number | null): Date {
-  const now = new Date()
+function nextBillingDate(billingDay: number, billingMonth?: number | null, from?: Date): Date {
+  const now = from ?? new Date()
   if (billingMonth) {
     const y    = now.getFullYear()
     const last = new Date(y, billingMonth, 0).getDate()
@@ -459,10 +459,28 @@ export default function RecurringManager({ items: init, categories, paymentMetho
   // Dentro de cada grupo, lo que se cobra primero va arriba (antes iban por
   // billing_day: lo de hoy quedaba al final y lo del 5 de noviembre primero).
   // Pausados y "cada N meses" (fecha propia) van después de los fechados.
-  const sortKey = (it: RecurringExpense): number =>
-    !it.is_active ? 2e15
-      : it.billing_month == null && (it.interval_months ?? 1) > 1 ? 1e15
-      : nextBillingDate(it.billing_day, it.billing_month).getTime()
+  // Un mensual ya registrado este mes (p. ej. auto-registrado hoy) no cobra de
+  // nuevo hasta el próximo: sin esto la fila decía "Hoy" para un cargo ya pagado.
+  const monthKeyNow = getNowChile().dateStr.slice(0, 7)
+  const lastPaidOf = (id: string): string | null => {
+    const exps = expensesByItem[id] ?? []
+    return exps.length > 0 ? exps.reduce((m, e) => (e.date > m ? e.date : m), exps[0].date) : null
+  }
+  const nextDateFor = (it: RecurringExpense): Date => {
+    const monthly = it.billing_month == null && (it.interval_months ?? 1) <= 1
+    if (monthly && lastPaidOf(it.id)?.slice(0, 7) === monthKeyNow) {
+      const t = new Date()
+      return nextBillingDate(it.billing_day, null, new Date(t.getFullYear(), t.getMonth() + 1, 1))
+    }
+    return nextBillingDate(it.billing_day, it.billing_month)
+  }
+  const sortKey = (it: RecurringExpense): number => {
+    if (!it.is_active) return 2e15
+    if (it.billing_month == null && (it.interval_months ?? 1) > 1) {
+      return new Date(projectedIntervalDate(it.interval_months, lastPaidOf(it.id), it.created_at).date + 'T12:00:00').getTime()
+    }
+    return nextDateFor(it).getTime()
+  }
   for (const g of ['mensuales', 'cuotas', 'anuales'] as const) groups[g].sort((a, b) => sortKey(a) - sortKey(b))
   const groupOrder: GroupKey[] = ['mensuales', 'cuotas', 'anuales', 'completados']
   const [collapsedGroups, setCollapsedGroups] = useState<Set<GroupKey>>(new Set(['completados']))
@@ -535,7 +553,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               ? intervalDueDate(item.interval_months, lastPaidDate, item.created_at, getNowChile().dateStr)
               : null
 
-            const next        = nextBillingDate(item.billing_day, item.billing_month)
+            const next        = nextDateFor(item)
             // Relativo cuando es cercano (Hoy / Mañana / En N días): "29 oct 2026"
             // obligaba a restar fechas para saber si el cargo era hoy.
             const relativeDay = (d: Date): string => {
@@ -551,7 +569,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               : isInterval
                 ? (intervalDue
                     ? `Vencido · ${new Date(intervalDue.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}`
-                    : 'Sin cargo pendiente')
+                    : relativeDay(new Date(projectedIntervalDate(item.interval_months, lastPaidDate, item.created_at).date + 'T12:00:00')))
                 : relativeDay(next)
             const progress    = isCuotas
               ? Math.min((item.paid_installments ?? 0) / item.total_installments!, 1)
