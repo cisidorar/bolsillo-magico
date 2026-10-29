@@ -1946,26 +1946,6 @@ export default async function AnalisisPage({
       {!isAnual && !isPatrimonio && (() => {
         return (
           <>
-        {/* ── Veredicto del mes: una frase con lo esencial antes de las cifras ── */}
-        {totalSelected > 0 && (() => {
-          const gap = pace?.gap ?? null
-          const first = isCurrentMonth && projection !== null
-            ? `Cerrarás el mes en ${formatCLP(projection)}${gap === null ? '' : gap > 0 ? `, ${formatCLP(gap)} sobre tu presupuesto` : `, ${formatCLP(Math.abs(gap))} bajo tu presupuesto`}.`
-            : `Gastaste ${formatCLP(totalSelected)} en ${monthName(month)}.`
-          const names = (l: { name: string }[]) => l.map(c => c.name).join(' y ')
-          const ups = drivers.up.slice(0, 2)
-          const downs = drivers.down.slice(0, 1)
-          const second = [
-            ups.length > 0 ? `Subió ${names(ups)}` : null,
-            downs.length > 0 ? `bajó ${names(downs)}` : null,
-          ].filter(Boolean).join('; ')
-          return (
-            <p className="text-base lg:text-lg font-semibold leading-snug mb-4" style={{ color: 'var(--ink)' }}>
-              {first}{second ? ` ${second.charAt(0).toUpperCase()}${second.slice(1)} vs. ${prevMonthName}.` : ''}
-            </p>
-          )
-        })()}
-
         {/* ── R1: Hero — Flujo del mes absorbe los KPIs ───────────────────────── */}
         {/* ── Flujo del mes: sueldo → gastado / invertido / líquido (A1/A2) ───── */}
         {(totalSelected > 0 || investedThisMonth > 0 || prevMonthIncome > 0) && (() => {
@@ -1982,6 +1962,27 @@ export default async function AnalisisPage({
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Flujo del mes</p>
                 <InvestGoalEditor userId={user!.id} goal={monthlyInvestGoal} compact />
               </div>
+
+              {/* Cierre proyectado: la respuesta a "¿cómo voy?" antes de las cifras */}
+              {isCurrentMonth && projection !== null && (
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-2)' }}>Al ritmo actual cerrarás en</p>
+                  <div className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
+                    <p className="text-2xl lg:text-3xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(projection)}</p>
+                    {pace?.gap != null && (
+                      pace.gap > 0 ? (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                          {formatCLP(pace.gap)} sobre tu presupuesto
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
+                          {formatCLP(Math.abs(pace.gap))} bajo tu presupuesto
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="h-3 rounded-full overflow-hidden flex mb-4" style={{ background: 'var(--surface-2)' }}>
                 {spentPct > 0 && <div style={{ width: `${spentPct}%`, background: '#FF6F61' }} />}
