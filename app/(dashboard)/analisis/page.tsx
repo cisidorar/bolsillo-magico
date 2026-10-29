@@ -20,6 +20,9 @@ import { buildWealthProjectionTable } from '@/lib/wealth-projection'
 import { fetchClIpcSeries, toTodayPesos } from '@/lib/cl-indicators'
 import RealPesosToggle from '@/components/RealPesosToggle'
 import WeekdayBreakdown from '@/components/WeekdayBreakdown'
+import CategoryDrivers from '@/components/CategoryDrivers'
+import SpendingPatterns from '@/components/SpendingPatterns'
+import { categoryDrivers, monthPace, findAnomalies, topMerchants, categoryBaseline } from '@/lib/analysis-drivers'
 import { earnedSoFar } from '@/lib/savings-accounts'
 import { earnedToDate, withoutSuperseded } from '@/lib/term-deposits'
 import { countsAsEmergencyFund, emergencyFundNote } from '@/lib/emergency-fund'
@@ -537,6 +540,23 @@ export default async function AnalisisPage({
     ? Math.round(((variableSpentSoFar - topExpense!.amount) / now.getDate()) * daysInMonth)
       + recurringSpentSoFar + fixedStillDueThisMonth + topExpense!.amount
     : null
+  // Qué categorías explican el cambio vs. el mes anterior (misma ventana
+  // pro-rata que `delta`) y ritmo del mes contra el presupuesto.
+  const prevByCat: Record<string, number> = {}
+  for (const e of prevExpensesForDelta) {
+    if (e.category) prevByCat[e.category.id] = (prevByCat[e.category.id] ?? 0) + e.amount
+  }
+  const drivers = categoryDrivers(catSummary, prevByCat)
+  const anomalies = findAnomalies(typedExpenses, selectedKey)
+  const merchants = topMerchants(typedExpenses, selectedKey, prevMonthKey2)
+  // Línea base por categoría (promedio de los meses previos de la ventana). En el
+  // mes en curso se compara contra la fracción del promedio que ya "toca" a hoy.
+  const catBaseline = categoryBaseline(typedExpenses, selectedKey)
+  const monthFraction = isCurrentMonth ? now.getDate() / new Date(year, month, 0).getDate() : 1
+  const pace = isCurrentMonth
+    ? monthPace({ budget: globalBudget, spent: totalSelected, projection, fixedStillDue: fixedStillDueThisMonth, day: now.getDate(), daysInMonth })
+    : null
+
   const projInflatedByTop = projection !== null && projectionWithoutTop !== null && globalBudget !== null
     && projection > globalBudget && projectionWithoutTop <= globalBudget * 1.05
 
@@ -1896,11 +1916,6 @@ export default async function AnalisisPage({
 
       {/* ── Vista mensual ─────────────────────────────────────────────────────── */}
       {!isAnual && !isPatrimonio && (() => {
-        // Donut chart helpers
-        const donutR    = 68
-        const donutC    = 2 * Math.PI * donutR  // ≈ 427
-        const donutFill = Math.round((healthScore / 100) * donutC)
-
         return (
           <>
         {/* ── R1: Hero — Flujo del mes absorbe los KPIs ───────────────────────── */}
@@ -1940,13 +1955,13 @@ export default async function AnalisisPage({
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#FF6F61' }}>
+                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: 'var(--coral-ink)' }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#FF6F61' }} /> Gastado
                   </p>
                   <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>
                     {formatCLP(spent)}
                     {delta !== null && (
-                      <span className="text-[10px] font-bold ml-1.5" style={{ color: delta > 0 ? '#FF6F61' : '#1FBE8D' }}>
+                      <span className="text-[10px] font-bold ml-1.5" style={{ color: delta > 0 ? 'var(--coral-ink)' : 'var(--mint-ink)' }}>
                         {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}%
                       </span>
                     )}
@@ -1954,12 +1969,12 @@ export default async function AnalisisPage({
                   <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: '#1FBE8D' }}>
+                  <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: 'var(--mint-ink)' }}>
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#1FBE8D' }} /> Invertido
                   </p>
                   <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(invest)}</p>
                   {monthlyInvestGoal !== null && monthlyInvestGoal > 0 ? (
-                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: goalMet ? '#1FBE8D' : 'var(--ink-3)' }}>
+                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: goalMet ? 'var(--mint-ink)' : 'var(--ink-3)' }}>
                       {goalMet
                         ? `Meta cumplida${investStreak > 0 ? ` · ${investStreak + 1} meses seguidos` : ''}`
                         : `Faltan ${formatCLP(Math.max(0, monthlyInvestGoal - invest))} para tu meta`}
@@ -1973,7 +1988,7 @@ export default async function AnalisisPage({
                     <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#4D93FF' }} /> Líquido
                   </p>
                   {liquidReal !== null
-                    ? <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: liquidReal >= 0 ? 'var(--ink)' : '#FF6F61' }}>
+                    ? <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: liquidReal >= 0 ? 'var(--ink)' : 'var(--coral-ink)' }}>
                         {liquidReal < 0 ? '-' : ''}{formatCLP(Math.abs(liquidReal))}
                       </p>
                     : <p className="text-sm lg:text-base font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>—</p>
@@ -1981,11 +1996,81 @@ export default async function AnalisisPage({
                 </div>
               </div>
 
+              {/* Ritmo del mes: cierre proyectado, margen diario y fijo vs. variable */}
+              {totalSelected > 0 && (
+                <div className="mt-5 pt-1">
+                  {isCurrentMonth && projection !== null && pace && (
+                    <>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
+                          Al ritmo actual cerrarás en <span className="font-extrabold tabular-nums">{formatCLP(projection)}</span>
+                        </p>
+                        {pace.gap !== null && (
+                          pace.gap > 0 ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                              {formatCLP(pace.gap)} sobre tu presupuesto
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
+                              {formatCLP(Math.abs(pace.gap))} bajo tu presupuesto
+                            </span>
+                          )
+                        )}
+                      </div>
+                      {globalBudget !== null && pace.budgetUsedPct !== null && (
+                        <div className="mt-3">
+                          <div
+                            className="relative h-2 rounded-full"
+                            style={{ background: 'var(--surface-2)' }}
+                            role="img"
+                            aria-label={`Llevas ${pace.budgetUsedPct}% del presupuesto y va el ${pace.expectedPct}% del mes`}
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, pace.budgetUsedPct)}%`,
+                                background: pace.budgetUsedPct > pace.expectedPct + 10 ? 'var(--gold)' : 'var(--primary)',
+                              }}
+                            />
+                            <div
+                              className="absolute -top-1 -bottom-1 w-0.5 rounded-full"
+                              style={{ left: `${pace.expectedPct}%`, background: 'var(--ink)' }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-1.5 text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            <span>{pace.budgetUsedPct}% del presupuesto usado</span>
+                            <span>va el {pace.expectedPct}% del mes</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div className="grid grid-cols-3 gap-3 mt-4">
+                    {isCurrentMonth && pace?.allowancePerDay != null && (
+                      <div>
+                        <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>Margen por día</p>
+                        <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(pace.allowancePerDay)}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>{isCurrentMonth && fixedStillDueThisMonth > 0 ? 'Fijo (con pendientes)' : 'Fijo'}</p>
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                        {formatCLP(recurringSpentSoFar + (isCurrentMonth ? fixedStillDueThisMonth : 0))}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>Variable</p>
+                      <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(variableSpentSoFar)}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* A3: aviso temprano — el gasto va bien vs el presupuesto, pero al ritmo
                   actual no alcanzaría a completarse la meta de inversión del mes */}
               {isCurrentMonth && investGoalAtRisk && disposableIncome !== null && (
                 <div className="mt-4 rounded-2xl p-3 flex items-start gap-2.5" style={{ background: 'rgba(255,193,60,0.12)' }}>
-                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FFC23C' }} />
+                  <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--gold-ink)' }} />
                   <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink-2)' }}>
                     A este ritmo proyectas gastar <span style={{ fontWeight: 700 }}>{formatCLP(projection ?? 0)}</span>, por sobre los{' '}
                     <span style={{ fontWeight: 700 }}>{formatCLP(disposableIncome)}</span> que te dejarían completar tu meta de aporte este mes.
@@ -1996,182 +2081,97 @@ export default async function AnalisisPage({
           )
         })()}
 
-        {/* ── Health score panel ──────────────────────────────────────────────── */}
-        {totalSelected > 0 && (
-          <div className="card mb-5 p-5 lg:p-6" style={{ background: 'var(--surface-2)' }}>
-            {/* Mobile: stacked / Desktop: side-by-side */}
-            <div className="flex flex-col lg:flex-row lg:gap-8 lg:items-center">
-              {/* Donut + badge */}
-              <div className="flex items-center gap-5 lg:flex-col lg:items-center lg:gap-3 mb-5 lg:mb-0 lg:flex-shrink-0">
-                <div className="relative" style={{ width: 160, height: 160 }}>
-                  <svg width="160" height="160" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r={donutR} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="11" />
-                    <circle
-                      cx="80" cy="80" r={donutR} fill="none"
-                      stroke={healthColor} strokeWidth="11"
-                      strokeLinecap="round"
-                      strokeDasharray={`${donutFill} ${donutC}`}
-                      transform="rotate(-90 80 80)"
-                    />
+        {/* ── Qué cambió: categorías que explican la variación vs. mes anterior ── */}
+        <CategoryDrivers
+          drivers={drivers}
+          prevLabel={prevMonthName}
+          prevTotal={prevTotal}
+          partial={isCurrentMonth}
+          month={month}
+          year={year}
+        />
+
+        {/* ── Salud financiera: franja compacta (puntaje + señales fuera de verde) ── */}
+        {totalSelected > 0 && (() => {
+          const projOver = projection !== null && effectiveBudget !== null && projection > effectiveBudget * 1.1 && !projInflatedByTop
+          const ahorroGreen     = scoreRate !== null && scoreRate >= 10
+          const fondoGreen      = monthsCovered !== null && monthsCovered >= 3
+          const compromisoGreen = commitRatio !== null ? commitRatio < 20 : commitNext === 0
+          const disciplinaGreen = numExcedidas === 0 && !projOver && !investGoalAtRisk
+          type Tone = 'coral' | 'gold' | 'neutral'
+          const chips: { key: string; text: string; tone: Tone; href?: string }[] = []
+          if (!ahorroGreen) chips.push({
+            key: 'ahorro',
+            tone: scoreRate === null ? 'neutral' : scoreRate >= 0 ? 'gold' : 'coral',
+            text: scoreRate === null ? `Registra el sueldo de ${prevMonthName} para medir tu ahorro`
+              : scoreRate >= 0 ? `Ahorro bajo: ${scoreRate}% del sueldo ${isCurrentMonth ? 'proyectado' : 'guardado'}`
+              : `Ahorro negativo: ${scoreRate}% del sueldo`,
+          })
+          if (!fondoGreen) chips.push({
+            key: 'fondo', href: '/analisis?view=patrimonio',
+            tone: monthsCovered === null ? 'neutral' : 'gold',
+            text: monthsCovered === null ? 'Registra tus ahorros para medir tu fondo'
+              : `Fondo cubre ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} (meta 3)`,
+          })
+          if (!compromisoGreen) chips.push({
+            key: 'deuda', href: '/analisis?view=patrimonio',
+            tone: commitRatio === null ? 'neutral' : commitRatio > 35 ? 'coral' : 'gold',
+            text: commitRatio === null ? 'Registra tu ingreso para medir lo comprometido'
+              : `${commitRatio}% del ingreso ya comprometido (sano: bajo 35%)`,
+          })
+          if (!disciplinaGreen) chips.push({
+            key: 'presupuesto',
+            tone: numExcedidas > 0 ? 'coral' : 'gold',
+            text: numExcedidas > 0
+              ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}: +${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} sobre el límite`
+              : investGoalAtRisk ? 'Tu meta de aporte está en riesgo a este ritmo'
+              : projection !== null ? `Cierre proyectado ${formatCLP(projection)}, sobre tu presupuesto` : 'Proyección sobre presupuesto',
+          })
+          const tone = {
+            coral:   { bg: 'rgba(255,111,97,0.12)',  fg: 'var(--coral-ink)' },
+            gold:    { bg: 'rgba(255,194,60,0.15)',  fg: 'var(--gold-ink)' },
+            neutral: { bg: 'var(--surface-2)',       fg: 'var(--ink-2)' },
+          } as const
+          const greenCount = 4 - chips.length
+          return (
+            <div className="card p-4 lg:p-5 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }} role="img" aria-label={`Salud financiera ${healthScore} de 100, ${healthLabel}`}>
+                  <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden>
+                    <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface-2)" strokeWidth="5" />
+                    <circle cx="26" cy="26" r="22" fill="none" stroke={healthColor} strokeWidth="5" strokeLinecap="round"
+                      strokeDasharray={`${Math.round((healthScore / 100) * 2 * Math.PI * 22)} ${Math.round(2 * Math.PI * 22)}`}
+                      transform="rotate(-90 26 26)" />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-[38px] font-extrabold leading-none" style={{ color: 'var(--ink)' }}>{healthScore}</span>
-                    <span className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--ink-3)' }}>de 100</span>
-                  </div>
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{healthScore}</span>
                 </div>
-                <div className="lg:text-center">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
-                    style={{ background: `${healthColor}20`, color: healthColor }}>
-                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: healthColor }} />
-                    {healthLabel}
-                  </span>
-                  {/* Summary visible on mobile only */}
-                  <p className="text-xs mt-2 leading-relaxed lg:hidden" style={{ color: 'var(--ink-2)' }}>
-                    {healthSummary}
-                  </p>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Salud financiera · {healthLabel}</p>
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{healthSummary}</p>
                 </div>
               </div>
-
-              {/* Signals — R1: solo se muestran las señales fuera de verde; las
-                  verdes se resumen en una línea. La señal de aporte ya no tiene
-                  card propia (vive en el hero Flujo del mes). */}
-              <div className="flex-1 min-w-0">
-                <div className="hidden lg:block mb-3">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu salud financiera</p>
-                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                    {healthSummary}
-                  </p>
+              {chips.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {chips.map(c => {
+                    const cls = 'inline-flex items-center text-[11px] font-bold px-2.5 py-1.5 rounded-full leading-snug'
+                    const st = { background: tone[c.tone].bg, color: tone[c.tone].fg }
+                    return c.href
+                      ? <Link key={c.key} href={c.href} className={cls} style={st}>{c.text}</Link>
+                      : <span key={c.key} className={cls} style={st}>{c.text}</span>
+                  })}
                 </div>
-                {(() => {
-                  const projOver = projection !== null && effectiveBudget !== null && projection > effectiveBudget * 1.1 && !projInflatedByTop
-                  const ahorroGreen     = scoreRate !== null && scoreRate >= 10
-                  const fondoGreen      = monthsCovered !== null && monthsCovered >= 3
-                  const compromisoGreen = commitRatio !== null ? commitRatio < 20 : commitNext === 0
-                  const disciplinaGreen = numExcedidas === 0 && !projOver && !investGoalAtRisk
-                  const greenNames: string[] = []
-                  if (ahorroGreen)     greenNames.push('Tasa de ahorro')
-                  if (fondoGreen)      greenNames.push('Fondo de emergencia')
-                  if (compromisoGreen) greenNames.push('Deuda comprometida')
-                  if (disciplinaGreen) greenNames.push('Presupuestos')
-
-                  return (
-                    <>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                        {/* Tasa de ahorro — solo si no está en verde */}
-                        {!ahorroGreen && (
-                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: scoreRate === null ? 'rgba(148,163,184,0.15)' : scoreRate >= 0 ? 'rgba(255,193,60,0.18)' : 'rgba(255,111,97,0.18)' }}>
-                                <PiggyBank className="w-3.5 h-3.5"
-                                  style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }} />
-                              </div>
-                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                                {scoreRate === null ? 'Tasa de ahorro' : scoreRate >= 0 ? 'Ahorro bajo' : 'Gastas más de lo que ganas'}
-                              </p>
-                            </div>
-                            <p className="text-[10px] font-semibold pl-9" style={{ color: scoreRate === null ? 'var(--ink-3)' : scoreRate >= 0 ? '#FFC23C' : '#FF6F61' }}>
-                              {scoreRate !== null
-                                ? `${scoreRate}% del sueldo ${isCurrentMonth ? 'proyectado al cierre' : 'quedó guardado'}`
-                                : `Registra tu ingreso de ${prevMonthName} para medirla`}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Fondo de emergencia — solo si no está en verde */}
-                        {!fondoGreen && (
-                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: monthsCovered === null ? 'rgba(148,163,184,0.15)' : 'rgba(255,193,60,0.18)' }}>
-                                <ShieldCheck className="w-3.5 h-3.5"
-                                  style={{ color: monthsCovered === null ? 'var(--ink-3)' : '#FFC23C' }} />
-                              </div>
-                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                                {monthsCovered === null ? 'Fondo de emergencia' : 'Fondo en construcción'}
-                              </p>
-                            </div>
-                            <p className="text-[10px] font-semibold pl-9" style={{ color: monthsCovered === null ? 'var(--ink-3)' : '#FFC23C' }}>
-                              {monthsCovered !== null
-                                ? `Tus ahorros cubren ${monthsCovered.toLocaleString('es-CL', { maximumFractionDigits: 1 })} mes${monthsCovered >= 2 ? 'es' : ''} de gasto`
-                                : 'Registra tus ahorros para medirlo'}
-                              {' · '}
-                              <Link href="/analisis?view=patrimonio" className="underline" style={{ color: 'var(--primary)' }}>Ver patrimonio</Link>
-                            </p>
-                            {suggestDivertToSavings && (
-                              <p className="text-[10px] mt-1.5 pl-9 leading-relaxed" style={{ color: '#FFC23C' }}>
-                                Ya cumpliste tu aporte: considera destinar el próximo a ahorro líquido antes de seguir invirtiendo.
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Deuda comprometida — solo si no está en verde */}
-                        {!compromisoGreen && (
-                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: commitRatio === null ? 'rgba(148,163,184,0.15)' : commitRatio > 35 ? 'rgba(255,111,97,0.18)' : 'rgba(255,193,60,0.18)' }}>
-                                <CalendarClock className="w-3.5 h-3.5"
-                                  style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : '#FFC23C' }} />
-                              </div>
-                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                                {commitRatio === null ? 'Deuda comprometida' : commitRatio > 35 ? 'Compromiso alto' : 'Compromiso moderado'}
-                              </p>
-                            </div>
-                            <p className="text-[10px] font-semibold pl-9" style={{ color: commitRatio === null ? 'var(--ink-3)' : commitRatio > 35 ? '#FF6F61' : '#FFC23C' }}>
-                              {commitRatio !== null
-                                ? `${commitRatio}% del ingreso ya está comprometido (sano: <35%)`
-                                : 'Registra tu ingreso para medirla'}
-                              {' · '}
-                              <Link href="/analisis?view=patrimonio" className="underline" style={{ color: 'var(--primary)' }}>Ver detalle</Link>
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Disciplina de presupuesto — solo si no está en verde (A3: contra el disponible real) */}
-                        {!disciplinaGreen && (
-                          <div className="rounded-2xl p-3" style={{ background: 'var(--surface)' }}>
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: numExcedidas > 0 ? 'rgba(255,111,97,0.18)' : 'rgba(255,193,60,0.18)' }}>
-                                {numExcedidas > 0
-                                  ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#FF6F61' }} />
-                                  : <Clock className="w-3.5 h-3.5" style={{ color: '#FFC23C' }} />}
-                              </div>
-                              <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--ink)' }}>
-                                {numExcedidas > 0
-                                  ? `${numExcedidas} categoría${numExcedidas > 1 ? 's' : ''} excedida${numExcedidas > 1 ? 's' : ''}`
-                                  : investGoalAtRisk ? 'Meta de aporte en riesgo'
-                                  : 'Proyección sobre presupuesto'}
-                              </p>
-                            </div>
-                            <p className="text-[10px] font-semibold pl-9" style={{ color: numExcedidas > 0 ? '#FF6F61' : '#FFC23C' }}>
-                              {numExcedidas > 0
-                                ? `+${formatCLP(catsOverBudget.reduce((s, c) => s + c.total - (catBudgetMap.get(c.id) ?? 0), 0))} fuera de límite`
-                                : investGoalAtRisk && projection !== null ? `${formatCLP(projection)} estimado — no alcanza para tu meta de aporte`
-                                : projection !== null ? `${formatCLP(projection)} estimado al cierre` : ''}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Resumen de señales en verde */}
-                      {greenNames.length > 0 && (
-                        <div className={`flex items-center gap-2 ${greenNames.length === 4 ? '' : 'mt-2'} rounded-2xl px-3 py-2.5`} style={{ background: 'rgba(31,190,141,0.10)' }}>
-                          <Check className="w-4 h-4 flex-shrink-0" style={{ color: '#1FBE8D' }} />
-                          <p className="text-[11px] font-semibold leading-relaxed" style={{ color: '#1FBE8D' }}>
-                            {greenNames.length === 4 ? 'Las 4 señales en orden' : `En orden: ${greenNames.join(' · ')}`}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
+              )}
+              {greenCount > 0 && (
+                <p className="text-[11px] font-semibold mt-3 flex items-center gap-1.5" style={{ color: 'var(--mint-ink)' }}>
+                  <Check className="w-3.5 h-3.5" aria-hidden />
+                  {greenCount === 4 ? 'Las 4 señales en orden' : `${greenCount} de 4 señales en orden`}
+                </p>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
+
+        <SpendingPatterns anomalies={anomalies} merchants={merchants} prevLabel={prevMonthName} />
 
         {/* Trigger AI analysis in background when there are expenses */}
         {totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
@@ -2347,10 +2347,12 @@ export default async function AnalisisPage({
                           const [mYear, mMonth] = m.key.split('-').map(Number)
                           return (
                             <Link key={m.key} href={`/analisis?month=${mMonth}&year=${mYear}`}
+                              aria-current={isSelected ? 'page' : undefined}
+                              aria-label={`${m.label} ${mYear}: ${formatCLP(m.total)}${avg > 0 && m.total > 0 ? `, ${m.total >= avg ? Math.round(((m.total - avg) / avg) * 100) + '% sobre' : Math.round(((avg - m.total) / avg) * 100) + '% bajo'} el promedio` : ''}`}
                               className="flex-1 flex flex-col items-center gap-0.5 group h-full justify-end">
                               <span className="text-[9px] tabular-nums leading-none font-semibold mb-0.5 whitespace-nowrap"
-                                style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-3)' }}>
-                                {m.total > 0 ? formatCLP(m.total) : ''}
+                                style={{ color: isSelected ? 'var(--primary)' : 'var(--ink-2)' }}>
+                                {m.total > 0 && (isSelected || m.total === maxMonth) ? formatCLP(m.total) : ''}
                               </span>
                               <div
                                 className={`w-full rounded-t-xl transition-all group-active:opacity-70 ${isSelected ? 'shadow-[0_4px_14px_rgba(77,147,255,0.2)]' : ''} ${barClass}`}
@@ -2379,13 +2381,7 @@ export default async function AnalisisPage({
                 "me gustaria que esto siempre salga descomprimido". Se saca el
                 plegado: mismo encabezado, pero el contenido queda siempre visible. */}
             <div>
-              <div className="card px-4 py-3 flex items-center justify-between">
-                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Más detalle del mes</p>
-                <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
-                  Con qué pagaste · Cuándo gastas
-                </span>
-              </div>
-              <div className="space-y-5 mt-5">
+              <div className="space-y-5">
 
             {/* Medios de pago */}
             <div className="card p-4">
@@ -2474,6 +2470,15 @@ export default async function AnalisisPage({
                     : budgetPct !== null && budgetPct >= 80 ? '#FFC23C'
                     : c.color
                   const CatIcon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+                  // Ritmo: ya usaste bastante más del límite de lo que "toca" a hoy
+                  const paceHigh = isCurrentMonth && limit && !over && pace !== null && budgetPct !== null && budgetPct - pace.expectedPct >= 20 && now.getDate() >= 5
+                  // vs. lo habitual de esta categoría (promedio de meses previos)
+                  const base = catBaseline[c.id]
+                  const baseExpected = base ? base.avg * monthFraction : 0
+                  const aboveBase = base && (!isCurrentMonth || now.getDate() >= 7) && c.total >= baseExpected * 1.8 && c.total - baseExpected >= 20000
+                  const baseMult = base && baseExpected > 0 ? Math.round((c.total / baseExpected) * 10) / 10 : null
+                  const prevCatTotal = prevByCat[c.id] ?? 0
+                  const catDelta = c.total - prevCatTotal
                   return (
                     <Link
                       key={c.id}
@@ -2501,7 +2506,7 @@ export default async function AnalisisPage({
                             )}
                           </div>
                           {over && !isAllRecurring && (
-                            <p className="text-[10px] font-semibold" style={{ color: '#FF6F61' }}>
+                            <p className="text-[10px] font-semibold" style={{ color: 'var(--coral-ink)' }}>
                               +{formatCLP(c.total - limit!)} sobre el límite
                             </p>
                           )}
@@ -2512,6 +2517,25 @@ export default async function AnalisisPage({
                             <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>
                               {totalSelected > 0 ? `${pct(c.total, totalSelected)}% del total` : ''}
                             </p>
+                          )}
+                          {(paceHigh || aboveBase || (prevTotal > 0 && Math.abs(catDelta) >= 1000)) && (
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                              {prevTotal > 0 && Math.abs(catDelta) >= 1000 && (
+                                <span className="text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                                  {catDelta > 0 ? <ArrowUp className="inline w-3 h-3 -mt-0.5" aria-hidden /> : <ArrowDown className="inline w-3 h-3 -mt-0.5" aria-hidden />} {formatCLP(Math.abs(catDelta))} vs. {prevMonthName}
+                                </span>
+                              )}
+                              {aboveBase && baseMult !== null && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                                  {baseMult.toLocaleString('es-CL')}× tu promedio
+                                </span>
+                              )}
+                              {paceHigh && pace && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                                  {budgetPct}% usado, va el {pace.expectedPct}% del mes
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="text-right flex-shrink-0">
