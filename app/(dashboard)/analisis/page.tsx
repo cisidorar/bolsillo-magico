@@ -1984,6 +1984,48 @@ export default async function AnalisisPage({
                 </div>
               )}
 
+              {/* Ritmo del mes: cierre proyectado, margen diario y fijo vs. variable */}
+              {totalSelected > 0 && (
+                <div className="mb-6">
+                  {isCurrentMonth && projection !== null && pace && (
+                    <>
+                      {globalBudget !== null && pace.budgetUsedPct !== null && (
+                        <div>
+                          <div
+                            className="relative h-2 rounded-full"
+                            style={{ background: 'var(--surface-2)' }}
+                            role="img"
+                            aria-label={`Llevas ${pace.budgetUsedPct}% del presupuesto y va el ${pace.expectedPct}% del mes`}
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${Math.min(100, pace.budgetUsedPct)}%`,
+                                background: pace.budgetUsedPct > pace.expectedPct + 10 ? 'var(--gold)' : 'var(--primary)',
+                              }}
+                            />
+                            <div
+                              className="absolute -top-1 -bottom-1 w-0.5 rounded-full"
+                              style={{ left: `${pace.expectedPct}%`, background: 'var(--ink)' }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-1.5 text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                            <span>{pace.budgetUsedPct}% del presupuesto usado</span>
+                            <span>va el {pace.expectedPct}% del mes</span>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <p className="text-[11px] mt-3 tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                    {isCurrentMonth && pace?.allowancePerDay != null && <>Margen {formatCLP(pace.allowancePerDay)}/día · </>}
+                    Fijo {formatCLP(recurringSpentSoFar + (isCurrentMonth ? fixedStillDueThisMonth : 0))} · Variable {formatCLP(variableSpentSoFar)}
+                  </p>
+                </div>
+              )}
+
+
+              <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--ink-2)' }}>Cómo se repartió tu sueldo</p>
               <div className="h-3 rounded-full overflow-hidden flex mb-4" style={{ background: 'var(--surface-2)' }}>
                 {spentPct > 0 && <div style={{ width: `${spentPct}%`, background: '#FF6F61' }} />}
                 {investPct > 0 && <div style={{ width: `${investPct}%`, background: '#1FBE8D' }} />}
@@ -2044,46 +2086,6 @@ export default async function AnalisisPage({
                   }
                 </div>
               </div>
-
-              {/* Ritmo del mes: cierre proyectado, margen diario y fijo vs. variable */}
-              {totalSelected > 0 && (
-                <div className="mt-5 pt-1">
-                  {isCurrentMonth && projection !== null && pace && (
-                    <>
-                      {globalBudget !== null && pace.budgetUsedPct !== null && (
-                        <div>
-                          <div
-                            className="relative h-2 rounded-full"
-                            style={{ background: 'var(--surface-2)' }}
-                            role="img"
-                            aria-label={`Llevas ${pace.budgetUsedPct}% del presupuesto y va el ${pace.expectedPct}% del mes`}
-                          >
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${Math.min(100, pace.budgetUsedPct)}%`,
-                                background: pace.budgetUsedPct > pace.expectedPct + 10 ? 'var(--gold)' : 'var(--primary)',
-                              }}
-                            />
-                            <div
-                              className="absolute -top-1 -bottom-1 w-0.5 rounded-full"
-                              style={{ left: `${pace.expectedPct}%`, background: 'var(--ink)' }}
-                            />
-                          </div>
-                          <div className="flex justify-between mt-1.5 text-[11px] tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                            <span>{pace.budgetUsedPct}% del presupuesto usado</span>
-                            <span>va el {pace.expectedPct}% del mes</span>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <p className="text-[11px] mt-3 tabular-nums" style={{ color: 'var(--ink-2)' }}>
-                    {isCurrentMonth && pace?.allowancePerDay != null && <>Margen {formatCLP(pace.allowancePerDay)}/día · </>}
-                    Fijo {formatCLP(recurringSpentSoFar + (isCurrentMonth ? fixedStillDueThisMonth : 0))} · Variable {formatCLP(variableSpentSoFar)}
-                  </p>
-                </div>
-              )}
 
             </div>
           )
@@ -2449,7 +2451,14 @@ export default async function AnalisisPage({
                 </div>
               </div>
               <div>
-                {catSummary.map((c, idx) => {
+                {[...catSummary].sort((a, b) => {
+                  const overAmt = (c: typeof a) => {
+                    const l = catBudgetMap.get(c.id) ?? null
+                    const rec = recurringByCat[c.id] ?? 0
+                    return l && c.total > l && !(rec > 0 && rec >= c.total) ? c.total - l : 0
+                  }
+                  return overAmt(b) - overAmt(a) || b.total - a.total
+                }).map((c, idx) => {
                   const limit        = catBudgetMap.get(c.id) ?? null
                   const over         = limit ? c.total > limit : false
                   const budgetPct    = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : null
