@@ -69,12 +69,6 @@ export default function CategoryDrivers({ drivers, prevLabel, prevTotal, partial
   const maxAbs = Math.max(...[...up, ...down].map(d => Math.abs(d.delta)), 1)
   const netPct = Math.round((netDelta / prevTotal) * 100)
 
-  const headline =
-    netDelta === 0 ? `Gastas lo mismo que en ${prevLabel}`
-    : explains !== null ? `${top.name} explica el ${explains}% del ${netDelta > 0 ? 'aumento' : 'cambio'}`
-    : netDelta > 0 ? `Gastas ${formatCLP(netDelta)} más que en ${prevLabel}`
-    : `Gastas ${formatCLP(Math.abs(netDelta))} menos que en ${prevLabel}`
-
   return (
     <div className="card p-4 lg:p-6 mb-5">
       <div className="flex items-start justify-between gap-3 mb-1">
@@ -91,7 +85,9 @@ export default function CategoryDrivers({ drivers, prevLabel, prevTotal, partial
           </span>
         </p>
       </div>
-      <p className="text-sm mt-3 mb-2" style={{ color: 'var(--ink)' }}>{headline}</p>
+      {explains !== null && (
+        <p className="text-sm mt-3 mb-2" style={{ color: 'var(--ink)' }}>{top.name} explica el {explains}% del aumento</p>
+      )}
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
         {up.length > 0 && (

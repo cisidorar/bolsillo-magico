@@ -571,6 +571,8 @@ export default async function AnalisisPage({
   const trendRising = isAnual ? risingCategories(typedExpenses, completeKeys) : []
   const trendMismatch = isAnual
     ? budgetMismatches(typedExpenses, completeKeys, Object.fromEntries(catBudgetMap))
+        // una categoría que está subiendo no debe pedir "bajar límite" a la vez
+        .filter(m => !trendRising.some(r => r.category.id === m.category.id))
     : []
   const monthFraction = isCurrentMonth ? now.getDate() / new Date(year, month, 0).getDate() : 1
   const pace = isCurrentMonth
@@ -1990,7 +1992,7 @@ export default async function AnalisisPage({
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* R1: el sueldo que financió el mes vive acá (antes era una KPI card aparte) */}
                 <div>
-                  <p className="text-[10px] font-semibold mb-0.5" style={{ color: 'var(--ink-3)' }}>Sueldo de {prevMonthName}</p>
+                  <p className="text-[11px] font-semibold mb-0.5" style={{ color: 'var(--ink-2)' }}>Sueldo de {prevMonthName}</p>
                   <IncomeEditor
                     userId={user!.id}
                     month={prevMonth}
@@ -2012,7 +2014,7 @@ export default async function AnalisisPage({
                       </span>
                     )}
                   </p>
-                  <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--ink-3)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
+                  <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--ink-2)' }}>vs. {prevMonthName} · {formatCLP(dailyAvg)}/día</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold flex items-center gap-1" style={{ color: 'var(--mint-ink)' }}>
@@ -2020,13 +2022,13 @@ export default async function AnalisisPage({
                   </p>
                   <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(invest)}</p>
                   {monthlyInvestGoal !== null && monthlyInvestGoal > 0 ? (
-                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: goalMet ? 'var(--mint-ink)' : 'var(--ink-3)' }}>
+                    <p className="text-[11px] mt-0.5 leading-snug" style={{ color: goalMet ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
                       {goalMet
                         ? `Meta cumplida${investStreak > 0 ? ` · ${investStreak + 1} meses seguidos` : ''}`
                         : `Faltan ${formatCLP(Math.max(0, monthlyInvestGoal - invest))} para tu meta`}
                     </p>
                   ) : (
-                    <p className="text-[9px] mt-0.5 leading-snug" style={{ color: 'var(--ink-3)' }}>Define una meta arriba para trackear cumplimiento</p>
+                    <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'var(--ink-2)' }}>Define una meta arriba para trackear cumplimiento</p>
                   )}
                 </div>
                 <div>
@@ -2037,7 +2039,7 @@ export default async function AnalisisPage({
                     ? <p className="text-sm lg:text-base font-extrabold tabular-nums mt-0.5" style={{ color: liquidReal >= 0 ? 'var(--ink)' : 'var(--coral-ink)' }}>
                         {liquidReal < 0 ? '-' : ''}{formatCLP(Math.abs(liquidReal))}
                       </p>
-                    : <p className="text-sm lg:text-base font-semibold mt-0.5" style={{ color: 'var(--ink-3)' }}>—</p>
+                    : <p className="text-sm lg:text-base font-semibold mt-0.5" style={{ color: 'var(--ink-2)' }}>—</p>
                   }
                 </div>
               </div>
@@ -2047,24 +2049,8 @@ export default async function AnalisisPage({
                 <div className="mt-5 pt-1">
                   {isCurrentMonth && projection !== null && pace && (
                     <>
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <p className="text-sm" style={{ color: 'var(--ink)' }}>
-                          Al ritmo actual cerrarás en <span className="font-extrabold tabular-nums">{formatCLP(projection)}</span>
-                        </p>
-                        {pace.gap !== null && (
-                          pace.gap > 0 ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full tabular-nums" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
-                              {formatCLP(pace.gap)} sobre tu presupuesto
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
-                              {formatCLP(Math.abs(pace.gap))} bajo tu presupuesto
-                            </span>
-                          )
-                        )}
-                      </div>
                       {globalBudget !== null && pace.budgetUsedPct !== null && (
-                        <div className="mt-3">
+                        <div>
                           <div
                             className="relative h-2 rounded-full"
                             style={{ background: 'var(--surface-2)' }}
@@ -2332,12 +2318,6 @@ export default async function AnalisisPage({
                         Promedio {avgLabel}/mes · meses completos
                       </p>
                     </div>
-                    {/* Max label */}
-                    {maxMonth > 1 && (
-                      <p className="text-[9px] font-medium tabular-nums mb-1" style={{ color: 'var(--ink-3)' }}>
-                        {formatCLP(maxMonth)}
-                      </p>
-                    )}
                     {/* Chart */}
                     <div className="relative" style={{ height: BAR_H + 24 }}>
                       {/* Dashed avg line */}

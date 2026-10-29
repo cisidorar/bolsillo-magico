@@ -442,8 +442,8 @@
 .dark .text-amber-500     { color: var(--gold) !important; }
 
 /* ── Chart bars ──────────────────────────────────────────────────────────── */
-.bar-inactive { background-color: var(--surface-2); }
-.dark .bar-inactive { background-color: var(--surface-2); }
+.bar-inactive { background-color: color-mix(in srgb, var(--primary) 18%, var(--surface-2)); }
+.dark .bar-inactive { background-color: color-mix(in srgb, var(--primary) 26%, var(--surface-2)); }
 .bar-current  { background-color: var(--primary); }
 .dark .bar-current  { background-color: var(--primary); }
 /* Mes de hoy quando NO es el mes seleccionado — un tinte más pálido que
