@@ -30,13 +30,15 @@ export default function PatrimonioHighlights({ idleDeposits, usdShare, growth }:
   })
 
   if (growth && growth.months >= 2) {
-    const fromReturns = growth.avgMonthly - growth.avgContribution
+    // Es historia, no una promesa: el cambio incluye ahorro que sumaste a mano,
+    // intereses y movimiento de precios; solo los aportes a inversión se
+    // pueden separar con certeza.
     rows.push({
       key: 'growth', tone: 'neutral',
-      title: `Creces ~${formatCLP(growth.avgMonthly)} al mes`,
+      title: `Tu patrimonio subió ~${formatCLP(growth.avgMonthly)} al mes`,
       body: growth.avgContribution > 0
-        ? `Promedio de ${growth.months} meses: ${formatCLP(growth.avgContribution)} son aportes tuyos y ${fromReturns >= 0 ? '+' : '−'}${formatCLP(Math.abs(fromReturns))} viene de rendimiento y otros movimientos.`
-        : `Promedio de los últimos ${growth.months} meses.`,
+        ? `Promedio de los últimos ${growth.months} meses. ${formatCLP(growth.avgContribution)} fueron aportes a inversión; el resto incluye ahorro que sumaste, intereses y movimiento de precios.`
+        : `Promedio de los últimos ${growth.months} meses; incluye ahorro que sumaste, intereses y movimiento de precios.`,
     })
   }
 
