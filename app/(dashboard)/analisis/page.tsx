@@ -23,6 +23,7 @@ import WeekdayBreakdown from '@/components/WeekdayBreakdown'
 import CategoryDrivers from '@/components/CategoryDrivers'
 import SpendingPatterns from '@/components/SpendingPatterns'
 import TrendInsights from '@/components/TrendInsights'
+import AnnualFlow from '@/components/AnnualFlow'
 import PatrimonioHighlights from '@/components/PatrimonioHighlights'
 import PatrimonioExtras from '@/components/PatrimonioExtras'
 import { liquidityLadder, gainSinceStart, activeLeases } from '@/lib/patrimonio-insights'
@@ -438,8 +439,14 @@ export default async function AnalisisPage({
   const yearDeltaRaw = prevYearTotal > 0 ? Math.round(((anualGrandTotal - prevYearTotal) / prevYearTotal) * 100) : null
   // Solo mostrar comparación si hay datos suficientes del año anterior y el delta es razonable (no primer año)
   const yearDelta = yearDeltaRaw !== null && prevYearMonthsWithData >= 10 && Math.abs(yearDeltaRaw) <= 300 ? yearDeltaRaw : null
-  const anualProjection = year === now.getFullYear() && now.getMonth() > 0
-    ? Math.round((anualGrandTotal / (now.getMonth() + 1)) * 12)
+  // El mes en curso está incompleto: meterlo en el promedio o en la proyección
+  // las subestima (octubre a medias baja el promedio de todo el año).
+  const completeRows = year === now.getFullYear() ? pastRows.filter(r => r.monthNum < now.getMonth() + 1) : pastRows
+  const anualAvgComplete = completeRows.length > 0
+    ? Math.round(completeRows.reduce((s, r) => s + r.total, 0) / completeRows.length)
+    : null
+  const anualProjection = year === now.getFullYear() && completeRows.length >= 2 && anualAvgComplete !== null
+    ? anualAvgComplete * 12
     : null
   const firstPastMonth = pastRows.length > 0 ? anualMonthLabels[pastRows[0].monthNum - 1] : null
   const lastPastMonth  = pastRows.length > 0 ? anualMonthLabels[pastRows[pastRows.length - 1].monthNum - 1] : null
@@ -1160,6 +1167,20 @@ export default async function AnalisisPage({
             </div>
           ) : (
             <>
+              {year === now.getFullYear() && (() => {
+                const yearIncomes = ((incomes12Raw ?? []) as { month: number; year: number; amount: number }[]).filter(i => i.year === year && i.amount > 0)
+                const yearInvested = Object.entries(investedByKey).filter(([k]) => k.startsWith(`${year}-`)).reduce((s, [, v]) => s + v, 0)
+                return (
+                  <AnnualFlow
+                    year={year}
+                    income={yearIncomes.reduce((s, i) => s + i.amount, 0)}
+                    spent={anualGrandTotal}
+                    invested={yearInvested}
+                    incomeMonths={yearIncomes.length}
+                    expectedMonths={now.getMonth() + 1}
+                  />
+                )
+              })()}
               <TrendInsights
                 fixed={trendFixed}
                 rising={trendRising}
@@ -1220,7 +1241,7 @@ export default async function AnalisisPage({
                     </div>
                     <div>
                       <p className="text-[11px] font-bold leading-none mb-1.5" style={{ color: '#a78bfa' }}>Promedio mensual</p>
-                      <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
+                      <p className="text-[15px] font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(anualAvgComplete ?? Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}</p>
                       <p className="text-[9px] text-gray-400 mt-0.5">por mes</p>
                     </div>
                   </div>
@@ -1460,9 +1481,9 @@ export default async function AnalisisPage({
                       </div>
                     )}
                     <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.22)' }}>
-                      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>Promedio / mes</p>
+                      <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.7)' }}>Promedio / mes · meses completos</p>
                       <p className="text-base font-extrabold text-white tabular-nums mt-0.5">
-                        {formatCLP(Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}
+                        {formatCLP(anualAvgComplete ?? Math.round(anualGrandTotal / Math.max(pastRows.length, 1)))}
                       </p>
                     </div>
                   </div>
@@ -1649,11 +1670,25 @@ export default async function AnalisisPage({
                         {/* Progress bar azul */}
                         <div className="ml-[52px] h-1.5 rounded-full overflow-hidden"
                           style={{ background: 'var(--border)' }}>
-                          <div className="h-full rounded-full" style={{ width: `${barW}%`, background: '#4D93FF' }} />
+                          <div className="h-full rounded-full" style={{ width: `${barW}%`, background: c.color }} />
                         </div>
                       </Link>
                     )
                   })}
+                  {(() => {
+                    const topSum = anualCats.reduce((s, c) => s + c.total, 0)
+                    const rest = anualGrandTotal - topSum
+                    if (rest <= 0 || anualGrandTotal <= 0) return null
+                    return (
+                      <div className="flex items-center gap-3">
+                        <span className="w-4 flex-shrink-0" aria-hidden />
+                        <span className="w-8 flex-shrink-0" aria-hidden />
+                        <span className="flex-1 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>Otras categorías</span>
+                        <span className="text-sm font-bold tabular-nums flex-shrink-0 pl-3" style={{ color: 'var(--ink-2)' }}>{formatCLP(rest)}</span>
+                        <span className="text-[11px] font-semibold flex-shrink-0 w-8 text-right" style={{ color: 'var(--ink-2)' }}>{Math.round((rest / anualGrandTotal) * 100)}%</span>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -1733,7 +1768,9 @@ export default async function AnalisisPage({
                                   </span>
                                 )}
                                 {isPeak && !isCurrentM && (
-                                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#FFC23C' }} />
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}>
+                                    Mes más alto
+                                  </span>
                                 )}
                               </Link>
                             </td>

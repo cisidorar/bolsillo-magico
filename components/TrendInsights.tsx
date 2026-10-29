@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, ChevronRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import type { FixedShare, Rising, BudgetMismatch } from '@/lib/trend-insights'
 
@@ -32,12 +32,23 @@ export default function TrendInsights({
   const fixedMax = Math.max(...fixedMonths.map(f => f.fixed), 1)
   const fixedGrowth = showFixed && first.fixed > 0 ? Math.round(((last.fixed - first.fixed) / first.fixed) * 100) : null
 
+  const summary = [
+    showFixed && fixedGrowth !== null && Math.abs(fixedGrowth) >= 5 ? `fijos ${fixedGrowth > 0 ? '+' : ''}${fixedGrowth}%` : null,
+    rising.length > 0 ? `${rising.length} categoría${rising.length > 1 ? 's' : ''} al alza` : null,
+    mismatches.length > 0 ? `${mismatches.length} presupuesto${mismatches.length > 1 ? 's' : ''} que no calza${mismatches.length > 1 ? 'n' : ''}` : null,
+    hasSavings && savingsAvg.avg6 !== null ? `ahorro ${savingsAvg.avg6}%` : null,
+  ].filter(Boolean).join(' · ')
+
   return (
-    <div className="card p-4 lg:p-6 space-y-6">
-      <div>
-        <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Qué está cambiando en silencio</p>
-        <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-2)' }}>Solo meses completos; el mes en curso no cuenta</p>
-      </div>
+    <details className="card p-4 lg:p-6 mb-4 group">
+      <summary className="flex items-center gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Qué está cambiando en silencio</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-2)' }}>{summary || 'Solo meses completos'}</p>
+        </div>
+        <ChevronRight className="w-4 h-4 flex-shrink-0 transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} aria-hidden />
+      </summary>
+      <div className="space-y-6 mt-4">
 
       {hasSavings && (
         <div>
@@ -127,6 +138,7 @@ export default function TrendInsights({
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </details>
   )
 }
