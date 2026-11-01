@@ -92,3 +92,46 @@ export function annualizeRate(periodRatePct: number, days: number): number {
   if (days <= 0) return 0
   return (Math.pow(1 + periodRatePct / 100, 365 / days) - 1) * 100
 }
+
+// ── Intereses sin registrar de un depósito vencido (nov 2026) ────────────────
+// Un depósito vencido que no se renovó en la app sigue "debiendo" un registro:
+// el interés de su propio período y, si es renovable, el de los períodos que el
+// banco ya renovó solo desde entonces. Cas: "no puedo saber cuántos meses
+// faltan sin registrar intereses".
+export interface UnregisteredInterest {
+  /** períodos sin registrar: el vencido + los que el banco renovó solo desde entonces */
+  periods:  number
+  /** de esos, cuántos son renovaciones automáticas posteriores al vencimiento */
+  autoRenewed: number
+  /** interés estimado de todos esos períodos (se capitaliza en cada renovación) */
+  interest: number
+  /** meses aproximados que cubren (períodos × plazo / 30) */
+  months:   number
+  /** fecha en que se completaría el próximo período si siguió renovándose */
+  nextCycleEnd: string
+}
+
+export function unregisteredInterest(
+  d: DepositLike & { renewable?: boolean | null }, todayStr: string,
+): UnregisteredInterest | null {
+  const term = daysBetween(d.start_date, d.maturity_date)
+  const idle = daysBetween(d.maturity_date, todayStr)
+  if (term <= 0 || idle < 0) return null
+
+  const autoRenewed = d.renewable ? Math.floor(idle / term) : 0
+  let capital = d.amount
+  let interest = 0
+  for (let i = 0; i <= autoRenewed; i++) {
+    const gain = Math.round(capital * (d.interest_rate / 100))
+    interest += gain
+    capital += gain
+  }
+  const periods = 1 + autoRenewed
+  return {
+    periods,
+    autoRenewed,
+    interest,
+    months: Math.round((periods * term / 30) * 10) / 10,
+    nextCycleEnd: addDaysStr(d.maturity_date, term * (autoRenewed + 1)),
+  }
+}

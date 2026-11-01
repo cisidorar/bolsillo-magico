@@ -8,7 +8,7 @@ import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import StatHeroRow from '@/components/StatHeroRow'
 import {
-  daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity,
+  daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, unregisteredInterest,
 } from '@/lib/term-deposits'
 import { CL_INSTITUTIONS, domainFromBankName, brandColor } from '@/lib/cl-banks'
 import type { TermDeposit } from '@/app/(dashboard)/inversiones/page'
@@ -309,6 +309,8 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     const daysIdle = isMatured ? -days : 0
     const idleLong = isMatured && daysIdle >= 30
 
+    const pendingInterest = isMatured ? unregisteredInterest(d, today) : null
+
     const statusColor = isMatured ? (idleLong ? 'var(--gold)' : 'var(--mint)') : soon ? 'var(--gold)' : 'var(--primary)'
     // Subtitulo (mockup de Cas, ago 2026): tasa + vencimiento en una sola línea
     // — antes la tasa vivía junto al nombre del banco en la línea 1.
@@ -355,6 +357,16 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
             <p className="text-[11px] mt-0.5" style={{ color: soon ? 'var(--gold)' : 'var(--ink-3)' }}>
               {statusText}
             </p>
+            {/* Cuántos períodos (≈ meses) de interés siguen sin registrarse: el
+                vencido + los que el banco renovó solo desde entonces. */}
+            {pendingInterest && (
+              <p className="text-[11px] font-semibold mt-0.5 tabular-nums" style={{ color: pendingInterest.autoRenewed > 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
+                {pendingInterest.periods} {pendingInterest.periods === 1 ? 'período' : 'períodos'} sin registrar
+                {' '}(≈ {String(pendingInterest.months).replace('.', ',')} {pendingInterest.months === 1 ? 'mes' : 'meses'})
+                {' '}· ≈ {formatCLP(pendingInterest.interest)} de interés
+                {pendingInterest.autoRenewed > 0 && ` · si el banco lo renovó solo, ya van ${pendingInterest.autoRenewed} ${pendingInterest.autoRenewed === 1 ? 'renovación' : 'renovaciones'}`}
+              </p>
+            )}
             {/* Para qué es (pedido de Cas, ago 2026): la nota quedaba solo
                 adentro del formulario de edición — ahora se ve directo en la
                 fila, mismo patrón que ya usa DepositManager para Ahorro. */}
@@ -940,9 +952,21 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       {/* ── Vencidos ─────────────────────────────────────────────────────── */}
       {matured.length > 0 && (
         <div>
-          <p className="text-xs font-bold mb-2 px-1" style={{ color: 'var(--ink-3)' }}>
-            Vencidos
-          </p>
+          {(() => {
+            const pend = matured.map(d => unregisteredInterest(d, today)).filter((x): x is NonNullable<typeof x> => x !== null)
+            const periods  = pend.reduce((s, p) => s + p.periods, 0)
+            const interest = pend.reduce((s, p) => s + p.interest, 0)
+            return (
+              <div className="flex items-baseline justify-between gap-3 mb-2 px-1">
+                <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Vencidos</p>
+                {periods > 0 && (
+                  <p className="text-[11px] font-semibold tabular-nums text-right" style={{ color: 'var(--ink-2)' }}>
+                    {periods} {periods === 1 ? 'período' : 'períodos'} sin registrar · ≈ {formatCLP(interest)} de interés
+                  </p>
+                )}
+              </div>
+            )
+          })()}
           <div className="card overflow-hidden">
             {[...matured].sort((a, b) => b.maturity_date.localeCompare(a.maturity_date)).map(d => (
               <DepositRow key={d.id} d={d} isMatured />

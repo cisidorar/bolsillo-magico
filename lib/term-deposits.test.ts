@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, annualizeRate,
-  withoutSuperseded, supersededSince,
+  withoutSuperseded, supersededSince, unregisteredInterest,
   type DepositLike,
 } from './term-deposits'
 
@@ -79,5 +79,36 @@ describe('cadena de renovaciones — caso real Banco de Chile (sep 2026)', () =>
   it('supersededSince marca desde cuándo dejó de contar el ciclo viejo', () => {
     expect(supersededSince(rows).get('a')).toBe('2026-09-08')
     expect(supersededSince(rows).has('b')).toBe(false)
+  })
+})
+
+
+describe('unregisteredInterest', () => {
+  const dep = { amount: 500000, interest_rate: 0.39667, start_date: '2026-09-02', maturity_date: '2026-10-07', renewable: true }
+
+  it('un período vencido hace menos de un plazo: solo su propio interés', () => {
+    const r = unregisteredInterest(dep, '2026-11-01')!
+    expect(r.periods).toBe(1)
+    expect(r.autoRenewed).toBe(0)
+    expect(r.interest).toBe(1983)
+    expect(r.months).toBe(1.2)
+    expect(r.nextCycleEnd).toBe('2026-11-11')
+  })
+
+  it('renovable con un plazo completo ya pasado: suma el ciclo renovado y capitaliza', () => {
+    const r = unregisteredInterest(dep, '2026-11-15')!
+    expect(r.autoRenewed).toBe(1)
+    expect(r.periods).toBe(2)
+    expect(r.interest).toBe(1983 + Math.round(501983 * 0.0039667))
+  })
+
+  it('no renovable no acumula ciclos automáticos', () => {
+    const r = unregisteredInterest({ ...dep, renewable: false }, '2027-01-15')!
+    expect(r.periods).toBe(1)
+    expect(r.autoRenewed).toBe(0)
+  })
+
+  it('no aplica a un depósito vigente', () => {
+    expect(unregisteredInterest(dep, '2026-09-20')).toBeNull()
   })
 })
