@@ -296,6 +296,8 @@ export default function Radar({
   // Orden de la tabla "Mis acciones" — ver SORT_OPTIONS arriba.
   const [sortKey, setSortKey] = useState<SortKey>('value')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [showAllPositions, setShowAllPositions] = useState(false)
+  const TOP_POSITIONS = 10
 
   // ── Posición agregada por ticker (puede haber legacy con varias filas) ──
   const ownedMap = useMemo(() => {
@@ -1158,7 +1160,7 @@ export default function Radar({
             </div>
           </div>
           <div className="[&>button+button]:border-t [&>button+button]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
-            {myPerformance.map(row => {
+            {(showAllPositions ? myPerformance : myPerformance.slice(0, TOP_POSITIONS)).map(row => {
               const q = quotes[row.ticker]
               // Reportado por Cas: la fila no daba ninguna pista de que había
               // que vender — había que abrir el detalle para enterarse.
@@ -1251,6 +1253,16 @@ export default function Radar({
               )
             })}
           </div>
+          {myPerformance.length > TOP_POSITIONS && (
+            <button
+              onClick={() => setShowAllPositions(v => !v)}
+              className="w-full flex items-center justify-center gap-1.5 py-3 text-xs font-bold transition-opacity hover:opacity-70 border-t border-[color-mix(in_srgb,var(--border)_55%,transparent)]"
+              style={{ color: 'var(--primary)' }}
+            >
+              {showAllPositions ? 'Mostrar solo el top 10' : `Ver las ${myPerformance.length - TOP_POSITIONS} restantes`}
+              {showAllPositions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
         </div>
       )}
 
