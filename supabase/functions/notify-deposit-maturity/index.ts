@@ -100,7 +100,12 @@ Deno.serve(async (req: Request) => {
     .in('maturity_date', [today, tomorrow])
 
   if (dErr) return new Response(JSON.stringify({ error: dErr.message }), { status: 500 })
-  if (!depositsRaw || depositsRaw.length === 0) return new Response(JSON.stringify({ sent: 0, skipped: 0 }), { status: 200 })
+
+  // Aviso "registra tu renovación": 5 días después del vencimiento, cuando el
+  // banco ya muestra la nueva tasa en su web (Cas, nov 2026).
+  const followups = await sendRenewalFollowups(supabase, today)
+
+  if (!depositsRaw || depositsRaw.length === 0) return new Response(JSON.stringify({ sent: 0, skipped: 0, followups }), { status: 200 })
 
   const deposits = depositsRaw.map(d => ({ ...d, isTomorrow: d.maturity_date === tomorrow }))
 
@@ -171,10 +176,79 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return new Response(JSON.stringify({ sent, skipped }), {
+  return new Response(JSON.stringify({ sent, skipped, followups }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
+
+const FOLLOWUP_DAYS = 5
+
+// Depósitos renovables que vencieron hace FOLLOWUP_DAYS días y aún no tienen
+// la renovación registrada (ningún depósito con renewed_from_id = su id).
+// Idempotente vía notification_log (una vez por depósito).
+// deno-lint-ignore no-explicit-any
+async function sendRenewalFollowups(supabase: any, today: string): Promise<number> {
+  const d = new Date(today + 'T12:00:00')
+  d.setDate(d.getDate() - FOLLOWUP_DAYS)
+  const target = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+  const { data: matured } = await supabase
+    .from('term_deposits')
+    .select('id, user_id, bank, amount, interest_rate, maturity_date')
+    .eq('maturity_date', target)
+    .eq('renewable', true)
+  if (!matured || matured.length === 0) return 0
+
+  const { data: children } = await supabase
+    .from('term_deposits')
+    .select('renewed_from_id')
+    .in('renewed_from_id', matured.map((m: { id: string }) => m.id))
+  const renewed = new Set((children ?? []).map((c: { renewed_from_id: string }) => c.renewed_from_id))
+  const pending = matured.filter((m: { id: string }) => !renewed.has(m.id))
+  if (pending.length === 0) return 0
+
+  const userIds = [...new Set(pending.map((p: { user_id: string }) => p.user_id))]
+  const { data: profiles } = await supabase
+    .from('profiles').select('id, display_name, notify_deposit_maturity')
+    .in('id', userIds).eq('notify_deposit_maturity', true)
+  const { data: authUsers } = await supabase.auth.admin.listUsers()
+  const emailMap = new Map((authUsers?.users ?? []).map((u: { id: string; email?: string }) => [u.id, u.email]))
+  const profileMap = new Map((profiles ?? []).map((p: { id: string }) => [p.id, p]))
+
+  let sent = 0
+  for (const dep of pending) {
+    const profile = profileMap.get(dep.user_id) as { display_name?: string } | undefined
+    const email = emailMap.get(dep.user_id) as string | undefined
+    if (!profile || !email) continue
+
+    const refKey = `deposit-renewal-followup:${dep.id}`
+    const { error: logErr } = await supabase
+      .from('notification_log')
+      .insert({ user_id: dep.user_id, type: 'deposit_renewal_followup', ref_key: refKey })
+      .select().single()
+    if (logErr) continue
+
+    const name = profile.display_name ?? 'Usuario'
+    const html = `<div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#0E2A52">
+      <h2 style="margin:0 0 12px;font-size:20px">Registra la renovación de tu depósito</h2>
+      <p style="font-size:14px;line-height:1.6;color:#5B6B82">Hola, ${name}. Tu depósito de ${fmtCLP(dep.amount)} en <strong>${dep.bank}</strong> venció el ${fmtDateShort(dep.maturity_date)}. Ya pasaron ${FOLLOWUP_DAYS} días, así que el banco debería mostrar la nueva tasa en su web. Regístrala para que la app calcule bien tus intereses.</p>
+      <p style="text-align:center;margin:28px 0"><a href="${SITE_URL}/inversiones?view=ahorro#depositos" style="background:#1B6DD4;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;display:inline-block">Registrar renovación</a></p>
+    </div>`
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Bolsillo Mágico <noreply@bolsillomagico.com>',
+        to: email,
+        subject: `Registra la renovación de tu depósito en ${dep.bank} · Bolsillo Mágico`,
+        html,
+      }),
+    })
+    if (res.ok) sent++
+    else await supabase.from('notification_log').delete().eq('ref_key', refKey)
+  }
+  return sent
+}
 
 // ── Logo / Wordmark ──────────────────────────────────────────────────────────
 
