@@ -297,7 +297,7 @@ export default function Radar({
   const [sortKey, setSortKey] = useState<SortKey>('value')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
   const [showAllPositions, setShowAllPositions] = useState(false)
-  const TOP_POSITIONS = 10
+  const TOP_POSITIONS = 8
 
   // ── Posición agregada por ticker (puede haber legacy con varias filas) ──
   const ownedMap = useMemo(() => {
@@ -1259,7 +1259,7 @@ export default function Radar({
               className="w-full flex items-center justify-center gap-1.5 py-3 text-xs font-bold transition-opacity hover:opacity-70 border-t border-[color-mix(in_srgb,var(--border)_55%,transparent)]"
               style={{ color: 'var(--primary)' }}
             >
-              {showAllPositions ? 'Mostrar solo el top 10' : `Ver las ${myPerformance.length - TOP_POSITIONS} restantes`}
+              {showAllPositions ? 'Mostrar solo el top 8' : `Ver las ${myPerformance.length - TOP_POSITIONS} restantes`}
               {showAllPositions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           )}
