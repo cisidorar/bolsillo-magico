@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, annualizeRate,
-  withoutSuperseded, supersededSince, unregisteredInterest,
+  withoutSuperseded, supersededSince, unregisteredInterest, planAutoRenewals,
   type DepositLike,
 } from './term-deposits'
 
@@ -110,5 +110,30 @@ describe('unregisteredInterest', () => {
 
   it('no aplica a un depósito vigente', () => {
     expect(unregisteredInterest(dep, '2026-09-20')).toBeNull()
+  })
+})
+
+
+describe('planAutoRenewals', () => {
+  const dep = { amount: 500000, interest_rate: 0.4, start_date: '2026-09-02', maturity_date: '2026-10-07', renewable: true }
+
+  it('un solo ciclo vigente cuando pasó menos de un plazo', () => {
+    const c = planAutoRenewals(dep, '2026-11-01')
+    expect(c).toHaveLength(1)
+    expect(c[0]).toEqual({ start_date: '2026-10-07', maturity_date: '2026-11-11', amount: 502000, interest_rate: 0.4 })
+  })
+
+  it('encadena ciclos, capitaliza y el último contiene hoy', () => {
+    const c = planAutoRenewals(dep, '2026-12-20')   // 74 días: 2 plazos completos + ciclo vigente
+    expect(c).toHaveLength(3)
+    expect(c[1].start_date).toBe(c[0].maturity_date)
+    expect(c[1].amount).toBe(502000 + Math.round(502000 * 0.004))
+    const last = c[c.length - 1]
+    expect(last.start_date <= '2026-12-20' && '2026-12-20' < last.maturity_date).toBe(true)
+  })
+
+  it('vacío si no es renovable o aún no vence', () => {
+    expect(planAutoRenewals({ ...dep, renewable: false }, '2026-12-20')).toEqual([])
+    expect(planAutoRenewals(dep, '2026-09-20')).toEqual([])
   })
 })

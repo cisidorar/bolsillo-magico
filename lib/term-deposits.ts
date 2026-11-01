@@ -135,3 +135,43 @@ export function unregisteredInterest(
     nextCycleEnd: addDaysStr(d.maturity_date, term * (autoRenewed + 1)),
   }
 }
+
+// ── Renovaciones automáticas del banco: plan para registrarlas (nov 2026) ───
+export interface PlannedCycle {
+  start_date:    string
+  maturity_date: string
+  amount:        number   // capital del ciclo (capital + interés del anterior)
+  interest_rate: number   // tasa del período — la del ciclo anterior (el banco puede haberla cambiado)
+}
+
+/**
+ * Ciclos que el banco ya renovó solo desde el vencimiento de `d`, hasta el que
+ * está vigente hoy. Cada uno parte donde terminó el anterior, dura lo mismo y
+ * capitaliza capital + interés — el comportamiento normal de un DAP renovable.
+ * La tasa se arrastra del ciclo anterior (aproximación: el banco puede
+ * reajustarla al renovar, por eso se registra editable después).
+ * [] si no es renovable o aún no pasó un plazo completo… salvo que el vencido
+ * ya esté fuera de plazo: el ciclo vigente siempre se incluye.
+ */
+export function planAutoRenewals(
+  d: DepositLike & { renewable?: boolean | null }, todayStr: string,
+): PlannedCycle[] {
+  if (!d.renewable) return []
+  const term = daysBetween(d.start_date, d.maturity_date)
+  const idle = daysBetween(d.maturity_date, todayStr)
+  if (term <= 0 || idle < 0) return []
+
+  const cycles: PlannedCycle[] = []
+  let amount = d.amount
+  let start = d.maturity_date
+  amount += Math.round(amount * (d.interest_rate / 100))
+  // un ciclo por plazo transcurrido + el vigente
+  const n = Math.floor(idle / term) + 1
+  for (let i = 0; i < n; i++) {
+    const maturity = addDaysStr(start, term)
+    cycles.push({ start_date: start, maturity_date: maturity, amount, interest_rate: d.interest_rate })
+    amount += Math.round(amount * (d.interest_rate / 100))
+    start = maturity
+  }
+  return cycles
+}

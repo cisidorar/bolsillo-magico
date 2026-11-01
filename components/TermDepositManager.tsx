@@ -8,7 +8,7 @@ import { formatCLP } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import StatHeroRow from '@/components/StatHeroRow'
 import {
-  daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, unregisteredInterest,
+  daysBetween, addDaysStr, totalInterest, earnedToDate, progressPct, daysToMaturity, unregisteredInterest, planAutoRenewals,
 } from '@/lib/term-deposits'
 import { CL_INSTITUTIONS, domainFromBankName, brandColor } from '@/lib/cl-banks'
 import type { TermDeposit } from '@/app/(dashboard)/inversiones/page'
@@ -289,6 +289,32 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     setDeposits(prev => [...prev, data as TermDeposit].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
     closeRenew()
   }, [renewId, renewState, deposits, userId, supabase])
+
+  // Registra de una vez las renovaciones que el banco ya hizo solo: crea los
+  // ciclos encadenados (renewed_from_id) hasta el vigente, con la tasa del ciclo
+  // anterior. Después cada uno se puede editar si el banco reajustó la tasa.
+  const [autoSavingId, setAutoSavingId] = useState<string | null>(null)
+  async function registerAutoRenewals(d: TermDeposit) {
+    const plan = planAutoRenewals(d, today)
+    if (plan.length === 0) return
+    setAutoSavingId(d.id); setRenewError('')
+    let prevId = d.id
+    const created: TermDeposit[] = []
+    for (const c of plan) {
+      const { data, error } = await supabase.from('term_deposits').insert({
+        user_id: userId, bank: d.bank, amount: c.amount, interest_rate: c.interest_rate,
+        start_date: c.start_date, maturity_date: c.maturity_date,
+        renewable: true, notes: d.notes ?? null, renewed_from_id: prevId,
+      }).select().single()
+      if (error) { setRenewError(error.message); break }
+      created.push(data as TermDeposit)
+      prevId = (data as TermDeposit).id
+    }
+    setAutoSavingId(null)
+    if (created.length > 0) {
+      setDeposits(prev => [...prev, ...created].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
+    }
+  }
 
   // ── Preview del interés en el formulario ─────────────────────────────────
   const previewAmount   = parseInt(form.amount.replace(/\D/g, '') || '0')
@@ -969,7 +995,29 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           })()}
           <div className="card overflow-hidden">
             {[...matured].sort((a, b) => b.maturity_date.localeCompare(a.maturity_date)).map(d => (
-              <DepositRow key={d.id} d={d} isMatured />
+              <div key={d.id}>
+                <DepositRow d={d} isMatured />
+                {(() => {
+                  const plan = planAutoRenewals(d, today)
+                  if (plan.length === 0) return null
+                  const last = plan[plan.length - 1]
+                  return (
+                    <div className="px-4 lg:px-6 pb-3 -mt-1 flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                        El banco lo renovó solo: {plan.length} {plan.length === 1 ? 'ciclo' : 'ciclos'}, hoy en uno de {formatCLP(last.amount)} hasta {fmtDateShort(last.maturity_date)}.
+                        Tasa del ciclo anterior ({fmtPct(d.interest_rate)}); ajústala si el banco la cambió.
+                      </p>
+                      <button
+                        onClick={() => registerAutoRenewals(d)}
+                        disabled={autoSavingId === d.id}
+                        className="px-4 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                        {autoSavingId === d.id ? 'Registrando…' : `Registrar ${plan.length === 1 ? 'la renovación' : `${plan.length} renovaciones`}`}
+                      </button>
+                    </div>
+                  )
+                })()}
+              </div>
             ))}
           </div>
         </div>
