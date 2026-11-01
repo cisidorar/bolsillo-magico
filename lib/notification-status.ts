@@ -32,6 +32,7 @@ export interface NotificationStatusSummary {
   watchlistDigest:  ChannelStatus
   weeklyReport:     ChannelStatus
   depositMaturity:  ChannelStatus
+  marketDrop:       ChannelStatus
 }
 
 /** Último `sent_at` (ISO, comparación lexicográfica válida) entre los tipos dados. */
@@ -68,6 +69,7 @@ export function summarizeNotificationStatus({
   const watchlistDigestLast = latestOf(latestByType, ['watchlist_digest'])
   const weeklyReportLast    = latestOf(latestByType, ['weekly_report'])
   const depositMaturityLast = latestOf(latestByType, ['deposit_maturity'])
+  const marketDropLast      = latestOf(latestByType, ['market_drop'])
 
   const budgetSentThisMonth = budgetLast !== null && budgetLast.startsWith(monthStr)
   const budgetLagging =
@@ -81,5 +83,6 @@ export function summarizeNotificationStatus({
     watchlistDigest: { lastSentAt: watchlistDigestLast, lagging: false },
     weeklyReport:    { lastSentAt: weeklyReportLast,    lagging: false },
     depositMaturity: { lastSentAt: depositMaturityLast, lagging: false },
+    marketDrop:      { lastSentAt: marketDropLast,      lagging: false },
   }
 }

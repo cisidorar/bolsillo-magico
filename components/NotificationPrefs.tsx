@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, CreditCard, Target, RefreshCw, AlertTriangle, TrendingUp, BarChart2, Timer } from 'lucide-react'
+import { Bell, CreditCard, Target, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, BarChart2, Timer } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { NotificationStatusSummary } from '@/lib/notification-status'
 
@@ -14,6 +14,7 @@ interface Props {
   notifyWatchlistDigest:  boolean
   notifyWeeklyReport:     boolean
   notifyDepositMaturity:  boolean
+  notifyMarketDrop:       boolean
   budgetAlertPct:   number   // umbral de la primera alerta (50–95)
   billingAlertDays: number   // días de anticipación del aviso de cierre (1–7)
   /** E1: último envío real de cada canal, para notar si un aviso quedó silenciosamente roto. */
@@ -35,8 +36,8 @@ const PCT_OPTIONS  = [60, 70, 80, 90]
 const DAYS_OPTIONS = [1, 2, 3, 5]
 
 interface ToggleItem {
-  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring' | 'notifyWatchlistDigest' | 'notifyWeeklyReport' | 'notifyDepositMaturity'
-  statusKey: 'billing' | 'budget' | 'monthly' | 'recurring' | 'watchlistDigest' | 'weeklyReport' | 'depositMaturity'
+  key: 'notifyBilling' | 'notifyBudget' | 'notifyMonthly' | 'notifyRecurring' | 'notifyWatchlistDigest' | 'notifyWeeklyReport' | 'notifyDepositMaturity' | 'notifyMarketDrop'
+  statusKey: 'billing' | 'budget' | 'monthly' | 'recurring' | 'watchlistDigest' | 'weeklyReport' | 'depositMaturity' | 'marketDrop'
   dbCol: string
   icon: React.ReactNode
   title: string
@@ -52,6 +53,7 @@ export default function NotificationPrefs({
   notifyWatchlistDigest:  initWatchlistDigest,
   notifyWeeklyReport:     initWeeklyReport,
   notifyDepositMaturity:  initDepositMaturity,
+  notifyMarketDrop:       initMarketDrop,
   budgetAlertPct:         initPct,
   billingAlertDays:       initDays,
   status,
@@ -67,6 +69,7 @@ export default function NotificationPrefs({
     notifyWatchlistDigest: initWatchlistDigest,
     notifyWeeklyReport:    initWeeklyReport,
     notifyDepositMaturity: initDepositMaturity,
+    notifyMarketDrop:      initMarketDrop,
   })
   const [alertPct, setAlertPct] = useState(initPct)
 
@@ -153,6 +156,14 @@ export default function NotificationPrefs({
       title:    'Vencimiento de depósitos',
       subtitle: 'Aviso el día que vence un depósito a plazo para que puedas renovarlo o retirarlo.',
     },
+    {
+      key:      'notifyMarketDrop',
+      statusKey: 'marketDrop',
+      dbCol:    'notify_market_drop',
+      icon:     <TrendingDown className="w-5 h-5" style={{ color: '#E5484D' }} />,
+      title:    'Caídas fuertes de la bolsa',
+      subtitle: 'Si tu cartera o el mercado caen fuerte en el día, te explicamos qué pasó y cómo afecta tus finanzas.',
+    },
   ]
 
   return (
@@ -171,6 +182,7 @@ export default function NotificationPrefs({
               notifyWatchlistDigest:  { '--cat-bg': '#EEF4FF', '--cat-color': '#2B7CF6' },
               notifyWeeklyReport:     { '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' },
               notifyDepositMaturity:  { '--cat-bg': '#EDFAF5', '--cat-color': '#1FBE8D' },
+              notifyMarketDrop:       { '--cat-bg': '#FFF1F1', '--cat-color': '#E5484D' },
             } as Record<string, React.CSSProperties>)[item.key]}
           >
             {item.icon}

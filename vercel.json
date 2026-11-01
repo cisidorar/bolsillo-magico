@@ -5,6 +5,10 @@
       "schedule": "30 22 * * *"
     },
     {
+      "path": "/api/cron/market-drop",
+      "schedule": "15 23 * * 1-5"
+    },
+    {
       "path": "/api/cron/weekly-report",
       "schedule": "0 1 * * 1"
     }
