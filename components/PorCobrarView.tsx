@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { MessageCircle, Copy, Check, HandCoins } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
@@ -41,6 +41,8 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
   const [sort, setSort] = useState<Sort>('old')
   const [selected, setSelected] = useState<string | null>(null)
   const [hidden, setHidden] = useState<Set<string>>(new Set())   // optimista
+  const [multi, setMulti] = useState<Set<string>>(new Set())     // selección múltiple (barra flotante)
+  const detailRef = useRef<HTMLDivElement>(null)
 
   const accounts = paymentMethods.filter(p => p.card_type !== 'credit')
   const [accountId, setAccountId] = useState<string | null>(
@@ -60,6 +62,33 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
 
   const keyOf = (p: PersonSummary) => p.name.toLocaleLowerCase('es-CL')
   const current = people.find(p => keyOf(p) === selected) ?? people[0] ?? null
+  const selectedAccountName = accounts.find(a => a.id === accountId)?.name ?? null
+
+  // Elegir una persona en mobile desplaza el detalle a la vista — sin esto,
+  // el detalle actualiza bajo la lista completa y el usuario tiene que
+  // volver a desplazarse manualmente cada vez que cambia de persona.
+  function selectPerson(key: string) {
+    setSelected(key)
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    }
+  }
+
+  function toggleMulti(key: string) {
+    setMulti(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  function paidMany(ps: PersonSummary[]) {
+    const ids = ps.flatMap(p => p.items.map(i => i.id))
+    const total = ps.reduce((s, p) => s + p.total, 0)
+    const label = ps.length === 1 ? ps[0].name : `${ps.length} personas`
+    setMulti(new Set())
+    paid(label, ids, total)
+  }
 
   // Próxima factura de tarjeta que trae plata adelantada.
   const nextDue = useMemo(() => {
@@ -149,12 +178,24 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
               const active = keyOf(p) === keyOf(current)
               const stale = p.oldestDays >= STALE_DAYS
               return (
-                <button key={keyOf(p)} type="button" onClick={() => setSelected(keyOf(p))} aria-current={active}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
+                <button key={keyOf(p)} type="button" onClick={() => selectPerson(keyOf(p))} aria-current={active}
+                  className="w-full flex items-center gap-2 px-4 py-3.5 text-left transition-colors"
                   style={{
                     background: active ? 'var(--primary-soft)' : 'transparent',
                     boxShadow: active ? 'inset 3px 0 0 var(--primary)' : undefined,
                   }}>
+                  <label
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] -mx-2.5 flex-shrink-0 cursor-pointer"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={multi.has(keyOf(p))}
+                      onChange={() => toggleMulti(keyOf(p))}
+                      aria-label={`Seleccionar a ${p.name}`}
+                      className="w-4 h-4 rounded accent-[var(--primary)]"
+                    />
+                  </label>
                   <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
                     style={{ background: 'var(--surface-2)', color: 'var(--primary)' }}>
                     {p.name.charAt(0).toUpperCase()}
@@ -194,7 +235,7 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
         </div>
 
         {/* Detalle */}
-        <div className="card p-5 lg:p-6 space-y-5">
+        <div ref={detailRef} className="card p-5 lg:p-6 space-y-5">
           <div className="flex items-start gap-3">
             <span className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-lg font-bold"
               style={{ background: 'var(--surface-2)', color: 'var(--primary)' }}>
@@ -226,7 +267,7 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
                         {fmtDay(d)} · {ago(daysBetween(d, today))}
                         {' · '}
                         <button type="button" disabled={pending} onClick={() => forgive(it.id, current.name, it.amount)}
-                          className="font-semibold underline-offset-2 hover:underline">lo asumo</button>
+                          className="inline-flex items-center font-semibold underline-offset-2 hover:underline min-h-[44px] -my-3">lo asumo</button>
                       </p>
                     </div>
                     <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(it.amount)}</span>
@@ -270,7 +311,7 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
               onClick={() => paid(current.name, current.items.map(i => i.id), current.total)}
               className="flex-1 py-3 rounded-xl text-sm font-semibold border disabled:opacity-60"
               style={{ borderColor: 'var(--border)', color: 'var(--ink)' }}>
-              Marcar todo pagado
+              Marcar todo pagado{selectedAccountName ? ` · a ${selectedAccountName}` : ''}
             </button>
           </div>
           <a href={whatsappLink(text)} target="_blank" rel="noopener noreferrer"
@@ -279,6 +320,32 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
           </a>
         </div>
       </div>
+
+      {/* Barra flotante de selección múltiple — settle-up de varias personas
+          a la vez (ej. después de un viaje grupal) sin repetir el flujo
+          persona por persona. */}
+      {multi.size > 0 && (() => {
+        const selectedPeople = people.filter(p => multi.has(keyOf(p)))
+        const total = selectedPeople.reduce((s, p) => s + p.total, 0)
+        return (
+          <div className="fixed bottom-24 lg:bottom-8 left-0 lg:left-60 right-0 z-[60] px-4 lg:px-8 flex justify-center">
+            <div className="card flex items-center gap-3 px-4 py-3 w-full lg:max-w-md" style={{ boxShadow: '0 8px 24px var(--shadow)' }}>
+              <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: 'var(--ink)' }}>
+                {selectedPeople.length} {selectedPeople.length === 1 ? 'persona' : 'personas'} · {formatCLP(total)}
+              </span>
+              <button type="button" onClick={() => setMulti(new Set())}
+                className="text-xs font-semibold flex-shrink-0 min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>
+                Cancelar
+              </button>
+              <button type="button" disabled={pending} onClick={() => paidMany(selectedPeople)}
+                className="px-3 py-2.5 rounded-lg text-sm font-bold flex-shrink-0 disabled:opacity-60"
+                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                Marcar pagado{selectedAccountName ? ` · a ${selectedAccountName}` : ''}
+              </button>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
