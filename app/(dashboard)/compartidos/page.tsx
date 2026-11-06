@@ -13,6 +13,8 @@ import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
 import ReceivablesCard from '@/components/ReceivablesCard'
 import type { ReceivableWithExpense } from '@/lib/receivables'
+import { SHOW_TRIPS } from '@/lib/features'
+import { HandCoins } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +39,39 @@ export default async function CompartidosPage({
   const [user, supabase, params] = await Promise.all([getServerSession(), createClient(), searchParams])
   if (!user) redirect('/login')
   const today = getNowChile().dateStr
+
+  // Viajes ocultos (lib/features.ts): solo "Por cobrar".
+  if (!SHOW_TRIPS) {
+    const [{ data: recRaw }, { data: myPms }] = await Promise.all([
+      supabase.from('expense_receivables')
+        .select('*, expense:expenses(description, date, payment_method_id)')
+        .eq('user_id', user.id).is('received_at', null).eq('forgiven', false)
+        .order('created_at', { ascending: true }),
+      supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
+    ])
+    const rows = (recRaw ?? []) as unknown as ReceivableWithExpense[]
+    return (
+      <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-6">
+        <div>
+          <h1 className="font-display text-2xl lg:text-3xl font-bold" style={{ color: 'var(--ink)' }}>Por cobrar</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>Lo que pagaste con tu tarjeta y tus amigos te van a devolver.</p>
+        </div>
+        {rows.length > 0 ? (
+          <div className="lg:max-w-xl">
+            <ReceivablesCard rows={rows} paymentMethods={(myPms ?? []) as PaymentMethod[]} today={today} flat={false} />
+          </div>
+        ) : (
+          <div className="card p-8 text-center lg:max-w-xl">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--primary-soft)' }}>
+              <HandCoins className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+            </div>
+            <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>Nadie te debe plata</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>Abre un gasto en Historial y toca «Cobrar a alguien» para anotar quién te lo devuelve.</p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const [{ data: groupsRaw }, { data: membersRaw }] = await Promise.all([
     supabase.from('shared_groups').select('*').order('created_at', { ascending: false }),

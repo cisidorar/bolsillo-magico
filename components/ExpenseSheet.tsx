@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { X, Delete, CalendarDays, ChevronDown, ChevronRight, Trash2, Check, FileText, SlidersHorizontal, CreditCard, Sparkles, Users } from 'lucide-react'
+import { SHOW_TRIPS } from '@/lib/features'
 import SplitSheet, { type SplitTarget } from '@/components/SplitSheet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -142,7 +143,7 @@ export default function ExpenseSheet({
 
   // Viajes abiertos en los que participo (solo al crear un gasto nuevo)
   useEffect(() => {
-    if (!isOpen || isEditing) return
+    if (!isOpen || isEditing || !SHOW_TRIPS) return
     let cancelled = false
     ;(async () => {
       const { data: { user } } = await supabase.auth.getUser()

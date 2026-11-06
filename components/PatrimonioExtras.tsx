@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { formatCLP } from '@/lib/utils'
 import type { GainResult, LiquidityBucket, ActiveLease } from '@/lib/patrimonio-insights'
+import { SHOW_TRIPS } from '@/lib/features'
 import type { SharedPosition } from '@/lib/shared-position'
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -29,7 +30,7 @@ export default function PatrimonioExtras({
   shared: SharedPosition | null
 }) {
   const ladderTotal = ladder.reduce((s, b) => s + b.total, 0)
-  const showOther = rentals.length > 0 || (shared && (shared.owed > 0 || shared.owe > 0))
+  const showOther = rentals.length > 0 || (SHOW_TRIPS && shared && (shared.owed > 0 || shared.owe > 0))
   if (!gain && ladderTotal === 0 && !showOther) return null
 
   let running = 0
@@ -79,7 +80,7 @@ export default function PatrimonioExtras({
                 <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(r.rent)}/mes</p>
               </Link>
             ))}
-            {shared && shared.owed > 0 && (
+            {SHOW_TRIPS && shared && shared.owed > 0 && (
               <Link href="/compartidos" className="flex items-center justify-between gap-3 py-2 min-h-[44px] rounded-xl transition-colors hover:bg-black/5">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Te deben en viajes</p>
@@ -90,7 +91,7 @@ export default function PatrimonioExtras({
                 <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(shared.owed)}</p>
               </Link>
             )}
-            {shared && shared.owe > 0 && (
+            {SHOW_TRIPS && shared && shared.owe > 0 && (
               <Link href="/compartidos" className="flex items-center justify-between gap-3 py-2 min-h-[44px] rounded-xl transition-colors hover:bg-black/5">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Debes en viajes</p>

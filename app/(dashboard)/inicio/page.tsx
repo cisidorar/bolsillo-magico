@@ -15,6 +15,7 @@ import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
 import ReceivablesCard from '@/components/ReceivablesCard'
 import type { ReceivableWithExpense } from '@/lib/receivables'
+import { SHOW_TRIPS } from '@/lib/features'
 import NextTripCard, { TripSettleChips } from '@/components/NextTripCard'
 import { getNextTrip, getTripsToSettle } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
@@ -999,8 +1000,8 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
-            {tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
-            {nextTrip && <NextTripCard trip={nextTrip} />}
+            {SHOW_TRIPS && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {SHOW_TRIPS && nextTrip && <NextTripCard trip={nextTrip} />}
 
             {/* ── Ciclo de sueldo ── */}
             <CicloSueldo
@@ -1306,8 +1307,8 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
-            {nextTrip && <NextTripCard trip={nextTrip} />}
+          {SHOW_TRIPS && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {SHOW_TRIPS && nextTrip && <NextTripCard trip={nextTrip} />}
 
           {/* Ciclo de sueldo mobile */}
           <CicloSueldo
