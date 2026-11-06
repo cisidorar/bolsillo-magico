@@ -13,6 +13,8 @@ import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
 import CicloSueldo from '@/components/CicloSueldo'
+import ReceivablesCard from '@/components/ReceivablesCard'
+import type { ReceivableWithExpense } from '@/lib/receivables'
 import NextTripCard, { TripSettleChips } from '@/components/NextTripCard'
 import { getNextTrip, getTripsToSettle } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
@@ -115,6 +117,7 @@ export default async function DashboardPage() {
     { data: usdDepositsThisMonth },
     nextTrip,
     tripsToSettle,
+    { data: receivablesRaw },
   ] = await Promise.all([
     supabase
       .from('expenses')
@@ -174,7 +177,16 @@ export default async function DashboardPage() {
       .lt('purchase_date', nextMonthStartStr),
     getNextTrip(supabase, user!.id, dateStr),
     getTripsToSettle(supabase, user!.id, dateStr),
+    // Por cobrar: lo que adelantaste con tu tarjeta por otras personas
+    supabase
+      .from('expense_receivables')
+      .select('*, expense:expenses(description, date, payment_method_id)')
+      .eq('user_id', user!.id)
+      .is('received_at', null)
+      .eq('forgiven', false)
+      .order('created_at', { ascending: true }),
   ])
+  const receivables = (receivablesRaw ?? []) as unknown as ReceivableWithExpense[]
 
   // ── Derivaciones ─────────────────────────────────────────────────────────
   const paidMap = (allRecurringExpenses ?? []).reduce<Record<string, number>>((acc, e) => {
@@ -1000,6 +1012,8 @@ export default async function DashboardPage() {
               debitSpentThisMonth={debitSpentThisMonth}
             />
 
+            <ReceivablesCard rows={receivables} paymentMethods={(paymentMethods ?? []) as PaymentMethod[]} today={dateStr} />
+
             {/* ── Tarjeta(s) de crédito — oculta si Ciclo de sueldo ya la cubre ── */}
             {showSeparateStatementCards && statementCards.length > 0 && (
               <div className="space-y-3">
@@ -1304,6 +1318,8 @@ export default async function DashboardPage() {
             investedThisMonth={investedThisMonth}
             debitSpentThisMonth={debitSpentThisMonth}
           />
+
+          <ReceivablesCard rows={receivables} paymentMethods={(paymentMethods ?? []) as PaymentMethod[]} today={dateStr} />
 
           {/* Estado de cuenta mobile — oculto si Ciclo de sueldo ya la cubre */}
           {showSeparateStatementCards && statementCards.length > 0 && (

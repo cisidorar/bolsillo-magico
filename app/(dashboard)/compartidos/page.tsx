@@ -11,6 +11,8 @@ import { monthlyCapacity } from '@/lib/trip-plan'
 import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
+import ReceivablesCard from '@/components/ReceivablesCard'
+import type { ReceivableWithExpense } from '@/lib/receivables'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +118,15 @@ export default async function CompartidosPage({
   // Todos tienen un @usuario (migración 20261019 lo asigna a los existentes);
   // las cuentas nuevas lo reciben acá la primera vez.
   await supabase.rpc('ensure_my_username')
+  // Por cobrar fuera de viajes: amigos sin la app que te transfieren su parte.
+  const [{ data: recRaw }, { data: myPms }] = await Promise.all([
+    supabase.from('expense_receivables')
+      .select('*, expense:expenses(description, date, payment_method_id)')
+      .eq('user_id', user.id).is('received_at', null).eq('forgiven', false)
+      .order('created_at', { ascending: true }),
+    supabase.from('payment_methods').select('*').eq('user_id', user.id).order('sort_order'),
+  ])
+  const receivables = (recRaw ?? []) as unknown as ReceivableWithExpense[]
   const ids = mine.map(g => g.id)
   const [{ data: allExp }, { data: allShares }, { data: allSet }] = ids.length
     ? await Promise.all([
@@ -217,6 +228,12 @@ export default async function CompartidosPage({
         </div>
         <NewTripButton />
       </div>
+
+      {receivables.length > 0 && (
+        <div className="lg:max-w-xl">
+          <ReceivablesCard rows={receivables} paymentMethods={(myPms ?? []) as PaymentMethod[]} today={today} flat={false} />
+        </div>
+      )}
 
       {invites.map(g => (
         <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
-import { X, Delete, CalendarDays, ChevronDown, Trash2, Check, FileText, SlidersHorizontal, CreditCard, Sparkles } from 'lucide-react'
+import { X, Delete, CalendarDays, ChevronDown, ChevronRight, Trash2, Check, FileText, SlidersHorizontal, CreditCard, Sparkles, Users } from 'lucide-react'
+import SplitSheet, { type SplitTarget } from '@/components/SplitSheet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn, formatCLP, isEmoji } from '@/lib/utils'
@@ -100,6 +101,12 @@ export default function ExpenseSheet({
   const [trips, setTrips] = useState<{ id: string; name: string; split_mode: string; split_error: string | null; start_date: string | null; end_date: string | null }[]>([])
   const [tripId, setTripId] = useState<string | null>(null)
   const [tripCat, setTripCat] = useState<TripCategory>('otros')
+
+  // Por cobrar (nov 2026): "pagué por otros y me van a transferir". En un gasto
+  // nuevo se marca antes de guardar y al guardar se abre el reparto; en uno ya
+  // guardado se abre desde el bloque "Dividir con otros".
+  const [splitAfterSave, setSplitAfterSave] = useState(false)
+  const [splitTarget, setSplitTarget] = useState<SplitTarget | null>(null)
 
   // Pre-fill when editing
   useEffect(() => {
@@ -235,6 +242,7 @@ export default function ExpenseSheet({
     setAmount(''); setCatId(null); setPmId(null); setDateStr(todayStr); setShowDatePicker(false)
     setDesc(''); setError(''); setCatsExpanded(false); setDeleteConfirm(false); setCatPickerOpen(false); setPmPickerOpen(false)
     setSuggestion(null); setAutoSelectedByAI(false)
+    setSplitAfterSave(false); setSplitTarget(null)
     setCalOpen(false); setCalViewYear(new Date().getFullYear()); setCalViewMonth(new Date().getMonth())
     pmUserPicked.current = false
     if (onClose) onClose()
@@ -368,14 +376,14 @@ export default function ExpenseSheet({
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setSaving(false); setError('Sesión expirada. Recarga la página.'); return }
 
-      const { error: err } = await supabase.from('expenses').insert({
+      const { data: inserted, error: err } = await supabase.from('expenses').insert({
         user_id: user.id,
         amount: parseInt(amount),
         category_id: catId,
         payment_method_id: pmId,
         description: desc || null,
         date: dateStr,
-      })
+      }).select('id').single()
 
       setSaving(false)
       if (err) { setError('Error al guardar. Intenta de nuevo.'); return }
@@ -383,6 +391,13 @@ export default function ExpenseSheet({
       // Aprender de esta categorización para sugerencias futuras
       if (desc && catId) {
         recordCategoryRule(desc, catId, 'manual').catch(() => {})
+      }
+
+      // "Pagué por otros": el gasto ya quedó guardado completo; ahora el reparto.
+      if (splitAfterSave && inserted) {
+        const pm = pms.find(p => p.id === pmId) ?? null
+        setSplitTarget({ id: inserted.id as string, total: parseInt(amount), description: desc || null, date: dateStr, paymentMethod: pm })
+        return
       }
     }
 
@@ -393,6 +408,63 @@ export default function ExpenseSheet({
   }
 
   if (!isOpen) return null
+
+  if (splitTarget) {
+    return (
+      <SplitSheet
+        target={splitTarget}
+        // Cerrar sin guardar el reparto: el gasto ya existe (completo), así que
+        // se cierra todo igual — se puede dividir después desde "Editar gasto".
+        onClose={() => { router.refresh(); close() }}
+        onDone={msg => { router.refresh(); close(); showToast(msg) }}
+      />
+    )
+  }
+
+  // Bloque "Dividir con otros" (editar) / toggle "Pagué por otros" (nuevo)
+  const editCardExtra = editExpense?.card_extra ?? 0
+  const splitBlock = isEditing && editExpense && !editExpense.shared_expense_id ? (
+    <button
+      type="button"
+      onClick={() => setSplitTarget({
+        id: editExpense.id,
+        total: editExpense.amount + editCardExtra,
+        description: editExpense.description,
+        date: editExpense.date,
+        paymentMethod: pms.find(p => p.id === editExpense.payment_method_id) ?? editExpense.payment_method ?? null,
+      })}
+      className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-opacity hover:opacity-80"
+      style={{ background: 'var(--surface-2)' }}
+    >
+      <Users className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+      <span className="flex-1 min-w-0">
+        {editCardExtra > 0 ? (
+          <>
+            <span className="block text-sm font-semibold text-gray-800">Pagaste por otros · te deben {formatCLP(editCardExtra)}</span>
+            <span className="block text-[11px] text-gray-400">El monto de arriba es tu parte. La tarjeta cobró {formatCLP(editExpense.amount + editCardExtra)}.</span>
+          </>
+        ) : (
+          <>
+            <span className="block text-sm font-semibold text-gray-800">Dividir con otros</span>
+            <span className="block text-[11px] text-gray-400">¿Pagaste por amigos que te van a transferir?</span>
+          </>
+        )}
+      </span>
+      <ChevronRight className="w-4 h-4 flex-shrink-0 text-gray-300" />
+    </button>
+  ) : null
+
+  const splitToggle = !isEditing && !tripId ? (
+    <button
+      type="button"
+      onClick={() => setSplitAfterSave(v => !v)}
+      aria-pressed={splitAfterSave}
+      className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all', splitAfterSave ? 'sheet-chip-active' : 'sheet-chip')}
+    >
+      <Users className="w-3.5 h-3.5" />
+      {splitAfterSave ? 'Pagué por otros · al guardar lo divides' : 'Pagué por otros'}
+    </button>
+  ) : null
 
   // ─── Shared sub-components ────────────────────────────────────────────────
   const tripPicker = !isEditing && trips.length > 0 ? (
@@ -816,6 +888,7 @@ export default function ExpenseSheet({
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
             {tripPicker}
+            {splitBlock}
             {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -891,6 +964,7 @@ export default function ExpenseSheet({
               {error && !amount && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
             {tripPicker}
+            {splitBlock}
             {/* Categoría */}
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -1062,6 +1136,8 @@ export default function ExpenseSheet({
             </div>
           </div>
 
+          {splitToggle}
+
           {/* 5. Guardar */}
           <button
             onClick={save}
@@ -1069,7 +1145,7 @@ export default function ExpenseSheet({
             className="w-full py-3 font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
             style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
-            {saving ? 'Guardando...' : 'Guardar gasto'}
+            {saving ? 'Guardando...' : splitAfterSave ? 'Guardar y dividir' : 'Guardar gasto'}
           </button>
         </div>
 
@@ -1147,6 +1223,8 @@ export default function ExpenseSheet({
             </div>
           </div>
 
+          {splitToggle && <div className="px-5 pt-3">{splitToggle}</div>}
+
           {/* Numpad */}
           <div className="mt-2 border-t border-gray-100 grid grid-cols-3">
             {['1','2','3','4','5','6','7','8','9','000','0','del'].map(k => (
@@ -1168,7 +1246,7 @@ export default function ExpenseSheet({
               className="w-full py-3.5 font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base"
               style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
             >
-              {saving ? 'Guardando...' : 'Guardar gasto'}
+              {saving ? 'Guardando...' : splitAfterSave ? 'Guardar y dividir' : 'Guardar gasto'}
             </button>
           </div>
         </div>

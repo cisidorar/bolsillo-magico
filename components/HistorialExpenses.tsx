@@ -282,6 +282,12 @@ export default function HistorialExpenses({ groups, dateFormat }: { groups: Grou
                               Compartido{(e.card_extra ?? 0) > 0 ? ` · tarjeta cobró ${formatCLP(e.amount + (e.card_extra ?? 0))}` : ''}
                             </span>
                           )}
+                          {!e.shared_expense_id && (e.card_extra ?? 0) > 0 && (
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                              Dividido · tarjeta cobró {formatCLP(e.amount + (e.card_extra ?? 0))}
+                            </span>
+                          )}
                         </div>
                       </div>
 
