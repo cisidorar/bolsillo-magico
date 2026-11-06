@@ -589,11 +589,12 @@ export default function ExpenseSheet({
                 onClick={() => pickCalDate(day)}
                 className={cn(
                   'w-full aspect-square min-h-[38px] flex items-center justify-center rounded-full text-[11px] font-medium transition-colors',
-                  isSelected ? 'bg-brand-600 text-white font-bold' :
+                  isSelected ? 'font-bold' :
                   isToday    ? 'bg-brand-50 text-brand-700 font-bold' :
                   isFuture   ? 'text-gray-300 cursor-default' :
                   'text-gray-700 hover:bg-gray-100'
                 )}
+                style={isSelected ? { backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' } : undefined}
               >
                 {day}
               </button>

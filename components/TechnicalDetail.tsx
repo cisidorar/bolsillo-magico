@@ -566,7 +566,7 @@ export default function TechnicalDetail({
               onClick={() => setOpenSection(s.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all"
               style={active
-                ? { background: 'var(--primary)', color: 'white' }
+                ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
                 : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
             >
               <Icon className="w-3 h-3" />

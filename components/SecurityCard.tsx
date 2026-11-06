@@ -135,8 +135,8 @@ export default function SecurityCard({ userId, email }: Props) {
                 <button
                   onClick={saveEmail}
                   disabled={emailSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60"
-                  style={{ backgroundColor: 'var(--primary)' }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
                 >
                   {emailSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   {emailSaving ? 'Enviando…' : 'Enviar confirmación'}
@@ -214,8 +214,8 @@ export default function SecurityCard({ userId, email }: Props) {
                 <button
                   onClick={savePassword}
                   disabled={passSaving}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60"
-                  style={{ backgroundColor: 'var(--primary)' }}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60"
+                  style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
                 >
                   {passSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   {passSaving ? 'Guardando…' : 'Actualizar contraseña'}

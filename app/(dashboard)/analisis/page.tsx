@@ -1763,7 +1763,7 @@ export default async function AnalisisPage({
                                 </span>
                                 {isCurrentM && (
                                   <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
-                                    style={{ background: 'var(--primary)', color: 'white' }}>
+                                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                                     Actual
                                   </span>
                                 )}

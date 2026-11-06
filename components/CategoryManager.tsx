@@ -167,8 +167,8 @@ export default function CategoryManager({ categories: init, userId, expenseCount
         </div>
         <button
           onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold text-white flex-shrink-0 shadow-sm hover:opacity-90 active:scale-[.98] transition-all"
-          style={{ background: 'var(--primary)', boxShadow: '0 4px 14px rgba(43,124,246,.18)' }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold flex-shrink-0 shadow-sm hover:opacity-90 active:scale-[.98] transition-all"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 4px 14px rgba(43,124,246,.18)' }}
         >
           <Plus className="w-4 h-4" />
           Nueva categoría
@@ -297,10 +297,10 @@ export default function CategoryManager({ categories: init, userId, expenseCount
                   className={cn(
                     'w-8 h-8 rounded-xl text-sm font-semibold transition-colors',
                     p === safePage
-                      ? 'text-white'
+                      ? ''
                       : 'text-gray-500 hover:bg-gray-100'
                   )}
-                  style={p === safePage ? { background: 'var(--primary)' } : {}}
+                  style={p === safePage ? { background: 'var(--primary)', color: 'var(--primary-ink)' } : {}}
                 >
                   {p}
                 </button>
@@ -504,7 +504,7 @@ function FormBody({
           <button onClick={onCancel} className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors">
             Cancelar
           </button>
-          <button onClick={onSave} disabled={saving} className="flex-1 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+          <button onClick={onSave} disabled={saving} className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4" />{isEdit ? 'Guardar' : 'Crear categoría'}</>}
           </button>
         </div>

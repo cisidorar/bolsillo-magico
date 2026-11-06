@@ -147,8 +147,8 @@ export default function ImportCSV() {
                 </div>
                 <button
                   onClick={handleImport}
-                  className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm"
-                  style={{ background: 'var(--primary)', boxShadow: '0 4px 16px rgba(43,124,246,.18)' }}
+                  className="w-full py-3.5 rounded-2xl font-extrabold text-sm"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 4px 16px rgba(43,124,246,.18)' }}
                 >
                   Importar gastos →
                 </button>
@@ -187,8 +187,8 @@ export default function ImportCSV() {
                 </div>
                 <button
                   onClick={() => { setOpen(false); reset() }}
-                  className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm"
-                  style={{ background: 'var(--primary)', boxShadow: '0 4px 16px rgba(43,124,246,.18)' }}
+                  className="w-full py-3.5 rounded-2xl font-extrabold text-sm"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 4px 16px rgba(43,124,246,.18)' }}
                 >
                   Listo ✓
                 </button>

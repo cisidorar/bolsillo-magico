@@ -73,7 +73,7 @@ export default function ExportForm() {
       <a
         href={href}
         download
-        className="flex items-center justify-center gap-2 w-full py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-xl hover:bg-brand-700 transition-colors"
+        className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold rounded-xl transition-colors" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
       >
         <Download className="w-4 h-4" />
         Descargar CSV

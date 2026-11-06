@@ -394,8 +394,8 @@ function FormPanel({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
-            style={{ backgroundColor: 'var(--primary)' }}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
             {saving
               ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />

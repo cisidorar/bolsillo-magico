@@ -158,8 +158,8 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
           <button
             onClick={() => setEditing(true)}
             disabled={uploading}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-50"
-            style={{ backgroundColor: 'var(--primary)' }}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+            style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
             <Pencil className="w-3.5 h-3.5" />
             Editar
@@ -187,7 +187,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
             <button onClick={cancelName} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               <X className="w-3.5 h-3.5" /> Cancelar
             </button>
-            <button onClick={saveName} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--primary)' }}>
+            <button onClick={saveName} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}>
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               {saving ? 'Guardando…' : 'Guardar'}
             </button>
@@ -221,7 +221,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
               <button onClick={() => setEditingUser(false)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 <X className="w-3.5 h-3.5" /> Cancelar
               </button>
-              <button onClick={saveUsername} disabled={savingUser} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--primary)' }}>
+              <button onClick={saveUsername} disabled={savingUser} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}>
                 {savingUser ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 {savingUser ? 'Guardando…' : 'Guardar'}
               </button>

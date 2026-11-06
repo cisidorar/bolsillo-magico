@@ -91,8 +91,8 @@ export function PrimaryButton({
 }: { onClick: () => void; disabled?: boolean; children: ReactNode }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className="w-full py-3 text-white font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base flex items-center justify-center gap-2"
-      style={{ backgroundColor: 'var(--primary)' }}>
+      className="w-full py-3 font-semibold rounded-2xl transition-colors disabled:opacity-60 text-base flex items-center justify-center gap-2"
+      style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}>
       {children}
     </button>
   )

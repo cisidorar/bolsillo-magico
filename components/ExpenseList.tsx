@@ -313,8 +313,8 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   </button>
                   <button
                     onClick={() => { setDetailExpense(null); setConfirmDelete(false); setEditingExpense(e) }}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white rounded-2xl transition-colors"
-                    style={{ backgroundColor: 'var(--primary)' }}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-2xl transition-colors"
+                    style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
                   >
                     Editar
                   </button>
