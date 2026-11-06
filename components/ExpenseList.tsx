@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils'
 import { PaymentIcon } from './PaymentIcon'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { useToast } from '@/components/ToastProvider'
-import { X, Trash2, ChevronRight, RefreshCw } from 'lucide-react'
+import { X, Trash2, ChevronRight, RefreshCw, HandCoins } from 'lucide-react'
+import SplitSheet, { type SplitTarget } from './SplitSheet'
 
 interface Props {
   expenses: ExpenseWithRelations[]
@@ -42,6 +43,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
 
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
   const [detailExpense, setDetailExpense]   = useState<ExpenseWithRelations | null>(null)
+  const [splitTarget, setSplitTarget]       = useState<SplitTarget | null>(null)
   const [confirmDelete, setConfirmDelete]   = useState(false)
   const [deleting, setDeleting]             = useState(false)
 
@@ -271,6 +273,36 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
                   </p>
                 </div>
 
+                {/* Por cobrar: atajo desde el detalle (no hace falta entrar a Editar) */}
+                {!e.shared_expense_id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pm = e.payment_method
+                      setSplitTarget({
+                        id: e.id,
+                        total: e.amount + (e.card_extra ?? 0),
+                        description: e.description,
+                        date: e.date,
+                        paymentMethod: pm ? { card_type: pm.card_type, billing_day: pm.billing_day ?? null, payment_due_day: pm.payment_due_day ?? null, name: pm.name } : null,
+                      })
+                    }}
+                    className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-opacity hover:opacity-80"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <HandCoins className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold text-gray-800">
+                        {(e.card_extra ?? 0) > 0 ? `Te deben ${formatCLP(e.card_extra ?? 0)}` : 'Cobrar a alguien'}
+                      </span>
+                      <span className="block text-[11px] text-gray-400">
+                        {(e.card_extra ?? 0) > 0 ? 'Ver o cambiar el reparto' : '¿Alguien te va a devolver todo o parte de esto?'}
+                      </span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 flex-shrink-0 text-gray-300" />
+                  </button>
+                )}
+
                 {/* Confirmación de eliminar — copia exacta del bloque de
                     ExpenseSheet.editActions, sin caja de color de fondo. */}
                 {confirmDelete && (
@@ -324,6 +356,14 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
           </div>
         )
       })()}
+
+      {splitTarget && (
+        <SplitSheet
+          target={splitTarget}
+          onClose={() => setSplitTarget(null)}
+          onDone={msg => { setSplitTarget(null); setDetailExpense(null); router.refresh(); showToast(msg) }}
+        />
+      )}
 
       <ExpenseSheet
         fetchData

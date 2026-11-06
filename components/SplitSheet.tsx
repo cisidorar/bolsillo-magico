@@ -96,6 +96,18 @@ export default function SplitSheet({ target, onClose, onDone }: {
     setRows([...locked, ...next])
   }
 
+  // "Todo": le compraste algo a otra persona (ej. a tu mamá) y te lo devuelve
+  // completo → una sola persona debe el total; tu parte queda en $0.
+  function payAll() {
+    setError('')
+    const locked = rows.filter(r => r.received_at || r.forgiven)
+    const first = rows.find(r => !r.received_at && !r.forgiven)
+    const lockedOwed = locked.filter(r => !r.forgiven).reduce((s, r) => s + parseInt(r.amount || '0', 10), 0)
+    const rest = target.total - lockedOwed
+    if (rest <= 0) return
+    setRows([...locked, { key: first?.key ?? newKey(), id: first?.id ?? null, name: first?.name ?? '', amount: String(rest), received_at: null, forgiven: false }])
+  }
+
   async function save() {
     const people = active
       .filter(r => r.name.trim() || r.amount)
@@ -135,10 +147,11 @@ export default function SplitSheet({ target, onClose, onDone }: {
             <FieldLabel hint="Contándote a ti. Después puedes ajustar cada monto.">¿Entre cuántos se divide?</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
               {[2, 3, 4, 5, 6].map(n => (
-                <Chip key={n} active={othersCount + 1 === n && owedList.every(a => a === owedList[0])} onClick={() => splitAmong(n)}>
+                <Chip key={n} active={mine > 0 && othersCount + 1 === n && owedList.every(a => a === owedList[0])} onClick={() => splitAmong(n)}>
                   {n}
                 </Chip>
               ))}
+              <Chip active={mine === 0 && othersCount === 1} onClick={payAll}>Todo, me lo devuelven</Chip>
             </div>
           </div>
 
