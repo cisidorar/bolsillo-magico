@@ -309,6 +309,13 @@ export default async function HistorialPage({
   }, {})
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
+  // Gastos que nacen de un pago de Propiedad (aseo, dividendo...): chip "Propiedad".
+  const shownIds = sortedDates.flatMap(d => grouped[d].map(e => e.id))
+  const { data: propLinks } = shownIds.length
+    ? await supabase.from('property_charges').select('expense_id').in('expense_id', shownIds)
+    : { data: [] as { expense_id: string | null }[] }
+  const propertyExpenseIds = (propLinks ?? []).map(l => l.expense_id).filter((x): x is string => !!x)
+
   const baseParams = { month, year, q, cats: catIds.join(',') || undefined, pm: pmId || undefined, view: view || undefined }
   const prevHref = (!isBilling && page > 1) ? buildHref({ ...baseParams, page: page - 1 }) : null
   const nextHref = (!isBilling && page < totalPages) ? buildHref({ ...baseParams, page: page + 1 }) : null
@@ -537,6 +544,7 @@ export default async function HistorialPage({
       ) : (
         <HistorialExpenses
           dateFormat={dateFormat}
+          propertyExpenseIds={propertyExpenseIds}
           groups={sortedDates.map(date => ({
             date,
             label: relativeDate(date, dateFormat),

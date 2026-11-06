@@ -218,29 +218,7 @@ export async function markChargePaid(
       .select('kind, direction, responsible, auto_debit, period_month, period_year, due_date, expense_id')
       .eq('id', id).eq('user_id', user.id).maybeSingle()
     if (ch && countsAsExpense(ch)) {
-      const description = chargeExpenseDescription(ch)
-      let categoryId: string | null = null
-      let paymentMethodId: string | null = null
-      if (typeof opts.expense === 'object') {
-        categoryId = opts.expense.categoryId
-        paymentMethodId = opts.expense.paymentMethodId
-      } else {
-        const { data: prev } = await supabase.from('expenses')
-          .select('category_id, payment_method_id')
-          .eq('user_id', user.id).ilike('description', `${KIND_LABEL_PREFIX(ch.kind)}%`)
-          .order('date', { ascending: false }).limit(1).maybeSingle()
-        categoryId = prev?.category_id ?? null
-        paymentMethodId = prev?.payment_method_id ?? null
-      }
-      const row = { amount: Math.round(paidAmount), date: paidDate, description, category_id: categoryId, payment_method_id: paymentMethodId }
-      if (ch.expense_id) {
-        await supabase.from('expenses').update(row).eq('id', ch.expense_id).eq('user_id', user.id)
-        expenseId = ch.expense_id
-      } else if (paidAmount > 0) {
-        const { data: ins } = await supabase.from('expenses')
-          .insert({ ...row, user_id: user.id }).select('id').single()
-        expenseId = ins?.id
-      }
+      expenseId = (await linkChargeExpense(supabase, user.id, ch, paidDate, paidAmount, opts.expense)) ?? undefined
     }
   }
 
@@ -263,6 +241,46 @@ export async function markChargePaid(
   revalidatePath('/propiedad')
   if (expenseId) revalidateExpensePaths()
   return { ok: true }
+}
+
+
+/**
+ * Crea (o actualiza) el gasto enlazado a un cobro del dueño y devuelve su id.
+ * `choice === true` toma categoría y método del último gasto con la misma
+ * descripción ("Derechos de aseo", "Dividendo"...); un objeto los fija.
+ */
+async function linkChargeExpense(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  ch: { kind: string; period_month: number | null; period_year: number | null; due_date: string; expense_id?: string | null },
+  date: string,
+  amount: number,
+  choice: true | { categoryId: string | null; paymentMethodId: string | null },
+): Promise<string | null> {
+  let categoryId: string | null = null
+  let paymentMethodId: string | null = null
+  if (choice !== true) {
+    categoryId = choice.categoryId
+    paymentMethodId = choice.paymentMethodId
+  } else {
+    const { data: prev } = await supabase.from('expenses')
+      .select('category_id, payment_method_id')
+      .eq('user_id', userId).ilike('description', `${KIND_LABEL_PREFIX(ch.kind)}%`)
+      .order('date', { ascending: false }).limit(1).maybeSingle()
+    categoryId = prev?.category_id ?? null
+    paymentMethodId = prev?.payment_method_id ?? null
+  }
+  const row = {
+    amount: Math.round(amount), date, description: chargeExpenseDescription(ch),
+    category_id: categoryId, payment_method_id: paymentMethodId,
+  }
+  if (ch.expense_id) {
+    await supabase.from('expenses').update(row).eq('id', ch.expense_id).eq('user_id', userId)
+    return ch.expense_id
+  }
+  if (amount <= 0) return null
+  const { data: ins } = await supabase.from('expenses').insert({ ...row, user_id: userId }).select('id').single()
+  return ins?.id ?? null
 }
 
 /** Prefijo de descripción para buscar el último gasto parecido ("Derechos de aseo"). */
@@ -364,10 +382,21 @@ export async function generateAseoCharges(
 
   if (rows.length === 0) return { ok: true, created: 0 }
 
-  const { error } = await supabase.from('property_charges').insert(rows)
+  const { data: inserted, error } = await supabase.from('property_charges').insert(rows)
+    .select('id, kind, direction, responsible, period_month, period_year, due_date, paid_date, paid_amount')
   if (error) return { ok: false, error: error.message }
 
+  // El dividendo nace pagado (cargo automático): también es gasto tuyo, enlazado.
+  let linked = false
+  for (const c of inserted ?? []) {
+    if (c.paid_date && c.paid_amount && countsAsExpense(c)) {
+      const eid = await linkChargeExpense(supabase, user.id, c, c.paid_date, c.paid_amount, true)
+      if (eid) { await supabase.from('property_charges').update({ expense_id: eid }).eq('id', c.id).eq('user_id', user.id); linked = true }
+    }
+  }
+
   revalidatePath('/propiedad')
+  if (linked) revalidateExpensePaths()
   return { ok: true, created: rows.length }
 }
 

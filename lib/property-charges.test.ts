@@ -368,11 +368,13 @@ describe('countsAsExpense', () => {
     expect(countsAsExpense(base)).toBe(true)
     expect(countsAsExpense({ ...base, kind: 'contribuciones' })).toBe(true)
   })
-  it('lo del arrendatario, el arriendo, la garantía y el cargo automático no', () => {
+  it('el dividendo con cargo automático también (es costo del dueño)', () => {
+    expect(countsAsExpense({ ...base, kind: 'mortgage', auto_debit: true })).toBe(true)
+  })
+  it('lo del arrendatario, el arriendo y la garantía no', () => {
     expect(countsAsExpense({ ...base, kind: 'electricity', responsible: 'tenant' })).toBe(false)
     expect(countsAsExpense({ ...base, kind: 'rent', direction: 'in', responsible: 'tenant' })).toBe(false)
     expect(countsAsExpense({ ...base, kind: 'deposit' })).toBe(false)
-    expect(countsAsExpense({ ...base, kind: 'mortgage', auto_debit: true })).toBe(false)
   })
 })
 

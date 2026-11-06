@@ -21,7 +21,7 @@ interface Group {
   expenses: ExpenseWithRelations[]
 }
 
-export default function HistorialExpenses({ groups, dateFormat }: { groups: Group[]; dateFormat?: DateFormat }) {
+export default function HistorialExpenses({ groups, dateFormat, propertyExpenseIds = [] }: { groups: Group[]; dateFormat?: DateFormat; propertyExpenseIds?: string[] }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -274,6 +274,12 @@ export default function HistorialExpenses({ groups, dateFormat }: { groups: Grou
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
                               <PaymentIcon cardType={e.payment_method.card_type} />
                               {e.payment_method.name}
+                            </span>
+                          )}
+                          {propertyExpenseIds.includes(e.id) && (
+                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                              Propiedad
                             </span>
                           )}
                           {e.shared_expense_id && (
