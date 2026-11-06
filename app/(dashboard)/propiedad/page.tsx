@@ -9,9 +9,9 @@ import { fetchClIpcSeries } from '@/lib/cl-indicators'
 export const dynamic = 'force-dynamic'
 
 // ── P1 (PLAN_PROPIEDAD, sep 2026) ───────────────────────────────────────────
-// Mundo aparte por decisión D1: esta página no lee ni escribe expenses,
-// incomes, budgets ni nada del resto de la app. Se puede borrar entera sin
-// afectar ninguna otra vista.
+// Mundo aparte por decisión D1, salvo que los pagos que son costo tuyo como
+// dueño (aseo, contribuciones...) también crean un gasto enlazado, y por eso
+// esta página lee categorías y métodos de pago para el formulario de pago.
 
 export default async function PropiedadPage({
   searchParams,
@@ -49,13 +49,18 @@ export default async function PropiedadPage({
   const { data: chargesRaw } = property
     ? await supabase
         .from('property_charges')
-        .select('id, property_id, kind, direction, due_date, amount, penalty, inflation_adj, arrears_estimated, paid_date, paid_amount, auto_debit, confirmed, responsible, is_estimate, external_ref, notes, period_month, period_year, document_path')
+        .select('id, property_id, kind, direction, due_date, amount, penalty, inflation_adj, arrears_estimated, paid_date, paid_amount, auto_debit, confirmed, responsible, is_estimate, external_ref, notes, period_month, period_year, document_path, expense_id')
         .eq('user_id', user.id)
         .eq('property_id', property.id)
         .order('due_date', { ascending: false })
     : { data: [] }
 
   const charges = (chargesRaw ?? []) as Charge[]
+
+  const [{ data: catsRaw }, { data: pmsRaw }] = await Promise.all([
+    supabase.from('categories').select('id, name').eq('user_id', user.id).order('sort_order'),
+    supabase.from('payment_methods').select('id, name').eq('user_id', user.id).order('sort_order'),
+  ])
 
   // Contrato + IPC en paralelo. La serie de IPC alimenta el aviso de reajuste;
   // si mindicador.cl falla queda null y la tarjeta simplemente no muestra el
@@ -134,7 +139,9 @@ export default async function PropiedadPage({
 
       <PropertyManager property={property} charges={charges} lease={lease}
                        ipcSeries={ipcSeries} today={today} view={view}
-                       openNew={params.nueva === '1'} />
+                       openNew={params.nueva === '1'}
+                       categories={(catsRaw ?? []) as { id: string; name: string }[]}
+                       paymentMethods={(pmsRaw ?? []) as { id: string; name: string }[]} />
     </div>
   )
 }

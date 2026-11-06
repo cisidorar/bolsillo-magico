@@ -2,14 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef, type UtilityKind } from '@/lib/property-charges'
+import { countsAsExpense, chargeExpenseDescription, KIND_LABEL, aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef, type UtilityKind } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
 import { parseAseoReceipt, type ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 
 // ── P1 (PLAN_PROPIEDAD): CRUD de la propiedad y su ledger de obligaciones ────
-// Mundo aparte por decisión D1: nada de esto escribe en expenses ni en incomes.
+// Mundo aparte por decisión D1, con una excepción (nov 2026): los pagos que son
+// costo tuyo como dueño (aseo, contribuciones, reparaciones) también crean un
+// gasto enlazado (property_charges.expense_id) — ver countsAsExpense.
 
 export interface PropertyInput {
   alias:                string
@@ -170,6 +172,12 @@ export interface MarkChargePaidOptions {
    * inflation_adj, no contra lo efectivamente pagado.
    */
   billBreakdown?: { amount: number; penalty: number; inflationAdj: number } | null
+  /**
+   * Registrar también como gasto (solo si el cobro es costo tuyo, ver
+   * countsAsExpense). `true` = categoría y método de pago como en el último
+   * gasto con la misma descripción; un objeto los fija explícitamente.
+   */
+  expense?: boolean | { categoryId: string | null; paymentMethodId: string | null }
 }
 
 /**
@@ -201,10 +209,46 @@ export async function markChargePaid(
     }
   }
 
+  // Gasto enlazado (solo costo del dueño). Si el cobro ya tenía uno (pago
+  // parcial que se completa, o se re-registra), se actualiza en vez de duplicar.
+  let expenseId: string | undefined
+  if (opts?.expense) {
+    const { data: ch } = await supabase
+      .from('property_charges')
+      .select('kind, direction, responsible, auto_debit, period_month, period_year, due_date, expense_id')
+      .eq('id', id).eq('user_id', user.id).maybeSingle()
+    if (ch && countsAsExpense(ch)) {
+      const description = chargeExpenseDescription(ch)
+      let categoryId: string | null = null
+      let paymentMethodId: string | null = null
+      if (typeof opts.expense === 'object') {
+        categoryId = opts.expense.categoryId
+        paymentMethodId = opts.expense.paymentMethodId
+      } else {
+        const { data: prev } = await supabase.from('expenses')
+          .select('category_id, payment_method_id')
+          .eq('user_id', user.id).ilike('description', `${KIND_LABEL_PREFIX(ch.kind)}%`)
+          .order('date', { ascending: false }).limit(1).maybeSingle()
+        categoryId = prev?.category_id ?? null
+        paymentMethodId = prev?.payment_method_id ?? null
+      }
+      const row = { amount: Math.round(paidAmount), date: paidDate, description, category_id: categoryId, payment_method_id: paymentMethodId }
+      if (ch.expense_id) {
+        await supabase.from('expenses').update(row).eq('id', ch.expense_id).eq('user_id', user.id)
+        expenseId = ch.expense_id
+      } else if (paidAmount > 0) {
+        const { data: ins } = await supabase.from('expenses')
+          .insert({ ...row, user_id: user.id }).select('id').single()
+        expenseId = ins?.id
+      }
+    }
+  }
+
   const b = opts?.billBreakdown
   const { error } = await supabase
     .from('property_charges')
     .update({
+      ...(expenseId ? { expense_id: expenseId } : {}),
       paid_date:   paidDate,
       paid_amount: Math.round(paidAmount),
       confirmed:   true,
@@ -217,17 +261,32 @@ export async function markChargePaid(
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/propiedad')
+  if (expenseId) revalidateExpensePaths()
   return { ok: true }
 }
 
-/** Deshacer un pago marcado por error: vuelve a quedar impago, sin borrar la fila. */
+/** Prefijo de descripción para buscar el último gasto parecido ("Derechos de aseo"). */
+function KIND_LABEL_PREFIX(kind: string): string { return KIND_LABEL[kind] ?? kind }
+
+function revalidateExpensePaths() {
+  for (const p of ['/inicio', '/historial', '/analisis', '/presupuesto']) revalidatePath(p)
+}
+
+/** Deshacer un pago marcado por error: vuelve a quedar impago, sin borrar la fila (ni el gasto enlazado: ese sí se borra). */
 export async function unmarkChargePaid(id: string): Promise<Result> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
 
+  const { data: linked } = await supabase
+    .from('property_charges').select('expense_id').eq('id', id).eq('user_id', user.id).maybeSingle()
+  if (linked?.expense_id) {
+    await supabase.from('expenses').delete().eq('id', linked.expense_id).eq('user_id', user.id)
+    revalidateExpensePaths()
+  }
+
   const { error } = await supabase
     .from('property_charges')
-    .update({ paid_date: null, paid_amount: null, confirmed: false, updated_at: new Date().toISOString() })
+    .update({ paid_date: null, paid_amount: null, confirmed: false, expense_id: null, updated_at: new Date().toISOString() })
     .eq('id', id).eq('user_id', user.id)
 
   if (error) return { ok: false, error: error.message }

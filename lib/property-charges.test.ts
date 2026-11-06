@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  countsAsExpense, chargeExpenseDescription,
   chargeTotal, chargeStatus, chargeOutstanding, daysBetween,
   estimateArrears, aseoDueDates, aseoRef, propertyHealth, nextDue,
   mortgageProgress, nextUtilityDueDate, utilityReminderRef, billChargeRef, type ChargeLike,
@@ -358,5 +359,25 @@ describe('mortgageProgress', () => {
   it('ignora cobros de otro tipo', () => {
     const charges = [aseo('2026-07-30', 14330, 0, 0, '2026-07-30'), cuota('2026-07-01', 280730, '2026-07-01')]
     expect(mortgageProgress(charges, 360).paidCount).toBe(1)
+  })
+})
+
+describe('countsAsExpense', () => {
+  const base = { kind: 'aseo', direction: 'out', responsible: 'owner', auto_debit: false }
+  it('aseo y contribuciones del dueño son gasto', () => {
+    expect(countsAsExpense(base)).toBe(true)
+    expect(countsAsExpense({ ...base, kind: 'contribuciones' })).toBe(true)
+  })
+  it('lo del arrendatario, el arriendo, la garantía y el cargo automático no', () => {
+    expect(countsAsExpense({ ...base, kind: 'electricity', responsible: 'tenant' })).toBe(false)
+    expect(countsAsExpense({ ...base, kind: 'rent', direction: 'in', responsible: 'tenant' })).toBe(false)
+    expect(countsAsExpense({ ...base, kind: 'deposit' })).toBe(false)
+    expect(countsAsExpense({ ...base, kind: 'mortgage', auto_debit: true })).toBe(false)
+  })
+})
+
+describe('chargeExpenseDescription', () => {
+  it('usa el período si existe, si no el vencimiento', () => {
+    expect(chargeExpenseDescription({ kind: 'aseo', period_month: null, period_year: null, due_date: '2026-09-30' })).toMatch(/^Derechos de aseo · sep/)
   })
 })

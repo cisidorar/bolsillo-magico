@@ -10,7 +10,7 @@ import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
   chargeStatus, chargeTotal, propertyHealth, mortgageProgress,
-  daysBetween, KIND_LABEL, type ChargeStatus, type UtilityKind,
+  daysBetween, KIND_LABEL, countsAsExpense, type ChargeStatus, type UtilityKind,
 } from '@/lib/property-charges'
 import {
   pendingIncome,
@@ -119,6 +119,7 @@ export interface Charge {
   period_month: number | null
   period_year: number | null
   document_path: string | null
+  expense_id?: string | null
 }
 
 export interface Lease {
@@ -149,6 +150,8 @@ interface Props {
   view: 'estado' | 'cobros' | 'info'
   /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
   openNew?: boolean
+  categories?: { id: string; name: string }[]
+  paymentMethods?: { id: string; name: string }[]
 }
 
 const STATUS_STYLE: Record<ChargeStatus, { label: string; color: string; bg: string }> = {
@@ -206,7 +209,7 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew }: Props) {
+export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew, categories = [], paymentMethods = [] }: Props) {
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
   // Property es edición. Antes era boolean y no podía distinguir los dos casos
@@ -386,7 +389,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   async function markAllPending() {
     setBusy(true); setError(null)
     for (const c of pendingOverdue) {
-      const res = await markChargePaid(c.id, today, chargeTotal(c))
+      const res = await markChargePaid(c.id, today, chargeTotal(c), { expense: countsAsExpense(c) })
       if (!res.ok) { setError(res.error); setBusy(false); return }
     }
     setBusy(false)
@@ -586,12 +589,13 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
       {payFor && (
         <PayForm
           charge={payFor} today={today} busy={busy} error={error} backdrop={payBackdrop}
+          categories={categories} paymentMethods={paymentMethods}
           onCancel={() => setPayFor(null)}
-          onPay={async (date, amount, receipt, externalRef, billBreakdown) => {
+          onPay={async (date, amount, receipt, externalRef, billBreakdown, expense) => {
             let fd: FormData | null = null
             if (receipt) { fd = new FormData(); fd.append('file', receipt) }
             if (await run(() => markChargePaid(payFor.id, date, amount, {
-              receiptForm: fd, externalRef, billBreakdown,
+              receiptForm: fd, externalRef, billBreakdown, expense,
             }))) setPayFor(null)
           }}
         />
@@ -614,7 +618,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
                 c.id,
                 m?.draft.paidDate ?? today,
                 m?.draft.totalPagado ?? chargeTotal(c),
-                { receiptForm: fd, externalRef: m?.draft.ingresoNumero ?? null, billBreakdown: bd },
+                { receiptForm: fd, externalRef: m?.draft.ingresoNumero ?? null, billBreakdown: bd, expense: countsAsExpense(c) },
               )
               if (!res.ok) { setError(res.error); setBusy(false); return }
             }
@@ -1602,8 +1606,10 @@ function AseoForm({ propertyId, busy, error, backdrop, onCancel, onGenerate }: {
   )
 }
 
-function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
+function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, categories, paymentMethods }: {
   charge: Charge
+  categories: { id: string; name: string }[]
+  paymentMethods: { id: string; name: string }[]
   today: string
   busy: boolean
   error: string | null
@@ -1612,9 +1618,15 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
   onPay: (
     date: string, amount: number, receipt: File | null, externalRef: string | null,
     billBreakdown: { amount: number; penalty: number; inflationAdj: number } | null,
+    expense: boolean | { categoryId: string | null; paymentMethodId: string | null },
   ) => void
 }) {
   const total = chargeTotal(charge)
+  // Costo tuyo como dueño → también va a tus gastos (por defecto sí).
+  const canExpense = countsAsExpense(charge)
+  const [asExpense, setAsExpense] = useState(true)
+  const [expCat, setExpCat] = useState('')   // '' = como el último gasto parecido
+  const [expPm, setExpPm]   = useState('')
   const [date, setDate]     = useState(today)
   const [amount, setAmount] = useState(total.toString())
   const [receipt, setReceipt]     = useState<File | null>(null)
@@ -1659,7 +1671,10 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
       title={isIncome ? 'Registrar cobro' : 'Registrar pago'}
       backdrop={backdrop} onCancel={onCancel}
     >
-      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt, ingresoNumero, billBreakdown) }}>
+      <form onSubmit={e => { e.preventDefault(); onPay(date, Number(amount || 0), receipt, ingresoNumero, billBreakdown,
+        canExpense && asExpense && !charge.expense_id
+          ? (expCat || expPm ? { categoryId: expCat || null, paymentMethodId: expPm || null } : true)
+          : canExpense && asExpense ? true : false) }}>
         <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
           {KIND_LABEL[charge.kind] ?? charge.kind} · vence {fmtDate(charge.due_date)} ·{' '}
           <strong>{formatCLP(total)}</strong>
@@ -1695,6 +1710,32 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
           </label>
           {extractMsg && <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>{extractMsg}</p>}
         </Field>
+
+        {canExpense && (
+          <div className="mb-4 rounded-xl px-3 py-3 space-y-2.5" style={{ background: 'var(--surface-2)' }}>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={asExpense} onChange={e => setAsExpense(e.target.checked)} className="mt-0.5" />
+              <span className="text-sm" style={{ color: 'var(--ink)' }}>
+                Registrar también como gasto
+                <span className="block text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                  Es costo tuyo como dueño: aparece en Historial, Análisis y tu presupuesto.
+                </span>
+              </span>
+            </label>
+            {asExpense && (
+              <div className="grid grid-cols-2 gap-2">
+                <select value={expCat} onChange={e => setExpCat(e.target.value)} className={inputCls} style={inputStyle} aria-label="Categoría del gasto">
+                  <option value="">Categoría: la de siempre</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select value={expPm} onChange={e => setExpPm(e.target.value)} className={inputCls} style={inputStyle} aria-label="Método de pago">
+                  <option value="">Pago: el de siempre</option>
+                  {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
 
         {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel={isIncome ? 'Registrar' : 'Pagar'} />

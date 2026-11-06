@@ -267,3 +267,25 @@ export const KIND_LABEL: Record<string, string> = {
   deposit:        'Garantía',
   other:          'Otro',
 }
+
+/**
+ * ¿Este pago es plata que sale de TU bolsillo como dueño? Entonces también es
+ * un gasto (nov 2026, pedido de Cas: derechos de aseo, contribuciones,
+ * reparaciones). Quedan fuera: lo que paga el arrendatario (luz, agua, gastos
+ * comunes — no es costo tuyo), el arriendo (es ingreso), la garantía, y el
+ * dividendo con cargo automático (ya lo ves en tu cartola/recurrentes: contarlo
+ * acá lo duplicaría).
+ */
+export function countsAsExpense(c: { kind: string; direction: string; responsible: string; auto_debit: boolean }): boolean {
+  return c.direction === 'out' && c.responsible === 'owner' && !c.auto_debit && c.kind !== 'deposit' && c.kind !== 'rent'
+}
+
+/** Descripción del gasto que nace de un pago de propiedad: "Derechos de aseo · sep 2026". */
+export function chargeExpenseDescription(c: { kind: string; period_month: number | null; period_year: number | null; due_date: string }): string {
+  const label = KIND_LABEL[c.kind] ?? c.kind
+  const d = c.period_month && c.period_year
+    ? new Date(c.period_year, c.period_month - 1, 1)
+    : new Date(c.due_date + 'T12:00:00')
+  const m = d.toLocaleDateString('es-CL', { month: 'short', year: 'numeric' }).replace('.', '')
+  return `${label} · ${m}`
+}
