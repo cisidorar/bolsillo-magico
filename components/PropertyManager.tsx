@@ -4,9 +4,12 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
-  Pencil, X, Undo2, Sparkles, Info, Upload, FileText, AlertTriangle,
+  Pencil, X, Undo2, Sparkles, Info, Upload, FileText, AlertTriangle, ChevronDown, Users,
 } from 'lucide-react'
-import { formatCLP } from '@/lib/utils'
+import { formatCLP, isEmoji } from '@/lib/utils'
+import { getCategoryIcon } from '@/lib/category-icons'
+import type { Category, PaymentMethod } from '@/types'
+import { Chip } from '@/components/SheetParts'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import {
   chargeStatus, chargeTotal, propertyHealth, mortgageProgress,
@@ -150,8 +153,8 @@ interface Props {
   view: 'estado' | 'cobros' | 'info'
   /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
   openNew?: boolean
-  categories?: { id: string; name: string }[]
-  paymentMethods?: { id: string; name: string }[]
+  categories?: Category[]
+  paymentMethods?: PaymentMethod[]
 }
 
 const STATUS_STYLE: Record<ChargeStatus, { label: string; color: string; bg: string }> = {
@@ -1623,8 +1626,8 @@ function AseoForm({ propertyId, busy, error, backdrop, onCancel, onGenerate }: {
 
 function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, categories, paymentMethods }: {
   charge: Charge
-  categories: { id: string; name: string }[]
-  paymentMethods: { id: string; name: string }[]
+  categories: Category[]
+  paymentMethods: PaymentMethod[]
   today: string
   busy: boolean
   error: string | null
@@ -1642,6 +1645,14 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
   const [asExpense, setAsExpense] = useState(true)
   const [expCat, setExpCat] = useState('')   // '' = como el último gasto parecido
   const [expPm, setExpPm]   = useState('')
+  const [catsExpanded, setCatsExpanded] = useState(false)
+  // Fecha: chips rápidos como en Nuevo gasto; "Más antiguo" muestra el input.
+  const quick = [
+    { label: 'Anteayer', value: shiftDay(today, -2) },
+    { label: 'Ayer', value: shiftDay(today, -1) },
+    { label: 'Hoy', value: today },
+  ]
+  const [showDatePicker, setShowDatePicker] = useState(false)
   const [date, setDate]     = useState(today)
   const [amount, setAmount] = useState(total.toString())
   const [receipt, setReceipt]     = useState<File | null>(null)
@@ -1696,8 +1707,17 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
         </p>
 
         <Field label={isIncome ? 'Fecha en que llegó' : 'Fecha de pago'}>
-          <input type="date" className={inputCls} style={inputStyle} value={date} required
-                 onChange={e => setDate(e.target.value)} onFocus={focusOn} onBlur={focusOff} />
+          <div className="flex flex-wrap gap-1.5">
+            {quick.map(q => (
+              <Chip key={q.value} active={!showDatePicker && date === q.value}
+                    onClick={() => { setDate(q.value); setShowDatePicker(false) }}>{q.label}</Chip>
+            ))}
+            <Chip active={showDatePicker} onClick={() => setShowDatePicker(true)}>Más antiguo</Chip>
+          </div>
+          {showDatePicker && (
+            <input type="date" className={`${inputCls} mt-2`} style={inputStyle} value={date} required
+                   onChange={e => setDate(e.target.value)} onFocus={focusOn} onBlur={focusOff} />
+          )}
         </Field>
         <Field
           label="Monto"
@@ -1727,37 +1747,43 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
         </Field>
 
         {canExpense && (
-          <div className="mb-4 space-y-2.5">
-            <button
-              type="button"
-              onClick={() => setAsExpense(v => !v)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${asExpense ? 'sheet-toggle-active' : 'sheet-toggle'}`}
-            >
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Registrar también como gasto</p>
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-                  Es costo tuyo como dueño: aparece en Historial, Análisis y tu presupuesto.
-                </p>
-              </div>
-              <div className="w-9 h-5 rounded-full relative transition-colors flex-shrink-0"
-                style={{ background: asExpense ? 'var(--primary)' : 'var(--border)' }}>
-                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
-                  style={{ transform: asExpense ? 'translateX(1.125rem)' : 'translateX(0.125rem)' }} />
-              </div>
-            </button>
+          <div className="mb-4 space-y-4">
+            <div>
+              <Chip active={asExpense} onClick={() => setAsExpense(v => !v)}>
+                <Users className="w-3.5 h-3.5" /> Registrar como gasto
+              </Chip>
+              <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+                Es costo tuyo como dueño: aparece en Historial, Análisis y tu presupuesto.
+              </p>
+            </div>
             {asExpense && (
-              <div className="grid grid-cols-2 gap-2">
-                <select value={expCat} onChange={e => setExpCat(e.target.value)} className={inputCls} style={inputStyle}
-                  onFocus={focusOn} onBlur={focusOff} aria-label="Categoría del gasto">
-                  <option value="">Categoría: la de siempre</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select value={expPm} onChange={e => setExpPm(e.target.value)} className={inputCls} style={inputStyle}
-                  onFocus={focusOn} onBlur={focusOff} aria-label="Método de pago">
-                  <option value="">Pago: el de siempre</option>
-                  {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
+              <>
+                <div className="space-y-2">
+                  <FieldLabelPlain>Categoría</FieldLabelPlain>
+                  <div className="flex flex-wrap gap-2">
+                    <Chip active={expCat === ''} onClick={() => setExpCat('')}>Como siempre</Chip>
+                    {(catsExpanded ? categories : categories.slice(0, 3)).map(c => (
+                      <CatPill key={c.id} c={c} selected={expCat === c.id} onSelect={() => setExpCat(c.id)} />
+                    ))}
+                  </div>
+                  {categories.length > 3 && (
+                    <button type="button" onClick={() => setCatsExpanded(v => !v)}
+                      className="flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${catsExpanded ? 'rotate-180' : ''}`} />
+                      {catsExpanded ? 'Ver menos' : `Ver ${categories.length - 3} más`}
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <FieldLabelPlain>Método</FieldLabelPlain>
+                  <div className="flex flex-wrap gap-2">
+                    <Chip active={expPm === ''} onClick={() => setExpPm('')}>Como siempre</Chip>
+                    {paymentMethods.map(p => (
+                      <Chip key={p.id} active={expPm === p.id} onClick={() => setExpPm(p.id)}>{p.name}</Chip>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -2265,5 +2291,28 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
+  )
+}
+
+function shiftDay(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function FieldLabelPlain({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>{children}</p>
+}
+
+/** Mismo estilo que CatChip de Nuevo gasto: pastilla con el color de la categoría. */
+function CatPill({ c, selected, onSelect }: { c: Category; selected: boolean; onSelect: () => void }) {
+  const Icon = isEmoji(c.icon) ? null : getCategoryIcon(c.icon)
+  return (
+    <button type="button" onClick={onSelect} aria-pressed={selected}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-all ${selected ? 'cat-badge border-transparent font-semibold' : 'sheet-chip'}`}
+      style={selected ? { '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties : undefined}>
+      {Icon ? <Icon className="w-4 h-4" style={{ color: selected ? c.color : undefined }} /> : <span className="text-base">{c.icon}</span>}
+      {c.name}
+    </button>
   )
 }

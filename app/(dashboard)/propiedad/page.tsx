@@ -5,6 +5,7 @@ import PropiedadToggle, { type PropiedadView } from '@/components/PropiedadToggl
 import PropertySwitcher from '@/components/PropertySwitcher'
 import PropertyManager, { type Property, type Charge, type Lease } from '@/components/PropertyManager'
 import { fetchClIpcSeries } from '@/lib/cl-indicators'
+import type { Category, PaymentMethod } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,8 +59,8 @@ export default async function PropiedadPage({
   const charges = (chargesRaw ?? []) as Charge[]
 
   const [{ data: catsRaw }, { data: pmsRaw }] = await Promise.all([
-    supabase.from('categories').select('id, name').eq('user_id', user.id).order('sort_order'),
-    supabase.from('payment_methods').select('id, name').eq('user_id', user.id).order('sort_order'),
+    supabase.from('categories').select('id, name, icon, color, bg_color, sort_order').eq('user_id', user.id).order('sort_order'),
+    supabase.from('payment_methods').select('id, name, card_type, icon').eq('user_id', user.id).order('sort_order'),
   ])
 
   // Contrato + IPC en paralelo. La serie de IPC alimenta el aviso de reajuste;
@@ -140,8 +141,8 @@ export default async function PropiedadPage({
       <PropertyManager property={property} charges={charges} lease={lease}
                        ipcSeries={ipcSeries} today={today} view={view}
                        openNew={params.nueva === '1'}
-                       categories={(catsRaw ?? []) as { id: string; name: string }[]}
-                       paymentMethods={(pmsRaw ?? []) as { id: string; name: string }[]} />
+                       categories={(catsRaw ?? []) as Category[]}
+                       paymentMethods={(pmsRaw ?? []) as PaymentMethod[]} />
     </div>
   )
 }
