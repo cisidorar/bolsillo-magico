@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Upload, Info } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Upload, Info, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { chargeTotal, chargeOutstanding, daysBetween, KIND_LABEL, type UtilityKind } from '@/lib/property-charges'
 import {
@@ -9,8 +9,10 @@ import {
 } from '@/lib/property-estado'
 import type { Charge } from './PropertyManager'
 
+// Siempre pinta texto (ver usos abajo) — variantes -ink de mint/coral/gold
+// (Ink-Token Rule / Gold-Ink Rule en DESIGN.md), no los tokens de fondo/ícono.
 const TONE_COLOR: Record<Tone, string> = {
-  paid: 'var(--mint)', overdue: 'var(--coral)', soon: 'var(--gold-ink)', pending: 'var(--ink-3)',
+  paid: 'var(--mint-ink)', overdue: 'var(--coral-ink)', soon: 'var(--gold-ink)', pending: 'var(--ink-3)',
 }
 const TONE_DOT: Record<Tone, string> = {
   paid: 'var(--mint)', overdue: 'var(--coral)', soon: 'var(--gold)', pending: 'var(--ink-3)',
@@ -83,6 +85,15 @@ export default function PropertyEstado({
 
   return (
     <div className="space-y-8">
+      {/* ── Debes algo vencido (UX5: banner coral completo, no solo texto) ── */}
+      {model.ownerTone === 'overdue' && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-2xl"
+          style={{ background: tint('var(--coral)', 10), border: `1.5px solid ${tint('var(--coral)', 25)}` }}>
+          <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+          <p className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>{model.ownerText}</p>
+        </div>
+      )}
+
       {/* ── Qué falta este mes ──────────────────────────────────────────── */}
       <div className="card p-5 lg:p-6">
         <div className="flex items-center justify-between gap-3">
@@ -152,7 +163,7 @@ export default function PropertyEstado({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vencido de otros meses</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--coral)' }}>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--coral-ink)' }}>
                     {model.tenantOverdueOther.length} {model.tenantOverdueOther.length === 1 ? 'cobro' : 'cobros'} ·{' '}
                     {formatCLP(model.tenantOverdueOther.reduce((s, c) => s + chargeOutstanding(c), 0))}
                   </p>
@@ -207,7 +218,7 @@ export default function PropertyEstado({
                     <button disabled={busy} onClick={() => onPay((aseoOverdue[0] ?? aseoMonthPending[0]))}
                       className="px-4 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50"
                       style={aseoOverdue.length > 0
-                        ? { background: 'var(--coral)', color: '#2A0A06' }
+                        ? { background: 'var(--coral)', color: 'white' }
                         : { background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                       Marcar como pagada
                     </button>
@@ -251,11 +262,16 @@ export default function PropertyEstado({
         </section>
       )}
 
-      {/* ── Últimos meses ───────────────────────────────────────────────── */}
+      {/* ── Últimos meses ── colapsado por defecto: es historial, no algo
+          que haga falta revisar cada vez que se abre "un chequeo" (P3,
+          densidad visual de Estado). */}
       {grid.length > 0 && (
-        <section aria-labelledby="sec-grid" className="space-y-3">
-          <div className="flex items-end justify-between gap-3 flex-wrap">
-            <h3 id="sec-grid" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Últimos {monthKeys.length} meses</h3>
+        <details className="card overflow-hidden group">
+          <summary className="flex items-center justify-between gap-3 flex-wrap px-4 lg:px-5 py-3.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <span className="text-base font-bold" style={{ color: 'var(--ink)' }}>Últimos {monthKeys.length} meses</span>
+              <span className="text-[10px] font-bold transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }}>▾</span>
+            </span>
             <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--ink-3)' }}>
               {([['paid', 'Pagado'], ['soon', 'Por vencer'], ['pending', 'Pendiente'], ['overdue', 'Vencido']] as [Tone, string][]).map(([t, l]) => (
                 <span key={t} className="inline-flex items-center gap-1.5">
@@ -263,9 +279,9 @@ export default function PropertyEstado({
                 </span>
               ))}
             </div>
-          </div>
+          </summary>
 
-          <div className="card p-2 sm:p-3 overflow-x-auto">
+          <div className="px-2 sm:px-3 pb-3 pt-1 border-t overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
             <table className="w-full text-sm border-separate" style={{ borderSpacing: 0, minWidth: 460 }}>
               <thead>
                 <tr>
@@ -311,7 +327,7 @@ export default function PropertyEstado({
               </tbody>
             </table>
           </div>
-        </section>
+        </details>
       )}
 
       {/* Cargos automáticos que nadie revisó en la cartola */}
@@ -344,10 +360,14 @@ export default function PropertyEstado({
 // ── Piezas ──────────────────────────────────────────────────────────────────
 
 function Badge({ tone, text }: { tone: Tone | 'neutral'; text: string }) {
+  // El fondo se tiñe con el color vivo (TONE_DOT); el texto usa la variante
+  // -ink (TONE_COLOR) — mezclar ambos en el mismo token dejaba el fondo
+  // apagado cuando se corrigió el texto para contraste (Ink-Token Rule).
   const color = tone === 'neutral' ? 'var(--ink-2)' : TONE_COLOR[tone]
+  const base  = tone === 'neutral' ? 'var(--ink-2)' : TONE_DOT[tone]
   return (
     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap"
-      style={{ background: tone === 'neutral' ? 'var(--surface-2)' : tint(tone === 'soon' ? 'var(--gold)' : color, 16), color }}>
+      style={{ background: tone === 'neutral' ? 'var(--surface-2)' : tint(base, 16), color }}>
       {text}
     </span>
   )

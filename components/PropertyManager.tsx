@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Check, Clock, CalendarDays, Trash2,
-  Pencil, X, Undo2, Sparkles, Info, Upload, FileText,
+  Pencil, X, Undo2, Sparkles, Info, Upload, FileText, AlertTriangle,
 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -152,12 +152,13 @@ interface Props {
 }
 
 const STATUS_STYLE: Record<ChargeStatus, { label: string; color: string; bg: string }> = {
-  // Tokens del tema, no hex: en dark el fondo se mezcla con --surface y el
-  // texto sigue legible. Un hex claro fijo dejaba el texto invisible en dark.
-  paid:     { label: 'Pagado',    color: 'var(--mint)',  bg: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' },
-  partial:  { label: 'Parcial',   color: 'var(--gold)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
-  overdue:  { label: 'Vencido',   color: 'var(--coral)', bg: 'color-mix(in srgb, var(--coral) 14%, var(--surface))' },
-  due_soon: { label: 'Por vencer',color: 'var(--gold)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
+  // `color` siempre pinta texto (los chips de abajo) — por eso usa las
+  // variantes -ink de mint/gold/coral (Ink-Token Rule / Gold-Ink Rule en
+  // DESIGN.md), no los tokens de fondo/ícono directamente.
+  paid:     { label: 'Pagado',    color: 'var(--mint-ink)',  bg: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' },
+  partial:  { label: 'Parcial',   color: 'var(--gold-ink)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
+  overdue:  { label: 'Vencido',   color: 'var(--coral-ink)', bg: 'color-mix(in srgb, var(--coral) 14%, var(--surface))' },
+  due_soon: { label: 'Por vencer',color: 'var(--gold-ink)',  bg: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' },
   pending:  { label: 'Pendiente', color: 'var(--ink-3)', bg: 'var(--surface-2)' },
 }
 
@@ -228,6 +229,11 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
   const [detailCharge, setDetailCharge] = useState<Charge | null>(null)
   const [busy, setBusy]           = useState(false)
   const [error, setError]         = useState<string | null>(null)
+  // Hoisted above the `if (!property) return` below: this hook must run on
+  // every render regardless of branch, or the hook count diverges the
+  // instant `property` flips from null to a real value (ej. justo después
+  // de crear la primera propiedad) y React revienta por Rules of Hooks.
+  const [selectedMonth, setSelectedMonth] = useState(monthOf(today))
 
   const health = useMemo(() => propertyHealth(charges, today), [charges, today])
 
@@ -320,7 +326,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
             style={{ background: 'color-mix(in srgb, var(--gold) 14%, var(--surface))' }}
           >
-            <Building2 className="w-7 h-7" style={{ color: '#D97706' }} />
+            <Building2 className="w-7 h-7" style={{ color: 'var(--gold-ink)' }} />
           </div>
           <h2 className="text-base font-bold mb-1.5" style={{ color: 'var(--ink)' }}>
             Aún no has agregado tu propiedad
@@ -351,11 +357,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
   const ownerCharges  = charges.filter(c => c.responsible === 'owner')
   const tenantCharges = charges.filter(c => c.responsible === 'tenant')
-
-  // Mes elegido en los chips de Estado (sep 2026, mockup de Cas). Después del
-  // early-return de arriba, junto al resto de los derivados — mismo patrón
-  // (imperfecto, pero consistente) que ya usan priorConsumption/summary acá.
-  const [selectedMonth, setSelectedMonth] = useState(monthOf(today))
 
   // Consumos anteriores por servicio, más reciente primero — alimentan la
   // detección de saltos del uploader. Se leen de las notas del cobro porque
@@ -394,6 +395,20 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
 
   return (
     <>
+      {/* Errores de acciones sin modal propio (ej. "Deshacer" directo en una
+          TenantCard, "Marcar todo cobrado") — antes este mensaje vivía solo
+          al fondo de toda la página, invisible si la acción ocurrió arriba
+          del scroll. Las acciones con modal ya muestran su propio error
+          adentro (ver `error={error}` en cada form); esta franja es el único
+          lugar donde cae el resto. */}
+      {error && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-2xl mb-5"
+          style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--coral)' }} />
+          <p className="text-sm font-semibold" style={{ color: 'var(--coral-ink)' }}>{error}</p>
+        </div>
+      )}
+
       {view === 'estado' ? (
         <PropertyEstado
           charges={charges} today={today} monthKeys={monthKeys}
@@ -493,10 +508,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
             </div>
           )}
         </div>
-      )}
-
-      {error && (
-        <p className="text-sm mt-4 px-1" style={{ color: 'var(--coral)' }}>{error}</p>
       )}
 
       {/* ── Modales ────────────────────────────────────────────────────── */}
@@ -698,7 +709,7 @@ function ChargeList({ title, subtitle, charges, today, onOpen }: {
                       // es un aviso de "esto todavía no es la boleta real,
                       // súbela cuando llegue" (UX5, chip de "atención pronto").
                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-                            style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold)' }}>
+                            style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }}>
                         estimado · falta subir la boleta
                       </span>
                     )}
@@ -718,7 +729,7 @@ function ChargeList({ title, subtitle, charges, today, onOpen }: {
                 </div>
 
                 <p className="text-sm font-bold whitespace-nowrap flex-shrink-0"
-                   style={{ color: c.direction === 'in' ? 'var(--mint)' : 'var(--ink)' }}>
+                   style={{ color: c.direction === 'in' ? 'var(--mint-ink)' : 'var(--ink)' }}>
                   {c.direction === 'in' ? '+' : ''}{formatCLP(chargeTotal(c))}
                 </p>
               </button>
@@ -779,7 +790,7 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
       {charge.is_estimate && (
         <div className="rounded-2xl p-3 mb-4 flex items-start gap-2"
              style={{ background: 'color-mix(in srgb, var(--gold) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--gold) 25%, transparent)' }}>
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
           <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
             Monto y fecha son un cálculo, no la boleta real todavía. Súbela cuando llegue y este recordatorio se reemplaza solo.
           </p>
@@ -791,7 +802,7 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
         {charge.penalty > 0 && <Fact label="Interés penal" value={formatCLP(charge.penalty)} />}
         {charge.inflation_adj > 0 && <Fact label="Reajuste IPC" value={formatCLP(charge.inflation_adj)} />}
         <Fact label="Total" value={`${isIncome ? '+' : ''}${formatCLP(chargeTotal(charge))}`} bold
-              color={isIncome ? 'var(--mint)' : undefined} />
+              color={isIncome ? 'var(--mint-ink)' : undefined} />
         {charge.external_ref && <Fact label="N° de giro o boleta" value={charge.external_ref} />}
         {/* "responsible" dice de quién es la carga financiera (para saber si
             suma a tu deuda), no quién hace materialmente el pago — para un
@@ -994,7 +1005,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
       {adjSoon && (
         <div className="mt-3 p-3 rounded-xl flex items-start gap-2"
              style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
-          <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
           <div className="min-w-0">
             <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
               Toca reajustar {adjDays === 0 ? 'hoy' : `en ${adjDays} ${adjDays === 1 ? 'día' : 'días'}`}
@@ -1023,7 +1034,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
       {noticeSoon && (
         <div className="mt-2 p-3 rounded-xl flex items-start gap-2"
              style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
-          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
           <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
             Si no quieres renovar, el plazo para avisar vence el {fmtDate(notice!)}
             {' '}({noticeDays === 0 ? 'hoy' : `en ${noticeDays} días`}).
@@ -1424,7 +1435,7 @@ function PropertyForm({ property, busy, error, backdrop, onCancel, onSave, onDel
         )}
 
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions
           busy={busy} onCancel={onCancel} submitLabel={property ? 'Guardar' : 'Crear propiedad'}
           danger={onDelete ? { label: 'Eliminar propiedad', onClick: onDelete } : undefined}
@@ -1538,7 +1549,7 @@ function ChargeForm({ charge, propertyId, busy, error, backdrop, onCancel, onSav
                  onChange={e => setNotes(e.target.value)} placeholder="Opcional" />
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
@@ -1584,7 +1595,7 @@ function AseoForm({ propertyId, busy, error, backdrop, onCancel, onGenerate }: {
           </div>
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Generar" />
       </form>
     </Modal>
@@ -1685,7 +1696,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay }: {
           {extractMsg && <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>{extractMsg}</p>}
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel={isIncome ? 'Registrar' : 'Pagar'} />
       </form>
     </Modal>
@@ -1779,12 +1790,12 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
         {(notMatched.length > 0 || failed.length > 0) && (
           <div className="mb-4 space-y-1">
             {notMatched.map(name => (
-              <p key={name} className="text-xs" style={{ color: 'var(--gold)' }}>
+              <p key={name} className="text-xs" style={{ color: 'var(--gold-ink)' }}>
                 {name}: se leyó bien pero no coincide con ninguna de estas cuentas (¿vencimiento distinto?).
               </p>
             ))}
             {failed.map(name => (
-              <p key={name} className="text-xs" style={{ color: 'var(--coral)' }}>
+              <p key={name} className="text-xs" style={{ color: 'var(--coral-ink)' }}>
                 {name}: no se pudo leer el PDF.
               </p>
             ))}
@@ -1800,7 +1811,7 @@ function BulkPayModal({ charges, today, busy, backdrop, onClose, onConfirm }: {
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>
                     {KIND_LABEL[c.kind] ?? c.kind}{c.external_ref ? ` · N° ${c.external_ref}` : ''}
                   </p>
-                  <p className="text-xs truncate" style={{ color: m ? 'var(--mint)' : 'var(--ink-3)' }}>
+                  <p className="text-xs truncate" style={{ color: m ? 'var(--mint-ink)' : 'var(--ink-3)' }}>
                     {m ? `Comprobante: ${m.file.name}` : `Sin comprobante · vence ${fmtDate(c.due_date)}`}
                   </p>
                 </div>
@@ -1960,7 +1971,7 @@ function LeaseForm({ lease, propertyId, busy, error, backdrop, onCancel, onSave,
           </Field>
         </div>
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions
           busy={busy} onCancel={onCancel} submitLabel="Guardar"
           danger={onDelete ? { label: 'Eliminar contrato', onClick: onDelete } : undefined}
@@ -2126,7 +2137,7 @@ function MortgageForm({ property, busy, error, backdrop, onCancel, onSave }: {
           </div>
         )}
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
@@ -2167,7 +2178,7 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
         {sug && !sug.confident && (
           <div className="flex items-start gap-2 p-3 rounded-xl mb-4"
                style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
-            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
             <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
               En {property.comuna} la concesión está repartida entre empresas — confirma
               cuál aparece en tu boleta.
@@ -2184,7 +2195,7 @@ function UtilityAccountsForm({ property, busy, error, backdrop, onCancel, onSave
                  onChange={e => setWater(e.target.value)} placeholder="1847362-5" />
         </Field>
 
-        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+        {error && <p className="text-sm mb-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
         <Actions busy={busy} onCancel={onCancel} submitLabel="Guardar" />
       </form>
     </Modal>
