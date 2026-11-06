@@ -329,16 +329,18 @@ export default function PorCobrarView({ rows, paymentMethods, today }: {
         const total = selectedPeople.reduce((s, p) => s + p.total, 0)
         return (
           <div className="fixed bottom-24 lg:bottom-8 left-0 lg:left-60 right-0 z-[60] px-4 lg:px-8 flex justify-center">
-            <div className="card flex items-center gap-3 px-4 py-3 w-full lg:max-w-md" style={{ boxShadow: '0 8px 24px var(--shadow)' }}>
-              <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: 'var(--ink)' }}>
-                {selectedPeople.length} {selectedPeople.length === 1 ? 'persona' : 'personas'} · {formatCLP(total)}
-              </span>
-              <button type="button" onClick={() => setMulti(new Set())}
-                className="text-xs font-semibold flex-shrink-0 min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>
-                Cancelar
-              </button>
+            <div className="card flex flex-col gap-2.5 px-4 py-3 w-full lg:max-w-md" style={{ boxShadow: '0 8px 24px var(--shadow)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                  {selectedPeople.length} {selectedPeople.length === 1 ? 'persona' : 'personas'} · {formatCLP(total)}
+                </span>
+                <button type="button" onClick={() => setMulti(new Set())}
+                  className="text-xs font-semibold flex-shrink-0 min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>
+                  Cancelar
+                </button>
+              </div>
               <button type="button" disabled={pending} onClick={() => paidMany(selectedPeople)}
-                className="px-3 py-2.5 rounded-lg text-sm font-bold flex-shrink-0 disabled:opacity-60"
+                className="w-full py-2.5 rounded-lg text-sm font-bold disabled:opacity-60"
                 style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                 Marcar pagado{selectedAccountName ? ` · a ${selectedAccountName}` : ''}
               </button>
