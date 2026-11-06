@@ -101,7 +101,7 @@ export default async function PropiedadPage({
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-6">
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl lg:text-3xl font-extrabold leading-tight truncate"
@@ -127,7 +127,7 @@ export default async function PropiedadPage({
           </p>
         </div>
         {property && (
-          <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+          <div className="flex items-center gap-2 flex-wrap lg:ml-auto lg:flex-shrink-0">
             <PropertySwitcher
               properties={properties}
               activeId={property.id}

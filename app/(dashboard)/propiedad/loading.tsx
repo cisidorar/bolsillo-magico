@@ -7,7 +7,7 @@ export default function Loading() {
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 animate-pulse">
       {/* ── Encabezado: nombre + chip, selector + toggle ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-6">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
             <div className="h-8 w-48 rounded-xl" style={{ background: 'var(--surface-2)' }} />
@@ -15,7 +15,7 @@ export default function Loading() {
           </div>
           <div className="h-4 w-56 rounded-lg" style={{ background: 'var(--surface-2)' }} />
         </div>
-        <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap lg:ml-auto lg:flex-shrink-0">
           <div className="h-9 w-36 rounded-xl" style={{ background: 'var(--surface-2)' }} />
           <div className="h-9 w-64 rounded-xl" style={{ background: 'var(--surface-2)' }} />
         </div>

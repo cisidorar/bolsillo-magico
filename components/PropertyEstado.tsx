@@ -96,8 +96,8 @@ export default function PropertyEstado({
 
       {/* ── Qué falta este mes ──────────────────────────────────────────── */}
       <div className="card p-5 lg:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center justify-between gap-1 sm:justify-start">
             <button onClick={() => onSelectMonth(monthKeys[idx - 1])} disabled={idx <= 0}
               aria-label="Mes anterior"
               className="w-11 h-11 rounded-xl flex items-center justify-center disabled:opacity-30"
@@ -115,7 +115,7 @@ export default function PropertyEstado({
             </button>
           </div>
           <button onClick={() => onUploadBill(null)}
-            className="inline-flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl active:scale-[.97] transition-transform flex-shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl active:scale-[.97] transition-transform w-full sm:w-auto"
             style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}>
             <Upload className="w-4 h-4" strokeWidth={2.5} /> Subir boleta
           </button>
@@ -134,7 +134,7 @@ export default function PropertyEstado({
       {/* ── Paga el arrendatario ────────────────────────────────────────── */}
       {presentTenant > 0 && (
         <section aria-labelledby="sec-tenant" className="space-y-3">
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <h3 id="sec-tenant" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Paga el arrendatario</h3>
             <div className="flex items-center gap-2" aria-label={`${model.paidTenantCount} de ${presentTenant} pagadas`}>
               <div className="flex gap-1">
