@@ -1204,21 +1204,24 @@ function Modal({ title, backdrop, onCancel, children }: {
 }) {
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end lg:items-center justify-center p-0 lg:p-4"
-      style={{ background: 'rgba(10,31,68,0.45)' }}
+      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50 p-0 lg:p-4"
       {...backdrop}
     >
       <div
         className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl max-h-[90vh] overflow-y-auto"
         style={{ background: 'var(--surface)' }}
       >
+        {/* Drag handle mobile — mismo patrón que el resto de los sheets de la app. */}
+        <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
         <div
-          className="sticky top-0 flex items-center justify-between px-5 py-4 border-b"
+          className="sticky top-0 flex items-center justify-between px-5 pt-3 pb-4 lg:pt-4 border-b"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
           <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{title}</h2>
-          <button onClick={onCancel} className="p-1 rounded-lg" style={{ color: 'var(--ink-3)' }}>
-            <X className="w-5 h-5" />
+          <button onClick={onCancel}
+            className="w-8 h-8 flex items-center justify-center rounded-full transition-colors flex-shrink-0"
+            style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+            <X className="w-4 h-4" />
           </button>
         </div>
         <div className="p-5">{children}</div>
@@ -1232,7 +1235,7 @@ function Field({ label, hint, children }: {
 }) {
   return (
     <label className="block mb-3.5">
-      <span className="block text-xs font-bold mb-1.5" style={{ color: 'var(--ink-2)' }}>{label}</span>
+      <span className="block text-[11px] font-bold mb-1.5" style={{ color: 'var(--ink-3)' }}>{label}</span>
       {children}
       {hint && <span className="block text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>{hint}</span>}
     </label>
@@ -1244,7 +1247,19 @@ const inputStyle = {
   background: 'var(--surface-2)',
   color: 'var(--ink)',
   border: '1.5px solid var(--border)',
+  transition: 'border-color 150ms, box-shadow 150ms',
 } as const
+// Mismo patrón que DepositManager/RecurringManager: sin esto los 44 campos
+// de este archivo no tenían NINGÚN estado de foco visible (outline-none sin
+// reemplazo) — un mouse/teclado no podía ver dónde estaba parado.
+function focusOn(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = 'var(--primary)'
+  e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)'
+}
+function focusOff(e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = 'var(--border)'
+  e.currentTarget.style.boxShadow = 'none'
+}
 
 function Actions({ busy, onCancel, submitLabel, danger }: {
   busy: boolean
@@ -1266,8 +1281,8 @@ function Actions({ busy, onCancel, submitLabel, danger }: {
       )}
       <button
         type="button" onClick={onCancel}
-        className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-        style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+        className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors"
+        style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
       >
         Cancelar
       </button>
@@ -1682,7 +1697,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
 
         <Field label={isIncome ? 'Fecha en que llegó' : 'Fecha de pago'}>
           <input type="date" className={inputCls} style={inputStyle} value={date} required
-                 onChange={e => setDate(e.target.value)} />
+                 onChange={e => setDate(e.target.value)} onFocus={focusOn} onBlur={focusOff} />
         </Field>
         <Field
           label="Monto"
@@ -1692,7 +1707,7 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none"
                   style={{ color: 'var(--ink-3)' }}>$</span>
             <input className={inputCls} style={{ ...inputStyle, paddingLeft: '1.5rem' }} value={fmtClpInput(amount)} inputMode="numeric" required
-                   onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} />
+                   onChange={e => setAmount(e.target.value.replace(/\D/g, ''))} onFocus={focusOn} onBlur={focusOff} />
           </div>
         </Field>
 
@@ -1712,23 +1727,33 @@ function PayForm({ charge, today, busy, error, backdrop, onCancel, onPay, catego
         </Field>
 
         {canExpense && (
-          <div className="mb-4 rounded-xl px-3 py-3 space-y-2.5" style={{ background: 'var(--surface-2)' }}>
-            <label className="flex items-start gap-2.5 cursor-pointer">
-              <input type="checkbox" checked={asExpense} onChange={e => setAsExpense(e.target.checked)} className="mt-0.5" />
-              <span className="text-sm" style={{ color: 'var(--ink)' }}>
-                Registrar también como gasto
-                <span className="block text-[11px]" style={{ color: 'var(--ink-3)' }}>
+          <div className="mb-4 space-y-2.5">
+            <button
+              type="button"
+              onClick={() => setAsExpense(v => !v)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${asExpense ? 'sheet-toggle-active' : 'sheet-toggle'}`}
+            >
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Registrar también como gasto</p>
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
                   Es costo tuyo como dueño: aparece en Historial, Análisis y tu presupuesto.
-                </span>
-              </span>
-            </label>
+                </p>
+              </div>
+              <div className="w-9 h-5 rounded-full relative transition-colors flex-shrink-0"
+                style={{ background: asExpense ? 'var(--primary)' : 'var(--border)' }}>
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                  style={{ transform: asExpense ? 'translateX(1.125rem)' : 'translateX(0.125rem)' }} />
+              </div>
+            </button>
             {asExpense && (
               <div className="grid grid-cols-2 gap-2">
-                <select value={expCat} onChange={e => setExpCat(e.target.value)} className={inputCls} style={inputStyle} aria-label="Categoría del gasto">
+                <select value={expCat} onChange={e => setExpCat(e.target.value)} className={inputCls} style={inputStyle}
+                  onFocus={focusOn} onBlur={focusOff} aria-label="Categoría del gasto">
                   <option value="">Categoría: la de siempre</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <select value={expPm} onChange={e => setExpPm(e.target.value)} className={inputCls} style={inputStyle} aria-label="Método de pago">
+                <select value={expPm} onChange={e => setExpPm(e.target.value)} className={inputCls} style={inputStyle}
+                  onFocus={focusOn} onBlur={focusOff} aria-label="Método de pago">
                   <option value="">Pago: el de siempre</option>
                   {paymentMethods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
