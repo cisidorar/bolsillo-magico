@@ -12,7 +12,8 @@ import ServiceLogo from './ServiceLogo'
 import { PaymentIcon } from './PaymentIcon'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { useToast } from '@/components/ToastProvider'
-import { X, Trash2, ChevronRight, RefreshCw } from 'lucide-react'
+import { X, Trash2, ChevronRight, RefreshCw, HandCoins } from 'lucide-react'
+import SplitSheet, { type SplitTarget } from './SplitSheet'
 import type { ExpenseWithRelations } from '@/types'
 
 interface DayGroup {
@@ -47,6 +48,7 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
   const [editingExpense, setEditingExpense] = useState<ExpenseWithRelations | null>(null)
   const [detailExpense, setDetailExpense]   = useState<ExpenseWithRelations | null>(null)
   const [confirmDelete, setConfirmDelete]   = useState(false)
+  const [splitTarget, setSplitTarget]       = useState<SplitTarget | null>(null)
   const [deleting, setDeleting]             = useState(false)
 
   function closeDetail() { setDetailExpense(null); setConfirmDelete(false) }
@@ -245,6 +247,35 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
                   </p>
                 </div>
 
+                {!e.shared_expense_id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pm = e.payment_method
+                      setSplitTarget({
+                        id: e.id,
+                        total: e.amount + (e.card_extra ?? 0),
+                        description: e.description,
+                        date: e.date,
+                        paymentMethod: pm ? { card_type: pm.card_type, billing_day: pm.billing_day ?? null, payment_due_day: pm.payment_due_day ?? null, name: pm.name } : null,
+                      })
+                    }}
+                    className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-opacity hover:opacity-80"
+                    style={{ background: 'var(--surface-2)' }}
+                  >
+                    <HandCoins className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                        {(e.card_extra ?? 0) > 0 ? `Te deben ${formatCLP(e.card_extra ?? 0)}` : 'Cobrar a alguien'}
+                      </span>
+                      <span className="block text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                        {(e.card_extra ?? 0) > 0 ? 'Ver o cambiar el reparto' : '¿Alguien te va a devolver todo o parte de esto?'}
+                      </span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+                  </button>
+                )}
+
                 {confirmDelete && (
                   <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
                     <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>¿Seguro que quieres eliminar este gasto?</p>
@@ -300,6 +331,14 @@ export default function CatExpenseList({ groups, categoryName, compact = false }
           </div>
         )
       })()}
+
+      {splitTarget && (
+        <SplitSheet
+          target={splitTarget}
+          onClose={() => setSplitTarget(null)}
+          onDone={msg => { setSplitTarget(null); setDetailExpense(null); router.refresh(); showToast(msg) }}
+        />
+      )}
 
       <ExpenseSheet
         fetchData
