@@ -407,17 +407,18 @@ function FormBody({
     <div className="flex flex-col gap-5">
       {/* Preview */}
       <div
-        className="flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all"
-        style={{ backgroundColor: `${chosen.bg}80`, borderColor: `${chosen.color}30` }}
+        className="cat-preview flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all"
+        style={{ '--cat-bg': chosen.bg, '--cat-color': chosen.color } as React.CSSProperties}
       >
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: chosen.bg }}>
-          <PreviewIcon className="w-6 h-6" style={{ color: chosen.color }} />
+        <div className="cat-icon-bg w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ '--cat-bg': chosen.bg, '--cat-color': chosen.color } as React.CSSProperties}>
+          <PreviewIcon className="cat-text w-6 h-6" />
         </div>
         <div>
-          <p className="font-bold text-gray-800 text-sm leading-tight">
+          <p className="font-bold text-sm leading-tight" style={{ color: 'var(--ink)' }}>
             {form.name || 'Nueva categoría'}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: chosen.color }}>{previewOpt.label}</p>
+          <p className="cat-text text-xs mt-0.5">{previewOpt.label}</p>
         </div>
       </div>
 
@@ -449,11 +450,13 @@ function FormBody({
                 title={opt.label}
                 className={cn(
                   'w-9 h-9 rounded-xl flex items-center justify-center transition-all',
-                  isSelected ? 'ring-2 ring-offset-1 ring-brand-600' : 'hover:bg-gray-100'
+                  isSelected ? 'cat-icon-bg ring-2 ring-offset-1 ring-brand-600' : 'hover:bg-gray-100'
                 )}
-                style={isSelected ? { backgroundColor: chosen.bg } : {}}
+                style={isSelected
+                  ? { '--cat-bg': chosen.bg, '--cat-color': chosen.color, '--tw-ring-offset-color': 'var(--surface)' } as React.CSSProperties
+                  : {}}
               >
-                <Icon className="w-[18px] h-[18px]" style={{ color: isSelected ? chosen.color : '#9CA3AF' }} />
+                <Icon className={cn('w-[18px] h-[18px]', isSelected && 'cat-text')} style={isSelected ? { '--cat-color': chosen.color } as React.CSSProperties : { color: 'var(--ink-3)' }} />
               </button>
             )
           })}
@@ -468,8 +471,9 @@ function FormBody({
             <button
               key={i}
               onClick={() => setForm(f => ({ ...f, colorIdx: i }))}
-              className={cn('w-8 h-8 rounded-full transition-all flex items-center justify-center', form.colorIdx === i && 'ring-2 ring-offset-2 ring-gray-400')}
-              style={{ backgroundColor: c.bg, border: `2.5px solid ${c.color}` }}
+              aria-label={`Color ${i + 1}`} aria-pressed={form.colorIdx === i}
+              className={cn('cat-icon-bg w-8 h-8 rounded-full transition-all flex items-center justify-center', form.colorIdx === i && 'ring-2 ring-offset-2 ring-gray-400')}
+              style={{ '--cat-bg': c.bg, '--cat-color': c.color, '--tw-ring-offset-color': 'var(--surface)', border: `2.5px solid ${c.color}` } as React.CSSProperties}
             >
               {form.colorIdx === i && <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />}
             </button>

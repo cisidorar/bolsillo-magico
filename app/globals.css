@@ -309,6 +309,16 @@
   background: color-mix(in srgb, var(--cat-color, var(--primary)) 16%, var(--surface)) !important;
 }
 
+/* ── Vista previa de categoría + texto con el color de la categoría ───────
+   En oscuro el texto/ícono se aclara (el color base de la paleta es oscuro y
+   se perdía sobre el fondo). */
+.cat-preview {
+  background: color-mix(in srgb, var(--cat-color, var(--primary)) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--cat-color, var(--primary)) 25%, transparent);
+}
+.cat-text { color: var(--cat-color, var(--primary)); }
+.dark .cat-text { color: color-mix(in srgb, var(--cat-color, var(--primary)) 60%, #ffffff) !important; }
+
 /* ── Sheet chips ─────────────────────────────────────────────────────────── */
 .sheet-chip {
   background: var(--surface-2);
