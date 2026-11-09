@@ -9,6 +9,8 @@ describe('guessMerchantDomain: marcas pedidas por Cas', () => {
     expect(guessMerchantDomain('Metro de Santiago')).toBe('metro.cl')
     expect(detectDomain('Airbnb vacaciones')).toBe('airbnb.com')
     expect(detectDomain('Metro de Santiago')).toBe('metro.cl')
+    expect(detectDomain('Metro')).toBe('metro.cl')   // Historial usa detectDomain
+    expect(detectDomain('Metrogas')).not.toBe('metro.cl')
   })
   it('Metrogas no se confunde con Metro', () => {
     expect(guessMerchantDomain('Metrogas')).not.toBe('metro.cl')

@@ -1,3 +1,4 @@
+import { guessMerchantDomain } from './expense-icons'
 /**
  * Mapa de servicios comunes → dominio para Clearbit Logo API
  * Clave: keyword en minúsculas (puede ser parcial)
@@ -195,7 +196,9 @@ export function detectDomain(name: string): string | null {
       return service.domain
     }
   }
-  return null
+  // Respaldo: lista curada de comercios con regex (Metro, Airbnb, supermercados...).
+  // Así Historial, Inicio y el detalle muestran el mismo logo.
+  return guessMerchantDomain(name)
 }
 
 // ─── Métodos de pago → dominios ─────────────────────────────────────────────
