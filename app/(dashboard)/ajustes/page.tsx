@@ -75,7 +75,7 @@ export default async function AjustesPage() {
   })
 
   return (
-    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-10">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
 
       {/* ── Header ───────────────────────────────────────────────── */}
       <div className="mb-6">
@@ -98,7 +98,7 @@ export default async function AjustesPage() {
         <div className="space-y-6">
 
           <section>
-            <SectionHeader icon={Sparkles} label="Preferencias" color="#1FBE8D" />
+            <SectionHeader icon={Sparkles} label="Preferencias" />
             <div className="space-y-3">
               <BudgetPeriodSelect
                 userId={user.id}
@@ -119,8 +119,8 @@ export default async function AjustesPage() {
                       no se adaptaba a modo oscuro y quedaba blanco/desentonado
                       junto a los demás íconos, que sí usan este patrón. */}
                   <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
-                    <Palette className="w-5 h-5" style={{ color: '#7C3AED' }} />
+                    style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                    <Palette className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Apariencia</p>
@@ -133,7 +133,7 @@ export default async function AjustesPage() {
           </section>
 
           <section>
-            <SectionHeader icon={Bell} label="Notificaciones" color="#2B7CF6" />
+            <SectionHeader icon={Bell} label="Notificaciones" />
             <NotificationPrefs
               userId={user.id}
               notifyBilling={profile?.notify_billing ?? true}
@@ -156,7 +156,7 @@ export default async function AjustesPage() {
         <div className="space-y-6">
 
           <section>
-            <SectionHeader icon={Coins} label="Finanzas" color="#F59E0B" />
+            <SectionHeader icon={Coins} label="Finanzas" />
             <div className="card overflow-hidden">
 
               {/* Solo mobile — ya en sidebar desktop */}
@@ -165,8 +165,8 @@ export default async function AjustesPage() {
                   href="/ingresos"
                   icon={
                     <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ '--cat-bg': '#E6FAF3', '--cat-color': '#1FBE8D' } as React.CSSProperties}>
-                      <Wallet className="w-5 h-5" style={{ color: '#1FBE8D' }} />
+                      style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                      <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                     </div>
                   }
                   title="Ingresos"
@@ -176,8 +176,8 @@ export default async function AjustesPage() {
                   href="/inversiones"
                   icon={
                     <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#2B7CF6' } as React.CSSProperties}>
-                      <TrendingUp className="w-5 h-5" style={{ color: '#2B7CF6' }} />
+                      style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                      <TrendingUp className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                     </div>
                   }
                   title="Inversiones"
@@ -187,8 +187,8 @@ export default async function AjustesPage() {
                   href="/recurrentes"
                   icon={
                     <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ '--cat-bg': '#F0FDFA', '--cat-color': '#0D9488' } as React.CSSProperties}>
-                      <RefreshCw className="w-5 h-5" style={{ color: '#0D9488' }} />
+                      style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                      <RefreshCw className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                     </div>
                   }
                   title="Gastos recurrentes"
@@ -197,13 +197,13 @@ export default async function AjustesPage() {
               </div>
 
               {/* Siempre visibles */}
-              <div className=" border-t lg:border-t-0" style={{ borderColor: 'var(--border)' }}>
+              <div className="border-t lg:border-t-0" style={{ borderColor: 'var(--border)' }}>
                 <SettingsRow
                   href="/presupuesto"
                   icon={
                     <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ '--cat-bg': '#EEF4FF', '--cat-color': '#2B7CF6' } as React.CSSProperties}>
-                      <Target className="w-5 h-5" style={{ color: '#2B7CF6' }} />
+                      style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                      <Target className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                     </div>
                   }
                   title="Límite mensual"
@@ -218,7 +218,7 @@ export default async function AjustesPage() {
                           {(categories ?? []).slice(0, 3).map(c => (
                             <div
                               key={c.id}
-                              className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-white dark:ring-slate-900 flex-shrink-0"
+                              className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center text-sm ring-2 ring-[var(--surface)] flex-shrink-0"
                               style={{ '--cat-bg': c.bg_color, '--cat-color': c.color } as React.CSSProperties}
                             >
                               {isEmoji(c.icon)
@@ -230,8 +230,8 @@ export default async function AjustesPage() {
                         </div>
                       ) : (
                         <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
-                          style={{ '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' } as React.CSSProperties}>
-                          <Tag className="w-5 h-5" style={{ color: '#7C3AED' }} />
+                          style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                          <Tag className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                         </div>
                       )}
                     </div>
@@ -246,15 +246,15 @@ export default async function AjustesPage() {
                       {(paymentMethods ?? []).length > 0 ? (
                         <div className="flex -space-x-2">
                           {(paymentMethods ?? []).slice(0, 3).map(m => (
-                            <div key={m.id} className="ring-2 ring-white dark:ring-slate-900 rounded-xl flex-shrink-0">
+                            <div key={m.id} className="ring-2 ring-[var(--surface)] rounded-xl flex-shrink-0">
                               <ServiceLogo domain={m.domain} name={m.name} size={40} />
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center"
-                          style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                          <CreditCard className="w-5 h-5" style={{ color: '#16A34A' }} />
+                          style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                          <CreditCard className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                         </div>
                       )}
                     </div>
@@ -268,13 +268,13 @@ export default async function AjustesPage() {
           </section>
 
           <section>
-            <SectionHeader icon={Database} label="Datos" color="#2B7CF6" />
+            <SectionHeader icon={Database} label="Datos" />
             <div className="space-y-3">
               <div className="card overflow-hidden">
                 <div className="flex items-center gap-4 px-4 pt-4 pb-2">
                   <div className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ '--cat-bg': '#F0FDF4', '--cat-color': '#16A34A' } as React.CSSProperties}>
-                    <Download className="w-5 h-5" style={{ color: '#16A34A' }} />
+                    style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                    <Download className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Exportar gastos</p>
@@ -297,10 +297,10 @@ export default async function AjustesPage() {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function SectionHeader({ icon: Icon, label, color }: { icon: LucideIcon; label: string; color: string }) {
+function SectionHeader({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-3 px-0.5">
-      <Icon className="w-4 h-4 flex-shrink-0" style={{ color }} />
+      <Icon className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{label}</p>
     </div>
   )
@@ -320,7 +320,7 @@ function SettingsRow({
   return (
     <Link
       href={href}
-      className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-black/5 group"
+      className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-[var(--surface-2)] group"
     >
       {icon}
       <div className="flex-1 min-w-0">

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, CreditCard, Target, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, BarChart2, Timer } from 'lucide-react'
+import { Check, Bell, CreditCard, Target, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, BarChart2, Timer } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/components/ToastProvider'
+import SettingChip from '@/components/SettingChip'
 import type { NotificationStatusSummary } from '@/lib/notification-status'
 
 interface Props {
@@ -59,6 +61,7 @@ export default function NotificationPrefs({
   status,
 }: Props) {
   const supabase = createClient()
+  const { showToast } = useToast()
   const [isPending, startTransition] = useTransition()
 
   const [state, setState] = useState({
@@ -73,18 +76,40 @@ export default function NotificationPrefs({
   })
   const [alertPct, setAlertPct] = useState(initPct)
 
+  // Confirmación por fila: un chip "Guardado" de 2s junto al título del
+  // ajuste que se acaba de escribir.
+  const [savedKey, setSavedKey] = useState<string | null>(null)
+  const flashSaved = (key: string) => {
+    setSavedKey(key)
+    setTimeout(() => setSavedKey(k => (k === key ? null : k)), 2000)
+  }
+
   const savePct = (pct: number) => {
+    const prev = alertPct
     setAlertPct(pct)
     startTransition(async () => {
-      await supabase.from('profiles').update({ budget_alert_pct: pct }).eq('id', userId)
+      const { error } = await supabase.from('profiles').update({ budget_alert_pct: pct }).eq('id', userId)
+      if (error) {
+        setAlertPct(prev)
+        showToast('No se pudo guardar el umbral del presupuesto', { action: { label: 'Reintentar', onClick: () => savePct(pct) } })
+        return
+      }
+      flashSaved('notifyBudget')
     })
   }
 
   const [alertDays, setAlertDays] = useState(initDays)
   const saveDays = (d: number) => {
+    const prev = alertDays
     setAlertDays(d)
     startTransition(async () => {
-      await supabase.from('profiles').update({ billing_alert_days: d }).eq('id', userId)
+      const { error } = await supabase.from('profiles').update({ billing_alert_days: d }).eq('id', userId)
+      if (error) {
+        setAlertDays(prev)
+        showToast('No se pudo guardar la anticipación del aviso', { action: { label: 'Reintentar', onClick: () => saveDays(d) } })
+        return
+      }
+      flashSaved('notifyBilling')
     })
   }
 
@@ -92,10 +117,16 @@ export default function NotificationPrefs({
     const newVal = !state[key]
     setState(prev => ({ ...prev, [key]: newVal }))
     startTransition(async () => {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ [dbCol]: newVal })
         .eq('id', userId)
+      if (error) {
+        setState(prev => ({ ...prev, [key]: !newVal }))
+        showToast('No se pudo guardar este aviso', { action: { label: 'Reintentar', onClick: () => toggle(key, dbCol) } })
+        return
+      }
+      flashSaved(key)
     })
   }
 
@@ -104,7 +135,7 @@ export default function NotificationPrefs({
       key:      'notifyBilling',
       statusKey: 'billing',
       dbCol:    'notify_billing',
-      icon:     <CreditCard className="w-5 h-5" style={{ color: '#7C3AED' }} />,
+      icon:     <CreditCard className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Cierre de tarjeta',
       subtitle: `Recibe un aviso ${alertDays} día${alertDays !== 1 ? 's' : ''} antes del cierre de cada tarjeta de crédito.`,
     },
@@ -112,7 +143,7 @@ export default function NotificationPrefs({
       key:      'notifyBudget',
       statusKey: 'budget',
       dbCol:    'notify_budget',
-      icon:     <Target className="w-5 h-5" style={{ color: '#EA580C' }} />,
+      icon:     <Target className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Alertas de presupuesto',
       subtitle: `Aviso cuando alcances el ${alertPct}% y el 100% de tu presupuesto mensual.`,
     },
@@ -128,7 +159,7 @@ export default function NotificationPrefs({
       key:      'notifyRecurring',
       statusKey: 'recurring',
       dbCol:    'notify_recurring',
-      icon:     <RefreshCw className="w-5 h-5" style={{ color: '#059669' }} />,
+      icon:     <RefreshCw className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Gastos recurrentes',
       subtitle: 'Recordatorio el día que vence un gasto manual, y aviso si al día siguiente aún no se registró.',
     },
@@ -136,7 +167,7 @@ export default function NotificationPrefs({
       key:      'notifyWatchlistDigest',
       statusKey: 'watchlistDigest',
       dbCol:    'notify_watchlist_target',
-      icon:     <TrendingUp className="w-5 h-5" style={{ color: '#2B7CF6' }} />,
+      icon:     <TrendingUp className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Análisis diario de acciones',
       subtitle: 'Email al cierre de Wall Street con señales de compra/venta para tu lista de seguimiento.',
     },
@@ -144,7 +175,7 @@ export default function NotificationPrefs({
       key:      'notifyWeeklyReport',
       statusKey: 'weeklyReport',
       dbCol:    'notify_weekly_report',
-      icon:     <BarChart2 className="w-5 h-5" style={{ color: '#7C3AED' }} />,
+      icon:     <BarChart2 className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Reporte semanal',
       subtitle: 'Resumen de la semana en bolsa: rendimiento de tu portafolio, mejores y peores posiciones.',
     },
@@ -152,7 +183,7 @@ export default function NotificationPrefs({
       key:      'notifyDepositMaturity',
       statusKey: 'depositMaturity',
       dbCol:    'notify_deposit_maturity',
-      icon:     <Timer className="w-5 h-5" style={{ color: '#1FBE8D' }} />,
+      icon:     <Timer className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Vencimiento de depósitos',
       subtitle: 'Aviso el día que vence un depósito a plazo para que puedas renovarlo o retirarlo.',
     },
@@ -160,38 +191,36 @@ export default function NotificationPrefs({
       key:      'notifyMarketDrop',
       statusKey: 'marketDrop',
       dbCol:    'notify_market_drop',
-      icon:     <TrendingDown className="w-5 h-5" style={{ color: '#E5484D' }} />,
+      icon:     <TrendingDown className="w-5 h-5" style={{ color: 'var(--primary)' }} />,
       title:    'Caídas fuertes de la bolsa',
       subtitle: 'Si tu cartera o el mercado caen fuerte en el día, te explicamos qué pasó y cómo afecta tus finanzas.',
     },
   ]
 
   return (
-    <div className="card overflow-hidden divide-gray-50 dark:divide-[#1a2744]">
-      {items.map(item => (
-        <div key={item.key}>
+    <div className="card overflow-hidden">
+      {items.map((item, idx) => (
+        <div key={item.key} style={idx > 0 ? { borderTop: '1px solid var(--border)' } : undefined}>
         <div className="flex items-center gap-4 px-4 py-4">
           {/* Icon */}
           <div
             className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={({
-              notifyBilling:          { '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' },
-              notifyBudget:           { '--cat-bg': '#FFF7ED', '--cat-color': '#EA580C' },
-              notifyMonthly:          { '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' },
-              notifyRecurring:        { '--cat-bg': '#ECFDF5', '--cat-color': '#059669' },
-              notifyWatchlistDigest:  { '--cat-bg': '#EEF4FF', '--cat-color': '#2B7CF6' },
-              notifyWeeklyReport:     { '--cat-bg': '#F5F3FF', '--cat-color': '#7C3AED' },
-              notifyDepositMaturity:  { '--cat-bg': '#EDFAF5', '--cat-color': '#1FBE8D' },
-              notifyMarketDrop:       { '--cat-bg': '#FFF1F1', '--cat-color': '#E5484D' },
-            } as Record<string, React.CSSProperties>)[item.key]}
+            style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}
           >
             {item.icon}
           </div>
 
           {/* Text */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
-            <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{item.subtitle}</p>
+            <div className="flex items-center gap-2">
+              <p id={`notif-${item.key}`} className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{item.title}</p>
+              {savedKey === item.key && (
+                <span role="status" className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: 'var(--mint-ink)' }}>
+                  <Check className="w-3 h-3" /> Guardado
+                </span>
+              )}
+            </div>
+            <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--ink-3)' }}>{item.subtitle}</p>
             {state[item.key] && status && (
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <span className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>
@@ -200,7 +229,7 @@ export default function NotificationPrefs({
                 {status[item.statusKey].lagging && (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                    style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--gold, #B45309)' }}
+                    style={{ background: 'color-mix(in srgb, var(--gold) 18%, var(--surface))', color: 'var(--gold-ink)' }}
                   >
                     <AlertTriangle className="w-2.5 h-2.5" />
                     revisa si te llegó
@@ -215,11 +244,13 @@ export default function NotificationPrefs({
             type="button"
             role="switch"
             aria-checked={state[item.key]}
+            aria-labelledby={`notif-${item.key}`}
             disabled={isPending}
             onClick={() => toggle(item.key, item.dbCol)}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-              state[item.key] ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'
-            } ${isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] before:absolute before:-inset-2.5 before:content-[''] ${
+              isPending ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
+            style={{ background: state[item.key] ? 'var(--primary)' : 'var(--border)' }}
           >
             <span
               aria-hidden="true"
@@ -236,18 +267,9 @@ export default function NotificationPrefs({
             <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisarme</span>
             <div className="flex items-center gap-1">
               {DAYS_OPTIONS.map(d => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => saveDays(d)}
-                  disabled={isPending}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
-                  style={alertDays === d
-                    ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
-                    : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
-                >
+                <SettingChip key={d} active={alertDays === d} onClick={() => saveDays(d)} disabled={isPending}>
                   {d} día{d !== 1 ? 's' : ''}
-                </button>
+                </SettingChip>
               ))}
             </div>
             <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>antes</span>
@@ -260,18 +282,9 @@ export default function NotificationPrefs({
             <span className="text-[11px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisarme al</span>
             <div className="flex items-center gap-1">
               {PCT_OPTIONS.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => savePct(p)}
-                  disabled={isPending}
-                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95"
-                  style={alertPct === p
-                    ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
-                    : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
-                >
+                <SettingChip key={p} active={alertPct === p} onClick={() => savePct(p)} disabled={isPending}>
                   {p}%
-                </button>
+                </SettingChip>
               ))}
             </div>
           </div>

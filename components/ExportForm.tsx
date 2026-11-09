@@ -36,44 +36,54 @@ export default function ExportForm() {
     ? '/api/export'
     : `/api/export?from=${monthStart(from)}&to=${monthEnd(to)}`
 
-  const selectClass = "sheet-input flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 outline-none focus:border-brand-400 transition-colors"
+  const rangeInvalid = !full && from > to
+  const selectClass = "sheet-input flex-1 min-w-0 min-h-[44px] rounded-xl px-3 py-2 text-sm outline-none"
 
   return (
     <div className="px-4 py-4 space-y-3">
       {/* Toggle: todo vs rango */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setFull(false)}
-          className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all ${!full ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300'}`}
-        >
-          Por rango
-        </button>
-        <button
-          onClick={() => setFull(true)}
-          className={`flex-1 py-1.5 rounded-xl text-xs font-semibold border transition-all ${full ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-gray-300'}`}
-        >
-          Todo el historial
-        </button>
+      <div className="flex items-center gap-2" role="group" aria-label="Qué exportar">
+        {([['Por rango', false], ['Todo el historial', true]] as const).map(([label, isFull]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setFull(isFull)}
+            aria-pressed={full === isFull}
+            className="flex-1 min-h-[44px] rounded-xl text-xs font-semibold border transition-all"
+            style={full === isFull
+              ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
+              : { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink-2)' }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Selectores de rango */}
       {!full && (
         <div className="flex items-center gap-2">
-          <select value={from} onChange={e => setFrom(e.target.value)} className={selectClass}>
+          <select aria-label="Desde" value={from} onChange={e => setFrom(e.target.value)} className={selectClass}>
             {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <span className="text-xs text-gray-400 flex-shrink-0">→</span>
-          <select value={to} onChange={e => setTo(e.target.value)} className={selectClass}>
+          <span className="text-xs flex-shrink-0" style={{ color: 'var(--ink-3)' }} aria-hidden="true">→</span>
+          <select aria-label="Hasta" value={to} onChange={e => setTo(e.target.value)} className={selectClass}>
             {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       )}
+      {rangeInvalid && (
+        <p role="alert" className="text-xs font-semibold" style={{ color: 'var(--coral-ink)' }}>
+          &quot;Desde&quot; no puede ser posterior a &quot;Hasta&quot;.
+        </p>
+      )}
 
       {/* Botón de descarga */}
       <a
-        href={href}
+        href={rangeInvalid ? undefined : href}
         download
-        className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold rounded-xl transition-colors" style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
+        aria-disabled={rangeInvalid}
+        className="flex items-center justify-center gap-2 w-full min-h-[44px] py-2.5 text-sm font-semibold rounded-xl transition-colors"
+        style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)', opacity: rangeInvalid ? 0.5 : 1, pointerEvents: rangeInvalid ? 'none' : undefined }}
       >
         <Download className="w-4 h-4" />
         Descargar CSV
