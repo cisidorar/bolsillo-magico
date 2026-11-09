@@ -17,6 +17,22 @@ interface Props {
   defaultView?: 'purchase' | 'billing'
 }
 
+const inputStyle = {
+  background: 'var(--surface-2)', color: 'var(--ink)', border: '1.5px solid var(--border)',
+  transition: 'border-color 150ms, box-shadow 150ms',
+} as const
+function focusOn(e: React.FocusEvent<HTMLInputElement>) {
+  e.currentTarget.style.borderColor = 'var(--primary)'
+  e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)'
+}
+function focusOff(e: React.FocusEvent<HTMLInputElement>) {
+  e.currentTarget.style.borderColor = 'var(--border)'
+  e.currentTarget.style.boxShadow = 'none'
+}
+const filterBtnStyle = (active: boolean) => active
+  ? { borderColor: 'var(--primary)', background: 'var(--primary-soft)', color: 'var(--primary)' }
+  : { borderColor: 'var(--border)', background: 'var(--surface-2)', color: 'var(--ink-2)' }
+
 export default function HistorialFilters({ categories, month, year, defaultView = 'purchase' }: Props) {
   const router       = useRouter()
   const pathname     = usePathname()
@@ -143,16 +159,18 @@ export default function HistorialFilters({ categories, month, year, defaultView 
         {/* Search + filter button */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--ink-3)' }} />
             <input
               type="text"
               value={query}
               onChange={e => handleSearch(e.target.value)}
               placeholder="Buscar gasto o comercio..."
-              className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-300 transition-colors"
+              aria-label="Buscar gasto"
+              style={inputStyle} onFocus={focusOn} onBlur={focusOff}
+              className="w-full rounded-xl pl-9 pr-9 py-2.5 text-sm outline-none placeholder:text-[var(--ink-3)]"
             />
             {query && (
-              <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <button onClick={() => handleSearch('')} aria-label="Borrar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--ink-3)' }}>
                 <X className="w-4 h-4" />
               </button>
             )}
@@ -160,48 +178,45 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <div className="relative flex-shrink-0" ref={mobileDropdownRef}>
             <button
               onClick={() => setDropdownOpen(o => !o)}
-              className={cn(
-                'relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all',
-                catIds.length > 0
-                  ? 'border-brand-400 bg-brand-50 text-brand-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'
-              )}
+              aria-label="Filtrar por categoría"
+              aria-expanded={dropdownOpen}
+              className="relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all"
+              style={filterBtnStyle(catIds.length > 0)}
             >
               <SlidersHorizontal className="w-4 h-4" />
               {catIds.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
-                  style={{ background: '#4D93FF' }}>
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                   {catIds.length}
                 </span>
               )}
             </button>
             {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 z-[200] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[200px] max-h-60 overflow-y-auto"
-                style={{ boxShadow: '0 8px 32px rgba(0,0,0,.12)' }}>
+              <div className="absolute right-0 top-full mt-1.5 z-[200] rounded-2xl border py-1.5 min-w-[200px] max-h-60 overflow-y-auto"
+                style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 18px var(--shadow)' }}>
                 {categories.map(cat => {
                   const CatIcon = isEmoji(cat.icon) ? null : getCategoryIcon(cat.icon)
                   const active  = catIds.includes(cat.id)
                   return (
                     <button key={cat.id} onClick={() => toggleCat(cat.id)}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium transition-colors text-left',
-                        active ? 'bg-gray-50' : 'hover:bg-gray-50'
-                      )}>
+                      aria-pressed={active}
+                      style={active ? { background: 'var(--surface-2)' } : undefined}
+                      className="w-full flex items-center gap-2.5 px-3.5 min-h-[44px] text-sm font-medium transition-colors text-left hover:bg-[var(--surface-2)]">
                       <div className="cat-icon-bg w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ '--cat-bg': cat.bg_color, '--cat-color': cat.color } as React.CSSProperties}>
                         {isEmoji(cat.icon)
                           ? <span className="text-xs">{cat.icon}</span>
                           : CatIcon ? <CatIcon className="w-3.5 h-3.5" style={{ color: cat.color }} /> : null}
                       </div>
-                      <span className="flex-1 text-gray-700">{cat.name}</span>
+                      <span className="flex-1" style={{ color: 'var(--ink)' }}>{cat.name}</span>
                       {active && <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: cat.color }} />}
                     </button>
                   )
                 })}
                 {hasCatOrQuery && (
-                  <div className="border-t border-gray-50 mt-1 pt-1 px-3.5 pb-1">
+                  <div className="border-t mt-1 pt-1 px-3.5 pb-1" style={{ borderColor: 'var(--border)' }}>
                     <button onClick={() => { clearAll(); setDropdownOpen(false) }}
-                      className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors py-1">
+                      className="text-xs font-semibold hover:opacity-70 transition-opacity py-2.5" style={{ color: 'var(--coral-ink)' }}>
                       Limpiar filtros
                     </button>
                   </div>
@@ -241,16 +256,18 @@ export default function HistorialFilters({ categories, month, year, defaultView 
 
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--ink-3)' }} />
           <input
             type="text"
             value={query}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Buscar gasto, comercio o categoría..."
-            className="w-full bg-gray-50 border border-gray-100 rounded-xl pl-9 pr-9 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-brand-300 focus:bg-white transition-colors"
+            aria-label="Buscar gasto"
+            style={inputStyle} onFocus={focusOn} onBlur={focusOff}
+            className="w-full rounded-xl pl-9 pr-9 py-2.5 text-sm outline-none placeholder:text-[var(--ink-3)]"
           />
           {query && (
-            <button onClick={() => handleSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => handleSearch('')} aria-label="Borrar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2 hover:opacity-70" style={{ color: 'var(--ink-3)' }}>
               <X className="w-4 h-4" />
             </button>
           )}
@@ -260,20 +277,15 @@ export default function HistorialFilters({ categories, month, year, defaultView 
         <div className="relative flex-shrink-0" ref={desktopDropdownRef}>
           <button
             onClick={() => setDropdownOpen(o => !o)}
-            className={cn(
-              'relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-all whitespace-nowrap',
-              catIds.length > 0
-                ? 'border-brand-400 bg-brand-50 text-brand-700'
-                : dropdownOpen
-                  ? 'border-gray-300 bg-gray-50 text-gray-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            )}
+            aria-expanded={dropdownOpen}
+            className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-all whitespace-nowrap"
+            style={filterBtnStyle(catIds.length > 0)}
           >
             <SlidersHorizontal className="w-4 h-4" />
             <span>Filtros</span>
             {catIds.length > 0 && (
-              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold text-white"
-                style={{ background: '#4D93FF' }}>
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold"
+                style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                 {catIds.length}
               </span>
             )}
@@ -281,32 +293,31 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1.5 z-[200] bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 min-w-[200px] max-h-72 overflow-y-auto"
-              style={{ boxShadow: '0 8px 32px rgba(0,0,0,.12)' }}>
+            <div className="absolute right-0 top-full mt-1.5 z-[200] rounded-2xl border py-1.5 min-w-[200px] max-h-72 overflow-y-auto"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 18px var(--shadow)' }}>
               {categories.map(cat => {
                 const CatIcon = isEmoji(cat.icon) ? null : getCategoryIcon(cat.icon)
                 const active  = catIds.includes(cat.id)
                 return (
                   <button key={cat.id} onClick={() => toggleCat(cat.id)}
-                    className={cn(
-                      'w-full flex items-center gap-2.5 px-3.5 py-2 text-sm font-medium transition-colors text-left',
-                      active ? 'bg-gray-50' : 'hover:bg-gray-50'
-                    )}>
+                    aria-pressed={active}
+                    style={active ? { background: 'var(--surface-2)' } : undefined}
+                    className="w-full flex items-center gap-2.5 px-3.5 min-h-[44px] text-sm font-medium transition-colors text-left hover:bg-[var(--surface-2)]">
                     <div className="cat-icon-bg w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ '--cat-bg': cat.bg_color, '--cat-color': cat.color } as React.CSSProperties}>
                       {isEmoji(cat.icon)
                         ? <span className="text-xs">{cat.icon}</span>
                         : CatIcon ? <CatIcon className="w-3.5 h-3.5" style={{ color: cat.color }} /> : null}
                     </div>
-                    <span className="flex-1 text-gray-700">{cat.name}</span>
+                    <span className="flex-1" style={{ color: 'var(--ink)' }}>{cat.name}</span>
                     {active && <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: cat.color }} />}
                   </button>
                 )
               })}
               {hasFilters && (
-                <div className="border-t border-gray-50 mt-1 pt-1 px-3.5 pb-1">
+                <div className="border-t mt-1 pt-1 px-3.5 pb-1" style={{ borderColor: 'var(--border)' }}>
                   <button onClick={() => { clearAll(); setDropdownOpen(false) }}
-                    className="text-xs font-semibold text-red-400 hover:text-red-600 transition-colors py-1">
+                    className="text-xs font-semibold hover:opacity-70 transition-opacity py-2.5" style={{ color: 'var(--coral-ink)' }}>
                     Limpiar filtros
                   </button>
                 </div>
@@ -318,7 +329,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
         {/* Clear search shortcut */}
         {hasFilters && !dropdownOpen && (
           <button onClick={clearAll}
-            className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors">
+            aria-label="Limpiar filtros" className="flex-shrink-0 flex items-center gap-1 text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--coral-ink)' }}>
             <X className="w-3.5 h-3.5" />
           </button>
         )}

@@ -4,7 +4,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, billingPeriodRange, currentStatementRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CreditCard, AlertTriangle, X } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CalendarDays, CreditCard, X } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -326,6 +326,28 @@ export default async function HistorialPage({
       : `Facturación · ${monthName(month)} ${year}`
     : hasFilters ? 'Filtrado' : `${monthName(month)} ${year}`
 
+  // Gasto sube = coral, baja = mint, sin dato o sin cambio = neutro. Un solo
+  // cálculo para el layout móvil y el de escritorio.
+  const deltaIcon = delta === null || delta === 0 ? 'var(--ink-3)' : delta > 0 ? 'var(--coral)' : 'var(--mint)'
+  const deltaText = delta === null || delta === 0 ? 'var(--ink-3)' : delta > 0 ? 'var(--coral-ink)' : 'var(--mint-ink)'
+  const deltaBg   = delta === null || delta === 0
+    ? 'var(--surface-2)'
+    : `color-mix(in srgb, ${delta > 0 ? 'var(--coral)' : 'var(--mint)'} 14%, var(--surface))`
+
+  // Vista facturación con el tope de 300 filas alcanzado: total, promedio y
+  // conteo salen de un set truncado, así que se marcan como parciales.
+  const partialChip = isBilling && billingHitLimit ? (
+    <span
+      title="Se leyeron los primeros 300 gastos del período. Usa los filtros para acotar y ver el total real."
+      className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+      style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 18%, var(--surface))' }}
+    >
+      parcial · primeros 300
+    </span>
+  ) : null
+
+  const activeCatNames = (categories ?? []).filter(c => catIds.includes(c.id)).map(c => c.name)
+
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-4">
 
@@ -355,39 +377,39 @@ export default async function HistorialPage({
                 style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
                 <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
               </div>
-              <div>
-                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(total)}</p>
-                <p className="text-xs text-gray-400">{totalCount} registros</p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                  {partialChip}
+                </div>
+                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
+                <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{totalCount} registros</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {/* vs anterior */}
               <div className="card p-3.5 flex items-center gap-2.5">
                 <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{
-                    '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
-                    '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
-                  } as React.CSSProperties}>
+                  style={{ '--cat-bg': deltaBg, '--cat-color': deltaIcon } as React.CSSProperties}>
                   {delta === null || delta === 0
-                    ? <Minus className="w-4 h-4 text-gray-400" />
+                    ? <Minus className="w-4 h-4" style={{ color: deltaIcon }} />
                     : delta > 0
-                      ? <TrendingUp   className="w-4 h-4" style={{ color: '#EF4444' }} />
-                      : <TrendingDown className="w-4 h-4" style={{ color: '#16A34A' }} />
+                      ? <TrendingUp   className="w-4 h-4" style={{ color: deltaIcon }} />
+                      : <TrendingDown className="w-4 h-4" style={{ color: deltaIcon }} />
                   }
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium leading-tight">
+                  <p className="text-[10px] font-medium leading-tight" style={{ color: 'var(--ink-3)' }}>
                     vs anterior{isCurrentMonth && !isBilling ? ` · d${now.getDate()}` : ''}{isBilling && isOpenBillingStatement ? ` · d${billingDaysElapsed + 1}` : ''}
                   </p>
                   {delta === null ? (
-                    <p className="text-base font-extrabold text-gray-400">—</p>
+                    <p className="text-base font-extrabold" style={{ color: 'var(--ink-3)' }}>—</p>
                   ) : (
                     <>
-                      <p className={`text-base font-extrabold tabular-nums ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                      <p className="text-base font-extrabold tabular-nums" style={{ color: deltaText }}>
                         {delta > 0 ? '+' : ''}{delta}%
                       </p>
-                      <p className={`text-[10px] tabular-nums ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                      <p className="text-[10px] tabular-nums" style={{ color: deltaText }}>
                         {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
                       </p>
                     </>
@@ -397,12 +419,12 @@ export default async function HistorialPage({
               {/* Promedio diario */}
               <div className="card p-3.5 flex items-center gap-2.5">
                 <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
-                  <TrendingUp className="w-4 h-4" style={{ color: '#FFC23C' }} />
+                  style={{ '--cat-bg': 'var(--surface-2)', '--cat-color': 'var(--ink-2)' } as React.CSSProperties}>
+                  <CalendarDays className="w-4 h-4" style={{ color: 'var(--ink-2)' }} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 font-medium leading-tight">Promedio diario</p>
-                  <p className="text-base font-extrabold text-gray-900 dark:text-gray-100 tabular-nums">{formatCLP(dailyAvg)}</p>
+                  <p className="text-[10px] font-medium leading-tight" style={{ color: 'var(--ink-3)' }}>Promedio diario</p>
+                  <p className="text-base font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
                 </div>
               </div>
             </div>
@@ -413,39 +435,39 @@ export default async function HistorialPage({
             {/* Total */}
             <div className="card p-5 flex items-center gap-4">
               <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': '#4D93FF' } as React.CSSProperties}>
-                <Wallet className="w-7 h-7" style={{ color: '#4D93FF' }} />
+                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
+                <Wallet className="w-7 h-7" style={{ color: 'var(--primary)' }} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-gray-400 font-medium">{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(total)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                  {partialChip}
+                </div>
+                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
               </div>
             </div>
             {/* vs anterior */}
             <div className="card p-5 flex items-center gap-4">
               <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{
-                  '--cat-bg':    delta === null ? '#F5F5F5' : delta > 0 ? '#FEF2F2' : '#F0FDF4',
-                  '--cat-color': delta === null ? '#9CA3AF' : delta > 0 ? '#EF4444' : '#16A34A',
-                } as React.CSSProperties}>
+                style={{ '--cat-bg': deltaBg, '--cat-color': deltaIcon } as React.CSSProperties}>
                 {delta === null || delta === 0
-                  ? <Minus className="w-7 h-7 text-gray-400" />
+                  ? <Minus className="w-7 h-7" style={{ color: deltaIcon }} />
                   : delta > 0
-                    ? <TrendingUp   className="w-7 h-7" style={{ color: '#EF4444' }} />
-                    : <TrendingDown className="w-7 h-7" style={{ color: '#16A34A' }} />
+                    ? <TrendingUp   className="w-7 h-7" style={{ color: deltaIcon }} />
+                    : <TrendingDown className="w-7 h-7" style={{ color: deltaIcon }} />
                 }
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-gray-400 font-medium">{isBilling ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}` : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}` : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
                 {delta === null ? (
-                  <p className="text-2xl font-extrabold text-gray-400 leading-tight">—</p>
+                  <p className="text-2xl font-extrabold leading-tight" style={{ color: 'var(--ink-3)' }}>—</p>
                 ) : (
                   <>
-                    <p className={`text-2xl font-extrabold tabular-nums leading-tight ${delta > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                    <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: deltaText }}>
                       {delta > 0 ? '+' : ''}{delta}%
                     </p>
-                    <p className={`text-xs tabular-nums mt-0.5 ${absoluteDelta > 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                    <p className="text-xs tabular-nums mt-0.5" style={{ color: deltaText }}>
                       {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
                     </p>
                   </>
@@ -455,13 +477,13 @@ export default async function HistorialPage({
             {/* Promedio */}
             <div className="card p-5 flex items-center gap-4">
               <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': '#FFF8EC', '--cat-color': '#FFC23C' } as React.CSSProperties}>
-                <TrendingUp className="w-7 h-7" style={{ color: '#FFC23C' }} />
+                style={{ '--cat-bg': 'var(--surface-2)', '--cat-color': 'var(--ink-2)' } as React.CSSProperties}>
+                <CalendarDays className="w-7 h-7" style={{ color: 'var(--ink-2)' }} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-gray-400 font-medium">Promedio diario</p>
-                <p className="text-2xl font-extrabold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">{formatCLP(dailyAvg)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">por día</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Promedio diario</p>
+                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>por día</p>
               </div>
             </div>
           </div>
@@ -476,11 +498,11 @@ export default async function HistorialPage({
       {/* Banners */}
       {isBilling && (
         <div className="card mb-4 overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-50">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-indigo-50">
-              <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+              <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
             </div>
-            <p className="text-sm font-bold text-gray-800">
+            <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
               Estado de cuenta · {monthName(month)} {year}
             </p>
           </div>
@@ -493,14 +515,14 @@ export default async function HistorialPage({
                 }
                 return (
                   <div key={cp.billingDay} className="flex items-center gap-2">
-                    {cp.name && <span className="text-xs font-semibold text-gray-600">{cp.name}</span>}
-                    <span className="text-xs text-gray-400 tabular-nums">{fmt(cp.start)} – {fmt(cp.end)}</span>
+                    {cp.name && <span className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>{cp.name}</span>}
+                    <span className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>{fmt(cp.start)} – {fmt(cp.end)}</span>
                   </div>
                 )
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-400 px-4 py-2.5">
+            <p className="text-xs px-4 py-2.5" style={{ color: 'var(--ink-3)' }}>
               Gastos cuyo estado de cuenta cierra en {monthName(month)} {year}.
             </p>
           )}
@@ -513,7 +535,21 @@ export default async function HistorialPage({
           </p>
           <Link
             href={buildHref({ ...baseParams, pm: undefined })}
-            className="flex items-center gap-1 text-xs font-bold hover:opacity-70 transition-opacity"
+            className="flex items-center gap-1 text-xs font-bold hover:opacity-70 transition-opacity min-h-[44px] -my-2.5"
+            style={{ color: 'var(--primary)' }}
+          >
+            Quitar <X className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
+      {activeCatNames.length > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-2xl px-4 py-2.5 mb-4" style={{ background: 'var(--primary-soft)' }}>
+          <p className="text-xs font-semibold min-w-0 truncate" style={{ color: 'var(--primary)' }}>
+            Categorías: {activeCatNames.join(', ')}
+          </p>
+          <Link
+            href={buildHref({ ...baseParams, cats: undefined })}
+            className="flex items-center gap-1 text-xs font-bold hover:opacity-70 transition-opacity flex-shrink-0 min-h-[44px] -my-2.5"
             style={{ color: 'var(--primary)' }}
           >
             Quitar <X className="w-3.5 h-3.5" />
@@ -521,23 +557,14 @@ export default async function HistorialPage({
         </div>
       )}
 
-      {isBilling && billingHitLimit && (
-        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4">
-          <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-700 leading-relaxed">
-            Se mostraron los primeros 300 gastos del período. Usa los filtros para acotar los resultados.
-          </p>
-        </div>
-      )}
-
       {/* Expense list */}
       {expenses.length === 0 ? (
         <div className="card text-center py-16 flex flex-col items-center gap-3">
           {hasFilters
-            ? <SearchX className="w-10 h-10 text-gray-300" />
-            : <ClipboardList className="w-10 h-10 text-gray-300" />
+            ? <SearchX className="w-10 h-10" style={{ color: 'var(--ink-3)' }} />
+            : <ClipboardList className="w-10 h-10" style={{ color: 'var(--ink-3)' }} />
           }
-          <p className="text-sm font-medium text-gray-500">
+          <p className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>
             {hasFilters ? 'Sin resultados para ese filtro' : isBilling ? 'Sin gastos en este estado de cuenta' : 'Sin gastos este mes'}
           </p>
         </div>
@@ -563,7 +590,7 @@ export default async function HistorialPage({
               Anterior
             </Link>
           ) : <div />}
-          <p className="text-xs text-gray-400 font-medium">Página {page} de {totalPages}</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Página {page} de {totalPages}</p>
           {nextHref ? (
             <Link href={nextHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
               Siguiente

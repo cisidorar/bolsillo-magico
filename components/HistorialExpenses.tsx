@@ -28,6 +28,8 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
   const [selectMode, setSelectMode]     = useState(false)
   const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
   const [deleting, setDeleting]         = useState(false)
+  const [confirming, setConfirming]     = useState(false)
+  const [deleteError, setDeleteError]   = useState<string | null>(null)
   const [excludeIds, setExcludeIds]     = useState<Set<string>>(new Set())
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set())
 
@@ -79,11 +81,14 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
   function cancel() {
     setSelectMode(false)
     setSelectedIds(new Set())
+    setConfirming(false)
+    setDeleteError(null)
   }
 
   async function handleBulkDelete() {
     if (selectedIds.size === 0 || deleting) return
     setDeleting(true)
+    setDeleteError(null)
     const ids = [...selectedIds]
     try {
       const { error } = await supabase.from('expenses').delete().in('id', ids)
@@ -91,9 +96,11 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
       setExcludeIds(prev => new Set([...prev, ...ids]))
       setSelectedIds(new Set())
       setSelectMode(false)
+      setConfirming(false)
       router.refresh()
     } catch {
-      // Delete failed — keep selection so user can retry
+      setConfirming(false)
+      setDeleteError('No se pudo eliminar. Revisa tu conexión e inténtalo de nuevo.')
     } finally {
       setDeleting(false)
     }
@@ -107,7 +114,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
     <>
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
           {totalExpenses} registro{totalExpenses !== 1 ? 's' : ''}
         </span>
         <div className="flex items-center gap-3">
@@ -115,13 +122,13 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
             <>
               <button
                 onClick={toggleAll}
-                className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+                className="text-xs font-semibold hover:opacity-70 transition-opacity min-h-[44px]" style={{ color: 'var(--primary)' }}
               >
                 {allSelected ? 'Deseleccionar todo' : 'Seleccionar todo'}
               </button>
               <button
                 onClick={cancel}
-                className="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold hover:opacity-70 transition-opacity min-h-[44px]" style={{ color: 'var(--ink-3)' }}
               >
                 <X className="w-3 h-3" />
                 Cancelar
@@ -130,7 +137,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
           ) : (
             <button
               onClick={() => setSelectMode(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-semibold hover:opacity-70 transition-opacity min-h-[44px]" style={{ color: 'var(--ink-3)' }}
             >
               <CheckSquare className="w-3.5 h-3.5" />
               Seleccionar
@@ -157,13 +164,13 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                   aria-label="Seleccionar todos del día"
                 >
                   {allGroupSelected ? (
-                    <CheckSquare className="w-4 h-4 text-brand-600" />
+                    <CheckSquare className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                   ) : someGroupSelected ? (
-                    <div className="w-4 h-4 rounded border-2 border-brand-400 bg-brand-100 flex items-center justify-center">
-                      <div className="w-2 h-0.5 bg-brand-600 rounded" />
+                    <div className="w-4 h-4 rounded border-2 flex items-center justify-center" style={{ borderColor: 'var(--primary)', background: 'var(--primary-soft)' }}>
+                      <div className="w-2 h-0.5 rounded" style={{ background: 'var(--primary)' }} />
                     </div>
                   ) : (
-                    <Square className="w-4 h-4 text-gray-300" />
+                    <Square className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
                   )}
                 </button>
               )}
@@ -172,24 +179,24 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
               <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--primary)', opacity: 0.4 }} />
 
               {/* Date label */}
-              <span className="text-sm font-bold text-gray-700 capitalize flex-1">
+              <span className="text-sm font-bold capitalize flex-1" style={{ color: 'var(--ink)' }}>
                 {group.label}
               </span>
 
               {/* Count chip */}
-              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ink-3)', background: 'var(--surface-2)' }}>
                 {group.expenses.length}
               </span>
 
               {/* Day total */}
-              <span className="text-sm font-bold text-gray-600 tabular-nums">
+              <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>
                 {formatCLP(group.dayTotal)}
               </span>
 
               {/* Collapse toggle */}
               <button
                 onClick={() => toggleCollapse(group.date)}
-                className="p-0.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+                className="p-0.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors flex-shrink-0" style={{ color: 'var(--ink-3)' }}
                 aria-label={isCollapsed ? 'Expandir' : 'Colapsar'}
               >
                 {isCollapsed
@@ -204,8 +211,8 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
               <div className="card overflow-hidden">
                 {group.expenses.map((e, idx) => {
                   const isSelected  = selectedIds.has(e.id)
-                  const catColor    = e.category?.color ?? '#4D93FF'
-                  const catBg       = e.category?.bg_color ?? '#EEF4FF'
+                  const catColor    = e.category?.color ?? 'var(--primary)'
+                  const catBg       = e.category?.bg_color ?? 'var(--primary-soft)'
 
                   const recurDomain = e.recurring_expense?.domain
                   const descDomain  = e.description ? detectDomain(e.description) : null
@@ -221,17 +228,17 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                     <button
                       key={e.id}
                       onClick={() => toggle(e.id)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors',
-                        idx > 0 && 'border-t border-gray-50',
-                        isSelected ? 'bg-brand-50/60' : 'hover:bg-gray-50/50'
-                      )}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--surface-2)]"
+                      style={{
+                        borderTop: idx > 0 ? '1px solid var(--border)' : undefined,
+                        background: isSelected ? 'var(--primary-soft)' : undefined,
+                      }}
                     >
                       {/* Checkbox */}
                       <div className="flex-shrink-0">
                         {isSelected
-                          ? <CheckSquare className="w-5 h-5 text-brand-600" />
-                          : <Square className="w-5 h-5 text-gray-300" />
+                          ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                          : <Square className="w-5 h-5" style={{ color: 'var(--ink-3)' }} />
                         }
                       </div>
 
@@ -254,7 +261,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
 
                       {/* Text */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-semibold text-gray-900 truncate">
+                        <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {e.description ?? e.category?.name ?? 'Gasto'}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -271,7 +278,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                             </span>
                           )}
                           {e.payment_method && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
                               <PaymentIcon cardType={e.payment_method.card_type} />
                               {e.payment_method.name}
                             </span>
@@ -298,7 +305,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                       </div>
 
                       {/* Amount */}
-                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>
+                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral-ink)' }}>
                         −{formatCLP(e.amount)}
                       </p>
                     </button>
@@ -317,29 +324,41 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
         <div className="fixed bottom-24 lg:bottom-8 left-0 lg:left-60 right-0 z-[60] px-4 lg:px-8 pointer-events-none">
           <div className="pointer-events-auto">
             <div
-              className="flex items-center gap-3 px-5 py-3.5 rounded-2xl text-white shadow-2xl"
+              className="flex flex-col gap-2.5 px-5 py-3.5 rounded-2xl text-white"
               style={{ background: 'var(--ink)', boxShadow: '0 8px 18px var(--shadow)' }}
+              role="region" aria-label="Acciones sobre los gastos seleccionados"
             >
-              <p className="flex-1 text-sm font-bold">
-                {selectedIds.size} gasto{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+              <p className="text-sm font-bold" aria-live="polite">
+                {confirming
+                  ? `¿Eliminar ${selectedIds.size} gasto${selectedIds.size !== 1 ? 's' : ''}? No se puede deshacer.`
+                  : `${selectedIds.size} gasto${selectedIds.size !== 1 ? 's' : ''} seleccionado${selectedIds.size !== 1 ? 's' : ''}`}
               </p>
-              <button
-                onClick={cancel}
-                className="text-sm font-semibold text-white/50 hover:text-white/80 transition-colors px-2 py-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                disabled={deleting}
-                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 active:scale-95 transition-all px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-60"
-              >
-                {deleting
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Trash2 className="w-4 h-4" />
-                }
-                {deleting ? 'Eliminando...' : `Eliminar ${selectedIds.size}`}
-              </button>
+              {deleteError && (
+                <p role="alert" className="text-xs font-semibold" style={{ color: 'var(--coral-on-brand-soft)' }}>
+                  {deleteError}
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={confirming ? () => setConfirming(false) : cancel}
+                  disabled={deleting}
+                  className="flex-1 min-h-[44px] rounded-xl text-sm font-semibold border border-white/30 text-white/90 hover:bg-white/10 transition-colors disabled:opacity-60"
+                >
+                  {confirming ? 'No, volver' : 'Cancelar'}
+                </button>
+                <button
+                  onClick={confirming ? handleBulkDelete : () => { setDeleteError(null); setConfirming(true) }}
+                  disabled={deleting}
+                  className="flex-1 min-h-[44px] flex items-center justify-center gap-2 active:scale-95 transition-all px-4 rounded-xl text-sm font-bold disabled:opacity-60"
+                  style={{ background: 'var(--coral)', color: 'white' }}
+                >
+                  {deleting
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Trash2 className="w-4 h-4" />
+                  }
+                  {deleting ? 'Eliminando...' : confirming ? 'Sí, eliminar' : `Eliminar ${selectedIds.size}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
