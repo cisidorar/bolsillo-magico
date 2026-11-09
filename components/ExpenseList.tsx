@@ -104,7 +104,8 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
             return (
               <button key={e.id} type="button" onClick={() => setDetailExpense(e)}
                 className="w-full flex items-center gap-3 px-4 py-3 lg:py-3.5 text-left transition-opacity hover:opacity-80 active:opacity-70">
-                <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={mobile ? 36 : 32} />
+                <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null}
+                  categoryColor={e.category?.color ?? null} categoryBg={e.category?.bg_color ?? null} size={mobile ? 36 : 32} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                     {e.description || e.category?.name || '—'}
@@ -155,8 +156,8 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                   style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
                 >
                   {(() => {
-                    const { icon: Icon, color } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
-                    return <Icon className="w-5 h-5" style={{ color }} />
+                    const { icon: Icon } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+                    return <Icon className="cat-text w-5 h-5" />
                   })()}
                 </div>
               )}
@@ -214,7 +215,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
         const e = detailExpense
         const catBg    = e.category?.bg_color ?? '#EEF4FF'
         const catColor = e.category?.color ?? '#4D93FF'
-        const { icon: Icon, color, bg } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
+        const { icon: Icon } = getExpenseIcon(e.description ?? null, e.category?.name ?? null)
         // Mismo criterio que la fila de la lista (logoDomain/logoName) —
         // faltaba acá, así que el header del detalle mostraba el ícono
         // genérico de categoría en vez del logo real (ej. Uber).
@@ -247,9 +248,9 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                 ) : (
                   <div
                     className="cat-icon-bg w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ '--cat-bg': bg, '--cat-color': color } as React.CSSProperties}
+                    style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
                   >
-                    <Icon className="w-5 h-5" style={{ color }} />
+                    <Icon className="cat-text w-5 h-5" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">

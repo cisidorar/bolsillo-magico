@@ -96,7 +96,8 @@ export default function WeekdayBreakdown({ expenses, monthLabel }: Props) {
           <div className="space-y-1">
             {[...activeDay.items].sort((a, b) => b.amount - a.amount).map(e => (
               <div key={e.id} className="flex items-center gap-2.5 py-1.5">
-                <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={28} />
+                <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null}
+                  categoryColor={e.category?.color ?? null} categoryBg={e.category?.bg_color ?? null} size={28} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                     {e.description || e.category?.name || '—'}
