@@ -24,7 +24,7 @@ import { cashFromTotals } from '@/lib/wallet-cash'
 import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip, PriceZoneChip } from '@/components/RiskRail'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
 import TechnicalDetail, { type OwnedPosition } from '@/components/TechnicalDetail'
 import TransactionModal, { type TransactionMode } from '@/components/TransactionModal'
 import PurchaseEditModal from '@/components/PurchaseEditModal'
@@ -34,7 +34,7 @@ import { fmtLastAutoUpdate } from '@/lib/format-freshness'
 import { isNyseTradingDay, todayEt } from '@/lib/nyse-calendar'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
-import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
+import type { TodayDecision, TodaySignal } from '@/lib/today-decision'
 import type { PortfolioPoint } from '@/lib/portfolio-history'
 import PortfolioValueChart, { type PortfolioSnapshotPoint } from '@/components/PortfolioValueChart'
 
@@ -74,6 +74,8 @@ const SORT_FIELD: Record<SortKey, 'valueUsd' | 'gainPct' | 'gainUsd' | 'dailyPct
 // Ojo de privacidad (sep 2026, Cas): reemplaza un monto por puntos del mismo
 // ancho aproximado en vez de "•••" fijo, para que la card no salte de tamaño
 // al ocultar/mostrar.
+const maskStr = (hidden: boolean, v: string) => (hidden ? '•••••' : v)
+
 function Masked({ hidden, value }: { hidden: boolean; value: string }) {
   return <>{hidden ? '•'.repeat(Math.max(4, Math.min(10, value.length))) : value}</>
 }
@@ -458,7 +460,7 @@ export default function Radar({
   const OPS_PAGE = 10
   const [opsShown, setOpsShown] = useState(OPS_PAGE)
   const [opDetail, setOpDetail] = useState<Operation | null>(null)
-  const opDetailBackdropClose = useBackdropClose(() => setOpDetail(null))
+  const opDetailBackdropClose = useBackdropDialog(() => setOpDetail(null), 'Detalle de la operación')
 
   // ── Quotes ────────────────────────────────────────────────────────────────
   const fetchQuotes = useCallback(async (tickers: string[]) => {
@@ -687,8 +689,8 @@ export default function Radar({
   // Hooks de los backdrops de los dos overlays (búsqueda / ficha expandida) —
   // llamados siempre, sin importar si el overlay está abierto (los divs que
   // los usan sí son condicionales), para no romper el orden de hooks.
-  const searchBackdropClose   = useBackdropClose(closeSearch)
-  const expandedBackdropClose = useBackdropClose(() => setExpanded(null))
+  const searchBackdropClose   = useBackdropDialog(closeSearch, 'Seguir una acción')
+  const expandedBackdropClose = useBackdropDialog(() => setExpanded(null), 'Detalle de la acción')
 
   async function addSymbol(symbol: string) {
     const t = symbol.trim().toUpperCase()
@@ -721,30 +723,59 @@ export default function Radar({
    * con acción); si el usuario toca "Deshacer" a tiempo, se cancela el
    * borrado y la fila vuelve tal cual estaba — nunca llegó a irse del server.
    */
+  // Quitar de la vista al toque; el DELETE real se difiere 5s para poder
+  // deshacer. Si la pestaña se oculta o se cierra antes, se confirma de
+  // inmediato en vez de perderse; si el DELETE falla, el ticker vuelve con aviso.
+  const pendingRemovals = useRef(new Map<string, { item: WatchlistItem; undone: boolean }>())
+  const commitRemovalRef = useRef<(id: string) => Promise<void>>(async () => {})
+  commitRemovalRef.current = async (id: string) => {
+    const entry = pendingRemovals.current.get(id)
+    if (!entry || entry.undone) return
+    pendingRemovals.current.delete(id)
+    const { error } = await supabase.from('watchlist').delete().eq('id', id).eq('user_id', userId)
+    if (error) {
+      setItems(prev => prev.some(i => i.id === id) ? prev : [...prev, entry.item])
+      showToast(`No se pudo dejar de seguir ${entry.item.ticker}. Intenta de nuevo.`)
+    }
+  }
+  useEffect(() => {
+    const flush = () => { pendingRemovals.current.forEach((_, id) => { void commitRemovalRef.current(id) }) }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', flush)
+      flush()
+    }
+  }, [])
+
   async function removeTicker(item: WatchlistItem) {
     setItems(prev => prev.filter(i => i.id !== item.id))
     if (expanded === item.ticker) setExpanded(null)
 
-    let undone = false
+    const entry = { item, undone: false }
+    pendingRemovals.current.set(item.id, entry)
     showToast(`Dejaste de seguir ${item.ticker}`, {
       action: {
         label: 'Deshacer',
         onClick: () => {
-          undone = true
+          entry.undone = true
+          pendingRemovals.current.delete(item.id)
           setItems(prev => prev.some(i => i.id === item.id) ? prev : [...prev, item])
         },
       },
     })
 
     await new Promise(res => setTimeout(res, 5000))
-    if (!undone) await supabase.from('watchlist').delete().eq('id', item.id).eq('user_id', userId)
+    await commitRemovalRef.current(item.id)
   }
 
   // V6 (roadmap de vista): la leyenda era una fila PERMANENTE sobre la lista
   // (antes descartable una vez, I4) — ahora es un ícono "?" junto a los tabs
   // que muestra el mismo texto en un toast; no ocupa espacio si no se necesita.
   function showLegendToast() {
-    showToast('● número = convicción de compra (0-100, toca cualquiera para el detalle).')
+    showToast('● Cada número va de 0 a 100: qué tan buena compra se ve hoy (toca cualquiera para el detalle).')
   }
 
   // ── Precio objetivo ───────────────────────────────────────────────────────
@@ -873,7 +904,7 @@ export default function Radar({
           {lastUpdated && !quotesError && marketOpen !== null && (
             <>
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ background: marketOpen ? 'var(--mint)' : 'var(--coral)', animation: marketOpen ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' : 'none' }} />
+                style={{ background: marketOpen ? 'var(--mint)' : 'var(--ink-3)', animation: marketOpen ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' : 'none' }} />
               {marketOpen ? (
                 <span style={{ color: 'var(--mint-ink)' }} className="font-semibold whitespace-nowrap">Precios en vivo · {marketLabel}</span>
               ) : (
@@ -1014,12 +1045,12 @@ export default function Radar({
                 font-extrabold) en vez del text-6xl que tenía antes. */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <p className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,0.55)' }}>Valor del portafolio</p>
+                <p className="text-[11px] font-bold" style={{ color: 'rgba(255,255,255,0.82)' }}>Valor del portafolio</p>
                 <button
                   type="button"
                   onClick={toggleHideAmounts}
-                  className="p-3 -m-2.5 rounded-full transition-colors hover:bg-white/10"
-                  style={{ color: 'rgba(255,255,255,0.55)' }}
+                  className="p-[15px] -m-[15px] rounded-full transition-colors hover:bg-white/10"
+                  style={{ color: 'rgba(255,255,255,0.82)' }}
                   aria-label={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
                   title={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
                 >
@@ -1063,13 +1094,13 @@ export default function Radar({
                 mismo tono azulado que la tarjeta en vez de un gris genérico. */}
             <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Invertido</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.82)' }}>Invertido</p>
                 <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: 'white' }}><Masked hidden={hideAmounts} value={fmtUSD(totalCostUsd)} /></p>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0 border-b sm:border-b-0" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
-                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Retorno total</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.82)' }}>Retorno total</p>
                 <div className="text-right sm:text-left">
-                  <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? 'var(--mint-on-brand)' : 'var(--coral-on-brand)') : 'rgba(255,255,255,0.5)' }}>
+                  <p className="text-sm sm:text-base font-bold tabular-nums" style={{ color: hasQ ? (totalReturnUsd >= 0 ? 'var(--mint-on-brand)' : 'var(--coral-on-brand)') : 'rgba(255,255,255,0.82)' }}>
                     {hasQ ? <Masked hidden={hideAmounts} value={fmtUSDSigned(totalReturnUsd)} /> : '—'}
                   </p>
                   {hasQ && (
@@ -1080,7 +1111,7 @@ export default function Radar({
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 sm:block px-4 py-3 min-w-0">
-                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.5)' }}>Billetera</p>
+                <p className="text-[11px] font-bold sm:mb-1 whitespace-nowrap" style={{ color: 'rgba(255,255,255,0.82)' }}>Billetera</p>
                 <p className="text-sm sm:text-base font-bold tabular-nums text-right sm:text-left" style={{ color: walletAvailable !== null && walletAvailable < 0 ? 'var(--coral-on-brand)' : 'white' }}>
                   {walletAvailable !== null ? <Masked hidden={hideAmounts} value={fmtUSD(Math.max(0, walletAvailable))} /> : '—'}
                 </p>
@@ -1099,13 +1130,13 @@ export default function Radar({
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>No realizado</p>
                 <p className="text-sm font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)') : 'var(--ink-3)' }}>
-                  {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
+                  {hasQ ? maskStr(hideAmounts, fmtUSDSigned(totalGainUsd)) : '—'}
                 </p>
               </div>
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Realizado</p>
                 <p className="text-sm font-bold tabular-nums" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
-                  {fmtUSDSigned(realizedPnlUsd)}
+                  {maskStr(hideAmounts, fmtUSDSigned(realizedPnlUsd))}
                 </p>
               </div>
               {/* sep 2026 (Cas: "aqui quiero quitar vs SPY"): la fila "vs SPY"
@@ -1170,7 +1201,7 @@ export default function Radar({
               <button
                 onClick={() => setSortMenuOpen(v => !v)}
                 aria-expanded={sortMenuOpen}
-                aria-haspopup="menu"
+                aria-haspopup="true"
                 className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70 py-3 -my-3"
                 style={{ color: 'var(--ink-3)' }}
               >
@@ -1188,7 +1219,7 @@ export default function Radar({
                       <button
                         key={o.key}
                         onClick={() => { setSortKey(o.key); setSortMenuOpen(false) }}
-                        className="block w-full text-left px-3.5 py-2 text-xs font-semibold normal-case tracking-normal whitespace-nowrap transition-colors hover:opacity-80"
+                        className="flex items-center w-full min-h-[44px] text-left px-3.5 text-xs font-semibold normal-case tracking-normal whitespace-nowrap transition-colors hover:opacity-80"
                         style={{ color: sortKey === o.key ? 'var(--primary)' : 'var(--ink-2)', background: sortKey === o.key ? 'var(--primary-soft)' : 'transparent' }}
                       >
                         {o.label}
@@ -1243,7 +1274,7 @@ export default function Radar({
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
                       {sellNow && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: sellBg, color: sellColor }}>
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: sellBg, color: sellColor }}>
                           {trendReversed ? 'Sal ya' : 'Vende'}
                         </span>
                       )}
@@ -1273,14 +1304,14 @@ export default function Radar({
                         ? 'var(--ink-3)'
                         : !isSigned
                           ? 'var(--ink)'
-                          : value >= 0 ? 'var(--mint)' : 'var(--coral)'
+                          : value >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)'
                       const text = value === null
                         ? '—'
                         : isPct
                           ? fmtPct(value, isSigned)
                           : sortKey === 'gainUsd' || sortKey === 'dailyUsd'
-                            ? fmtUSDSigned(value)
-                            : fmtUSD(value)
+                            ? maskStr(hideAmounts, fmtUSDSigned(value))
+                            : maskStr(hideAmounts, fmtUSD(value))
                       return (
                         <p className="text-base font-bold tabular-nums" style={{ color }}>
                           {text}
@@ -1359,7 +1390,7 @@ export default function Radar({
                       </p>
                     </div>
                     <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
-                      {op.amountUsd >= 0 ? '+' : '-'}{fmtUSD(Math.abs(op.amountUsd))}
+                      {maskStr(hideAmounts, `${op.amountUsd >= 0 ? '+' : '-'}${fmtUSD(Math.abs(op.amountUsd))}`)}
                     </p>
                   </button>
                 ))}
@@ -1444,7 +1475,7 @@ export default function Radar({
                 )}
                 <Row
                   label={isSell ? 'Total recibido' : 'Total pagado'}
-                  value={fmtUSD(total)}
+                  value={maskStr(hideAmounts, fmtUSD(total))}
                   color={isSell ? 'var(--mint-ink)' : undefined}
                 />
 
@@ -1456,7 +1487,7 @@ export default function Radar({
                       </p>
                     </div>
                     {costUnit !== null && <Row label="Precio de compra promedio" value={`${fmtUSD(costUnit)} por acción`} />}
-                    <Row label="Costo total" value={fmtUSD(cost)} />
+                    <Row label="Costo total" value={maskStr(hideAmounts, fmtUSD(cost))} />
                     {pnl !== null && (
                       <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-2xl"
                         style={{
@@ -1467,7 +1498,7 @@ export default function Radar({
                           {pnl >= 0 ? 'Ganancia' : 'Pérdida'}
                         </p>
                         <p className="text-base font-extrabold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
-                          {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
+                          {maskStr(hideAmounts, fmtUSDSigned(pnl))}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
                         </p>
                       </div>
                     )}
@@ -1483,7 +1514,7 @@ export default function Radar({
                         Cómo va hoy
                       </p>
                     </div>
-                    <Row label="Valen hoy" value={fmtUSD(nowValue)} />
+                    <Row label="Valen hoy" value={maskStr(hideAmounts, fmtUSD(nowValue))} />
                     <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-2xl"
                       style={{
                         background: unrealized >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)',
@@ -1493,7 +1524,7 @@ export default function Radar({
                         {unrealized >= 0 ? 'Ganancia' : 'Pérdida'} sin realizar
                       </p>
                       <p className="text-base font-extrabold tabular-nums" style={{ color: unrealized >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
-                        {fmtUSDSigned(unrealized)}{unrealizedPct !== null && ` (${fmtPct(unrealizedPct)})`}
+                        {maskStr(hideAmounts, fmtUSDSigned(unrealized))}{unrealizedPct !== null && ` (${fmtPct(unrealizedPct)})`}
                       </p>
                     </div>
                   </>
@@ -1505,7 +1536,7 @@ export default function Radar({
                   <p className="text-[11px] leading-relaxed px-1 pt-1" style={{ color: 'var(--ink-3)' }}>
                     La compraste con una lectura de {Math.round(op.purchase.conviction_score)}/100
                     {op.purchase.conviction_tier && ` (${op.purchase.conviction_tier.replace('_', ' ')})`}
-                    {op.purchase.had_entry_trigger === false && ', sin gatillo de entrada ese día'}.
+                    {op.purchase.had_entry_trigger === false && ', sin señal clara de entrada ese día'}.
                   </p>
                 )}
                 {(op.sale?.notes || op.purchase?.notes) && (
@@ -1675,7 +1706,7 @@ export default function Radar({
                     jul 2026, a pedido de Cas). */}
                 {top.ticker !== bestActionable.ticker && (
                   <p className="text-[11px] leading-relaxed mt-1" style={{ color: 'var(--ink-3)' }}>
-                    <TickerLink t={top.ticker} onOpen={openDetail} muted /> tiene más convicción en general ({top.conviction.score}/100), pero todavía no tiene gatillo de entrada.
+                    <TickerLink t={top.ticker} onOpen={openDetail} muted /> se ve mejor en general ({top.conviction.score}/100), pero todavía no marca el momento de entrar.
                   </p>
                 )}
                 {/* D3 (roadmap de calidad de decisión): earnings a la vuelta de
@@ -1744,9 +1775,9 @@ export default function Radar({
                 )}
               </div>
             )}
-            <p className="text-[9px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
-              Score de convicción: técnico + riesgo/recompensa + fuerza vs. el mercado (SPY). No es garantía —
-              es la mejor lectura con lo que hay hoy.
+            <p className="text-[11px] leading-relaxed mt-2.5" style={{ color: 'var(--ink-3)' }}>
+              El número (de 0 a 100) mezcla análisis técnico, riesgo/recompensa y fuerza frente al mercado (SPY).
+              No es garantía — es la mejor lectura con lo que hay hoy.
             </p>
           </div>
           {/* V1 (roadmap de vista): ventas/toma de ganancias/precio objetivo de
@@ -1790,11 +1821,12 @@ export default function Radar({
       <div className="sticky top-0 z-10 lg:static flex items-center justify-end gap-2 mb-3 py-2 -mx-4 px-4 lg:mx-0 lg:px-0 lg:py-0" style={{ background: 'var(--bg)' }}>
         <select
           value={sortMode}
+          aria-label="Ordenar la lista"
           onChange={e => changeSortMode(e.target.value as 'convict' | 'daily')}
           className="text-xs font-bold px-2.5 py-2 rounded-xl border outline-none"
           style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
         >
-          <option value="convict">Ordenar: convicción</option>
+          <option value="convict">Ordenar: mejor compra</option>
           <option value="daily">Ordenar: % {dailyWord}</option>
         </select>
         <button
@@ -1856,7 +1888,7 @@ export default function Radar({
               ticker,
               q ? fmtUSD(q.price) : null,
               isOwned && gainPct !== null ? `retorno ${fmtPct(gainPct, false)}` : null,
-              c ? `convicción ${c.score} de 100` : null,
+              c ? `puntaje de compra ${c.score} de 100` : null,
             ].filter(Boolean).join(', ') + '. Toca para ver el detalle.'
 
             return (
@@ -1952,7 +1984,7 @@ export default function Radar({
               <div className="flex items-center gap-2.5 border px-4 py-3" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', borderRadius: 12 }}>
                 <Search className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                 <input
-                  type="text" value={query}
+                  type="text" value={query} aria-label="Buscar una acción por nombre o ticker"
                   onChange={e => { setQuery(e.target.value); setAddError('') }}
                   placeholder="ej: Apple, Netflix, Vanguard S&P 500…"
                   maxLength={40} autoFocus
@@ -2025,7 +2057,7 @@ export default function Radar({
                             <button
                               onClick={() => addSymbol(r.symbol)}
                               disabled={busy}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 disabled:opacity-50"
+                              className="flex items-center gap-1 px-3 min-h-[44px] rounded-xl text-[11px] font-bold transition-all active:scale-95 disabled:opacity-50"
                               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                             >
                               {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" strokeWidth={3} />}
@@ -2033,7 +2065,7 @@ export default function Radar({
                             </button>
                             <button
                               onClick={() => { closeSearch(); setTxn({ mode: 'new', ticker: r.symbol }) }}
-                              className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition-colors hover:bg-black/5"
+                              className="px-3 min-h-[44px] rounded-xl text-[11px] font-bold border transition-colors hover:bg-black/5"
                               style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}
                             >
                               Ya la tengo
@@ -2096,7 +2128,7 @@ export default function Radar({
                     </p>
                   </div>
                 )}
-                <button onClick={() => setExpanded(null)}
+                <button onClick={() => setExpanded(null)} aria-label="Cerrar"
                   className="w-11 h-11 flex items-center justify-center rounded-full flex-shrink-0 transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                   <X className="w-4 h-4" />
@@ -2123,6 +2155,7 @@ export default function Radar({
                             value={targetInput}
                             onChange={e => setTargetInput(e.target.value)}
                             placeholder={isOwned ? 'Precio de salida en USD' : 'Precio de entrada en USD'}
+                            aria-label={isOwned ? 'Precio de salida en USD' : 'Precio de entrada en USD'}
                             autoFocus
                             className="flex-1 min-w-0 text-xs font-semibold outline-none border rounded-xl px-3 py-1.5"
                             style={{ color: 'var(--ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}

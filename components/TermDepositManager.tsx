@@ -2,7 +2,7 @@
 
 import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useCallback } from 'react'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Timer, Trash2, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
@@ -189,12 +189,12 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
-  const backdropClose = useBackdropClose(cancelForm)
+  const backdropClose = useBackdropDialog(cancelForm, 'Depósito a plazo')
 
   function closeDetail() { setDetailId(null) }
   // Mismo motivo que backdropClose arriba: hook llamado siempre, el modal
   // de detalle es condicional más abajo.
-  const detailBackdropClose = useBackdropClose(closeDetail)
+  const detailBackdropClose = useBackdropDialog(closeDetail, 'Detalle del depósito')
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveDeposit = useCallback(async () => {
@@ -255,7 +255,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   }
   function closeRenew() { setRenewId(null); setRenewError('') }
 
-  const renewBackdropClose = useBackdropClose(closeRenew)
+  const renewBackdropClose = useBackdropDialog(closeRenew, 'Renovar depósito')
 
   const saveRenewal = useCallback(async () => {
     const d = renewId ? deposits.find(x => x.id === renewId) ?? null : null
@@ -370,7 +370,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               {isMatured && (
                 <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                   style={idleLong
-                    ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
+                    ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold-ink)' }
                     : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
                   <CheckCircle2 className="w-2.5 h-2.5" /> {idleLong ? 'Reinvierte' : 'Vencido'}
                 </span>
@@ -483,17 +483,18 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Banco */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="td-f1" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Banco o institución
                 </label>
                 {/* sep 2026 (Cas: "aquí en banco debería desplegar y mostrar
-                    los bancos de chile"): datalist en vez de un <select>
+                    los bancos de chile"): datalist en vez de un <select id="td-f1">
                     porque el campo tiene que seguir aceptando cualquier cosa
                     — cooperativas chicas, una caja, "el colchón". La lista
                     sugiere mientras escribes y filtra sola; elegir una opción
                     garantiza además que el logo salga bien (mismo archivo
                     resuelve nombre → dominio). */}
                 <input
+                  id="td-f1"
                   type="text"
                   list="cl-institutions"
                   value={form.bank}
@@ -513,10 +514,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               {/* Monto + Interés */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="td-f2" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Monto (CLP)
                   </label>
-                  <input
+                  <input id="td-f2"
                     type="text"
                     inputMode="numeric"
                     value={fmtInput(form.amount)}
@@ -528,10 +529,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="td-f3" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Interés del período (%)
                   </label>
-                  <input
+                  <input id="td-f3"
                     type="number"
                     value={form.interestRate}
                     onChange={e => setForm(f => ({ ...f, interestRate: e.target.value }))}
@@ -574,10 +575,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               {/* Fecha de inicio + Plazo (días) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="td-f4" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Fecha de inicio
                   </label>
-                  <input
+                  <input id="td-f4"
                     type="date"
                     value={form.startDate}
                     onChange={e => {
@@ -595,10 +596,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="td-f5" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Plazo (días)
                   </label>
-                  <input
+                  <input id="td-f5"
                     type="number"
                     inputMode="numeric"
                     value={form.termDays}
@@ -621,10 +622,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Vencimiento — se autocompleta desde Fecha de inicio + Plazo, pero se puede ajustar */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="td-f6" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Vencimiento
                 </label>
-                <input
+                <input id="td-f6"
                   type="date"
                   value={form.maturityDate}
                   onChange={e => setForm(f => ({ ...f, maturityDate: e.target.value }))}
@@ -667,10 +668,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
               {/* Nota */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="td-f7" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   ¿Para qué es este ahorro? (opcional)
                 </label>
-                <input
+                <input id="td-f7"
                   type="text"
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -779,7 +780,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     {isMatured ? (
                       <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                         style={daysIdle >= 30
-                          ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
+                          ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold-ink)' }
                           : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
                         <CheckCircle2 className="w-2.5 h-2.5" /> {daysIdle >= 30 ? 'Reinvierte' : 'Vencido'}
                       </span>
@@ -1096,10 +1097,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
                 {/* Nueva tasa */}
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="td-f8" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Nueva tasa del período (%)
                   </label>
-                  <input
+                  <input id="td-f8"
                     type="number"
                     value={renewState.newRate}
                     onChange={e => setRenewState(s => ({ ...s, newRate: e.target.value }))}

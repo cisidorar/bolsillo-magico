@@ -9,7 +9,7 @@ import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManage
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
 import { getNowChile } from '@/lib/utils'
-import type { TodayDecision, TodaySignal } from '@/components/TodayQueue'
+import type { TodayDecision, TodaySignal } from '@/lib/today-decision'
 import WeekSnapshotCard, { type UpcomingEvent } from '@/components/WeekSnapshotCard'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { fedRateSentence, inflationSentence, nextFomcMeeting } from '@/lib/market-week'
@@ -25,6 +25,7 @@ import { businessDaysUntil } from '@/lib/earnings'
 import { fetchClIpcSeries, trailingAnnualInflation } from '@/lib/cl-indicators'
 import { computeWalletCash, walletKind } from '@/lib/wallet-cash'
 import { withoutSuperseded } from '@/lib/term-deposits'
+import LoadErrorNotice from '@/components/LoadErrorNotice'
 
 export const dynamic = 'force-dynamic'
 
@@ -151,7 +152,7 @@ export default async function InversionesPage({ searchParams }: Props) {
       })()
     : Promise.resolve(null)
 
-  const [{ data: stocks }, { data: savings }, { data: deposits }, { data: watchlist }, { data: sales }, { data: purchases }, trailingInflationPctResolved] = await Promise.all([
+  const [{ data: stocks, error: stocksErr }, { data: savings, error: savingsErr }, { data: deposits, error: depositsErr }, { data: watchlist, error: watchlistErr }, { data: sales, error: salesErr }, { data: purchases, error: purchasesErr }, trailingInflationPctResolved] = await Promise.all([
     supabase
       .from('stock_positions')
       .select('*')
@@ -225,7 +226,7 @@ export default async function InversionesPage({ searchParams }: Props) {
 
   // Billetera USD — se necesita siempre: en Ahorro para el manager y en
   // Acciones para el saldo disponible (tope de compra)
-  const { data: usdPurchases } = await supabase
+  const { data: usdPurchases, error: usdErr } = await supabase
     .from('usd_purchases')
     .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
     .eq('user_id', user.id)
@@ -241,6 +242,15 @@ export default async function InversionesPage({ searchParams }: Props) {
   }))
   const walletPurchases = (purchases ?? []).map(p => ({ total_paid_usd: Number(p.total_paid_usd) }))
   const walletCash = computeWalletCash(walletMovements, walletPurchases)
+
+  // Si falla una consulta, la pestaña no puede mostrar el estado vacío ("Sin
+  // posiciones todavía", saldo en cero): parecería que se perdieron datos.
+  // Cada pestaña mira solo las tablas que usa.
+  const loadError = isAhorro
+    ? (savingsErr || depositsErr) ? 'tus ahorros y depósitos' : null
+    : isBilletera
+    ? (usdErr || purchasesErr || salesErr) ? 'tu billetera' : null
+    : (stocksErr || purchasesErr || salesErr || usdErr || (isWatchlist && watchlistErr)) ? 'tus acciones' : null
 
   // ── P4 (roadmap largo plazo): meta mensual de aporte (profiles.monthly_invest_goal,
   // ya vive en /inicio y /analisis) — Acciones la ignoraba por completo. Mismo
@@ -464,7 +474,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           className="text-3xl font-semibold leading-tight"
           style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
         >
-          {isAhorro ? 'Ahorros y depósitos' : isWatchlist ? 'Watchlist' : isBilletera ? 'Inversiones' : 'Mis acciones'}
+          {isAhorro ? 'Ahorro y depósitos' : isWatchlist ? 'Watchlist' : isBilletera ? 'Billetera' : 'Mis acciones'}
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
           {isAhorro
@@ -472,13 +482,15 @@ export default async function InversionesPage({ searchParams }: Props) {
             : isWatchlist
             ? 'Candidatos que te interesa comprar'
             : isBilletera
-            ? 'el fondo desde el que compras acciones'
+            ? 'El fondo desde el que compras acciones'
             : `${stockCount} posición${stockCount !== 1 ? 'es' : ''} · acciones`}
         </p>
       </div>
 
       {/* ── Content */}
-      {isAhorro ? (
+      {loadError ? (
+        <LoadErrorNotice what={loadError} />
+      ) : isAhorro ? (
         <>
           {/* A1 (roadmap ahorro+depósitos): el toggle vive UNA sola vez acá
               — DepositManager y TermDepositManager ya no dibujan el suyo
@@ -548,6 +560,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           portfolioHistory={portfolioHistory}
           monthlyInvestGoal={monthlyInvestGoal}
           investedThisMonthClp={investedThisMonthClp}
+          initialHideAmounts={hidePortfolioAmounts}
         />
       ) : (
         <>

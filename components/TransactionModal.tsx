@@ -1,6 +1,7 @@
 'use client'
 
-import { DELETE_ERROR } from '@/lib/db-error'
+import { getNowChile } from '@/lib/utils'
+import { DELETE_ERROR, SAVE_ERROR } from '@/lib/db-error'
 import { useState, useEffect, type Dispatch, type SetStateAction } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
@@ -12,7 +13,7 @@ import { cashFromTotals } from '@/lib/wallet-cash'
 import { computeConviction, isActionableBuyNow, type MarketRegime } from '@/lib/conviction'
 import { getCachedBacktestStats, getCachedRateContext } from '@/lib/analysis-cache'
 import { useToast } from '@/components/ToastProvider'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
 
 // ── U4 (roadmap UX): modal SOLO transaccional — extraído de
 // StockPositionManager.tsx. Ya no es la puerta de entrada a la información
@@ -26,7 +27,7 @@ export type TransactionMode = 'new' | 'buyMore' | 'sell' | 'edit' | 'delete'
 interface Quote { price: number; changePercent?: number; name?: string; domain?: string }
 
 function fmtUSD(n: number): string {
-  return '$' + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return 'US$' + Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function fmtPct(n: number, showSign = true): string {
   const s = Math.abs(n).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -149,26 +150,23 @@ export default function TransactionModal({
       setSellShares(String(Number(pos.shares.toFixed(8))))
       setSellPrice(price.toFixed(2))
       setSellUsd((price * pos.shares).toFixed(2))
-      setSellDate(new Date().toISOString().slice(0, 10))
+      setSellDate(getNowChile().dateStr)
     } else if (mode === 'buyMore') {
       const suggestedUsd = prefill?.totalUsd
       const live = pos ? quotes[pos.ticker]?.price : undefined
       const suggestedShares = suggestedUsd && live ? (suggestedUsd / live).toFixed(8).replace(/\.?0+$/, '') : ''
       setBuyShares(suggestedShares)
       setBuyTotalPaid(suggestedUsd ? suggestedUsd.toFixed(2) : '')
-      setBuyDate(new Date().toISOString().slice(0, 10))
+      setBuyDate(getNowChile().dateStr)
     }
     setFormError('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, ticker])
 
-  // Escape cierra
+  // Escape y foco los maneja useBackdropDialog; acá solo se congela el scroll.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { document.body.style.overflow = '' }
   }, [])
 
   // ── Billetera disponible — una sola fórmula (lib/wallet-cash.ts) ────────
@@ -219,7 +217,7 @@ export default function TransactionModal({
     if (!isEdit && walletAvailable !== null && totalPaid > walletAvailable + 0.01) {
       setFormError(
         `Billetera insuficiente: tienes ${fmtUSD(Math.max(0, walletAvailable))} disponibles y esta compra cuesta ${fmtUSD(totalPaid)}. ` +
-        'Registra un aporte en Inversiones → Ahorro → Billetera en dólares, o ajusta el monto.'
+        'Registra un aporte en la pestaña Billetera, o ajusta el monto.'
       )
       return
     }
@@ -228,7 +226,7 @@ export default function TransactionModal({
     if (!isEdit) {
       const duplicate = positions.find(p => p.ticker === tk)
       if (duplicate) {
-        setFormError(`Ya tenés ${tk} en el portafolio. Abrí esa posición para editarla.`)
+        setFormError(`Ya tienes ${tk} en el portafolio. Abre esa posición para editarla.`)
         return
       }
     }
@@ -245,6 +243,27 @@ export default function TransactionModal({
         : p
       ))
     } else {
+      // Primero la compra, después la posición: el saldo de la billetera sale
+      // de stock_purchases, así que si la segunda escritura falla solo hay
+      // que borrar esta fila para volver al estado anterior. (No hay
+      // transacción: es compensación en el cliente, como en la venta.)
+      // D5: se guarda también la lectura de convicción del momento (null si
+      // no hay análisis cargado para el ticker — no bloquea la compra).
+      const snapshot = convictionSnapshotFor(tk)
+      const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
+        .insert({
+          user_id: userId, ticker: tk, shares, total_paid_usd: totalPaid,
+          purchase_date: getNowChile().dateStr,
+          notes: form.notes.trim() || null,
+          conviction_score: snapshot?.score ?? null,
+          conviction_tier:  snapshot?.tier ?? null,
+          had_entry_trigger: snapshot?.hadTrigger ?? null,
+        })
+        .select().single()
+      if (purchaseErr || !purchaseRow) {
+        console.error('[stock_purchases] insert error:', purchaseErr?.message)
+        setSaving(false); setFormError(SAVE_ERROR); return
+      }
       const { data, error } = await supabase.from('stock_positions')
         .upsert({
           user_id: userId, ticker: tk, shares, avg_cost_usd: avgCost, notes: form.notes.trim() || null,
@@ -254,33 +273,25 @@ export default function TransactionModal({
           wallet_cost_usd: walletUsdBase > 0 ? Math.round(totalPaid * 100) / 100 : 0,
         }, { onConflict: 'user_id,ticker' })
         .select().single()
+      if (error) {
+        const { error: undoErr } = await supabase.from('stock_purchases')
+          .delete().eq('id', (purchaseRow as StockPurchase).id).eq('user_id', userId)
+        setSaving(false)
+        if (undoErr) {
+          setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
+          setFormError('No se pudo guardar la posición y la compra quedó en tus movimientos. Elimínala desde ahí para que el saldo de la billetera cuadre.')
+        } else {
+          setFormError(SAVE_ERROR)
+        }
+        return
+      }
       setSaving(false)
-      if (error) { setFormError('Error al guardar'); return }
       const newPos = data as StockPosition
       setPositions(prev => {
         const idx = prev.findIndex(p => p.ticker === tk)
         return idx >= 0 ? prev.map(p => p.ticker === tk ? newPos : p) : [newPos, ...prev]
       })
-
-      // Registro histórico de la compra — para el timeline de "Movimientos"
-      // D5: se guarda también la lectura de convicción del momento (null si
-      // no hay análisis cargado para el ticker — no bloquea la compra).
-      const snapshot = convictionSnapshotFor(tk)
-      const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
-        .insert({
-          user_id: userId, ticker: tk, shares, total_paid_usd: totalPaid,
-          purchase_date: new Date().toISOString().slice(0, 10),
-          notes: form.notes.trim() || null,
-          conviction_score: snapshot?.score ?? null,
-          conviction_tier:  snapshot?.tier ?? null,
-          had_entry_trigger: snapshot?.hadTrigger ?? null,
-        })
-        .select().single()
-      if (purchaseErr) {
-        console.error('[stock_purchases] insert error:', purchaseErr.message)
-        showToast('La compra quedó registrada, pero no se descontó de tu billetera. Revisa el saldo.')
-      }
-      if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
+      setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
     }
     // I2 (roadmap interacción): confirmar qué se guardó — antes el modal solo
     // se cerraba, sin decir si la compra quedó registrada.
@@ -320,7 +331,7 @@ export default function TransactionModal({
     }
     const proceeds = parseFloat(sellUsd.replace(',', '.'))
     if (!Number.isFinite(proceeds) || proceeds <= 0) { setFormError('¿Cuántos USD recibiste por la venta?'); return }
-    if (!sellDate) { setFormError('Elegí la fecha de la venta'); return }
+    if (!sellDate) { setFormError('Elige la fecha de la venta'); return }
 
     setDeleting(true); setFormError('')
 
@@ -349,11 +360,45 @@ export default function TransactionModal({
       notes:            null,
       usd_purchase_id:  usdPurchaseId,
     }).select().single()
-    if (saleErr) { console.error('[stock_sales] insert error:', saleErr.message); setDeleting(false); setFormError('No se pudo registrar la ganancia/pérdida de la venta'); return }
-    if (saleRow) setSales(prev => [saleRow as StockSale, ...prev])
+    // Compensación: la venta toca tres tablas y no hay transacción en el
+    // cliente. Si un paso falla, se deshacen los anteriores para no dejar USD
+    // acreditados en la billetera sin venta ni posición actualizada.
+    async function undoWallet(): Promise<boolean> {
+      if (!usdPurchaseId) return true
+      const { error: ue } = await supabase.from('usd_purchases').delete().eq('id', usdPurchaseId).eq('user_id', userId)
+      return !ue
+    }
+    if (saleErr) {
+      console.error('[stock_sales] insert error:', saleErr.message)
+      const undone = await undoWallet()
+      setDeleting(false)
+      setFormError(undone
+        ? 'No se pudo registrar la venta. No se cambió nada.'
+        : 'No se pudo registrar la venta, pero quedó un movimiento en tu billetera. Elimínalo desde Billetera antes de reintentar.')
+      return
+    }
+
+    async function undoSaleAndWallet(): Promise<boolean> {
+      let ok = true
+      if (saleRow) {
+        const { error: se } = await supabase.from('stock_sales').delete().eq('id', saleRow.id).eq('user_id', userId)
+        if (se) ok = false
+      }
+      return (await undoWallet()) && ok
+    }
 
     if (isFullSale) {
-      await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
+      const { error: posErr } = await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
+      if (posErr) {
+        console.error('[stock_positions] delete error:', posErr.message)
+        const undone = await undoSaleAndWallet()
+        setDeleting(false)
+        setFormError(undone
+          ? 'No se pudo cerrar tu posición. La venta no se registró.'
+          : 'No se pudo cerrar tu posición y la venta quedó a medias. Revisa Billetera y Ventas antes de reintentar.')
+        return
+      }
+      if (saleRow) setSales(prev => [saleRow as StockSale, ...prev])
       setPositions(prev => prev.filter(p => p.id !== pos.id))
     } else {
       // 1e8, no 1e4 (sep 2026, ampliado de 1e6): stock_positions.shares guarda
@@ -365,13 +410,23 @@ export default function TransactionModal({
       const remainingShares = Math.round((pos.shares - sharesSold) * 1e8) / 1e8
       // El costo financiado por billetera se reduce en proporción a lo vendido
       const newWalletCost = Math.round(Number(pos.wallet_cost_usd ?? 0) * (remainingShares / pos.shares) * 100) / 100
-      await supabase.from('stock_positions')
+      const { error: posErr } = await supabase.from('stock_positions')
         .update({
           shares: remainingShares,
           wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
           updated_at: new Date().toISOString(),
         })
         .eq('id', pos.id).eq('user_id', userId)
+      if (posErr) {
+        console.error('[stock_positions] update error:', posErr.message)
+        const undone = await undoSaleAndWallet()
+        setDeleting(false)
+        setFormError(undone
+          ? 'No se pudo actualizar tu posición. La venta no se registró.'
+          : 'No se pudo actualizar tu posición y la venta quedó a medias. Revisa Billetera y Ventas antes de reintentar.')
+        return
+      }
+      if (saleRow) setSales(prev => [saleRow as StockSale, ...prev])
       setPositions(prev => prev.map(p => p.id === pos.id
         ? { ...p, shares: remainingShares, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0 }
         : p))
@@ -394,13 +449,13 @@ export default function TransactionModal({
     if (!Number.isFinite(addShares) || addShares <= 0) { setFormError('Número de acciones inválido'); return }
     const addTotal = parseFloat(buyTotalPaid.replace(',', '.'))
     if (!Number.isFinite(addTotal) || addTotal <= 0) { setFormError('Total pagado inválido'); return }
-    if (!buyDate) { setFormError('Elegí la fecha de la compra'); return }
+    if (!buyDate) { setFormError('Elige la fecha de la compra'); return }
 
     // Mismo tope de billetera que al agregar una posición nueva.
     if (walletAvailable !== null && addTotal > walletAvailable + 0.01) {
       setFormError(
         `Billetera insuficiente: tienes ${fmtUSD(Math.max(0, walletAvailable))} disponibles y esta compra cuesta ${fmtUSD(addTotal)}. ` +
-        'Registra un aporte en Inversiones → Ahorro → Billetera en dólares, o ajusta el monto.'
+        'Registra un aporte en la pestaña Billetera, o ajusta el monto.'
       )
       return
     }
@@ -412,6 +467,21 @@ export default function TransactionModal({
     // aunque la posición original sea legacy — antes esa plata salía de la
     // billetera sin descontar nunca (saldo inflado)
     const newWalletCost = Math.round((Number(pos.wallet_cost_usd ?? 0) + (walletUsdBase > 0 ? addTotal : 0)) * 100) / 100
+    // Primero la compra, después la posición (ver savePosition): si la
+    // posición falla se borra la compra y el saldo vuelve a su lugar.
+    const buyMoreSnapshot = convictionSnapshotFor(pos.ticker)
+    const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
+      .insert({
+        user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate,
+        conviction_score: buyMoreSnapshot?.score ?? null,
+        conviction_tier:  buyMoreSnapshot?.tier ?? null,
+        had_entry_trigger: buyMoreSnapshot?.hadTrigger ?? null,
+      })
+      .select().single()
+    if (purchaseErr || !purchaseRow) {
+      console.error('[stock_purchases] insert error:', purchaseErr?.message)
+      setSaving(false); setFormError(SAVE_ERROR); return
+    }
     const { error } = await supabase.from('stock_positions')
       .update({
         shares: newShares, avg_cost_usd: newAvgCost,
@@ -422,27 +492,22 @@ export default function TransactionModal({
         updated_at: new Date().toISOString(),
       })
       .eq('id', pos.id).eq('user_id', userId)
-    if (error) { setSaving(false); setFormError('Error al guardar'); return }
+    if (error) {
+      const { error: undoErr } = await supabase.from('stock_purchases')
+        .delete().eq('id', (purchaseRow as StockPurchase).id).eq('user_id', userId)
+      setSaving(false)
+      if (undoErr) {
+        setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
+        setFormError('No se pudo actualizar la posición y la compra quedó en tus movimientos. Elimínala desde ahí para que el saldo de la billetera cuadre.')
+      } else {
+        setFormError(SAVE_ERROR)
+      }
+      return
+    }
     setPositions(prev => prev.map(p => p.id === pos.id
       ? { ...p, shares: newShares, avg_cost_usd: newAvgCost, wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0, trail_stop_usd: null }
       : p))
-
-    // Registro histórico de la compra — para el timeline de "Movimientos"
-    // D5: misma lectura de convicción del momento que en una posición nueva.
-    const buyMoreSnapshot = convictionSnapshotFor(pos.ticker)
-    const { data: purchaseRow, error: purchaseErr } = await supabase.from('stock_purchases')
-      .insert({
-        user_id: userId, ticker: pos.ticker, shares: addShares, total_paid_usd: addTotal, purchase_date: buyDate,
-        conviction_score: buyMoreSnapshot?.score ?? null,
-        conviction_tier:  buyMoreSnapshot?.tier ?? null,
-        had_entry_trigger: buyMoreSnapshot?.hadTrigger ?? null,
-      })
-      .select().single()
-    if (purchaseErr) {
-        console.error('[stock_purchases] insert error:', purchaseErr.message)
-        showToast('La compra quedó registrada, pero no se descontó de tu billetera. Revisa el saldo.')
-      }
-    if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
+    setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
 
     setSaving(false)
     showToast(`Compra registrada: +${addShares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. de ${pos.ticker} (ahora ${newShares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.)`)
@@ -460,7 +525,7 @@ export default function TransactionModal({
     <div
       className="fixed inset-0 z-[110] flex items-end lg:items-center justify-center"
       style={{ background: 'rgba(0,0,0,0.65)' }}
-      {...useBackdropClose(onClose)}
+      {...useBackdropDialog(onClose, title)}
     >
       <div
         className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto overflow-x-hidden overscroll-contain"
@@ -503,7 +568,7 @@ export default function TransactionModal({
                   <label htmlFor="tx-shares" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
                   <input
                     id="tx-shares"
-                    type="number"
+                    type="number" inputMode="decimal"
                     value={form.shares}
                     onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
                     placeholder="10"
@@ -518,7 +583,7 @@ export default function TransactionModal({
                   <label htmlFor="tx-total-paid" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
                   <input
                     id="tx-total-paid"
-                    type="number"
+                    type="number" inputMode="decimal"
                     value={form.totalPaid}
                     onChange={e => setForm(f => ({ ...f, totalPaid: e.target.value }))}
                     placeholder="896.99"
@@ -547,7 +612,7 @@ export default function TransactionModal({
                 const over  = Number.isFinite(total) && total > s.maxUsd * 1.005
                 return (
                   <div className="px-4 py-2.5 rounded-xl" style={{ background: over ? 'rgba(255,194,60,0.10)' : 'var(--surface-2)' }}>
-                    <p className="text-[11px] leading-relaxed" style={{ color: over ? 'var(--gold)' : 'var(--ink-2)' }}>
+                    <p className="text-[11px] leading-relaxed" style={{ color: over ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
                       <span className="font-bold">Sugerido máx {fmtUSD(s.maxUsd)}</span> para arriesgar solo 1% del portafolio
                       {' '}(salida en {fmtUSD(s.stop)}, a −{s.distPct.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%).
                       {over && ' Con este monto arriesgas más que eso — decisión tuya, pero que sea consciente.'}
@@ -585,8 +650,9 @@ export default function TransactionModal({
                     <div className="flex gap-1.5">
                       <button
                         type="button"
+                        aria-pressed={form.riskTier === ''}
                         onClick={() => setForm(f => ({ ...f, riskTier: '' }))}
-                        className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                        className="flex-1 min-h-[44px] rounded-xl text-xs font-semibold border"
                         style={form.riskTier === ''
                           ? { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }
                           : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--ink-3)' }}
@@ -597,8 +663,9 @@ export default function TransactionModal({
                         <button
                           key={tier}
                           type="button"
+                          aria-pressed={form.riskTier === tier}
                           onClick={() => setForm(f => ({ ...f, riskTier: tier }))}
-                          className="flex-1 py-2 rounded-xl text-xs font-semibold border"
+                          className="flex-1 min-h-[44px] rounded-xl text-xs font-semibold border"
                           style={form.riskTier === tier
                             ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
                             : { background: 'transparent', borderColor: 'var(--border)', color: 'var(--ink-3)' }}
@@ -654,7 +721,7 @@ export default function TransactionModal({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="tx-buy-shares" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>N° acciones</label>
-                      <input id="tx-buy-shares" type="number" value={buyShares} onChange={e => setBuyShares(e.target.value)}
+                      <input id="tx-buy-shares" type="number" inputMode="decimal" value={buyShares} onChange={e => setBuyShares(e.target.value)}
                         placeholder="5" min="0.0001" step="any"
                         className="w-full text-sm border px-3 py-2.5 rounded-xl outline-none"
                         style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
@@ -669,7 +736,7 @@ export default function TransactionModal({
                   </div>
                   <div>
                     <label htmlFor="tx-buy-total" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total pagado (USD)</label>
-                    <input id="tx-buy-total" type="number" value={buyTotalPaid} onChange={e => setBuyTotalPaid(e.target.value)}
+                    <input id="tx-buy-total" type="number" inputMode="decimal" value={buyTotalPaid} onChange={e => setBuyTotalPaid(e.target.value)}
                       placeholder="450.00" min="0.01" step="0.01"
                       className="w-full text-sm border px-4 py-2.5 rounded-xl outline-none"
                       style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
@@ -686,7 +753,7 @@ export default function TransactionModal({
                     && parseFloat(buyTotalPaid.replace(',', '.')) > Math.max(0, room) * 1.005
                   return (
                     <div className="px-4 py-2.5 rounded-xl" style={{ background: over || room <= 0 ? 'rgba(255,194,60,0.10)' : 'var(--surface-2)' }}>
-                      <p className="text-[11px] leading-relaxed" style={{ color: over || room <= 0 ? 'var(--gold)' : 'var(--ink-2)' }}>
+                      <p className="text-[11px] leading-relaxed" style={{ color: over || room <= 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
                         {room > 0 ? (
                           <>
                             <span className="font-bold">Margen sugerido {fmtUSD(room)}</span> para que la posición completa
@@ -771,13 +838,13 @@ export default function TransactionModal({
                             setSellShares(String(Number(pos.shares.toFixed(8))))
                             setSellUsd((priceToUse * pos.shares).toFixed(2))
                           }}
-                          className="text-[10px] font-bold" style={{ color: 'var(--primary)' }}>
+                          className="text-[11px] font-bold min-h-[44px] px-2 -my-3" style={{ color: 'var(--primary)' }}>
                           Todas
                         </button>
                       </div>
                       <input
                         id="tx-sell-shares"
-                        type="number"
+                        type="number" inputMode="decimal"
                         value={sellShares}
                         onChange={e => {
                           const val = e.target.value
@@ -804,7 +871,7 @@ export default function TransactionModal({
                       <label htmlFor="tx-sell-price" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Precio de venta (USD/acc.)</label>
                       <input
                         id="tx-sell-price"
-                        type="number"
+                        type="number" inputMode="decimal"
                         value={sellPrice}
                         onChange={e => {
                           const val = e.target.value
@@ -820,7 +887,7 @@ export default function TransactionModal({
                       <label htmlFor="tx-sell-total" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Total recibido</label>
                       <input
                         id="tx-sell-total"
-                        type="number"
+                        type="number" inputMode="decimal"
                         value={sellUsd}
                         onChange={e => {
                           const val = e.target.value
@@ -869,7 +936,7 @@ export default function TransactionModal({
             <div className="space-y-4">
               <div className="rounded-2xl p-4 text-center" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
                 <p className="text-sm font-medium" style={{ color: 'var(--ink-2)' }}>
-                  ¿Eliminar esta posición sin registrar una venta? No va a quedar ningún rastro de cuánto ganaste o perdiste.
+                  ¿Eliminar esta posición sin registrar una venta? No quedará registro de cuánto ganaste o perdiste. Tus compras anteriores y el saldo de la billetera se mantienen.
                 </p>
               </div>
               <div className="flex gap-3">

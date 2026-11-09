@@ -4,9 +4,9 @@ import { useToast } from '@/components/ToastProvider'
 import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
-import { formatCLP, monthName } from '@/lib/utils'
+import { formatCLP, monthName, getNowChile } from '@/lib/utils'
 import { Plus, Trash2, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info, ChevronRight, Undo2 } from 'lucide-react'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { StockPurchase, StockSale } from '@/app/(dashboard)/inversiones/page'
@@ -51,17 +51,17 @@ function dividendTicker(notes: string | null): string {
   return notes?.match(/^Dividendo\s+([A-Z0-9.\-]{1,10})\b/i)?.[1]?.toUpperCase() ?? ''
 }
 
+// Fecha de Santiago: con toISOString() pasadas las ~20:00 en Chile salía mañana.
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10)
+  return getNowChile().dateStr
 }
 // Cas (ago 2026): quiere poder dejar registrado un aporte planificado a
 // futuro (ej. "el 15 voy a mandar plata a la billetera") sin tener que
 // volver ese día — antes el date picker topaba en hoy. Un año de margen es
 // suficiente para planificar sin abrir la puerta a fechas absurdas.
 function maxFutureStr(): string {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() + 1)
-  return d.toISOString().slice(0, 10)
+  const [y, m, d] = getNowChile().dateStr.split('-')
+  return `${Number(y) + 1}-${m}-${m === '02' && d === '29' ? '28' : d}`
 }
 const emptyForm = (): FormState => ({ date: todayStr(), clp: '', usd: '', notes: '', shares: '', ticker: '' })
 
@@ -124,7 +124,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
-  const backdropClose = useBackdropClose(() => setShowForm(false))
+  const backdropClose = useBackdropDialog(() => setShowForm(false), 'Movimiento de la billetera')
 
   // Detalle al tocar una fila (ago 2026, a pedido de Cas — mismo patrón que
   // el detalle de acciones en Radar.tsx: tocar la fila abre una tarjeta con
@@ -135,7 +135,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   const [detailKey,     setDetailKey]     = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   function closeDetail() { setDetailKey(null); setConfirmDelete(false) }
-  const detailBackdropClose = useBackdropClose(closeDetail)
+  const detailBackdropClose = useBackdropDialog(closeDetail, 'Detalle del movimiento')
 
   // FX solo como dato chico (no protagonista) — si falla, la card vive sin él
   useEffect(() => {
@@ -653,10 +653,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                     ) : null
                   })()}
                   <div>
-                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                    <label htmlFor="uw-f1" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                       Dólares recibidos
                     </label>
-                    <input
+                    <input id="uw-f1"
                       type="text" inputMode="decimal" placeholder="268,60"
                       value={form.usd}
                       onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
@@ -671,10 +671,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   <div className={incomeKind === 'dividend' ? 'grid grid-cols-2 gap-3' : ''}>
                     {incomeKind === 'dividend' && (
                       <div>
-                        <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                        <label htmlFor="uw-f2" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                           Acción
                         </label>
-                        <input
+                        <input id="uw-f2"
                           type="text" placeholder="TSM" maxLength={10}
                           value={form.ticker}
                           onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))}
@@ -685,10 +685,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       </div>
                     )}
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label htmlFor="uw-f3" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Dólares recibidos
                       </label>
-                      <input
+                      <input id="uw-f3"
                         type="text" inputMode="decimal" placeholder="2,05"
                         value={form.usd}
                         onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
@@ -712,10 +712,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label htmlFor="uw-f4" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Acciones
                       </label>
-                      <input
+                      <input id="uw-f4"
                         type="text" inputMode="decimal" placeholder="3,446295"
                         value={form.shares}
                         onChange={e => setForm(f => ({ ...f, shares: e.target.value.replace(/[^0-9.,]/g, '') }))}
@@ -725,10 +725,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label htmlFor="uw-f5" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Invertido (USD)
                       </label>
-                      <input
+                      <input id="uw-f5"
                         type="text" inputMode="decimal" placeholder="300,00"
                         value={form.usd}
                         onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
@@ -745,10 +745,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label htmlFor="uw-f6" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Pesos pagados (total)
                       </label>
-                      <input
+                      <input id="uw-f6"
                         type="text" inputMode="numeric" placeholder="950.000"
                         value={fmtInputCLP(form.clp)}
                         onChange={e => setForm(f => ({ ...f, clp: e.target.value.replace(/\D/g, '') }))}
@@ -758,10 +758,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                      <label htmlFor="uw-f7" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                         Dólares recibidos
                       </label>
-                      <input
+                      <input id="uw-f7"
                         type="text" inputMode="decimal" placeholder="1000,00"
                         value={form.usd}
                         onChange={e => setForm(f => ({ ...f, usd: e.target.value.replace(/[^0-9.,]/g, '') }))}
@@ -794,10 +794,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               )}
 
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="uw-f8" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Fecha
                 </label>
-                <input
+                <input id="uw-f8"
                   type="date" value={form.date} max={maxFutureStr()}
                   onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                   className="w-full text-sm border px-4 py-3 outline-none"
@@ -808,10 +808,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               {/* En un dividendo la nota la arma el ticker ("Dividendo TSM") */}
               {!(editKind === 'income' && incomeKind === 'dividend') && (
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="uw-f9" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   {editKind === 'income' ? 'Descripción (opcional)' : 'Nota (opcional)'}
                 </label>
-                <input
+                <input id="uw-f9"
                   type="text" placeholder={editKind === 'income' ? 'Intereses Stock Boost' : 'Racional'} maxLength={60}
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -979,9 +979,16 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                         </ul>
                       </>
                     ) : (
-                      <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-                        ¿Eliminar este movimiento?
-                      </p>
+                      <>
+                        <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
+                          ¿Eliminar este movimiento?
+                        </p>
+                        {Number(m.row!.usd_amount) > 0 && available - Number(m.row!.usd_amount) < -0.005 && (
+                          <p className="text-xs text-center" style={{ color: 'var(--gold-ink)' }}>
+                            Ojo: el saldo quedaría en −{fmtUSD(Math.abs(available - Number(m.row!.usd_amount)))}, porque ya compraste acciones con esta plata.
+                          </p>
+                        )}
+                      </>
                     )}
                     <div className="flex items-center gap-2">
                       <button

@@ -416,7 +416,7 @@ export default function TechnicalDetail({
   const rationale = sellNow
     ? sellPlanPersonal
     : buyTierNoTrigger
-    ? `Buena evidencia en general (${conviction.score}/100), pero sin gatillo de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
+    ? `Buena evidencia en general (${conviction.score}/100), pero sin una señal clara de entrada hoy — ${a.rating.action.toLowerCase()}. Revisa el plan de compra abajo para saber qué lo activaría.`
     : conviction.verdict
 
   // X2 (roadmap de vista, detalle del ticker): escalera de precios — mismos
@@ -882,7 +882,7 @@ export default function TechnicalDetail({
                     {a.trend.sma200Rising !== null && ` · promedio ${a.trend.sma200Rising ? 'subiendo' : 'bajando'}`}
                   </p>
                   <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--ink-3)' }}>
-                    {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su SMA200
+                    {a.trend.aboveSma200 ? 'Sobre' : 'Bajo'} su promedio de 200 días
                   </p>
                 </>
               ) : <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Historia insuficiente</p>}

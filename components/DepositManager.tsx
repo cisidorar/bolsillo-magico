@@ -2,7 +2,7 @@
 
 import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useCallback } from 'react'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Landmark, Trash2, ChevronRight } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
@@ -171,12 +171,12 @@ export default function DepositManager({ userId, initialSavings }: Props) {
   // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
-  const backdropClose = useBackdropClose(cancelForm)
+  const backdropClose = useBackdropDialog(cancelForm, 'Cuenta de ahorro')
 
   function closeDetail() { setDetailId(null) }
   // Mismo motivo que backdropClose arriba: hook llamado siempre, el modal
   // de detalle es condicional más abajo.
-  const detailBackdropClose = useBackdropClose(closeDetail)
+  const detailBackdropClose = useBackdropDialog(closeDetail, 'Detalle de la cuenta')
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   const saveAccount = useCallback(async () => {
@@ -295,10 +295,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
               {/* Nombre */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="dm-f1" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nombre de la cuenta
                 </label>
-                <input
+                <input id="dm-f1"
                   type="text"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -314,10 +314,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               {/* Saldo + Tasa */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="dm-f2" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Saldo actual (CLP)
                   </label>
-                  <input
+                  <input id="dm-f2"
                     type="text"
                     inputMode="numeric"
                     value={fmtInput(form.balance)}
@@ -329,10 +329,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                  <label htmlFor="dm-f3" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                     Tasa anual (% TAE)
                   </label>
-                  <input
+                  <input id="dm-f3"
                     type="number"
                     value={form.annualRate}
                     onChange={e => setForm(f => ({ ...f, annualRate: e.target.value }))}
@@ -371,10 +371,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   más, $1.734 inflados. La etiqueta ahora pregunta lo que de
                   verdad necesita saber. */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="dm-f4" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   ¿De qué día es ese saldo?
                 </label>
-                <input
+                <input id="dm-f4"
                   type="date"
                   value={form.startDate}
                   onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
@@ -390,10 +390,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
               {/* Nota */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="dm-f5" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nota (opcional)
                 </label>
-                <input
+                <input id="dm-f5"
                   type="text"
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
