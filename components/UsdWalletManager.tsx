@@ -1,5 +1,7 @@
 'use client'
 
+import { useToast } from '@/components/ToastProvider'
+import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -86,6 +88,7 @@ function fmtPct(n: number): string {
 export default function UsdWalletManager({ userId, initialPurchases, spentUsd, stockPurchases = [], sales = [] }: Props) {
   const supabase = createClient()
   const router = useRouter()
+  const { showToast } = useToast()
   const [purchases, setPurchases] = useState<UsdPurchase[]>(initialPurchases)
   const [showForm,  setShowForm]  = useState(false)
   const [editId,    setEditId]    = useState<string | null>(null)
@@ -211,7 +214,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       const row = { usd_amount: proceeds, purchase_date: form.date, notes: form.notes.trim() || null }
       const { error } = await supabase.from('usd_purchases')
         .update(row).eq('id', editId).eq('user_id', userId)
-      if (error) { setBusy(false); setFormError(error.message); return }
+      if (error) { setBusy(false); setFormError(SAVE_ERROR); return }
       // Mantener sale_date sincronizada — es la fecha que de verdad usan el
       // benchmark vs SPY y el historial de Ventas (stock_sales.sale_date),
       // no esta fila de billetera. El monto corregido también se propaga a
@@ -227,7 +230,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
             proceeds_usd: proceeds,
             ...(realizedPnl !== undefined ? { realized_pnl_usd: realizedPnl } : {}),
           }).eq('id', editSaleId).eq('user_id', userId)
-        if (saleErr) { setBusy(false); setFormError(saleErr.message); return }
+        if (saleErr) { setBusy(false); setFormError(SAVE_ERROR); return }
       }
       setBusy(false)
       setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
@@ -281,14 +284,14 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       const spRow = { shares: newShares, total_paid_usd: newTotalPaid, purchase_date: form.date, notes: form.notes.trim() || null }
       const { error: spErr } = await supabase.from('stock_purchases')
         .update(spRow).eq('id', editId).eq('user_id', userId)
-      if (spErr) { setBusy(false); setFormError(spErr.message); return }
+      if (spErr) { setBusy(false); setFormError(SAVE_ERROR); return }
 
       const { error: posUpdErr } = await supabase.from('stock_positions').update({
         shares: posShares, avg_cost_usd: newAvgCost,
         wallet_cost_usd: newWalletCost, wallet_funded: newWalletCost > 0,
         trail_stop_usd: null, updated_at: new Date().toISOString(),
       }).eq('id', posRow.id).eq('user_id', userId)
-      if (posUpdErr) { setBusy(false); setFormError(posUpdErr.message); return }
+      if (posUpdErr) { setBusy(false); setFormError(SAVE_ERROR); return }
 
       setBusy(false)
       setStockPurchasesState(prev => prev.map(sp => sp.id === editId ? { ...sp, ...spRow } : sp))
@@ -314,7 +317,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
         const { error } = await supabase.from('usd_purchases')
           .update({ ...incomeRow, kind: incomeKind }).eq('id', editId).eq('user_id', userId)
         setBusy(false)
-        if (error) { setFormError(error.message); return }
+        if (error) { setFormError(SAVE_ERROR); return }
         setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...incomeRow, kind: incomeKind } : p))
       } else {
         const { data, error } = await supabase.from('usd_purchases')
@@ -322,7 +325,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
           .single()
         setBusy(false)
-        if (error) { setFormError(error.message); return }
+        if (error) { setFormError(SAVE_ERROR); return }
         setPurchases(prev => [data as UsdPurchase, ...prev])
       }
       setShowForm(false)
@@ -346,7 +349,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       const { error } = await supabase.from('usd_purchases')
         .update(row).eq('id', editId).eq('user_id', userId)
       setBusy(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setPurchases(prev => prev.map(p => p.id === editId ? { ...p, ...row } : p))
     } else {
       const { data, error } = await supabase.from('usd_purchases')
@@ -354,7 +357,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
         .select('id, usd_amount, total_paid_clp, purchase_date, notes, kind')
         .single()
       setBusy(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setPurchases(prev => [data as UsdPurchase, ...prev])
     }
     setShowForm(false)
@@ -362,8 +365,9 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
   }
 
   async function remove(p: UsdPurchase) {
+    const { error } = await supabase.from('usd_purchases').delete().eq('id', p.id).eq('user_id', userId)
+    if (error) { showToast(DELETE_ERROR); return }
     setPurchases(prev => prev.filter(x => x.id !== p.id))
-    await supabase.from('usd_purchases').delete().eq('id', p.id).eq('user_id', userId)
     router.refresh()
   }
 
@@ -383,11 +387,12 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
     setBusy(true)
 
     // 1. Devolver las acciones a la posición.
-    const { data: posRow } = await supabase
+    const { data: posRow, error: posReadErr } = await supabase
       .from('stock_positions')
       .select('id, shares, avg_cost_usd, wallet_cost_usd')
       .eq('user_id', userId).eq('ticker', sale.ticker)
       .maybeSingle()
+    if (posReadErr) { setBusy(false); showToast('No se pudo revertir la venta. No se cambió nada.'); return }
 
     const sharesSold = Number(sale.shares_sold)
     const costBasis  = Number(sale.cost_basis_usd)
@@ -402,7 +407,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
       const newWallet = curWallet > 0 && cur > 0
         ? Math.round(curWallet * (newShares / cur) * 100) / 100
         : curWallet
-      await supabase.from('stock_positions').update({
+      const { error: restoreErr } = await supabase.from('stock_positions').update({
         shares:          newShares,
         wallet_cost_usd: newWallet,
         wallet_funded:   newWallet > 0,
@@ -411,13 +416,14 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
         trail_stop_usd:  null,
         updated_at:      new Date().toISOString(),
       }).eq('id', posRow.id).eq('user_id', userId)
+      if (restoreErr) { setBusy(false); showToast('No se pudo revertir la venta. No se cambió nada.'); return }
     } else {
       // Venta total: la posición se había borrado, hay que recrearla. El costo
       // promedio se reconstruye exacto desde la venta (cost_basis / acciones);
       // wallet_cost_usd no quedó guardado en ninguna parte, así que se asume
       // financiada por la billetera (el caso normal desde que existe). Si era
       // una posición legacy, corrígelo con "Editar posición" en Acciones.
-      await supabase.from('stock_positions').insert({
+      const { error: recreateErr } = await supabase.from('stock_positions').insert({
         user_id:         userId,
         ticker:          sale.ticker,
         shares:          sharesSold,
@@ -425,14 +431,27 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
         wallet_cost_usd: Math.round(costBasis * 100) / 100,
         wallet_funded:   true,
       })
+      if (recreateErr) { setBusy(false); showToast('No se pudo revertir la venta. No se cambió nada.'); return }
     }
 
     // 2. Borrar la ganancia/pérdida realizada del historial de Ventas.
-    await supabase.from('stock_sales').delete().eq('id', sale.id).eq('user_id', userId)
+    const { error: saleDelErr } = await supabase.from('stock_sales').delete().eq('id', sale.id).eq('user_id', userId)
+    if (saleDelErr) {
+      setBusy(false)
+      router.refresh()
+      showToast('Las acciones volvieron a tu posición, pero la venta sigue en el historial. Vuelve a intentar revertirla.')
+      return
+    }
 
     // 3. Sacar los USD de la billetera.
+    const { error: walletDelErr } = await supabase.from('usd_purchases').delete().eq('id', walletRow.id).eq('user_id', userId)
+    if (walletDelErr) {
+      setBusy(false)
+      router.refresh()
+      showToast('La venta se revirtió, pero los USD siguen en tu billetera. Elimina ese movimiento a mano.')
+      return
+    }
     setPurchases(prev => prev.filter(x => x.id !== walletRow.id))
-    await supabase.from('usd_purchases').delete().eq('id', walletRow.id).eq('user_id', userId)
 
     setBusy(false)
     router.refresh()
@@ -570,7 +589,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               </h2>
               <button
                 onClick={() => setShowForm(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -762,10 +781,10 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                         className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                         style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                       >
-                        <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
+                        <span className="text-[11px] font-bold" style={{ color: 'var(--mint-ink)' }}>
                           Tasa implícita
                         </span>
-                        <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
+                        <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint-ink)' }}>
                           {formatCLP(Math.round(clp / usd))}/USD
                         </span>
                       </div>
@@ -802,7 +821,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
               </div>
               )}
 
-              {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
+              {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>}
 
               <div className="flex items-center gap-2 pt-1">
                 <button
@@ -868,7 +887,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                 </div>
                 <button
                   onClick={closeDetail}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
                 >
                   <X className="w-4 h-4" />
@@ -915,7 +934,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   {m.pnl !== null && (
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ganancia/pérdida</span>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: m.pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: m.pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                         {fmtUSDSigned(m.pnl)} ({fmtPct(m.pnlPct ?? 0)})
                       </span>
                     </div>
@@ -1001,7 +1020,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       <button
                         onClick={() => setConfirmDelete(true)}
                         className="h-11 px-3.5 flex items-center justify-center gap-1.5 rounded-2xl border shrink-0 text-sm font-semibold transition-colors"
-                        style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                        style={{ borderColor: 'var(--border)', color: 'var(--coral-ink)', background: 'var(--surface-2)' }}
                       >
                         <Undo2 className="w-4 h-4" />
                         Revertir
@@ -1010,7 +1029,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       <button
                         onClick={() => setConfirmDelete(true)}
                         className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"
-                        style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                        style={{ borderColor: 'var(--border)', color: 'var(--coral-ink)', background: 'var(--surface-2)' }}
                         aria-label="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1086,8 +1105,8 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                   >
                     <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                       style={{ background: m.type === 'compra' ? 'rgba(43,124,246,0.12)' : 'rgba(31,190,141,0.14)' }}>
-                      {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
-                      {(m.type === 'venta' || m.type === 'dividendo' || m.type === 'interes') && <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />}
+                      {m.type === 'aporte' && <ArrowUp className="w-4 h-4" style={{ color: 'var(--mint-ink)' }} strokeWidth={2.5} />}
+                      {(m.type === 'venta' || m.type === 'dividendo' || m.type === 'interes') && <DollarSign className="w-4 h-4" style={{ color: 'var(--mint-ink)' }} strokeWidth={2.5} />}
                       {m.type === 'compra' && <ArrowDown className="w-4 h-4" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1097,7 +1116,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
                       </p>
                     </div>
                     <p className="text-sm font-bold tabular-nums text-right shrink-0"
-                      style={{ color: m.pnl !== null ? (m.pnl >= 0 ? 'var(--mint)' : 'var(--coral)') : (m.usd >= 0 ? 'var(--mint)' : 'var(--ink-2)') }}>
+                      style={{ color: m.pnl !== null ? (m.pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)') : (m.usd >= 0 ? 'var(--mint-ink)' : 'var(--ink-2)') }}>
                       {fmtUSDSigned(m.usd)}
                     </p>
                     <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
@@ -1112,7 +1131,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
             <p className="text-[11px] tabular-nums text-center" style={{ color: 'var(--ink-3)' }}>
               {avgRate !== null && <>pagaste {formatCLP(Math.round(avgRate))}/USD prom.</>}
               {avgRate !== null && fx !== null && (
-                <> · dólar hoy {formatCLP(Math.round(fx))} (<span style={{ color: fx >= avgRate ? 'var(--mint)' : 'var(--coral)' }}>{fx >= avgRate ? '+' : ''}{(((fx - avgRate) / avgRate) * 100).toFixed(1)}%</span>)</>
+                <> · dólar hoy {formatCLP(Math.round(fx))} (<span style={{ color: fx >= avgRate ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>{fx >= avgRate ? '+' : ''}{(((fx - avgRate) / avgRate) * 100).toFixed(1)}%</span>)</>
               )}
               {fx !== null && <> · si lo trajeras ≈ {formatCLP(Math.round(available * fx))}</>}
             </p>

@@ -38,7 +38,10 @@ function fmtUSD(n: number): string {
 // (mint/gold/coral/ink-3) y se reusan tanto para texto como para decoración;
 // este helper los corrige solo donde terminan pintando texto real.
 function toTextColor(c: string): string {
-  return c === 'var(--gold)' ? 'var(--gold-ink)' : c
+  if (c === 'var(--gold)') return 'var(--gold-ink)'
+  if (c === 'var(--mint)') return 'var(--mint-ink)'
+  if (c === 'var(--coral)') return 'var(--coral-ink)'
+  return c
 }
 
 const TONE_STYLE: Record<SignalTone, { color: string; bg: string }> = {
@@ -522,7 +525,7 @@ export default function TechnicalDetail({
       {/* -1. Guard intradía: hoy se movió fuerte, el análisis quedó viejo */}
       {bigMove && (
         <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,111,97,0.10)', border: '1px solid rgba(255,111,97,0.25)' }}>
-          <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>
+          <p className="text-xs font-bold" style={{ color: 'var(--coral-ink)' }}>
             Hoy se mueve fuerte: {devPct > 0 ? '+' : ''}{devPct}% respecto del cierre analizado
           </p>
           <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -710,7 +713,7 @@ export default function TechnicalDetail({
                 <div key={i} className="flex items-center justify-between gap-3 py-1.5">
                   <p className="text-xs leading-snug flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>{t.cond}</p>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--mint)' : 'var(--primary)' }}>
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: t.now ? 'var(--mint-ink)' : 'var(--primary)' }}>
                       {/* X3: el tramo "ahora" no repite el monto de la cabecera
                           (ya dice "Compra $X ahora" arriba) — solo lo referencia. */}
                       {t.now ? '↑ el de arriba' : noCash ? 'Sin saldo' : usd !== null ? `Compra ${fmtUSD(usd)}` : `${t.pct}%`}
@@ -777,7 +780,7 @@ export default function TechnicalDetail({
                     {relativeDate(m.date)} · @{fmtUSD(m.pricePerShare)}
                   </p>
                 </div>
-                <p className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                <p className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: m.amount >= 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
                   {m.amount >= 0 ? '+' : '-'}{fmtUSD(Math.abs(m.amount))}
                 </p>
                 {editable && <Pencil className="w-3 h-3 shrink-0" style={{ color: 'var(--ink-3)' }} />}
@@ -794,7 +797,7 @@ export default function TechnicalDetail({
         style={news === null ? undefined : { background: 'var(--surface-2)' }}>
         {news === null ? (
           <button onClick={loadNews} className="flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-80"
-            style={{ color: bigMove ? 'var(--coral)' : 'var(--primary)' }}>
+            style={{ color: bigMove ? 'var(--coral-ink)' : 'var(--primary)' }}>
             <Newspaper className="w-3.5 h-3.5 flex-shrink-0" />
             {bigMove ? '¿Qué está pasando hoy? — ver noticias' : '¿Qué está pasando? — ver noticias'}
           </button>
@@ -894,7 +897,7 @@ export default function TechnicalDetail({
                   <span key={label} className="text-[10px] font-bold px-2 py-1 rounded-full tabular-nums"
                     style={v === null
                       ? { background: 'var(--surface)', color: 'var(--ink-3)' }
-                      : { background: v >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: v >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      : { background: v >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: v >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                     {label} {v !== null ? `${v > 0 ? '+' : ''}${v}%` : '—'}
                   </span>
                 ))}
@@ -912,7 +915,7 @@ export default function TechnicalDetail({
               {a.rsi14 !== null ? (
                 <>
                   <p className="text-xl font-extrabold tabular-nums leading-none mb-1.5"
-                    style={{ color: a.rsi14 <= 30 ? 'var(--mint)' : a.rsi14 >= 70 ? 'var(--gold-ink)' : 'var(--ink)' }}>
+                    style={{ color: a.rsi14 <= 30 ? 'var(--mint-ink)' : a.rsi14 >= 70 ? 'var(--gold-ink)' : 'var(--ink)' }}>
                     {Math.round(a.rsi14)}
                   </p>
                   <RsiBar value={a.rsi14} />
@@ -950,7 +953,7 @@ export default function TechnicalDetail({
                       {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                       {crossedUp && (
                         <span className="ml-1.5 text-[11px] font-extrabold px-1.5 py-0.5 rounded-full"
-                          style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint)' }}>
+                          style={{ background: 'rgba(31,190,141,0.14)', color: 'var(--mint-ink)' }}>
                           hoy por encima
                         </span>
                       )}
@@ -965,12 +968,12 @@ export default function TechnicalDetail({
                   <div key={`s-${l.price}`} className="flex items-center gap-2.5 rounded-2xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--mint)' }} />
                     <p className="text-[11px] flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                      <span className="font-bold" style={{ color: 'var(--mint)' }}>Piso {fmtUSD(l.price)}</span>
+                      <span className="font-bold" style={{ color: 'var(--mint-ink)' }}>Piso {fmtUSD(l.price)}</span>
                       <span className="tabular-nums"> · a {d > 0 ? '+' : ''}{d}%</span>
                       {' '}· {l.touches} toque{l.touches !== 1 ? 's' : ''} · último {l.weeksSinceLast === 0 ? 'esta semana' : `hace ${l.weeksSinceLast} sem.`}
                       {brokenDown && (
                         <span className="ml-1.5 text-[11px] font-extrabold px-1.5 py-0.5 rounded-full"
-                          style={{ background: 'rgba(255,111,97,0.14)', color: 'var(--coral)' }}>
+                          style={{ background: 'rgba(255,111,97,0.14)', color: 'var(--coral-ink)' }}>
                           hoy por debajo — ojo
                         </span>
                       )}

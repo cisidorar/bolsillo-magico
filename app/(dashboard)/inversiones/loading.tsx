@@ -1,5 +1,7 @@
 // Esqueleto de /inversiones. loading.tsx no puede leer ?view=, así que replica la
-// vista por defecto (Mis acciones), que es la que se abre casi siempre:
+// estructura común a las 4 pestañas (encabezado, selector, tarjeta con cifra
+// grande + stats, tabla/listas) en tonos neutros — sin el hero azul, que solo
+// existe en Mis acciones. Estructura de la vista por defecto:
 // encabezado → fila selector + botón → hero azul + Rendimiento → tabla →
 // evolución + riesgo → tarjetas de contexto. Mantener alineado con
 // components/Radar.tsx (view="mias") y app/(dashboard)/inversiones/page.tsx.
@@ -29,19 +31,19 @@ export default function InversionesLoading() {
 
       {/* Hero azul (valor + 3 stats) + tarjeta Rendimiento, lado a lado en desktop */}
       <div className="flex flex-col lg:flex-row lg:items-start gap-4 mb-4">
-        <div className="card overflow-hidden hero-gradient" style={{ flex: '3 1 auto' }}>
+        <div className="card overflow-hidden" style={{ flex: '3 1 auto' }}>
           <div className="px-5 pt-5 pb-4">
-            <div className="h-3 w-32 rounded mb-3" style={{ background: 'rgba(255,255,255,0.22)' }} />
+            <div className="h-3 w-32 rounded mb-3" style={bone} />
             <div className="flex items-baseline justify-between gap-2">
-              <div className="h-10 w-48 rounded-lg" style={{ background: 'rgba(255,255,255,0.28)' }} />
-              <div className="h-4 w-32 rounded" style={{ background: 'rgba(255,255,255,0.2)' }} />
+              <div className="h-10 w-48 rounded-lg" style={bone} />
+              <div className="h-4 w-32 rounded" style={bone} />
             </div>
           </div>
-          <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+          <div className="border-t grid grid-cols-1 sm:grid-cols-3" style={{ borderColor: 'var(--border)' }}>
             {[0, 1, 2].map(i => (
               <div key={i} className="flex items-center justify-between gap-3 sm:block px-4 py-3">
-                <div className="h-3 w-16 rounded sm:mb-2" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                <div className="h-4 w-20 rounded" style={{ background: 'rgba(255,255,255,0.28)' }} />
+                <div className="h-3 w-16 rounded sm:mb-2" style={bone} />
+                <div className="h-4 w-20 rounded" style={bone} />
               </div>
             ))}
           </div>

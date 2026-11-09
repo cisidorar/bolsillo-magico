@@ -1,5 +1,6 @@
 'use client'
 
+import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useCallback } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
@@ -224,13 +225,13 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
       const { error } = await supabase.from('term_deposits')
         .update(payload).eq('id', editingId).eq('user_id', userId)
       setSaving_(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setDeposits(prev => prev.map(d => d.id === editingId ? { ...d, ...payload } : d))
     } else {
       const { data, error } = await supabase.from('term_deposits')
         .insert(payload).select().single()
       setSaving_(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setDeposits(prev => [...prev, data as TermDeposit].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
     }
     cancelForm()
@@ -238,7 +239,8 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
 
   async function deleteDeposit(id: string) {
     setDeletingId(id)
-    await supabase.from('term_deposits').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('term_deposits').delete().eq('id', id).eq('user_id', userId)
+    if (error) { setDeletingId(null); setFormError(DELETE_ERROR); return }
     setDeposits(prev => prev.filter(d => d.id !== id))
     setDeletingId(null)
     cancelForm()
@@ -285,7 +287,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     }
     const { data, error } = await supabase.from('term_deposits').insert(payload).select().single()
     setRenewSaving(false)
-    if (error) { setRenewError(error.message); return }
+    if (error) { setRenewError(SAVE_ERROR); return }
     setDeposits(prev => [...prev, data as TermDeposit].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
     closeRenew()
   }, [renewId, renewState, deposits, userId, supabase])
@@ -306,7 +308,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
         start_date: c.start_date, maturity_date: c.maturity_date,
         renewable: true, notes: d.notes ?? null, renewed_from_id: prevId,
       }).select().single()
-      if (error) { setRenewError(error.message); break }
+      if (error) { setRenewError(SAVE_ERROR); break }
       created.push(data as TermDeposit)
       prevId = (data as TermDeposit).id
     }
@@ -369,7 +371,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                   style={idleLong
                     ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
-                    : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                    : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
                   <CheckCircle2 className="w-2.5 h-2.5" /> {idleLong ? 'Reinvierte' : 'Vencido'}
                 </span>
               )}
@@ -408,7 +410,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           </div>
           <div className="text-right shrink-0">
             <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(d.amount)}</p>
-            <p className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--mint)' }}>
+            <p className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
               {isMatured ? `+${formatCLP(interest)} ganado` : `+${formatCLP(accrued)} de ${formatCLP(interest)}`}
             </p>
           </div>
@@ -470,7 +472,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               </h2>
               <button
                 onClick={cancelForm}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -560,10 +562,10 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                   style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                 >
-                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint-ink)' }}>
                     Al vencimiento recibes
                   </span>
-                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
+                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint-ink)' }}>
                     {formatCLP(previewAmount + previewInterest)}
                   </span>
                 </div>
@@ -681,7 +683,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
               </div>
 
               {formError && (
-                <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>
               )}
 
               {/* Confirmación de eliminación */}
@@ -778,7 +780,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                       <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full shrink-0 inline-flex items-center gap-1"
                         style={daysIdle >= 30
                           ? { background: 'rgba(255,194,60,0.18)', color: 'var(--gold)' }
-                          : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                          : { background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
                         <CheckCircle2 className="w-2.5 h-2.5" /> {daysIdle >= 30 ? 'Reinvierte' : 'Vencido'}
                       </span>
                     ) : d.renewable ? (
@@ -792,7 +794,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 </div>
                 <button
                   onClick={closeDetail}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
                 >
                   <X className="w-4 h-4" />
@@ -817,7 +819,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   </div>
                 )}
                 {isMatured && (
-                  <p className="text-[11px] font-semibold" style={{ color: daysIdle >= 30 ? 'var(--gold)' : 'var(--mint)' }}>
+                  <p className="text-[11px] font-semibold" style={{ color: daysIdle >= 30 ? 'var(--gold)' : 'var(--mint-ink)' }}>
                     Venció {fmtDateFull(d.maturity_date)} — hace {daysIdle} día{daysIdle !== 1 ? 's' : ''}
                   </p>
                 )}
@@ -836,13 +838,13 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                       {isMatured ? 'Interés ganado' : 'Devengado a hoy'}
                     </span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
                       +{formatCLP(isMatured ? interest : accrued)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Interés total del período</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(interest)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(interest)}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Total al vencimiento</span>
@@ -882,7 +884,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                               {fmtPct(h.interest_rate)} período · {formatCLP(h.amount)}
                             </p>
                           </div>
-                          <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--mint)' }}>
+                          <span className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--mint-ink)' }}>
                             +{formatCLP(totalInterest(h))}
                           </span>
                         </div>
@@ -958,8 +960,8 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           caption={`${active.length} depósito${active.length !== 1 ? 's' : ''} vigente${active.length !== 1 ? 's' : ''}`}
           stats={[
             { label: 'Invertido',       value: formatCLP(totalInvested) },
-            { label: 'Interés total',   value: `+${formatCLP(totalEarnAll)}`, color: 'var(--mint)' },
-            { label: 'Devengado hoy',   value: `+${formatCLP(totalAccrued)}`, color: 'var(--mint)' },
+            { label: 'Interés total',   value: `+${formatCLP(totalEarnAll)}`, color: 'var(--mint-ink)' },
+            { label: 'Devengado hoy',   value: `+${formatCLP(totalAccrued)}`, color: 'var(--mint-ink)' },
           ]}
         />
       )}
@@ -1053,7 +1055,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 </div>
                 <button
                   onClick={closeRenew}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
                 >
                   <X className="w-4 h-4" />
@@ -1126,7 +1128,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                     </div>
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Nuevo interés ({prevDays} días)</span>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(previewNewInterest)}</span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(previewNewInterest)}</span>
                     </div>
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Total al vencimiento</span>
@@ -1140,7 +1142,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 )}
 
                 {renewError && (
-                  <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{renewError}</p>
+                  <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{renewError}</p>
                 )}
 
                 <div className="flex items-center gap-2 pt-1">

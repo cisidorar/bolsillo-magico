@@ -44,7 +44,7 @@ export default function RentaFijaSummary({ savings, deposits, todayStr, trailing
         stats={[
           { label: 'Disponible',      value: formatCLP(r.availableToday) },
           { label: 'Comprometido',    value: formatCLP(r.committed) },
-          { label: 'Interés ganado',  value: `+${formatCLP(r.earnedCombined)}`, color: '#7CF2CB' },
+          { label: 'Interés ganado',  value: `+${formatCLP(r.earnedCombined)}`, color: 'var(--mint-on-brand-soft)' },
         ]}
       />
     </div>

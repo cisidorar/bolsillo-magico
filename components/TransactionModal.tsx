@@ -1,5 +1,6 @@
 'use client'
 
+import { DELETE_ERROR } from '@/lib/db-error'
 import { useState, useEffect, type Dispatch, type SetStateAction } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Check, DollarSign, Trash2 } from 'lucide-react'
@@ -275,7 +276,10 @@ export default function TransactionModal({
           had_entry_trigger: snapshot?.hadTrigger ?? null,
         })
         .select().single()
-      if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
+      if (purchaseErr) {
+        console.error('[stock_purchases] insert error:', purchaseErr.message)
+        showToast('La compra quedó registrada, pero no se descontó de tu billetera. Revisa el saldo.')
+      }
       if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
     }
     // I2 (roadmap interacción): confirmar qué se guardó — antes el modal solo
@@ -290,7 +294,9 @@ export default function TransactionModal({
   async function deletePosition() {
     if (!pos) return
     setDeleting(true)
-    await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
+    setFormError('')
+    const { error: delErr } = await supabase.from('stock_positions').delete().eq('id', pos.id).eq('user_id', userId)
+    if (delErr) { setDeleting(false); setFormError(DELETE_ERROR); return }
     setPositions(prev => prev.filter(p => p.id !== pos.id))
     setDeleting(false)
     showToast(`Posición eliminada: ${pos.ticker} (sin registrar venta)`)
@@ -432,7 +438,10 @@ export default function TransactionModal({
         had_entry_trigger: buyMoreSnapshot?.hadTrigger ?? null,
       })
       .select().single()
-    if (purchaseErr) console.error('[stock_purchases] insert error:', purchaseErr.message)
+    if (purchaseErr) {
+        console.error('[stock_purchases] insert error:', purchaseErr.message)
+        showToast('La compra quedó registrada, pero no se descontó de tu billetera. Revisa el saldo.')
+      }
     if (purchaseRow) setPurchases(prev => [purchaseRow as StockPurchase, ...prev])
 
     setSaving(false)
@@ -461,8 +470,8 @@ export default function TransactionModal({
 
         <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{title}</h2>
-          <button onClick={onClose} aria-label="Cerrar"
-            className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+          <button onClick={onClose}
+            aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
             style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
             <X className="w-4 h-4" />
           </button>
@@ -602,7 +611,7 @@ export default function TransactionModal({
                 )
               })()}
 
-              {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
+              {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>}
 
               <div className="flex gap-3 pt-1">
                 <button onClick={onClose}
@@ -707,7 +716,7 @@ export default function TransactionModal({
                   </div>
                 )}
 
-                {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
+                {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>}
 
                 <div className="flex gap-3">
                   <button onClick={onClose}
@@ -741,7 +750,7 @@ export default function TransactionModal({
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.12)' }}>
-                    <DollarSign className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+                    <DollarSign className="w-4 h-4" style={{ color: 'var(--mint-ink)' }} />
                   </div>
                   <div>
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Vender {pos.ticker}</p>
@@ -831,13 +840,13 @@ export default function TransactionModal({
                   <div className="flex items-center justify-between px-4 py-3 rounded-2xl"
                     style={{ background: pnl >= 0 ? 'rgba(31,190,141,0.1)' : 'rgba(255,111,97,0.1)' }}>
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ganancia/pérdida</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                       {pnl >= 0 ? '+' : '-'}{fmtUSD(Math.abs(pnl))}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
                     </span>
                   </div>
                 )}
 
-                {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>}
+                {formError && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>}
 
                 <div className="flex gap-3">
                   <button onClick={onClose}
@@ -847,7 +856,7 @@ export default function TransactionModal({
                   </button>
                   <button onClick={sellPosition} disabled={deleting || !validShares || !validProceeds}
                     className="flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-bold rounded-2xl disabled:opacity-50 transition-all active:scale-[.98]"
-                    style={{ background: 'var(--mint)', color: 'white' }}>
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                     {deleting ? 'Registrando…' : isPartial ? 'Confirmar venta parcial' : 'Confirmar venta'}
                   </button>
                 </div>

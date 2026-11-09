@@ -32,7 +32,7 @@ function fmtUSD(n: number): string {
 }
 
 const KIND_UI: Record<TodaySignal['kind'], { label: string; color: string; bg: string; Icon: typeof DollarSign }> = {
-  sell:    { label: 'Vender',         color: 'var(--coral)',   bg: 'rgba(255,111,97,0.10)', Icon: DollarSign },
+  sell:    { label: 'Vender',         color: 'var(--coral-ink)',   bg: 'rgba(255,111,97,0.10)', Icon: DollarSign },
   caution: { label: 'Toma de ganancias', color: 'var(--gold)',  bg: 'rgba(255,194,60,0.12)', Icon: AlertTriangle },
   target:  { label: 'Precio objetivo',   color: 'var(--primary)', bg: 'rgba(43,124,246,0.10)', Icon: Flag },
 }
@@ -65,7 +65,7 @@ export default function TodayQueue({
             <Link href={`?ticker=${decision.ticker}`} scroll={false}
               className="px-4 lg:px-5 py-3.5 flex items-center gap-3 transition-colors hover:bg-black/5" style={{ background: 'rgba(31,190,141,0.06)' }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.16)' }}>
-                <span className="text-[11px] font-extrabold tabular-nums" style={{ color: 'var(--mint)' }}>{decision.score}</span>
+                <span className="text-[11px] font-extrabold tabular-nums" style={{ color: 'var(--mint-ink)' }}>{decision.score}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>

@@ -1,5 +1,6 @@
 'use client'
 
+import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useCallback, useEffect, useRef, useMemo, type TouchEvent } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +9,7 @@ import {
   AlertTriangle, Target, AlertCircle, ArrowUp, ArrowDown, Trash2, DollarSign, Flag, Newspaper,
   Eye, EyeOff,
 } from 'lucide-react'
+import Link from 'next/link'
 import ServiceLogo from '@/components/ServiceLogo'
 import InversionesToggle from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
@@ -126,8 +128,8 @@ function actionFlag(a: TechnicalAnalysis | 'loading' | 'error' | undefined, owne
 // `color` tiñe el ícono (--gold funciona ahí); `textColor` es para texto sobre
 // superficie clara, donde --gold falla WCAG — ver Gold-Ink Rule en DESIGN.md.
 const FLAG_UI: Record<'buy' | 'sell' | 'caution', { color: string; textColor: string; bg: string; softBg: string }> = {
-  buy:     { color: 'var(--mint)',  textColor: 'var(--mint)',    bg: 'rgba(31,190,141,0.16)', softBg: 'rgba(31,190,141,0.06)' },
-  sell:    { color: 'var(--coral)', textColor: 'var(--coral)',   bg: 'rgba(255,111,97,0.16)', softBg: 'rgba(255,111,97,0.06)' },
+  buy:     { color: 'var(--mint)',  textColor: 'var(--mint-ink)',    bg: 'rgba(31,190,141,0.16)', softBg: 'rgba(31,190,141,0.06)' },
+  sell:    { color: 'var(--coral)', textColor: 'var(--coral-ink)',   bg: 'rgba(255,111,97,0.16)', softBg: 'rgba(255,111,97,0.06)' },
   caution: { color: 'var(--gold)',  textColor: 'var(--gold-ink)', bg: 'rgba(255,194,60,0.18)', softBg: 'rgba(255,194,60,0.07)' },
 }
 
@@ -699,7 +701,7 @@ export default function Radar({
       .select('id, ticker, target_price, target_direction')
       .single()
     setAddingSym(null)
-    if (error) { setAddError(error.message); return }
+    if (error) { setAddError(SAVE_ERROR); return }
     setItems(prev => [...prev, data as WatchlistItem])
     fetchQuotes([t])
     fetchAnalysis(t)
@@ -759,7 +761,7 @@ export default function Radar({
       .eq('id', item.id)
       .eq('user_id', userId)
     setTargetBusy(false)
-    if (error) return
+    if (error) { showToast('No se pudo guardar el precio objetivo. Intenta de nuevo.'); return }
     setItems(prev => prev.map(i => i.id === item.id
       ? { ...i, target_price: value, target_direction: value === null ? null : direction }
       : i))
@@ -873,7 +875,7 @@ export default function Radar({
               <span className="w-1.5 h-1.5 rounded-full shrink-0"
                 style={{ background: marketOpen ? 'var(--mint)' : 'var(--coral)', animation: marketOpen ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' : 'none' }} />
               {marketOpen ? (
-                <span style={{ color: 'var(--mint)' }} className="font-semibold whitespace-nowrap">Precios en vivo · {marketLabel}</span>
+                <span style={{ color: 'var(--mint-ink)' }} className="font-semibold whitespace-nowrap">Precios en vivo · {marketLabel}</span>
               ) : (
                 <span style={{ color: 'var(--ink-3)' }} className="font-medium whitespace-nowrap">{marketLabel}</span>
               )}
@@ -887,7 +889,8 @@ export default function Radar({
                 onClick={() => fetchQuotes(allTickers)}
                 disabled={loadingQ}
                 title="Actualizar precios ahora"
-                className="flex-shrink-0 disabled:opacity-50"
+                aria-label="Actualizar precios ahora"
+                className="flex-shrink-0 disabled:opacity-50 p-4 -m-4"
                 style={{ color: 'var(--ink-3)' }}
               >
                 <RefreshCw className={`w-3 h-3 ${loadingQ ? 'animate-spin' : ''}`} />
@@ -895,7 +898,7 @@ export default function Radar({
             </>
           )}
           {quotesError && (
-            <div className="flex items-center gap-1.5" style={{ color: 'var(--coral)' }}>
+            <div className="flex items-center gap-1.5" style={{ color: 'var(--coral-ink)' }}>
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               <button onClick={() => fetchQuotes(allTickers)} disabled={loadingQ} className="underline underline-offset-2 disabled:opacity-50">
                 Reintentar
@@ -905,8 +908,8 @@ export default function Radar({
           {lastAutoUpdate && (() => {
             const au = fmtLastAutoUpdate(lastAutoUpdate)
             return (
-              <span className="flex items-center gap-1 font-medium truncate min-w-0 basis-full sm:basis-auto" style={{ color: au.stale ? 'var(--coral)' : 'var(--ink-3)' }}>
-                · análisis {au.label}{au.stale ? ' — revisa el cron' : ''}
+              <span className="flex items-center gap-1 font-medium truncate min-w-0 basis-full sm:basis-auto" style={{ color: au.stale ? 'var(--coral-ink)' : 'var(--ink-3)' }}>
+                · análisis {au.label}{au.stale ? ' — revisa la actualización automática' : ''}
                 {latestAsOf && ` (cierre ${fmtAsOfDay(latestAsOf)})`}
               </span>
             )
@@ -945,6 +948,41 @@ export default function Radar({
           columna fija. */}
       {view === 'mias' && (
       <>
+      {/* Línea "Hoy": la decisión de anoche y las señales de venta, para no tener
+          que abrir Watchlist solo a saber si hoy toca algo. Una sola fila coral
+          como máximo (UX5). */}
+      {(todayDecision || todaySignals.length > 0) && (() => {
+        const sells = todaySignals.filter(s => s.kind === 'sell')
+        const buyTicker = todayDecision?.ticker !== null && (todayDecision?.tier === 'compra' || todayDecision?.tier === 'compra_fuerte')
+          ? todayDecision?.ticker : null
+        const others = todaySignals.length - sells.length
+        return (
+          <div className="mb-4 space-y-2">
+            {sells.length > 0 && (
+              <Link href="/inversiones?view=watchlist"
+                className="flex items-center gap-3 rounded-2xl px-4 py-3 min-h-[44px] border"
+                style={{ background: 'color-mix(in srgb, var(--coral) 12%, var(--surface))', borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--surface))' }}>
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+                <p className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: 'var(--coral-ink)' }}>
+                  Hoy toca vender: {sells.map(s => s.ticker).join(', ')}
+                </p>
+                <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+              </Link>
+            )}
+            <Link href="/inversiones?view=watchlist"
+              className="card flex items-center gap-3 px-4 py-3 min-h-[44px]">
+              <p className="flex-1 min-w-0 text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+                {buyTicker
+                  ? <>Hoy: compra {buyTicker}</>
+                  : todayDecision ? <>Hoy no compres nada de tu lista</> : <>Hoy tienes señales para revisar</>}
+                {others > 0 && <span className="font-medium" style={{ color: 'var(--ink-3)' }}> · {others} aviso{others !== 1 ? 's' : ''} más</span>}
+              </p>
+              <span className="text-xs font-bold flex-shrink-0" style={{ color: 'var(--primary)' }}>Ver</span>
+              <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
+            </Link>
+          </div>
+        )
+      })()}
       {/* ── Hero (mockup de Cas, ago 2026): valor del portafolio + card de
           "Rendimiento" lado a lado, siempre visibles — reemplaza el hero
           colapsable de 380px (pensado para la columna sticky que ya no
@@ -980,7 +1018,7 @@ export default function Radar({
                 <button
                   type="button"
                   onClick={toggleHideAmounts}
-                  className="p-0.5 rounded-full transition-colors hover:bg-white/10"
+                  className="p-3 -m-2.5 rounded-full transition-colors hover:bg-white/10"
                   style={{ color: 'rgba(255,255,255,0.55)' }}
                   aria-label={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
                   title={hideAmounts ? 'Mostrar montos' : 'Ocultar montos'}
@@ -1060,13 +1098,13 @@ export default function Radar({
             <div>
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>No realizado</p>
-                <p className="text-sm font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint)' : 'var(--coral)') : 'var(--ink-3)' }}>
+                <p className="text-sm font-bold tabular-nums" style={{ color: hasQ ? (totalGainUsd >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)') : 'var(--ink-3)' }}>
                   {hasQ ? fmtUSDSigned(totalGainUsd) : '—'}
                 </p>
               </div>
               <div className="flex items-center justify-between px-5 py-3">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Realizado</p>
-                <p className="text-sm font-bold tabular-nums" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                <p className="text-sm font-bold tabular-nums" style={{ color: realizedPnlUsd >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                   {fmtUSDSigned(realizedPnlUsd)}
                 </p>
               </div>
@@ -1084,7 +1122,7 @@ export default function Radar({
                 {bestPos ? (
                   <span className="flex items-center gap-1.5">
                     <span className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>{bestPos.ticker}</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: bestPos.pct >= 0 ? 'var(--mint)' : 'var(--coral)' }}>{fmtPct(bestPos.pct)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: bestPos.pct >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>{fmtPct(bestPos.pct)}</span>
                   </span>
                 ) : (
                   <span className="text-sm font-extrabold" style={{ color: 'var(--ink-3)' }}>—</span>
@@ -1131,7 +1169,9 @@ export default function Radar({
             <div className="relative">
               <button
                 onClick={() => setSortMenuOpen(v => !v)}
-                className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70"
+                aria-expanded={sortMenuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70 py-3 -my-3"
                 style={{ color: 'var(--ink-3)' }}
               >
                 Ordenar: {sortOptions.find(o => o.key === sortKey)?.label}
@@ -1173,7 +1213,7 @@ export default function Radar({
               const a = analyses[row.ticker]
               const sellNow = typeof a === 'object' && a.sell.find(t => t.now)
               const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
-              const sellColor = trendReversed ? 'var(--coral)' : 'var(--gold-ink)'
+              const sellColor = trendReversed ? 'var(--coral-ink)' : 'var(--gold-ink)'
               const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
               // sep 2026 (Cas: "en el correo no se ve tan grave como se
               // muestra en la pagina" — el correo del digest manda una caja
@@ -1209,7 +1249,7 @@ export default function Radar({
                       )}
                     </div>
                     {sellReason ? (
-                      <p className="text-[11px] truncate font-semibold" style={{ color: 'var(--coral)' }}>{sellReason}</p>
+                      <p className="text-[11px] truncate font-semibold" style={{ color: 'var(--coral-ink)' }}>{sellReason}</p>
                     ) : q?.name ? (
                       <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>
                     ) : null}
@@ -1308,7 +1348,7 @@ export default function Radar({
                       style={{ background: op.type === 'buy' ? 'rgba(43,124,246,0.14)' : 'rgba(31,190,141,0.14)' }}>
                       {op.type === 'buy'
                         ? <Plus className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
-                        : <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--mint)' }} />}
+                        : <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--mint-ink)' }} />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
@@ -1318,7 +1358,7 @@ export default function Radar({
                         {fmtAsOfDay(op.date)} · {op.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc.
                       </p>
                     </div>
-                    <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint)' : 'var(--ink-2)' }}>
+                    <p className="text-xs font-bold tabular-nums flex-shrink-0" style={{ color: op.amountUsd >= 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
                       {op.amountUsd >= 0 ? '+' : '-'}{fmtUSD(Math.abs(op.amountUsd))}
                     </p>
                   </button>
@@ -1381,7 +1421,7 @@ export default function Radar({
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
                   style={{ background: isSell ? 'rgba(31,190,141,0.14)' : 'rgba(43,124,246,0.14)' }}>
                   {isSell
-                    ? <DollarSign className="w-5 h-5" style={{ color: 'var(--mint)' }} />
+                    ? <DollarSign className="w-5 h-5" style={{ color: 'var(--mint-ink)' }} />
                     : <Plus className="w-5 h-5" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1391,7 +1431,7 @@ export default function Radar({
                   <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{fmtAsOfDay(op.date)}</p>
                 </div>
                 <button onClick={() => setOpDetail(null)} aria-label="Cerrar"
-                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                   <X className="w-4 h-4" />
                 </button>
@@ -1405,7 +1445,7 @@ export default function Radar({
                 <Row
                   label={isSell ? 'Total recibido' : 'Total pagado'}
                   value={fmtUSD(total)}
-                  color={isSell ? 'var(--mint)' : undefined}
+                  color={isSell ? 'var(--mint-ink)' : undefined}
                 />
 
                 {isSell && cost !== null && (
@@ -1423,10 +1463,10 @@ export default function Radar({
                           background: pnl >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)',
                           border: `1px solid ${pnl >= 0 ? 'rgba(31,190,141,0.25)' : 'rgba(255,111,97,0.25)'}`,
                         }}>
-                        <p className="text-xs font-bold" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        <p className="text-xs font-bold" style={{ color: pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                           {pnl >= 0 ? 'Ganancia' : 'Pérdida'}
                         </p>
-                        <p className="text-base font-extrabold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                        <p className="text-base font-extrabold tabular-nums" style={{ color: pnl >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                           {fmtUSDSigned(pnl)}{pnlPct !== null && ` (${fmtPct(pnlPct)})`}
                         </p>
                       </div>
@@ -1449,10 +1489,10 @@ export default function Radar({
                         background: unrealized >= 0 ? 'rgba(31,190,141,0.10)' : 'rgba(255,111,97,0.10)',
                         border: `1px solid ${unrealized >= 0 ? 'rgba(31,190,141,0.25)' : 'rgba(255,111,97,0.25)'}`,
                       }}>
-                      <p className="text-xs font-bold" style={{ color: unrealized >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      <p className="text-xs font-bold" style={{ color: unrealized >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                         {unrealized >= 0 ? 'Ganancia' : 'Pérdida'} sin realizar
                       </p>
-                      <p className="text-base font-extrabold tabular-nums" style={{ color: unrealized >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      <p className="text-base font-extrabold tabular-nums" style={{ color: unrealized >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                         {fmtUSDSigned(unrealized)}{unrealizedPct !== null && ` (${fmtPct(unrealizedPct)})`}
                       </p>
                     </div>
@@ -1542,7 +1582,7 @@ export default function Radar({
               <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
                 style={{
                   background: marketRegime === 'alcista' ? 'rgba(31,190,141,0.12)' : marketRegime === 'bajista' ? 'rgba(255,111,97,0.12)' : 'var(--surface-2)',
-                  color:      marketRegime === 'alcista' ? 'var(--mint)' : marketRegime === 'bajista' ? 'var(--coral)' : 'var(--ink-3)',
+                  color:      marketRegime === 'alcista' ? 'var(--mint-ink)' : marketRegime === 'bajista' ? 'var(--coral-ink)' : 'var(--ink-3)',
                 }}>
                 Mercado: {marketRegime === 'alcista' ? 'alcista' : marketRegime === 'bajista' ? 'bajista' : 'mixto'}
               </span>
@@ -1623,7 +1663,7 @@ export default function Radar({
               </>
             ) : (
               <>
-                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--mint)' }}>
+                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--mint-ink)' }}>
                   La mejor compra hoy es <TickerLink t={bestActionable.ticker} onOpen={openDetail} bold />{' '}({bestActionable.conviction.score}/100)
                   {runnerUp && runnerUp.ticker !== bestActionable.ticker && <> — mejor que <TickerLink t={runnerUp.ticker} onOpen={openDetail} /> ({runnerUp.conviction.score}/100)</>}.
                 </p>
@@ -1658,7 +1698,7 @@ export default function Radar({
                   <button
                     onClick={() => setTxn({ mode: owned.has(bestActionable.ticker) ? 'buyMore' : 'new', ticker: bestActionable.ticker, prefillUsd: topSuggestedUsd })}
                     className="text-sm font-bold tabular-nums mt-2.5 px-3 py-2 rounded-xl inline-block transition-opacity hover:opacity-85 active:scale-[.98]"
-                    style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}
+                    style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}
                   >
                     Compra hasta {fmtUSD(topSuggestedUsd)} de {bestActionable.ticker} ahora
                   </button>
@@ -1717,7 +1757,7 @@ export default function Radar({
             <div className="border-t" style={{ borderColor: 'var(--border)' }}>
               {todaySignals.map((s, i) => {
                 const ui = s.kind === 'sell'
-                  ? { label: 'Vender',            color: 'var(--coral)',   bg: 'rgba(255,111,97,0.06)',  Icon: DollarSign }
+                  ? { label: 'Vender',            color: 'var(--coral-ink)',   bg: 'rgba(255,111,97,0.06)',  Icon: DollarSign }
                   : s.kind === 'caution'
                   ? { label: 'Toma de ganancias',  color: 'var(--gold)',    bg: 'rgba(255,194,60,0.07)',  Icon: AlertTriangle }
                   : { label: 'Precio objetivo',    color: 'var(--primary)', bg: 'rgba(43,124,246,0.06)',  Icon: Flag }
@@ -1761,7 +1801,7 @@ export default function Radar({
           onClick={showLegendToast}
           aria-label="Qué significa el número de cada fila"
           title="Qué significa el número de cada fila"
-          className="w-8 h-8 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
+          className="w-11 h-11 flex items-center justify-center rounded-full border flex-shrink-0 transition-colors hover:bg-black/5"
           style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
         >
           <Info className="w-3.5 h-3.5" />
@@ -1826,7 +1866,7 @@ export default function Radar({
                 tabIndex={0}
                 aria-label={rowLabel}
                 onClick={() => openDetail(ticker)}
-                onKeyDown={e => e.key === 'Enter' && openDetail(ticker)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(ticker) } }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 text-left cursor-pointer transition-colors hover:bg-black/5 group focus:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                 style={{
                   ...(flag ? { background: FLAG_UI[flag].softBg } : {}),
@@ -1875,7 +1915,7 @@ export default function Radar({
                   {q ? (
                     <>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
-                      <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                      <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                         {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% {dailyWord}
                       </p>
                     </>
@@ -1903,7 +1943,7 @@ export default function Radar({
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Buscar acción o ETF</h2>
-              <button onClick={closeSearch} className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+              <button onClick={closeSearch} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                 <X className="w-4 h-4" />
               </button>
@@ -1921,7 +1961,7 @@ export default function Radar({
                 />
                 {searching && <RefreshCw className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
               </div>
-              {addError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{addError}</p>}
+              {addError && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral-ink)' }}>{addError}</p>}
             </div>
             <div className="px-5 pb-5 overflow-y-auto flex-1">
               {query.trim().length < 2 ? (
@@ -1973,7 +2013,7 @@ export default function Radar({
                           </span>
                         ) : followed ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
-                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
                             <Check className="w-3.5 h-3.5" /> Siguiendo
                           </span>
                         ) : (
@@ -2051,13 +2091,13 @@ export default function Radar({
                   {q && (
                   <div className="text-right flex-shrink-0 mr-1">
                     <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(q.price)}</p>
-                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+                    <p className="text-[11px] font-semibold tabular-nums" style={{ color: q.changePercent >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)' }}>
                       {q.changePercent >= 0 ? '+' : ''}{q.changePercent.toFixed(2)}% {dailyWord}
                     </p>
                   </div>
                 )}
                 <button onClick={() => setExpanded(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-colors"
+                  className="w-11 h-11 flex items-center justify-center rounded-full flex-shrink-0 transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                   <X className="w-4 h-4" />
                 </button>
@@ -2134,7 +2174,7 @@ export default function Radar({
                           </button>
                           <button onClick={() => saveTarget(item, null, null)} disabled={targetBusy}
                             className="px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-colors hover:bg-black/5 disabled:opacity-50"
-                            style={{ background: 'transparent', color: 'var(--coral)' }}>
+                            style={{ background: 'transparent', color: 'var(--coral-ink)' }}>
                             Quitar
                           </button>
                         </>
@@ -2159,12 +2199,12 @@ export default function Radar({
                         <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-3)' }}>Avisar cuando el precio:</span>
                         <button onClick={() => setTargetDirOverride('above')}
                           className="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors"
-                          style={effectiveDir === 'above' ? { background: 'rgba(31,190,141,0.16)', color: 'var(--mint)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                          style={effectiveDir === 'above' ? { background: 'rgba(31,190,141,0.16)', color: 'var(--mint-ink)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                           ↑ suba a ese valor
                         </button>
                         <button onClick={() => setTargetDirOverride('below')}
                           className="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors"
-                          style={effectiveDir === 'below' ? { background: 'rgba(255,111,97,0.16)', color: 'var(--coral)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                          style={effectiveDir === 'below' ? { background: 'rgba(255,111,97,0.16)', color: 'var(--coral-ink)' } : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
                           ↓ baje a ese valor
                         </button>
                       </div>
@@ -2183,7 +2223,7 @@ export default function Radar({
                 ) : a === 'error' ? (
                   <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.2)' }}>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold" style={{ color: 'var(--coral)' }}>No pudimos obtener los datos de {ticker}</p>
+                      <p className="text-xs font-bold" style={{ color: 'var(--coral-ink)' }}>No pudimos obtener los datos de {ticker}</p>
                       <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
                         {errDetails[ticker] ? <>Respuesta de los proveedores: {errDetails[ticker]}</> : 'Puede ser un problema momentáneo del proveedor o un ticker no soportado.'}
                       </p>
@@ -2251,9 +2291,9 @@ export default function Radar({
                     <button
                       onClick={() => setTxn({ mode: 'sell', ticker })}
                       className="flex items-center justify-center gap-1.5 py-3 rounded-2xl font-bold text-xs border transition-all active:scale-[.98]"
-                      style={{ background: 'transparent', color: 'var(--mint)', borderColor: 'rgba(31,190,141,0.4)' }}
+                      style={{ background: 'transparent', color: 'var(--ink-2)', borderColor: 'var(--border)' }}
                     >
-                      <DollarSign className="w-3.5 h-3.5" />
+                      <DollarSign className="w-3.5 h-3.5" style={{ color: 'var(--coral-ink)' }} />
                       Vender
                     </button>
                   </div>
@@ -2278,7 +2318,7 @@ export default function Radar({
                       <button
                         onClick={() => { removeTicker(item); setExpanded(null) }}
                         className="logout-btn flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-2xl border transition-colors"
-                        style={{ color: 'var(--coral)' }}
+                        style={{ color: 'var(--coral-ink)' }}
                       >
                         <Trash2 className="w-3 h-3" />
                         Dejar de seguir

@@ -1,5 +1,6 @@
 'use client'
 
+import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { useState, useCallback } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
@@ -203,13 +204,13 @@ export default function DepositManager({ userId, initialSavings }: Props) {
       const { error } = await supabase.from('savings_accounts')
         .update(payload).eq('id', editingId).eq('user_id', userId)
       setSaving_(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setSavings(prev => prev.map(a => a.id === editingId ? { ...a, ...payload } : a))
     } else {
       const { data, error } = await supabase.from('savings_accounts')
         .insert(payload).select().single()
       setSaving_(false)
-      if (error) { setFormError(error.message); return }
+      if (error) { setFormError(SAVE_ERROR); return }
       setSavings(prev => [...prev, data as SavingsAccount].sort((a, b) => a.start_date.localeCompare(b.start_date)))
     }
     cancelForm()
@@ -217,7 +218,8 @@ export default function DepositManager({ userId, initialSavings }: Props) {
 
   async function deleteAccount(id: string) {
     setDeletingId(id)
-    await supabase.from('savings_accounts').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('savings_accounts').delete().eq('id', id).eq('user_id', userId)
+    if (error) { setDeletingId(null); setFormError(DELETE_ERROR); return }
     setSavings(prev => prev.filter(a => a.id !== id))
     setDeletingId(null)
     cancelForm()
@@ -244,7 +246,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
           {savings.length > 0 && (
             <div className="flex items-center gap-2 min-w-0 text-[11px] mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--mint)' }} />
-              <span style={{ color: 'var(--mint)' }} className="font-semibold">
+              <span style={{ color: 'var(--mint-ink)' }} className="font-semibold">
                 {fmtPct(avgRate)} TAE · +{formatCLP(totalDaily)}/día
               </span>
             </div>
@@ -281,7 +283,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               </h2>
               <button
                 onClick={cancelForm}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -351,10 +353,10 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   className="px-4 py-2.5 rounded-xl flex items-center gap-2"
                   style={{ background: 'rgba(31,190,141,0.08)', border: '1px solid rgba(31,190,141,0.2)' }}
                 >
-                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint)' }}>
+                  <span className="text-[11px] font-bold" style={{ color: 'var(--mint-ink)' }}>
                     Ganas por día
                   </span>
-                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint)' }}>
+                  <span className="text-sm font-extrabold tabular-nums ml-auto" style={{ color: 'var(--mint-ink)' }}>
                     +{fmtCLP(previewDaily)}
                   </span>
                 </div>
@@ -404,7 +406,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
               </div>
 
               {formError && (
-                <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{formError}</p>
               )}
 
               {/* Confirmación de eliminación */}
@@ -497,7 +499,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                 </div>
                 <button
                   onClick={closeDetail}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                  aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                   style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
                 >
                   <X className="w-4 h-4" />
@@ -517,15 +519,15 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Interés ganado a hoy</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(earned)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(earned)}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Ganas por día</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(daily)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(daily)}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Proyección 12 meses</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>+{formatCLP(annual)}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>+{formatCLP(annual)}</span>
                   </div>
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Valor actual</span>
@@ -572,7 +574,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
             className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
             style={{ background: 'rgba(31,190,141,0.1)' }}
           >
-            <Landmark className="w-7 h-7" style={{ color: 'var(--mint)' }} />
+            <Landmark className="w-7 h-7" style={{ color: 'var(--mint-ink)' }} />
           </div>
           <p className="text-base font-bold mb-1" style={{ color: 'var(--ink)' }}>Sin cuentas de ahorro</p>
           <p className="text-sm mb-5 max-w-xs" style={{ color: 'var(--ink-3)' }}>
@@ -599,8 +601,8 @@ export default function DepositManager({ userId, initialSavings }: Props) {
           value={formatCLP(totalCurrentValue)}
           stats={[
             { label: 'Depositado',      value: formatCLP(totalBalance) },
-            { label: 'Interés',         value: `+${formatCLP(totalEarned)}`, color: 'var(--mint)' },
-            { label: 'Proyección 12m',  value: `+${formatCLP(totalAnnual)}`, color: 'var(--mint)' },
+            { label: 'Interés',         value: `+${formatCLP(totalEarned)}`, color: 'var(--mint-ink)' },
+            { label: 'Proyección 12m',  value: `+${formatCLP(totalAnnual)}`, color: 'var(--mint-ink)' },
           ]}
         />
       )}
@@ -644,7 +646,7 @@ export default function DepositManager({ userId, initialSavings }: Props) {
                       {formatCLP(acc.balance)}
                     </p>
                     <p className="text-[11px] font-bold mt-1" style={{ color: 'var(--ink-3)' }}>Ganado</p>
-                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint)' }}>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--mint-ink)' }}>
                       +{formatCLP(earned)}
                     </p>
                   </div>

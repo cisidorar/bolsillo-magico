@@ -37,13 +37,18 @@ export default function InversionesToggle({
           key={view}
           href={href}
           aria-label={label}
+          title={label}
           aria-current={active === view ? 'page' : undefined}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-            active === view ? 'view-toggle-active-purchase' : 'view-toggle-btn'
-          }`}
+          className="group inline-flex items-center min-h-[44px] -my-2.5 focus-visible:outline-none"
         >
-          <Icon className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{label}</span>
+          <span
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all group-focus-visible:ring-2 group-focus-visible:ring-[var(--primary)] ${
+              active === view ? 'view-toggle-active-purchase' : 'view-toggle-btn'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{label}</span>
+          </span>
         </Link>
       ))}
     </div>
