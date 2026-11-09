@@ -57,6 +57,8 @@ export const KNOWN_SERVICES: { keywords: string[]; domain: string }[] = [
   { keywords: ['headspace'],                         domain: 'headspace.com'     },
   // Delivery / Apps
   { keywords: ['uber', 'uber one'],                  domain: 'uber.com'          },
+  { keywords: ['airbnb'],                           domain: 'airbnb.com'        },
+  { keywords: ['metro de santiago', 'metro santiago'], domain: 'metro.cl'       },
   { keywords: ['rappi', 'rappi prime'],              domain: 'rappi.com'         },
   { keywords: ['pedidosya', 'pedidos ya'],           domain: 'pedidosya.cl'      },
   // Libros / Audios

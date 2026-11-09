@@ -184,8 +184,12 @@ const MERCHANT_DOMAINS: Array<{ re: RegExp; domain: string }> = [
   { re: /\bhbo\b|hbo ?max/i,             domain: 'hbomax.com' },
   { re: /\byoutube\b/i,                  domain: 'youtube.com' },
   { re: /amazon( prime)?/i,              domain: 'amazon.com' },
+  { re: /aliexpress/i,                   domain: 'aliexpress.com' },
+  { re: /airbnb/i,                       domain: 'airbnb.com' },
   // Transporte
   { re: /\buber\b/i,                     domain: 'uber.com' },
+  { re: /\bmetro\b(?!\s*gas)(?:\s+de\s+santiago)?/i, domain: 'metro.cl' },
+  { re: /\bbip\b|red movilidad/i,        domain: 'red.cl' },
   { re: /cabify/i,                       domain: 'cabify.com' },
   { re: /\bdidi\b/i,                     domain: 'didiglobal.com' },
   { re: /latam/i,                        domain: 'latamairlines.com' },
