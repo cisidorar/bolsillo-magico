@@ -1,7 +1,7 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import PaymentMethodManager from '@/components/PaymentMethodManager'
-import { currentStatementRange, billingPeriod } from '@/lib/utils'
+import { currentStatementRange, billingPeriod, getNowChile } from '@/lib/utils'
 import { sumCardAmounts } from '@/lib/shared-split'
 import type { PaymentMethod } from '@/types'
 
@@ -29,7 +29,7 @@ export default async function MetodosPage() {
     const now = new Date()
     const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1)
     const fetchStart = `${twoMonthsAgo.getFullYear()}-${String(twoMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
-    const today = now.toISOString().split('T')[0]
+    const today = getNowChile().dateStr
 
     const { data: expenses } = await supabase
       .from('expenses')
@@ -53,8 +53,19 @@ export default async function MetodosPage() {
     }
   }
 
+  // Cuántos gastos y recurrentes quedarían sin método si se borra (FK SET NULL):
+  // la confirmación de borrar lo dice con números en vez de una pregunta vaga.
+  const usage: Record<string, { expenses: number; recurring: number }> = {}
+  await Promise.all(methods.map(async m => {
+    const [{ count: expenses }, { count: recurring }] = await Promise.all([
+      supabase.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('payment_method_id', m.id),
+      supabase.from('recurring_expenses').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('payment_method_id', m.id),
+    ])
+    usage[m.id] = { expenses: expenses ?? 0, recurring: recurring ?? 0 }
+  }))
+
   return (
-    <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-4">
+    <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
       <div className="mb-5">
         <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Métodos de pago</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Administra tus cuentas, tarjetas y días de facturación.</p>
@@ -63,6 +74,7 @@ export default async function MetodosPage() {
         paymentMethods={methods}
         userId={user.id}
         statementTotals={statementTotals}
+        usage={usage}
       />
     </div>
   )

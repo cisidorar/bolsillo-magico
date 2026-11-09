@@ -5,7 +5,7 @@ import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import {
-  Plus, Trash2, Check, X, Star, CreditCard, Landmark, Smartphone,
+  Plus, Trash2, Check, X, Star, CreditCard, Landmark, Smartphone, Banknote,
   ChevronRight
 } from 'lucide-react'
 import { cn, formatCLP } from '@/lib/utils'
@@ -17,18 +17,8 @@ const CARD_TYPES: { value: CardType; label: string; Icon: React.ElementType; des
   { value: 'debit',   label: 'Débito',  Icon: CreditCard,  desc: 'Descuenta directo de tu cuenta' },
   { value: 'credit',  label: 'Crédito', Icon: Landmark,    desc: 'Pago diferido, con fecha de cierre' },
   { value: 'digital', label: 'Digital', Icon: Smartphone,  desc: 'Transferencia, Mach, Fintual, etc.' },
+  { value: 'cash',    label: 'Efectivo', Icon: Banknote,   desc: 'Dinero en mano, sin banco' },
 ]
-
-// Color de acento por tipo — el pill de la lista usa este hex + alpha (no un
-// bgHex/textHex claros fijos) para que se vea bien tanto en modo claro como
-// oscuro, en vez del bg casi blanco que antes quedaba "en blanco" sobre el
-// fondo oscuro del dark mode.
-const TYPE_COLORS: Record<CardType, { chip: string }> = {
-  debit:   { chip: '#3B82F6' },
-  credit:  { chip: '#6366F1' },
-  cash:    { chip: '#22C55E' },
-  digital: { chip: '#F97316' },
-}
 
 const BANK_OPTIONS: { name: string; domain: string; color: string }[] = [
   { name: 'BancoEstado',    domain: 'bancoestado.cl',    color: '#005B9A' },
@@ -68,6 +58,7 @@ interface Props {
   paymentMethods: PaymentMethod[]
   userId: string
   statementTotals?: Record<string, { total: number; start: string; end: string }>
+  usage?: Record<string, { expenses: number; recurring: number }>
 }
 
 type FormState = {
@@ -116,6 +107,7 @@ interface FormPanelProps {
   deleteConfirm: boolean
   error: string
   isNew: boolean
+  impact: { expenses: number; recurring: number }
   onChange: <K extends keyof FormState>(k: K, v: FormState[K]) => void
   onSave: () => void
   onCancel: () => void
@@ -125,43 +117,51 @@ interface FormPanelProps {
 }
 
 function FormPanel({
-  form, saving, deleting, deleteConfirm, error, isNew,
+  form, saving, deleting, deleteConfirm, error, isNew, impact,
   onChange, onSave, onCancel, onDelete, onDeleteConfirm, onDeleteCancel,
 }: FormPanelProps) {
-  const selectedType = CARD_TYPES.find(t => t.value === form.card_type)!
-  const colors = TYPE_COLORS[form.card_type]
-
+  // Débito y crédito comparten catálogo de bancos: al alternar entre ambos se
+  // conserva nombre, banco y últimos 4. Al cruzar a digital/efectivo (otro
+  // catálogo) se limpia lo que ya no aplica.
   function changeType(type: CardType) {
+    const prev = form.card_type
+    const sameCatalog = (prev === 'debit' || prev === 'credit') && (type === 'debit' || type === 'credit')
     onChange('card_type', type)
-    if (type === 'cash') {
-      onChange('name', 'Efectivo')
+    if (!sameCatalog) {
+      onChange('name', type === 'cash' ? 'Efectivo' : '')
       onChange('domain', '')
       onChange('selectedBank', null)
       onChange('last_four', '')
-      onChange('billing_day', '')
-      onChange('payment_due_day', '')
-      onChange('admin_fee', '')
-    } else {
-      onChange('name', '')
-      onChange('domain', '')
-      onChange('selectedBank', null)
-      onChange('last_four', '')
+    }
+    if (type !== 'credit') {
       onChange('billing_day', '')
       onChange('payment_due_day', '')
       onChange('admin_fee', '')
     }
   }
 
-  const inputCls = 'w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors'
-  const inputStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }
+  const inputCls = 'w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none'
+  const inputStyle = {
+    background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)',
+    transition: 'border-color 150ms, box-shadow 150ms',
+  }
+  const focusOn = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--primary)'
+    e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-soft)'
+  }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    e.currentTarget.style.borderColor = 'var(--border)'
+    e.currentTarget.style.boxShadow = 'none'
+  }
+  const focusProps = { onFocus: focusOn, onBlur: focusOff }
   const labelCls  = 'text-[10px] font-bold uppercase tracking-widest block mb-1.5'
 
   return (
     <div className="flex flex-col gap-4">
       {/* Tipo */}
       <div>
-        <label className={labelCls} style={{ color: 'var(--ink-3)' }}>Tipo</label>
-        <div className="grid grid-cols-3 gap-1.5">
+        <span className={labelCls} style={{ color: 'var(--ink-3)' }}>Tipo</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" role="group" aria-label="Tipo de método">
           {CARD_TYPES.map(t => {
             const active = form.card_type === t.value
             return (
@@ -169,11 +169,13 @@ function FormPanel({
                 key={t.value}
                 type="button"
                 onClick={() => changeType(t.value)}
-                className={cn(
-                  'flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl border text-center transition-all',
-                  active ? 'ring-1 ring-blue-500 border-blue-500' : 'hover:border-blue-300'
-                )}
-                style={{ background: active ? 'var(--primary-soft)' : 'var(--surface-2)', borderColor: active ? undefined : 'var(--border)' }}
+                aria-pressed={active}
+                className="flex flex-col items-center justify-center gap-1 px-2 min-h-[56px] rounded-xl border text-center transition-all"
+                style={{
+                  background: active ? 'var(--primary-soft)' : 'var(--surface-2)',
+                  borderColor: active ? 'var(--primary)' : 'var(--border)',
+                  boxShadow: active ? '0 0 0 1px var(--primary)' : 'none',
+                }}
               >
                 <t.Icon className="w-4 h-4" style={{ color: active ? 'var(--primary)' : 'var(--ink-3)' }} />
                 <p className="text-[11px] font-semibold" style={{ color: 'var(--ink-2)' }}>{t.label}</p>
@@ -186,11 +188,12 @@ function FormPanel({
       {/* Banco / wallet */}
       {form.card_type !== 'cash' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
+          <label htmlFor="pm-bank" className={labelCls} style={{ color: 'var(--ink-3)' }}>
             {form.card_type === 'digital' ? 'Plataforma' : 'Banco'}
           </label>
           <div className="relative">
             <select
+              id="pm-bank"
               value={form.selectedBank ?? ''}
               onChange={e => {
                 const val = e.target.value
@@ -206,8 +209,9 @@ function FormPanel({
                   }
                 }
               }}
-              className="w-full appearance-none border rounded-xl px-3.5 py-2.5 text-sm outline-none transition-colors pr-9 cursor-pointer"
+              className="w-full appearance-none border rounded-xl px-3.5 py-2.5 text-sm outline-none pr-9 cursor-pointer"
               style={inputStyle}
+              {...focusProps}
             >
               <option value="">
                 {form.card_type === 'digital' ? '— Wallet —' : '— Selecciona banco —'}
@@ -228,11 +232,12 @@ function FormPanel({
       {/* Nombre */}
       {form.card_type !== 'cash' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
+          <label htmlFor="pm-name" className={labelCls} style={{ color: 'var(--ink-3)' }}>
             Nombre{' '}
             <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--ink-3)', opacity: 0.55 }}>(personaliza)</span>
           </label>
           <input
+            id="pm-name"
             type="text"
             value={form.name}
             onChange={e => onChange('name', e.target.value)}
@@ -240,6 +245,7 @@ function FormPanel({
             maxLength={32}
             className={inputCls}
             style={inputStyle}
+            {...focusProps}
           />
         </div>
       )}
@@ -247,11 +253,12 @@ function FormPanel({
       {/* Últimos 4 dígitos */}
       {(form.card_type === 'debit' || form.card_type === 'credit') && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
+          <label htmlFor="pm-last4" className={labelCls} style={{ color: 'var(--ink-3)' }}>
             Últimos 4 dígitos{' '}
             <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--ink-3)', opacity: 0.55 }}>(opcional)</span>
           </label>
           <input
+            id="pm-last4"
             type="text"
             inputMode="numeric"
             value={form.last_four}
@@ -259,6 +266,7 @@ function FormPanel({
             placeholder="1234"
             className={inputCls}
             style={inputStyle}
+            {...focusProps}
           />
         </div>
       )}
@@ -266,10 +274,11 @@ function FormPanel({
       {/* Día de cierre */}
       {form.card_type === 'credit' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
-            Día de cierre <span className="font-normal normal-case tracking-normal text-red-400">*</span>
+          <label htmlFor="pm-billing" className={labelCls} style={{ color: 'var(--ink-3)' }}>
+            Día de cierre <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--coral-ink)' }} aria-hidden="true">*</span>
           </label>
           <input
+            id="pm-billing"
             type="text"
             inputMode="numeric"
             value={form.billing_day}
@@ -277,6 +286,7 @@ function FormPanel({
             placeholder="ej: 5"
             className={inputCls}
             style={inputStyle}
+            {...focusProps}
           />
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>Entre 1 y 28</p>
         </div>
@@ -285,11 +295,12 @@ function FormPanel({
       {/* Día de pago (vencimiento del estado ya cerrado) */}
       {form.card_type === 'credit' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
+          <label htmlFor="pm-due" className={labelCls} style={{ color: 'var(--ink-3)' }}>
             Día de pago{' '}
             <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--ink-3)', opacity: 0.55 }}>(opcional)</span>
           </label>
           <input
+            id="pm-due"
             type="text"
             inputMode="numeric"
             value={form.payment_due_day}
@@ -297,6 +308,7 @@ function FormPanel({
             placeholder="ej: 5"
             className={inputCls}
             style={inputStyle}
+            {...focusProps}
           />
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
             Día del mes siguiente en que vence el pago (ej: cierra el 24, vence el 5). Activa la card &quot;Ciclo de sueldo&quot; en Inicio.
@@ -307,12 +319,13 @@ function FormPanel({
       {/* Cargo de administración */}
       {form.card_type === 'credit' && (
         <div>
-          <label className={labelCls} style={{ color: 'var(--ink-3)' }}>
-            Cargo de administración <span className="font-normal normal-case tracking-normal text-red-400">*</span>
+          <label htmlFor="pm-fee" className={labelCls} style={{ color: 'var(--ink-3)' }}>
+            Cargo de administración <span className="font-normal normal-case tracking-normal" style={{ color: 'var(--coral-ink)' }} aria-hidden="true">*</span>
           </label>
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium pointer-events-none" style={{ color: 'var(--ink-3)' }}>$</span>
             <input
+              id="pm-fee"
               type="text"
               inputMode="numeric"
               value={fmtCLPInput(form.admin_fee)}
@@ -320,6 +333,7 @@ function FormPanel({
               placeholder="0"
               className={cn(inputCls, 'pl-7')}
               style={inputStyle}
+              {...focusProps}
             />
           </div>
           <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>Ingresa 0 si no aplica · se registra el día de cierre</p>
@@ -329,40 +343,46 @@ function FormPanel({
       {/* Predeterminado */}
       <button
         type="button"
+        role="switch"
+        aria-checked={form.is_default}
         onClick={() => onChange('is_default', !form.is_default)}
-        className="flex items-center gap-3 px-3.5 py-3 rounded-xl border transition-all text-left"
-        style={{
-          background:   form.is_default ? 'rgba(251,191,36,0.15)' : 'var(--surface-2)',
-          borderColor:  form.is_default ? 'rgba(251,191,36,0.45)' : 'var(--border)',
-        }}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${form.is_default ? 'sheet-toggle-active' : 'sheet-toggle'}`}
       >
-        <Star className="w-4 h-4 flex-shrink-0" style={{ color: form.is_default ? '#F59E0B' : 'var(--ink-3)', fill: form.is_default ? '#F59E0B' : 'none' }} />
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Método predeterminado</p>
-          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Se selecciona por defecto al registrar gastos</p>
+          <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Se selecciona por defecto al registrar gastos</p>
+        </div>
+        <div className="w-9 h-5 rounded-full relative transition-colors flex-shrink-0" style={{ background: form.is_default ? 'var(--primary)' : 'var(--border)' }}>
+          <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform" style={{ transform: form.is_default ? 'translateX(1.125rem)' : 'translateX(0.125rem)' }} />
         </div>
       </button>
 
       {error && (
-        <p className="text-xs text-red-500 rounded-xl px-3.5 py-2.5 border" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)' }}>{error}</p>
+        <p role="alert" className="text-xs font-semibold rounded-xl px-3.5 py-2.5 border" style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 12%, var(--surface))', borderColor: 'color-mix(in srgb, var(--coral) 35%, var(--surface))' }}>{error}</p>
       )}
 
       {/* Acciones */}
       {deleteConfirm ? (
         <div className="space-y-2">
           <p className="text-sm font-semibold text-center" style={{ color: 'var(--ink)' }}>¿Eliminar este método?</p>
+          <p className="text-xs text-center" style={{ color: 'var(--ink-3)' }}>
+            {impact.expenses + impact.recurring > 0
+              ? `Tiene ${impact.expenses} gasto${impact.expenses !== 1 ? 's' : ''} y ${impact.recurring} recurrente${impact.recurring !== 1 ? 's' : ''}: quedarán sin método de pago. No se puede deshacer.`
+              : 'No tiene gastos asociados. No se puede deshacer.'}
+          </p>
           <div className="flex gap-2">
             <button
               onClick={onDeleteCancel}
-              className="flex-1 py-2.5 border text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
-              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface-2)' }}
+              className="flex-1 min-h-[44px] border text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
+              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
             >
               Cancelar
             </button>
             <button
               onClick={onDeleteConfirm}
               disabled={deleting}
-              className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+              className="flex-1 min-h-[44px] text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-1.5"
+              style={{ background: 'var(--coral)', color: 'white' }}
             >
               {deleting
                 ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -376,8 +396,9 @@ function FormPanel({
           {!isNew && (
             <button
               onClick={onDelete}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 border text-sm font-semibold rounded-xl transition-colors hover:border-red-400 hover:text-red-500"
-              style={{ borderColor: 'var(--border)', color: 'var(--ink-3)', background: 'var(--surface-2)' }}
+              aria-label="Eliminar método"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] border rounded-xl transition-colors hover:border-[var(--coral)] hover:text-[var(--coral-ink)]"
+              style={{ borderColor: 'var(--border)', color: 'var(--ink-3)', background: 'var(--surface)' }}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -385,8 +406,8 @@ function FormPanel({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 py-2.5 border text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface-2)' }}
+            className="flex-1 min-h-[44px] border text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
+            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
           >
             Cancelar
           </button>
@@ -394,7 +415,7 @@ function FormPanel({
             type="button"
             onClick={onSave}
             disabled={saving}
-            className="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+            className="flex-1 min-h-[44px] text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
             style={{ backgroundColor: 'var(--primary)', color: 'var(--primary-ink)' }}
           >
             {saving
@@ -409,7 +430,7 @@ function FormPanel({
 }
 
 // ─── Main component ────────────────────────────────────────────────────────
-export default function PaymentMethodManager({ paymentMethods: init, userId, statementTotals = {} }: Props) {
+export default function PaymentMethodManager({ paymentMethods: init, userId, statementTotals = {}, usage = {} }: Props) {
   const router  = useRouter()
   const supabase = createClient()
 
@@ -485,10 +506,13 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       admin_fee:   form.card_type === 'credit' && form.admin_fee ? parseInt(form.admin_fee) : null,
     }
 
-    if (form.is_default) {
-      await supabase.from('payment_methods').update({ is_default: false })
-        .eq('user_id', userId)
-        .neq('id', expandedId ?? '00000000-0000-0000-0000-000000000000')
+    // Primero la escritura principal; recién después se des-marcan los otros
+    // favoritos, así un fallo nunca deja al usuario sin método predeterminado.
+    async function unsetOtherDefaults(keepId: string): Promise<boolean> {
+      const { error: de } = await supabase.from('payment_methods')
+        .update({ is_default: false }).eq('user_id', userId).neq('id', keepId)
+      if (de) { setError(`Se guardó, pero no se pudo quitar el predeterminado anterior: ${de.message}`); return false }
+      return true
     }
 
     if (expandedId === 'new') {
@@ -496,8 +520,9 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
         .from('payment_methods')
         .insert({ user_id: userId, ...payload, sort_order: methods.length + 1 })
         .select().single()
+      if (e) { setSaving(false); setError(`No se pudo guardar: ${e.message}`); return }
+      if (form.is_default && !(await unsetOtherDefaults(data.id))) { setSaving(false); router.refresh(); return }
       setSaving(false)
-      if (e) { setError(`Error: ${e.message}`); return }
       setMethods(prev => {
         const updated = form.is_default ? prev.map(m => ({ ...m, is_default: false })) : prev
         return [...updated, data]
@@ -505,8 +530,9 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
     } else {
       const { error: e } = await supabase
         .from('payment_methods').update(payload).eq('id', expandedId!)
+      if (e) { setSaving(false); setError(`No se pudo guardar: ${e.message}`); return }
+      if (form.is_default && !(await unsetOtherDefaults(expandedId!))) { setSaving(false); router.refresh(); return }
       setSaving(false)
-      if (e) { setError(`Error: ${e.message}`); return }
       setMethods(prev => prev.map(m => {
         if (m.id === expandedId) return { ...m, ...payload }
         if (form.is_default) return { ...m, is_default: false }
@@ -520,7 +546,13 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
 
   async function deleteMethod() {
     setDeleting(true)
-    await supabase.from('payment_methods').delete().eq('id', expandedId!)
+    const { error: de } = await supabase.from('payment_methods').delete().eq('id', expandedId!)
+    if (de) {
+      setDeleting(false)
+      setDeleteConfirm(false)
+      setError(`No se pudo eliminar: ${de.message}`)
+      return
+    }
     setMethods(prev => prev.filter(m => m.id !== expandedId))
     setDeleting(false)
     router.refresh()
@@ -548,10 +580,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
         <div className="card overflow-hidden">
           {methods.map((m, idx) => {
             const ct = m.card_type ?? 'debit'
-            const displayCt = ct === 'cash' ? 'digital' : ct
-            const c = TYPE_COLORS[displayCt as CardType] ?? TYPE_COLORS.debit
-            const type = CARD_TYPES.find(t => t.value === displayCt)
-              ?? (ct === 'cash' ? { label: 'Efectivo' } : CARD_TYPES[0])
+            const type = CARD_TYPES.find(t => t.value === ct) ?? CARD_TYPES[0]
             const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
             const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
 
@@ -560,9 +589,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                 {/* Fila del método — clicable, abre el popup de edición */}
                 <button
                   onClick={() => openEdit(m)}
-                  className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors"
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
+                  className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-[var(--surface-2)]"
                 >
                   <ServiceLogo
                     domain={m.domain}
@@ -579,13 +606,13 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                         <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--ink-3)' }}>···{m.last_four}</span>
                       )}
                       {m.is_default && (
-                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                        <Star className="w-3.5 h-3.5 flex-shrink-0" aria-label="Predeterminado" style={{ color: 'var(--gold-ink)', fill: 'var(--gold-ink)' }} />
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span
                         className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ backgroundColor: `${c.chip}26`, color: c.chip }}
+                        style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
                       >
                         {type.label}
                       </span>
@@ -596,11 +623,11 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                         <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Paga día {m.payment_due_day}</span>
                       )}
                       {m.card_type === 'credit' && m.billing_day && !m.payment_due_day && (
-                        <span className="text-[11px] font-semibold" style={{ color: 'var(--gold)' }}>
+                        <span className="text-[11px] font-semibold" style={{ color: 'var(--gold-ink)' }}>
                           Sin día de pago · toca para configurar
                         </span>
                       )}
-                      {m.card_type === 'credit' && m.admin_fee && m.admin_fee > 0 && (
+                      {m.card_type === 'credit' && m.admin_fee != null && m.admin_fee > 0 && (
                         <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Admin {formatCLP(m.admin_fee)}</span>
                       )}
                     </div>
@@ -648,23 +675,24 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       {/* ── Popup: nuevo / editar método — bottom sheet en mobile, modal centrado en desktop ── */}
       {expandedId && (
         <div
-          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
-          style={{ background: 'rgba(0,0,0,0.65)' }}
+          className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
           {...backdropClose}
         >
           <div
+            role="dialog" aria-modal="true" aria-labelledby="pm-sheet-title"
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
             style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
           >
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
             <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
+              <h2 id="pm-sheet-title" className="text-base font-bold" style={{ color: 'var(--ink)' }}>
                 {expandedId === 'new' ? 'Nuevo método de pago' : 'Editar método'}
               </h2>
               <button
                 onClick={closeAll}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar"
+                className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -679,6 +707,7 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
                 deleteConfirm={deleteConfirm}
                 error={error}
                 isNew={expandedId === 'new'}
+                impact={usage[expandedId] ?? { expenses: 0, recurring: 0 }}
                 onChange={setField}
                 onSave={save}
                 onCancel={closeAll}
