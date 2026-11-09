@@ -27,12 +27,21 @@ interface Row {
   key: string
   id: string | null
   name: string
-  amount: string           // dígitos, sin puntos
+  amount: string           // dígitos, sin puntos (CLP): siempre es la fuente de verdad
+  pct?: string             // solo mientras se edita en modo porcentaje (texto tal como se escribe)
   received_at: string | null
   forgiven: boolean
 }
 
 const digits = (s: string) => s.replace(/\D/g, '').slice(0, 9)
+// Porcentaje tal como se escribe: dígitos y un decimal opcional (máx. 2), tope 100.
+const cleanPct = (s: string) => {
+  const t = s.replace(',', '.').replace(/[^\d.]/g, '')
+  const [i, ...rest] = t.split('.')
+  const out = rest.length ? `${i.slice(0, 3)}.${rest.join('').slice(0, 2)}` : i.slice(0, 3)
+  return parseFloat(out) > 100 ? '100' : out
+}
+const fmtPct = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
 const fmtInput = (s: string) => (s ? parseInt(s, 10).toLocaleString('es-CL') : '')
 const fmtDay = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
 let keySeq = 0
@@ -49,6 +58,7 @@ export default function SplitSheet({ target, onClose, onDone }: {
   const [hadSplit, setHadSplit] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
+  const [mode, setMode]       = useState<'amount' | 'percent'>('amount')
 
   useEffect(() => {
     let cancelled = false
@@ -91,7 +101,7 @@ export default function SplitSheet({ target, onClose, onDone }: {
     const next: Row[] = []
     for (let i = 0; i < freeOthers; i++) {
       const prev = editable[i]
-      next.push(prev ? { ...prev, amount: String(each) } : { key: newKey(), id: null, name: '', amount: String(each), received_at: null, forgiven: false })
+      next.push(prev ? { ...prev, amount: String(each), pct: undefined } : { key: newKey(), id: null, name: '', amount: String(each), received_at: null, forgiven: false })
     }
     setRows([...locked, ...next])
   }
@@ -105,7 +115,7 @@ export default function SplitSheet({ target, onClose, onDone }: {
     const lockedOwed = locked.filter(r => !r.forgiven).reduce((s, r) => s + parseInt(r.amount || '0', 10), 0)
     const rest = target.total - lockedOwed
     if (rest <= 0) return
-    setRows([...locked, { key: first?.key ?? newKey(), id: first?.id ?? null, name: first?.name ?? '', amount: String(rest), received_at: null, forgiven: false }])
+    setRows([...locked, { key: first?.key ?? newKey(), id: first?.id ?? null, name: first?.name ?? '', amount: String(rest), pct: undefined, received_at: null, forgiven: false }])
   }
 
   async function save() {
@@ -147,16 +157,28 @@ export default function SplitSheet({ target, onClose, onDone }: {
             <FieldLabel hint="Contándote a ti. Después puedes ajustar cada monto.">¿Entre cuántos se divide?</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
               {[2, 3, 4, 5, 6].map(n => (
-                <Chip key={n} active={mine > 0 && othersCount + 1 === n && owedList.every(a => a === owedList[0])} onClick={() => splitAmong(n)}>
+                <Chip key={n} active={owed > 0 && mine > 0 && othersCount + 1 === n && owedList.every(a => a === owedList[0])} onClick={() => splitAmong(n)}>
                   {n}
                 </Chip>
               ))}
-              <Chip active={mine === 0 && othersCount === 1} onClick={payAll}>Todo, me lo devuelven</Chip>
+              <Chip active={owed > 0 && mine === 0 && othersCount === 1} onClick={payAll}>Todo, me lo devuelven</Chip>
             </div>
           </div>
 
           <div>
-            <FieldLabel>Quién te debe</FieldLabel>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <FieldLabel>Quién te debe</FieldLabel>
+              <div className="inline-flex rounded-lg p-0.5 gap-0.5" style={{ background: 'var(--surface-2)' }} role="tablist" aria-label="Cómo repartir">
+                {([['amount', '$ Monto'], ['percent', '% Porcentaje']] as const).map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={mode === id}
+                    onClick={() => { setMode(id); setRows(rs => rs.map(r => ({ ...r, pct: undefined }))) }}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors"
+                    style={mode === id ? { background: 'var(--surface)', color: 'var(--ink)', boxShadow: '0 1px 2px var(--shadow)' } : { color: 'var(--ink-3)' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-2">
               {active.map(r => (
                 <div key={r.key} className="flex items-center gap-2">
@@ -172,18 +194,42 @@ export default function SplitSheet({ target, onClose, onDone }: {
                     </InputRow>
                   </div>
                   <div className="w-32 flex-shrink-0">
-                    <InputRow>
-                      <span className="text-sm text-gray-400">$</span>
-                      <input
-                        inputMode="numeric"
-                        value={fmtInput(r.amount)}
-                        onChange={e => update(r.key, { amount: digits(e.target.value) })}
-                        disabled={!!r.received_at}
-                        placeholder="0"
-                        aria-label={`Monto de ${r.name || 'esta persona'}`}
-                        className={`${inputClass} tabular-nums disabled:opacity-60`}
-                      />
-                    </InputRow>
+                    {mode === 'amount' ? (
+                      <InputRow>
+                        <span className="text-sm text-gray-400">$</span>
+                        <input
+                          inputMode="numeric"
+                          value={fmtInput(r.amount)}
+                          onChange={e => update(r.key, { amount: digits(e.target.value), pct: undefined })}
+                          disabled={!!r.received_at}
+                          placeholder="0"
+                          aria-label={`Monto de ${r.name || 'esta persona'}`}
+                          className={`${inputClass} tabular-nums disabled:opacity-60`}
+                        />
+                      </InputRow>
+                    ) : (
+                      <InputRow>
+                        <input
+                          inputMode="decimal"
+                          value={r.pct ?? (r.amount && target.total > 0 ? fmtPct(parseInt(r.amount, 10) / target.total * 100) : '')}
+                          onChange={e => {
+                            const pct = cleanPct(e.target.value)
+                            const n = parseFloat(pct || '0')
+                            update(r.key, { pct, amount: String(Math.round(target.total * n / 100)) })
+                          }}
+                          disabled={!!r.received_at}
+                          placeholder="0"
+                          aria-label={`Porcentaje de ${r.name || 'esta persona'}`}
+                          className={`${inputClass} tabular-nums text-right disabled:opacity-60`}
+                        />
+                        <span className="text-sm text-gray-400">%</span>
+                      </InputRow>
+                    )}
+                    {mode === 'percent' && (
+                      <p className="text-[10px] mt-0.5 text-right tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                        = {formatCLP(parseInt(r.amount || '0', 10))}
+                      </p>
+                    )}
                   </div>
                   {r.received_at ? (
                     <span className="w-9 h-9 flex items-center justify-center rounded-full flex-shrink-0"
@@ -226,9 +272,12 @@ export default function SplitSheet({ target, onClose, onDone }: {
           {/* Resumen */}
           <div className="rounded-2xl px-4 py-3 space-y-1.5" style={{ background: 'var(--surface-2)' }}>
             <div className="flex items-center justify-between text-sm">
-              <span style={{ color: 'var(--ink-2)' }}>Tu parte <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>(cuenta en tu presupuesto)</span></span>
+              <span style={{ color: 'var(--ink-2)' }}>Tu parte <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>(cuenta en tu presupuesto{target.total > 0 ? ` · ${fmtPct(mine / target.total * 100)}%` : ''})</span></span>
               <span className="font-bold tabular-nums" style={{ color: mine < 0 ? 'var(--coral-ink)' : 'var(--ink)' }}>{formatCLP(mine)}</span>
             </div>
+            {mine < 0 && (
+              <p className="text-[11px] font-semibold" style={{ color: 'var(--coral-ink)' }}>Lo que repartes supera lo que cobró la tarjeta.</p>
+            )}
             <div className="flex items-center justify-between text-sm">
               <span style={{ color: 'var(--ink-2)' }}>Te deben</span>
               <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(owed)}</span>
