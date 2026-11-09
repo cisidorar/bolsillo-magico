@@ -19,7 +19,7 @@ import { SHOW_TRIPS } from '@/lib/features'
 import NextTripCard, { TripSettleChips } from '@/components/NextTripCard'
 import { getNextTrip, getTripsToSettle } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
-import ExpenseRowIcon from '@/components/ExpenseRowIcon'
+import ExpenseList from '@/components/ExpenseList'
 import BudgetBarDetail, { type BarItem } from '@/components/BudgetBarDetail'
 import Link from 'next/link'
 import { sumCardAmounts } from '@/lib/shared-split'
@@ -693,38 +693,10 @@ export default async function DashboardPage() {
     )
   }
 
-  const RecentRows = ({ limit, mobile = false }: { limit: number; mobile?: boolean }) => {
-    const todayStr = dateStr
-    const yesterdayStr = new Date(new Date(dateStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
-    return (
-      <>
-        {typedExpenses.slice(0, limit).map(e => {
-          const dayLabel = e.date === todayStr ? 'Hoy' : e.date === yesterdayStr ? 'Ayer'
-            : new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
-          return (
-            <div key={e.id} className="flex items-center gap-3 px-4 py-3 lg:py-3.5">
-              <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={mobile ? 36 : 32} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                  {e.description || e.category?.name || '—'}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {e.category && (
-                    <span className="flex items-center gap-1 min-w-0 text-[11px] font-medium truncate" style={{ color: 'var(--ink-2)' }}>
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: e.category.color }} />
-                      <span className="truncate">{e.category.name}</span>
-                    </span>
-                  )}
-                  <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--ink-2)' }}>· {dayLabel}</span>
-                </div>
-              </div>
-              <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
-            </div>
-          )
-        })}
-      </>
-    )
-  }
+  // Filas tocables: abren el mismo detalle que Historial (ver, editar, eliminar, cobrar).
+  const RecentRows = ({ limit, mobile = false }: { limit: number; mobile?: boolean }) => (
+    <ExpenseList variant="compact" mobile={mobile} todayStr={dateStr} expenses={typedExpenses.slice(0, limit)} />
+  )
 
   const atrasadosUserId = user!.id
 

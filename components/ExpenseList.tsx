@@ -16,11 +16,21 @@ import { useBackdropClose } from '@/components/useBackdropClose'
 import { useToast } from '@/components/ToastProvider'
 import { X, Trash2, ChevronRight, RefreshCw, HandCoins } from 'lucide-react'
 import SplitSheet, { type SplitTarget } from './SplitSheet'
+import ExpenseRowIcon from './ExpenseRowIcon'
 
 interface Props {
   expenses: ExpenseWithRelations[]
   showDate?: boolean
   dateFormat?: DateFormat
+  /**
+   * 'compact' = filas de «Últimos gastos» de Inicio (sin tarjeta propia: el
+   * contenedor lo pone la página). Mismo detalle al tocar que en Historial.
+   */
+  variant?: 'default' | 'compact'
+  /** Solo compact: fecha de hoy (YYYY-MM-DD, Santiago) para rotular Hoy/Ayer. */
+  todayStr?: string
+  /** Solo compact: ícono y padding de la versión móvil. */
+  mobile?: boolean
 }
 
 function fmtDateLong(d: string): string {
@@ -36,7 +46,7 @@ function fmtDateLong(d: string): string {
 // tocar una fila abre un detalle de solo lectura primero, con Editar (abre
 // el formulario real, ExpenseSheet) y Eliminar (con confirmación inline y
 // deshacer) en el footer, en vez de saltar directo al formulario de edición.
-export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
+export default function ExpenseList({ expenses, showDate, dateFormat, variant = 'default', todayStr, mobile = false }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const { showToast } = useToast()
@@ -79,10 +89,41 @@ export default function ExpenseList({ expenses, showDate, dateFormat }: Props) {
 
   if (expenses.length === 0) return null
 
+  const compact = variant === 'compact'
+  const yesterdayStr = todayStr
+    ? new Date(new Date(todayStr + 'T12:00:00').getTime() - 86400000).toLocaleDateString('en-CA')
+    : null
+
   return (
     <>
-      <div className="card overflow-hidden">
+      <div className={compact ? '' : 'card overflow-hidden'}>
         {expenses.map((e, idx) => {
+          if (compact) {
+            const dayLabel = e.date === todayStr ? 'Hoy' : e.date === yesterdayStr ? 'Ayer'
+              : new Date(e.date + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })
+            return (
+              <button key={e.id} type="button" onClick={() => setDetailExpense(e)}
+                className="w-full flex items-center gap-3 px-4 py-3 lg:py-3.5 text-left transition-opacity hover:opacity-80 active:opacity-70">
+                <ExpenseRowIcon description={e.description ?? null} categoryName={e.category?.name ?? null} size={mobile ? 36 : 32} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
+                    {e.description || e.category?.name || '—'}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {e.category && (
+                      <span className="flex items-center gap-1 min-w-0 text-[11px] font-medium truncate" style={{ color: 'var(--ink-2)' }}>
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: e.category.color }} />
+                        <span className="truncate">{e.category.name}</span>
+                      </span>
+                    )}
+                    <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--ink-2)' }}>· {dayLabel}</span>
+                  </div>
+                </div>
+                <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
+                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
+              </button>
+            )
+          }
           const catBg    = e.category?.bg_color ?? '#EEF4FF'
           const catColor = e.category?.color ?? '#4D93FF'
 
