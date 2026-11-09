@@ -20,6 +20,7 @@ import NextTripCard, { TripSettleChips } from '@/components/NextTripCard'
 import { getNextTrip, getTripsToSettle } from '@/lib/next-trip'
 import InfoTap from '@/components/InfoTap'
 import ExpenseRowIcon from '@/components/ExpenseRowIcon'
+import BudgetBarDetail, { type BarItem } from '@/components/BudgetBarDetail'
 import Link from 'next/link'
 import { sumCardAmounts } from '@/lib/shared-split'
 import type { ExpenseWithRelations, RecurringExpense, CategoryBudget, PaymentMethod, Category } from '@/types'
@@ -549,16 +550,27 @@ export default async function DashboardPage() {
   // segundo segmento, en amarillo más claro, para anticipar cuánto se va a
   // sumar sin contarlo todavía como gastado. Los "cada N meses" se calculan
   // aparte (misma lógica que atrasados: ancla al último pago real).
-  const pendingChargesAmount = recurringWithCounts
-    .filter(r => r.is_active && !isIntervalItem(r))
-    .filter(r => r.billing_month === null || r.billing_month === month)
-    .filter(r => r.billing_day <= todayDate)
-    .filter(r => !paidThisMonthSet.has(r.id))
-    .reduce((s, r) => s + r.amount, 0)
-    + recurringWithCounts
+  // Mismas reglas de siempre, pero ahora devuelven la LISTA (no solo el total)
+  // para poder abrir el detalle de la barra: qué cobros hay detrás de cada tramo.
+  const toBarItem = (r: (typeof recurringWithCounts)[number], day: number): BarItem => ({
+    id: r.id, name: r.name, amount: r.amount, day, domain: r.domain,
+    installment: r.total_installments ? `cuota ${Math.min(r.paid_installments + 1, r.total_installments)} de ${r.total_installments}` : null,
+  })
+  const pendingItems: BarItem[] = [
+    ...recurringWithCounts
+      .filter(r => r.is_active && !isIntervalItem(r))
+      .filter(r => r.billing_month === null || r.billing_month === month)
+      .filter(r => r.billing_day <= todayDate)
+      .filter(r => !paidThisMonthSet.has(r.id))
+      .map(r => toBarItem(r, r.billing_day)),
+    ...recurringWithCounts
       .filter(r => r.is_active && isIntervalItem(r))
-      .filter(r => intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr) !== null)
-      .reduce((s, r) => s + r.amount, 0)
+      .flatMap(r => {
+        const due = intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr)
+        return due ? [toBarItem(r, Number(due.date.slice(8, 10)))] : []
+      }),
+  ].sort((x, y) => x.day - y.day)
+  const pendingChargesAmount = pendingItems.reduce((s, i) => s + i.amount, 0)
 
   // Gastos recurrentes que TODAVÍA NO vencen este mes (billing_day futuro, o
   // "cada N meses" proyectado más adelante en el mes) — Cas, oct 2026: quiere
@@ -566,21 +578,24 @@ export default async function DashboardPage() {
   // está comprometido por cosas que se van a cobrar sí o sí (arriendo,
   // suscripciones), no solo lo ya vencido sin registrar (pendingChargesAmount,
   // arriba). Un tercer segmento, más sutil que ese, para no competir con él.
-  const upcomingChargesAmount = recurringWithCounts
-    .filter(r => r.is_active && !isIntervalItem(r))
-    .filter(r => r.billing_month === null || r.billing_month === month)
-    .filter(r => r.billing_day > todayDate)
-    .filter(r => !paidThisMonthSet.has(r.id))
-    .reduce((s, r) => s + r.amount, 0)
-    + recurringWithCounts
+  const upcomingItems: BarItem[] = [
+    ...recurringWithCounts
+      .filter(r => r.is_active && !isIntervalItem(r))
+      .filter(r => r.billing_month === null || r.billing_month === month)
+      .filter(r => r.billing_day > todayDate)
+      .filter(r => !paidThisMonthSet.has(r.id))
+      .map(r => toBarItem(r, r.billing_day)),
+    ...recurringWithCounts
       .filter(r => r.is_active && isIntervalItem(r))
       .filter(r => intervalDueDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at, dateStr) === null)
-      .filter(r => {
+      .flatMap(r => {
         const proj = projectedIntervalDate(r.interval_months, lastPaidByItem[r.id] ?? null, r.created_at)
-        return proj.month === month && proj.year === year
-      })
-      .reduce((s, r) => s + r.amount, 0)
+        return proj.month === month && proj.year === year ? [toBarItem(r, Number(proj.date.slice(8, 10)))] : []
+      }),
+  ].sort((x, y) => x.day - y.day)
+  const upcomingChargesAmount = upcomingItems.reduce((s, i) => s + i.amount, 0)
 
+  const monthLabelForBar = `${monthName(month)} ${year}`
   const usedPct    = Math.min(100, progressPct)
   const pendingPct = budgetAmount
     ? Math.max(0, Math.min(100 - usedPct, Math.round((pendingChargesAmount / budgetAmount) * 100)))
@@ -832,6 +847,11 @@ export default async function DashboardPage() {
                 <div className="mt-7">
                   {budgetAmount ? (
                     <>
+                      <BudgetBarDetail
+                        pending={pendingItems} upcoming={upcomingItems}
+                        layout="inline" progressPct={progressPct} daysRemaining={daysRemaining} isOver={isOver}
+                        monthLabel={monthLabelForBar}
+                        bar={(
                       <div className="h-3 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct} style={{ background: 'rgba(255,255,255,0.18)' }}>
                         <div
                           className="h-full transition-all"
@@ -847,30 +867,8 @@ export default async function DashboardPage() {
                           <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
                         )}
                       </div>
-                      <div className="flex justify-between mt-2">
-                        <span className="text-xs text-white flex items-center gap-1">
-                          {progressPct}% usado
-                          {!isOver && pendingChargesAmount > 0 && (
-                            <>
-                              <span className="font-semibold text-white">· +{formatCLP(pendingChargesAmount)} por cobrar</span>
-                              <InfoTap
-                                explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
-                                color="#fff"
-                              />
-                            </>
-                          )}
-                          {!isOver && upcomingChargesAmount > 0 && (
-                            <>
-                              <span className="text-white">· +{formatCLP(upcomingChargesAmount)} vienen este mes</span>
-                              <InfoTap
-                                explanation="Cuotas y recurrentes que todavía no vencen pero se van a cobrar antes de fin de mes."
-                                color="#fff"
-                              />
-                            </>
-                          )}
-                        </span>
-                        <span className="text-xs text-white">{daysRemaining} días restantes</span>
-                      </div>
+                        )}
+                      />
                     </>
                   ) : (
                     <div className="flex justify-between">
@@ -1192,6 +1190,11 @@ export default async function DashboardPage() {
                 {/* Barra de presupuesto */}
                 {budgetAmount && (
                   <div className="mt-4 mb-4">
+                    <BudgetBarDetail
+                      pending={pendingItems} upcoming={upcomingItems}
+                      layout="stacked" progressPct={progressPct} daysRemaining={daysRemaining} isOver={isOver}
+                      monthLabel={monthLabelForBar}
+                      bar={(
                     <div className="h-2 bg-white/15 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct}>
                       <div className="h-full transition-all" style={{
                         width: `${usedPct}%`,
@@ -1204,28 +1207,8 @@ export default async function DashboardPage() {
                         <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
                       )}
                     </div>
-                    <div className="flex justify-between mt-1.5">
-                      <span className="text-xs text-white">{progressPct}% usado</span>
-                      <span className="text-xs text-white">{daysRemaining} días restantes</span>
-                    </div>
-                    {!isOver && pendingChargesAmount > 0 && (
-                      <p className="text-xs mt-1 flex items-center gap-1 font-semibold text-white">
-                        +{formatCLP(pendingChargesAmount)} por cobrar
-                        <InfoTap
-                          explanation="Cuotas y recurrentes cuyo día de cobro ya llegó pero todavía no se registran como gasto."
-                          color="#fff"
-                        />
-                      </p>
-                    )}
-                    {!isOver && upcomingChargesAmount > 0 && (
-                      <p className="text-xs mt-1 text-white flex items-center gap-1">
-                        +{formatCLP(upcomingChargesAmount)} vienen este mes
-                        <InfoTap
-                          explanation="Cuotas y recurrentes que todavía no vencen pero se van a cobrar antes de fin de mes."
-                          color="#fff"
-                        />
-                      </p>
-                    )}
+                      )}
+                    />
                   </div>
                 )}
 
