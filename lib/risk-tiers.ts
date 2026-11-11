@@ -44,6 +44,8 @@ const KNOWN_LOW_RISK = new Set([
   'BND', 'AGG', 'BNDX', 'SCHZ', 'TLT', 'IEF',
   // Blue-chips defensivas de baja volatilidad histórica
   'KO', 'PG', 'JNJ', 'PEP', 'WMT', 'COST', 'MCD',
+  // Farmacéuticas grandes, defensivas y con dividendo (nov 2026)
+  'PFE', 'MRK', 'ABBV', 'ABT',
 ])
 
 // Especulativo más allá de lo apalancado: cripto envuelta en ETF/trust. El
@@ -52,6 +54,8 @@ const KNOWN_LOW_RISK = new Set([
 // apalancamiento nominal del fondo.
 const KNOWN_HIGH_RISK = new Set([
   'IBIT', 'FBTC', 'GBTC', 'BITB', 'ARKB', 'BITO', 'ETHE', 'ETHA',
+  // Semiconductores / memoria: ciclo fuerte, caídas de 30-50% frecuentes (nov 2026)
+  'NVDA', 'TSM', 'MU', 'SNDK', 'AMD', 'AVGO', 'SMCI',
 ])
 
 /**

@@ -15,9 +15,8 @@ describe('defaultRiskTier', () => {
   })
 
   it('acción individual de crecimiento sin lista propia → riesgo (default), no bajo ni alto', () => {
-    expect(defaultRiskTier('NVDA')).toBe('medio')
     expect(defaultRiskTier('AAPL')).toBe('medio')
-    expect(defaultRiskTier('TSM')).toBe('medio')
+    expect(defaultRiskTier('QQQ')).toBe('medio')
     expect(defaultRiskTier('GOOGL')).toBe('medio')
     expect(defaultRiskTier('INTC')).toBe('medio')
   })
@@ -45,7 +44,8 @@ describe('defaultRiskTier', () => {
 describe('effectiveRiskTier', () => {
   it('sin override → usa el default curado', () => {
     expect(effectiveRiskTier('VOO', null)).toBe('bajo')
-    expect(effectiveRiskTier('NVDA', undefined)).toBe('medio')
+    expect(effectiveRiskTier('NVDA', undefined)).toBe('alto')
+    expect(effectiveRiskTier('PFE', undefined)).toBe('bajo')
   })
 
   it('con override → el override manda, sin importar el default', () => {
