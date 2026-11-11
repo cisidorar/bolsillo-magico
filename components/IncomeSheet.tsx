@@ -136,6 +136,10 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
   async function save() {
     if (!total || total < 1) { setFormError('Ingresa un monto válido'); return }
+    if (items.some(it => (it.label.trim() === '') !== (it.amount === 0))) {
+      setFormError('Hay una fuente a medias: ponle nombre y monto, o quítala.')
+      return
+    }
     setSaving(true)
     setFormError('')
     const { error: err } = await supabase
@@ -289,7 +293,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                           onChange={e => updateItem(idx, 'label', e.target.value)}
                           placeholder="ej: Sueldo base"
                           aria-label={`Fuente ${idx + 1}: nombre`}
-                          className="flex-1 text-sm border px-3 py-2"
+                          className="flex-1 text-sm border px-3 min-h-[44px]"
                           style={{ ...inputBase, background: 'var(--surface)' }}
                           onFocus={focusOn}
                           onBlur={focusOff}
@@ -301,7 +305,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                           onChange={e => updateItem(idx, 'amount', e.target.value)}
                           placeholder="$0"
                           aria-label={`Fuente ${idx + 1}: monto`}
-                          className="w-28 text-sm font-semibold border px-3 py-2 text-right tabular-nums"
+                          className="w-28 text-sm font-semibold border px-3 min-h-[44px] text-right tabular-nums"
                           style={{ ...inputBase, background: 'var(--surface)' }}
                           onFocus={focusOn}
                           onBlur={focusOff}

@@ -121,9 +121,19 @@ function LineGroup({
   )
 }
 
-export default function PayslipUploader() {
+export default function PayslipUploader({
+  existingAmounts = {}, isOpen, onOpenChange, hideTrigger,
+}: {
+  existingAmounts?: Record<string, number>
+  /** Si se pasan, el sheet lo abre/cierra el padre (RegisterEntry) y no hay botón propio. */
+  isOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+  hideTrigger?: boolean
+}) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isOpen !== undefined ? isOpen : internalOpen
+  const setOpen = (v: boolean) => { if (onOpenChange) onOpenChange(v); else setInternalOpen(v) }
   const [step, setStep] = useState<Step>('pick')
   const [error, setError] = useState('')
   const [file, setFile] = useState<File | null>(null)
@@ -163,7 +173,10 @@ export default function PayslipUploader() {
     setConfirmExit(false)
     setPeriodGuessed(false)
   }
-  const dialog = useBackdropDialog(close, headerTitle)
+  // Mientras lee o guarda, el sheet no se puede cerrar: la respuesta llegaría a
+  // un estado ya reiniciado y la página no se refrescaría.
+  const busy = step === 'loading' || step === 'saving'
+  const dialog = useBackdropDialog(() => { if (!busy) close() }, headerTitle)
 
   async function processFile(f: File) {
     setFile(f)
@@ -193,8 +206,10 @@ export default function PayslipUploader() {
     // porque guardar con el mes equivocado pisa el ingreso de ese mes.
     setPeriodGuessed(d.month == null || d.year == null)
     setForm({
-      month: d.month ?? now.month,
-      year:  d.year ?? now.year,
+      // La liquidación llega unos días DESPUÉS del mes que paga, así que el
+      // período más probable cuando no se lee es el mes anterior.
+      month: d.month ?? (now.month === 1 ? 12 : now.month - 1),
+      year:  d.year ?? (now.month === 1 ? now.year - 1 : now.year),
       employerName: d.employerName ?? '',
       employerRut:  d.employerRut ?? '',
       position:     d.position ?? '',
@@ -294,14 +309,16 @@ export default function PayslipUploader() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl border transition-all active:scale-[.97] shrink-0"
-        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
-      >
-        <Upload className="w-4 h-4" strokeWidth={2.5} />
-        Subir liquidación
-      </button>
+      {!hideTrigger && (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl border transition-all active:scale-[.97] shrink-0"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+        >
+          <Upload className="w-4 h-4" strokeWidth={2.5} />
+          Subir liquidación
+        </button>
+      )}
 
       {open && (
         <div
@@ -319,6 +336,7 @@ export default function PayslipUploader() {
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{headerTitle}</h2>
               <button
                 onClick={close}
+                disabled={busy}
                 aria-label="Cerrar"
                 className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
@@ -382,16 +400,25 @@ export default function PayslipUploader() {
                     {file && (
                       <button
                         onClick={() => processFile(file)}
-                        className="px-4 py-2 text-sm font-semibold rounded-xl border"
+                        className="px-4 min-h-[44px] text-sm font-semibold rounded-xl border"
                         style={{ color: 'var(--ink-2)', borderColor: 'var(--border)' }}
                       >
                         Reintentar
                       </button>
                     )}
+                    {!isBatch && (
+                      <button
+                        onClick={() => { setStep('pick'); setFile(null); setError('') }}
+                        className="px-4 min-h-[44px] text-sm font-semibold rounded-xl"
+                        style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
+                      >
+                        Elegir otro archivo
+                      </button>
+                    )}
                     {isBatch && (
                       <button
                         onClick={skipCurrent}
-                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl"
+                        className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-semibold rounded-xl"
                         style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
                       >
                         <SkipForward className="w-3.5 h-3.5" /> Saltar y seguir
@@ -411,7 +438,7 @@ export default function PayslipUploader() {
                   </p>
                   <button
                     onClick={close}
-                    className="mt-1 px-5 py-2.5 text-sm font-bold rounded-xl"
+                    className="mt-1 px-5 min-h-[44px] text-sm font-bold rounded-xl"
                     style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
                   >
                     Listo
@@ -430,9 +457,10 @@ export default function PayslipUploader() {
                   <div className="flex gap-2">
                     <select
                       aria-label="Mes de la liquidación"
+                      onFocus={focusOn} onBlur={focusOff}
                       value={form.month}
                       onChange={e => setForm({ ...form, month: parseInt(e.target.value) })}
-                      className="flex-1 text-sm border px-3 py-2.5"
+                      className="flex-1 text-sm border px-3 min-h-[44px]"
                       style={inputBase}
                     >
                       {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
@@ -443,15 +471,20 @@ export default function PayslipUploader() {
                       aria-label="Año de la liquidación"
                       value={form.year || ''}
                       onChange={e => setForm({ ...form, year: parseInt(e.target.value.replace(/\D/g, '').slice(0, 4)) || 0 })}
-                      className="w-24 text-sm border px-3 py-2.5 tabular-nums"
+                      className="w-24 text-sm border px-3 min-h-[44px] tabular-nums"
                       style={inputBase}
                       onFocus={focusOn} onBlur={focusOff}
                     />
                   </div>
 
+                  {existingAmounts[`${form.year}-${form.month}`] !== undefined && (
+                    <p className="text-[11px] font-semibold" role="status" style={{ color: 'var(--gold-ink)' }}>
+                      Ya tienes {MONTH_NAMES[form.month - 1]} {form.year} registrado ({formatCLP(existingAmounts[`${form.year}-${form.month}`])}): se reemplaza con el líquido de esta liquidación.
+                    </p>
+                  )}
                   {periodGuessed && (
                     <p className="text-[11px] font-semibold" role="status" style={{ color: 'var(--gold-ink)' }}>
-                      No pudimos leer el mes de este PDF. Revisa el período antes de guardar: si ya hay un ingreso de ese mes, se reemplaza.
+                      No pudimos leer el mes de este PDF; propusimos el mes pasado. Revisa el período antes de guardar: si ya hay un ingreso de ese mes, se reemplaza.
                     </p>
                   )}
 
@@ -460,13 +493,13 @@ export default function PayslipUploader() {
                     <input
                       type="text" value={form.employerName}
                       onChange={e => setForm({ ...form, employerName: e.target.value })}
-                      placeholder="Empleador" aria-label="Empleador" className="text-sm border px-3 py-2.5"
+                      placeholder="Empleador" aria-label="Empleador" className="text-sm border px-3 min-h-[44px]"
                       style={inputBase} onFocus={focusOn} onBlur={focusOff}
                     />
                     <input
                       type="text" value={form.position}
                       onChange={e => setForm({ ...form, position: e.target.value })}
-                      placeholder="Cargo" aria-label="Cargo" className="text-sm border px-3 py-2.5"
+                      placeholder="Cargo" aria-label="Cargo" className="text-sm border px-3 min-h-[44px]"
                       style={inputBase} onFocus={focusOn} onBlur={focusOff}
                     />
                   </div>

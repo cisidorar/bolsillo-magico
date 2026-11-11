@@ -47,6 +47,12 @@ export default function IncomeHistoryRow({
   const [deleteError, setDeleteError]   = useState('')
 
   const isReg = income !== null
+  const chipLabel = isReg ? 'Registrado' : isCurrent ? 'Aún no llega' : 'Sin registrar'
+  const chipStyle: React.CSSProperties = isReg
+    ? { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }
+    : missingTone === 'gold'
+    ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
+    : { background: 'var(--surface-2)', color: 'var(--ink-3)' }
   function closeDetail() { setDetailOpen(false); setConfirmDelete(false); setDeleteError('') }
   const dialog = useBackdropDialog(closeDetail, `Ingreso de ${monthName} ${year}`)
 
@@ -73,23 +79,19 @@ export default function IncomeHistoryRow({
           <div>
             <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{monthName}</span>
             <span className="text-[11px] ml-1.5" style={{ color: 'var(--ink-3)' }}>{year}</span>
+            <div className="sm:hidden mt-1 flex items-center gap-1.5">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={chipStyle}>{chipLabel}</span>
+              {payslip && <FileText className="w-3.5 h-3.5" aria-label="Con liquidación" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />}
+            </div>
           </div>
         </div>
 
-        {/* Badge */}
-        <span
-          className="hidden sm:inline text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
-          style={isReg
-            ? { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }
-            : missingTone === 'gold'
-            ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
-            : { background: 'var(--surface-2)', color: 'var(--ink-3)' }
-          }
-        >
-          {isReg ? 'Registrado' : 'Sin registrar'}
+        {/* Badge — en móvil vive bajo el mes (ahí no cabe una columna aparte) */}
+        <span className="hidden sm:inline text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0" style={chipStyle}>
+          {chipLabel}
         </span>
         {payslip && (
-          <FileText className="hidden sm:block w-3.5 h-3.5 shrink-0" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
+          <FileText className="hidden sm:block w-3.5 h-3.5 shrink-0" aria-label="Con liquidación" style={{ color: 'var(--primary)' }} strokeWidth={2.5} />
         )}
 
         {/* Monto + surplus */}
@@ -129,7 +131,7 @@ export default function IncomeHistoryRow({
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-base font-bold truncate" style={{ color: 'var(--ink)' }}>Ingreso de {monthName}</h2>
-                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{monthName} {year}</p>
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{chipLabel} · {year}</p>
               </div>
               <button
                 onClick={closeDetail}
@@ -162,7 +164,7 @@ export default function IncomeHistoryRow({
                   Nota
                 </p>
                 <p className="text-sm" style={{ color: income?.description ? 'var(--ink-2)' : 'var(--ink-3)' }}>
-                  {income?.description || 'Sin nota — agrégala al editar.'}
+                  {income?.description || (isReg ? 'Sin nota — agrégala al editar.' : 'Todavía no hay un ingreso registrado para este mes.')}
                 </p>
               </div>
 

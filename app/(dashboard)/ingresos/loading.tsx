@@ -36,6 +36,14 @@ export default function Loading() {
         </div>
       </div>
 
+      <div className="card p-5 lg:p-6 mb-6 space-y-6">
+        <div className="space-y-1.5">
+          <div className="h-4 w-36 rounded" style={{ background: 'var(--surface-2)' }} />
+          <div className="h-3 w-64 max-w-full rounded" style={{ background: 'var(--surface-2)' }} />
+        </div>
+        <div className="h-3 rounded-full mx-4 mb-10" style={{ background: 'var(--surface-2)' }} />
+      </div>
+
       <div className="card overflow-hidden">
         <div className="px-4 lg:px-6 pt-4 pb-3 space-y-1.5">
           <div className="h-4 w-40 rounded" style={{ background: 'var(--surface-2)' }} />

@@ -46,9 +46,22 @@ export function useBackdropDialog(onClose: () => void, label: string) {
     const previous = document.activeElement as HTMLElement | null
     const token = {}
     openDialogs.push(token)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && openDialogs[openDialogs.length - 1] === token) {
-        e.stopPropagation(); closeRef.current()
+      if (openDialogs[openDialogs.length - 1] !== token) return
+      if (e.key === 'Escape') { e.stopPropagation(); closeRef.current(); return }
+      // Trampa de foco: Tab no se escapa del sheet hacia la página de atrás.
+      if (e.key === 'Tab') {
+        const items = Array.from(el.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(n => n.offsetParent !== null)
+        if (items.length === 0) { e.preventDefault(); el.focus(); return }
+        const first = items[0], last = items[items.length - 1]
+        const active = document.activeElement
+        if (e.shiftKey && (active === first || active === el)) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+        else if (!el.contains(active)) { e.preventDefault(); first.focus() }
       }
     }
     document.addEventListener('keydown', onKey)
@@ -57,6 +70,7 @@ export function useBackdropDialog(onClose: () => void, label: string) {
     if (!el.contains(document.activeElement)) el.focus({ preventScroll: true })
     cleanup.current = () => {
       document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
       const i = openDialogs.indexOf(token)
       if (i >= 0) openDialogs.splice(i, 1)
       if (previous && document.contains(previous)) previous.focus({ preventScroll: true })

@@ -1,12 +1,13 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCLP, getNowChile } from '@/lib/utils'
+import { formatCLP, getNowChile, nextPaydayDate, daysBetween } from '@/lib/utils'
+import Link from 'next/link'
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
 import LoadErrorNotice from '@/components/LoadErrorNotice'
-import IncomeSheet from '@/components/IncomeSheet'
+import RegisterEntry from '@/components/RegisterEntry'
+import PayCycleTimeline from '@/components/PayCycleTimeline'
 import IncomeHistoryRow from '@/components/IncomeHistoryRow'
 import Sparkline from '@/components/Sparkline'
-import PayslipUploader from '@/components/PayslipUploader'
 import type { BreakdownItem, IncomeData } from '@/components/IncomeMonthEditor'
 import type { PayslipData } from '@/components/PayslipDetailSheet'
 
@@ -18,7 +19,7 @@ export default async function IngresosPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
-  const { year: curYear, month: curMonth } = getNowChile()
+  const { year: curYear, month: curMonth, todayDate, dateStr: todayStr } = getNowChile()
 
   const periods: { month: number; year: number }[] = []
   for (let i = 0; i < 12; i++) {
@@ -54,6 +55,26 @@ export default async function IngresosPage() {
       .gte('year', oldest.year),
   ])
 
+  // Día de sueldo (Ajustes). Es opcional: sin él solo se omite "próximo sueldo".
+  const [{ data: payRow }, { data: lbdRow }] = await Promise.all([
+    supabase.from('profiles').select('payday').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('payday_last_business_day').eq('id', user.id).maybeSingle(),
+  ])
+  const payday = (payRow as { payday?: number | null } | null)?.payday ?? null
+  const payLbd = (lbdRow as { payday_last_business_day?: boolean } | null)?.payday_last_business_day ?? false
+  const nextPay = nextPaydayDate(todayStr, payday, payLbd)
+  // Último pago ya ocurrido: el más reciente entre el de este mes y el del anterior.
+  const mm = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}-01`
+  const pmY = curMonth === 1 ? curYear - 1 : curYear
+  const pmM = curMonth === 1 ? 12 : curMonth - 1
+  const lastPay = [nextPaydayDate(mm(pmY, pmM), payday, payLbd), nextPaydayDate(mm(curYear, curMonth), payday, payLbd)]
+    .filter((d): d is string => !!d && d <= todayStr)
+    .sort()
+    .pop() ?? null
+  const daysToPay = nextPay ? daysBetween(todayStr, nextPay) : null
+
+  const expensesFailed = !!expensesErr
+
   const incomeMap: Record<string, IncomeData> = {}
   for (const inc of incomesRaw ?? []) {
     incomeMap[`${inc.year}-${inc.month}`] = {
@@ -87,23 +108,39 @@ export default async function IngresosPage() {
   }
 
   // KPIs
+  // El sueldo llega a fin de mes y la liquidación unos días después, así que el
+  // mes en curso casi siempre está vacío: el "último sueldo" es el más reciente
+  // que sí está registrado, no el de este mes.
+  const keyOf   = (p: { month: number; year: number }) => `${p.year}-${p.month}`
   const curKey  = `${curYear}-${curMonth}`
   const curInc  = incomeMap[curKey] ?? null
   const prevM   = curMonth === 1 ? 12 : curMonth - 1
   const prevY   = curMonth === 1 ? curYear - 1 : curYear
   const prevInc = incomeMap[`${prevY}-${prevM}`] ?? null
 
-  const last6   = periods.slice(1, 7).map(p => incomeMap[`${p.year}-${p.month}`]?.amount ?? 0).filter(v => v > 0)
+  const latestIdx = periods.findIndex(p => incomeMap[keyOf(p)])
+  const latest    = latestIdx >= 0 ? periods[latestIdx] : null
+  const latestInc = latest ? incomeMap[keyOf(latest)] : null
+  const beforeLatest = latestIdx >= 0 && periods[latestIdx + 1] ? periods[latestIdx + 1] : null
+  const beforeLatestInc = beforeLatest ? incomeMap[keyOf(beforeLatest)] ?? null : null
+
+  const last6   = periods.map(p => incomeMap[keyOf(p)]?.amount ?? 0).filter(v => v > 0).slice(0, 6)
   const avg6    = last6.length > 0 ? Math.round(last6.reduce((s, v) => s + v, 0) / last6.length) : null
 
-  const varAmt  = curInc && prevInc ? curInc.amount - prevInc.amount : null
-  const varPct  = varAmt !== null && prevInc ? Math.round((varAmt / prevInc.amount) * 100 * 10) / 10 : null
-  // Solo meses cerrados: el mes en curso puede estar sin registrar sin ser tarde
-  // (el sueldo llega a fin de mes). El último cerrado es el único "pronto".
-  const missingClosed = periods.slice(1).filter(p => !incomeMap[`${p.year}-${p.month}`]).length
+  const varAmt  = latestInc && beforeLatestInc ? latestInc.amount - beforeLatestInc.amount : null
+  const varPct  = varAmt !== null && beforeLatestInc ? Math.round((varAmt / beforeLatestInc.amount) * 100 * 10) / 10 : null
+  // Solo meses cerrados cuentan como faltantes. Y el último cerrado tiene una
+  // semana de gracia: la liquidación llega ~5 días después del pago.
+  const missingClosed = periods.slice(1).filter(p => !incomeMap[keyOf(p)]).length
   const prevMissing   = !prevInc
+  const overdue       = prevMissing && todayDate > 7
+  // Lo que queda del sueldo anterior después de lo gastado en el mes en curso.
+  const curExpense = expensesFailed ? null : (expenseMap[curKey] ?? 0)
+  const queda = prevInc && curExpense !== null ? prevInc.amount - curExpense : null
 
-  const sparkSeries = [...periods].reverse().map(p => incomeMap[`${p.year}-${p.month}`]?.amount ?? 0)
+  // Solo meses con sueldo registrado: un mes vacío (casi siempre el actual, el
+  // sueldo llega a fin de mes) no es un sueldo de $0 y hundía la línea.
+  const sparkSeries = [...periods].reverse().map(p => incomeMap[keyOf(p)]?.amount ?? 0).filter(v => v > 0)
 
   // Tasa de ahorro por mes: el sueldo de M-1 financia los gastos de M (convención de la app).
   // Solo meses cerrados con ingreso y gasto — el mes en curso es parcial y engaña.
@@ -120,8 +157,11 @@ export default async function IngresosPage() {
 
   // Si una consulta falló, mostrar "sin ingresos" sería mentir: parece que se
   // perdió el historial. Cada tabla se muestra solo si cargó.
-  const loadFailed = incomesErr || payslipsErr
-  const expensesFailed = !!expensesErr
+  // Las liquidaciones son secundarias: si solo fallan ellas, el historial sigue.
+  const loadFailed = !!incomesErr
+  void payslipsErr
+  const existingAmounts: Record<string, number> = {}
+  for (const [k, v] of Object.entries(incomeMap)) existingAmounts[k] = v.amount
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
@@ -140,15 +180,19 @@ export default async function IngresosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <PayslipUploader />
-          <IncomeSheet
+          {/* Una sola puerta: "Registrar" ofrece subir la liquidación primero. Apunta
+              al mes que toca: el cerrado si falta, si no el actual. */}
+          {!loadFailed && <RegisterEntry
             userId={user.id}
-            month={curMonth}
-            year={curYear}
-            current={curInc}
-            prevIncome={prevInc}
-            monthName={MONTH_NAMES[curMonth - 1]}
-          />
+            month={prevMissing ? prevM : curMonth}
+            year={prevMissing ? prevY : curYear}
+            current={prevMissing ? null : curInc}
+            prevIncome={prevMissing
+              ? (incomeMap[`${prevM === 1 ? prevY - 1 : prevY}-${prevM === 1 ? 12 : prevM - 1}`] ?? null)
+              : prevInc}
+            monthName={MONTH_NAMES[(prevMissing ? prevM : curMonth) - 1]}
+            existingAmounts={existingAmounts}
+          />}
         </div>
       </div>
 
@@ -156,17 +200,23 @@ export default async function IngresosPage() {
         <LoadErrorNotice what="tus ingresos" />
       ) : (
       <>
-      {/* Faltantes: una sola nota, no 11 chips ni un tile de alerta. Solo el
-          último mes cerrado cuenta como "pronto" (gold); el resto es historia. */}
+      {/* Faltantes: una sola nota, no 11 chips. Dorado solo si el último mes
+          cerrado ya pasó la semana de gracia; antes es una expectativa normal. */}
       {prevMissing && (
         <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-            style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
-            <AlertCircle className="w-3 h-3" aria-hidden /> Falta el sueldo de {MONTH_NAMES[prevM - 1]}
-          </span>
+          {overdue ? (
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
+              <AlertCircle className="w-3 h-3" aria-hidden /> Falta registrar el sueldo de {MONTH_NAMES[prevM - 1]}
+            </span>
+          ) : (
+            <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+              Cuando te llegue la liquidación de {MONTH_NAMES[prevM - 1]}, súbela aquí.
+            </span>
+          )}
           {missingClosed > 1 && (
             <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
-              y {missingClosed - 1} {missingClosed - 1 === 1 ? 'mes más' : 'meses más'} sin registrar en el último año
+              {overdue ? 'y ' : 'Además, '}{missingClosed - 1} {missingClosed - 1 === 1 ? 'mes más' : 'meses más'} sin registrar en el último año
             </span>
           )}
         </div>
@@ -175,25 +225,52 @@ export default async function IngresosPage() {
       {/* ── Cifra principal + 3 apoyos ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
 
-        {/* Ingreso este mes — el hero */}
+        {/* Lo que queda del sueldo — el hero. El sueldo del mes anterior financia
+            los gastos de este: lo que importa es cuánto queda, no cuánto entró. */}
         <div className="card p-5 lg:p-6 col-span-2 lg:col-span-2 flex flex-col justify-between gap-4">
           <div>
             <p className="text-xs font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
-              Ingreso de {MONTH_NAMES[curMonth - 1]} {curYear}
+              Lo que queda de tu sueldo de {MONTH_NAMES[prevM - 1].toLowerCase()}
             </p>
             <p
               className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-tight break-words"
               style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
             >
-              {curInc ? formatCLP(curInc.amount) : '—'}
+              {queda === null ? '—' : queda >= 0 ? formatCLP(queda) : `−${formatCLP(-queda)}`}
             </p>
-            {!curInc && (
+            {queda !== null && prevInc ? (
+              <>
+                <div className="h-2 rounded-full overflow-hidden mt-3" style={{ background: 'var(--surface-2)' }} role="img"
+                  aria-label={`Gastaste ${formatCLP(curExpense ?? 0)} de ${formatCLP(prevInc.amount)}`}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(((curExpense ?? 0) / prevInc.amount) * 100))}%`, background: 'var(--primary)' }} />
+                </div>
+                <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                  Llevas gastado {formatCLP(curExpense ?? 0)} de {formatCLP(prevInc.amount)}
+                  {queda < 0 && ' · te pasaste'}
+                </p>
+              </>
+            ) : (
               <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-                Aún no lo registras: usa «Registrar» o sube tu liquidación.
+                {expensesFailed && prevInc
+                  ? 'No pudimos cargar tus gastos de este mes.'
+                  : `Registra tu liquidación de ${MONTH_NAMES[prevM - 1].toLowerCase()} para calcularlo.`}
               </p>
             )}
+            {nextPay && daysToPay !== null && (
+              <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+                {`Próximo sueldo: ${Number(nextPay.slice(8))} de ${MONTH_NAMES[Number(nextPay.slice(5, 7)) - 1].toLowerCase()}${daysToPay === 0 ? ' (hoy)' : daysToPay === 1 ? ' (mañana)' : ` (en ${daysToPay} días)`}`}
+              </p>
+            )}
+            {!nextPay && (
+              <Link href="/ajustes" className="inline-flex items-center min-h-[44px] text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                Indica tu día de sueldo en Ajustes para ver cuándo llega el próximo
+              </Link>
+            )}
           </div>
-          <Sparkline values={sparkSeries.slice(-6)} positive={!!curInc} />
+          <div>
+            <Sparkline values={sparkSeries.slice(-6)} positive={sparkSeries.length > 0} label={`Tendencia de tus últimos ${Math.min(sparkSeries.length, 6)} sueldos`} />
+            <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>Tus últimos sueldos</p>
+          </div>
         </div>
 
         {/* Promedio 6 meses */}
@@ -208,14 +285,14 @@ export default async function IngresosPage() {
             >
               {avg6 ? formatCLP(avg6) : '—'}
             </p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>sin contar este mes</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>de tus últimos {last6.length} sueldos</p>
           </div>
         </div>
 
         {/* Variación vs mes anterior — neutra: un sueldo que baja no es una alerta de hoy */}
         <div className="card p-4 lg:p-5 min-w-0">
           <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
-            Vs mes anterior
+            Vs sueldo anterior
           </p>
           {varPct !== null ? (
             <>
@@ -233,7 +310,7 @@ export default async function IngresosPage() {
                     color: varPct > 0 ? 'var(--mint-ink)' : 'var(--ink)',
                   }}
                 >
-                  {varPct > 0 ? '+' : ''}{varPct}%
+                  {varPct > 0 ? '+' : varPct < 0 ? '−' : ''}{Math.abs(varPct)}%
                 </p>
               </div>
               <p className="text-[11px] tabular-nums mt-1 font-semibold break-words"
@@ -270,10 +347,21 @@ export default async function IngresosPage() {
         </div>
       </div>
 
+      {lastPay && (
+        <PayCycleTimeline
+          lastPay={lastPay}
+          nextPay={nextPay}
+          today={todayStr}
+          payslipDone={!!incomeMap[`${lastPay.slice(0, 4)}-${Number(lastPay.slice(5, 7))}`]}
+          paidMonthName={MONTH_NAMES[Number(lastPay.slice(5, 7)) - 1].toLowerCase()}
+          daysToPay={daysToPay}
+        />
+      )}
+
       {/* ── Historial ─────────────────────────────────────────────────────── */}
       <div className="card overflow-hidden">
         <div className="px-4 lg:px-6 pt-4 pb-3">
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Historial de ingresos</p>
+          <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Historial de ingresos</h2>
           <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
             «Sobró» es lo que quedó del sueldo del mes anterior después de los gastos de ese mes.
           </p>
