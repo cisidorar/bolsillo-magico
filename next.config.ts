@@ -40,6 +40,11 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // Las liquidaciones se suben como Server Action (hasta 8MB por PDF, según la
+  // UI). El límite por defecto es 1MB: un PDF normal fallaba en el framework.
+  experimental: {
+    serverActions: { bodySizeLimit: '9mb' },
+  },
   async headers() {
     return [
       {

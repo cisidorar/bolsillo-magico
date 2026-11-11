@@ -1,7 +1,8 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile } from '@/lib/utils'
-import { CalendarDays, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react'
+import LoadErrorNotice from '@/components/LoadErrorNotice'
 import IncomeSheet from '@/components/IncomeSheet'
 import IncomeHistoryRow from '@/components/IncomeHistoryRow'
 import Sparkline from '@/components/Sparkline'
@@ -28,9 +29,11 @@ export default async function IngresosPage() {
 
   const oldest     = periods[periods.length - 1]
   const rangeStart = `${oldest.year}-${String(oldest.month).padStart(2, '0')}-01`
-  const rangeEnd   = `${curYear}-${String(curMonth).padStart(2, '0')}-31`
+  // Último día REAL del mes: '2026-11-31' no existe y Postgres rechaza la consulta.
+  const lastDay    = new Date(curYear, curMonth, 0).getDate()
+  const rangeEnd   = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-  const [{ data: incomesRaw }, { data: expensesRaw }, { data: payslipsRaw }] = await Promise.all([
+  const [{ data: incomesRaw, error: incomesErr }, { data: expensesRaw, error: expensesErr }, { data: payslipsRaw, error: payslipsErr }] = await Promise.all([
     supabase
       .from('incomes')
       .select('month, year, amount, description, breakdown')
@@ -95,7 +98,10 @@ export default async function IngresosPage() {
 
   const varAmt  = curInc && prevInc ? curInc.amount - prevInc.amount : null
   const varPct  = varAmt !== null && prevInc ? Math.round((varAmt / prevInc.amount) * 100 * 10) / 10 : null
-  const unregistered = periods.filter(p => !incomeMap[`${p.year}-${p.month}`]).length
+  // Solo meses cerrados: el mes en curso puede estar sin registrar sin ser tarde
+  // (el sueldo llega a fin de mes). El último cerrado es el único "pronto".
+  const missingClosed = periods.slice(1).filter(p => !incomeMap[`${p.year}-${p.month}`]).length
+  const prevMissing   = !prevInc
 
   const sparkSeries = [...periods].reverse().map(p => incomeMap[`${p.year}-${p.month}`]?.amount ?? 0)
 
@@ -111,14 +117,18 @@ export default async function IngresosPage() {
   }
   const closedRates = periods.slice(1, 7).map(rateFor).filter((r): r is number => r !== null)
   const rateAvg6    = closedRates.length > 0 ? Math.round(closedRates.reduce((s, v) => s + v, 0) / closedRates.length) : null
-  const rateBars    = [...periods.slice(1, 7)].reverse().map(rateFor)  // viejo → reciente
+
+  // Si una consulta falló, mostrar "sin ingresos" sería mentir: parece que se
+  // perdió el historial. Cada tabla se muestra solo si cargó.
+  const loadFailed = incomesErr || payslipsErr
+  const expensesFailed = !!expensesErr
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="min-w-0">
           <h1
             className="text-3xl font-semibold leading-tight"
             style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
@@ -126,10 +136,10 @@ export default async function IngresosPage() {
             Ingresos
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            Registra tus ingresos mensuales variables y sigue su evolución.
+            Tu sueldo de cada mes y cuánto te sobró después de gastar.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <PayslipUploader />
           <IncomeSheet
             userId={user.id}
@@ -142,79 +152,92 @@ export default async function IngresosPage() {
         </div>
       </div>
 
-      {/* ── 5 KPI cards ────────────────────────────────────────────────────── */}
+      {loadFailed ? (
+        <LoadErrorNotice what="tus ingresos" />
+      ) : (
+      <>
+      {/* Faltantes: una sola nota, no 11 chips ni un tile de alerta. Solo el
+          último mes cerrado cuenta como "pronto" (gold); el resto es historia. */}
+      {prevMissing && (
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+            style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
+            <AlertCircle className="w-3 h-3" aria-hidden /> Falta el sueldo de {MONTH_NAMES[prevM - 1]}
+          </span>
+          {missingClosed > 1 && (
+            <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+              y {missingClosed - 1} {missingClosed - 1 === 1 ? 'mes más' : 'meses más'} sin registrar en el último año
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Cifra principal + 3 apoyos ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
 
-        {/* Ingreso este mes */}
-        <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3">
+        {/* Ingreso este mes — el hero */}
+        <div className="card p-5 lg:p-6 col-span-2 lg:col-span-2 flex flex-col justify-between gap-4">
           <div>
-            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
-              Ingreso este mes
+            <p className="text-xs font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
+              Ingreso de {MONTH_NAMES[curMonth - 1]} {curYear}
             </p>
             <p
-              className="text-xl lg:text-2xl font-extrabold tabular-nums leading-tight"
+              className="text-3xl lg:text-4xl font-extrabold tabular-nums leading-tight break-words"
               style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
             >
               {curInc ? formatCLP(curInc.amount) : '—'}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: 'var(--primary)' }}>
-              {MONTH_NAMES[curMonth - 1]} {curYear}
-            </p>
+            {!curInc && (
+              <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+                Aún no lo registras: usa «Registrar» o sube tu liquidación.
+              </p>
+            )}
           </div>
           <Sparkline values={sparkSeries.slice(-6)} positive={!!curInc} />
         </div>
 
         {/* Promedio 6 meses */}
-        <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3">
+        <div className="card p-4 lg:p-5 flex flex-col justify-between gap-3 min-w-0">
           <div>
             <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
               Promedio 6 meses
             </p>
             <p
-              className="text-xl lg:text-2xl font-extrabold tabular-nums leading-tight"
+              className="text-xl lg:text-2xl font-extrabold tabular-nums leading-tight break-words"
               style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}
             >
               {avg6 ? formatCLP(avg6) : '—'}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>meses anteriores</p>
-          </div>
-          <div className="flex items-end gap-0.5 h-7">
-            {last6.length > 0 ? last6.map((v, i) => {
-              const maxV = Math.max(...last6, 1)
-              const h = Math.max(4, Math.round((v / maxV) * 24))
-              return <div key={i} className="flex-1 rounded-sm transition-all" style={{ height: h, background: 'var(--primary)', opacity: 0.3 + (i / last6.length) * 0.7 }} />
-            }) : (
-              <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>Sin datos</p>
-            )}
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>sin contar este mes</p>
           </div>
         </div>
 
-        {/* Variación vs mes anterior */}
-        <div className="card p-4 lg:p-5">
-          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
-            Variación vs mes anterior
+        {/* Variación vs mes anterior — neutra: un sueldo que baja no es una alerta de hoy */}
+        <div className="card p-4 lg:p-5 min-w-0">
+          <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
+            Vs mes anterior
           </p>
           {varPct !== null ? (
             <>
               <div className="flex items-center gap-1.5">
                 {varPct > 0
-                  ? <TrendingUp className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+                  ? <TrendingUp className="w-4 h-4" aria-hidden style={{ color: 'var(--mint-ink)' }} />
                   : varPct < 0
-                  ? <TrendingDown className="w-4 h-4" style={{ color: 'var(--coral)' }} />
-                  : <Minus className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
+                  ? <TrendingDown className="w-4 h-4" aria-hidden style={{ color: 'var(--ink-2)' }} />
+                  : <Minus className="w-4 h-4" aria-hidden style={{ color: 'var(--ink-3)' }} />
                 }
                 <p
                   className="text-xl lg:text-2xl font-extrabold tabular-nums"
                   style={{
                     fontFamily: 'Fredoka, sans-serif',
-                    color: varPct > 0 ? 'var(--mint)' : varPct < 0 ? 'var(--coral)' : 'var(--ink)',
+                    color: varPct > 0 ? 'var(--mint-ink)' : 'var(--ink)',
                   }}
                 >
                   {varPct > 0 ? '+' : ''}{varPct}%
                 </p>
               </div>
-              <p className="text-[11px] tabular-nums mt-1 font-semibold"
-                style={{ color: varAmt! > 0 ? 'var(--mint)' : varAmt! < 0 ? 'var(--coral)' : 'var(--ink-3)' }}>
+              <p className="text-[11px] tabular-nums mt-1 font-semibold break-words"
+                style={{ color: varAmt! > 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
                 {varAmt! > 0 ? '+' : ''}{formatCLP(varAmt!)}
               </p>
             </>
@@ -223,53 +246,26 @@ export default async function IngresosPage() {
           )}
         </div>
 
-        {/* Meses sin registrar */}
-        <div className="card p-4 lg:p-5">
-          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>
-            Meses sin registrar
-          </p>
-          <div className="flex items-center gap-2">
-            <p
-              className="text-xl lg:text-2xl font-extrabold"
-              style={{
-                fontFamily: 'Fredoka, sans-serif',
-                color: unregistered > 0 ? 'var(--gold)' : 'var(--mint)',
-              }}
-            >
-              {unregistered}
-            </p>
-            {unregistered > 0 && <AlertCircle className="w-4 h-4" style={{ color: 'var(--gold)' }} />}
-          </div>
-          <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>de los últimos 12 meses</p>
-        </div>
-
-        {/* Tasa de ahorro — misma métrica que /analisis, cerrando el loop del link "Ver" */}
-        <div className="card p-4 lg:p-5 col-span-2 lg:col-span-1 flex flex-col justify-between gap-3">
+        {/* Tasa de ahorro */}
+        <div className="card p-4 lg:p-5 col-span-2 lg:col-span-1 flex flex-col justify-between gap-3 min-w-0">
           <div>
             <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>
-              Tasa de ahorro
+              Cuánto ahorras
             </p>
             <p
               className="text-xl lg:text-2xl font-extrabold tabular-nums leading-tight"
               style={{
                 fontFamily: 'Fredoka, sans-serif',
-                color: rateAvg6 === null ? 'var(--ink-3)' : rateAvg6 >= 0 ? 'var(--mint)' : 'var(--coral)',
+                color: rateAvg6 === null ? 'var(--ink-3)' : rateAvg6 >= 0 ? 'var(--mint-ink)' : 'var(--ink)',
               }}
             >
               {rateAvg6 !== null ? `${rateAvg6}%` : '—'}
             </p>
-            <p className="text-[10px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
-              {rateAvg6 !== null ? 'promedio 6 meses cerrados' : 'registra ingresos y gastos'}
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+              {rateAvg6 !== null
+                ? 'de cada sueldo, promedio de 6 meses'
+                : expensesFailed ? 'no pudimos cargar tus gastos' : 'registra ingresos y gastos'}
             </p>
-          </div>
-          <div className="flex items-end gap-0.5 h-7">
-            {rateBars.map((r, i) => {
-              if (r === null) return <div key={i} className="flex-1 rounded-sm" style={{ height: 3, background: 'var(--border)' }} />
-              const maxAbs = Math.max(...rateBars.map(v => Math.abs(v ?? 0)), 10)
-              const h = Math.max(4, Math.round((Math.abs(r) / maxAbs) * 24))
-              return <div key={i} className="flex-1 rounded-sm transition-all"
-                style={{ height: h, background: r >= 0 ? 'var(--mint)' : 'var(--coral)', opacity: 0.4 + (i / rateBars.length) * 0.6 }} />
-            })}
           </div>
         </div>
       </div>
@@ -278,17 +274,21 @@ export default async function IngresosPage() {
       <div className="card overflow-hidden">
         <div className="px-4 lg:px-6 pt-4 pb-3">
           <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Historial de ingresos</p>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+            «Sobró» es lo que quedó del sueldo del mes anterior después de los gastos de ese mes.
+          </p>
         </div>
         <div>
-        {periods.slice(1).map(({ month, year }) => {
+        {periods.map(({ month, year }, idx) => {
           const key     = `${year}-${month}`
           const income  = incomeMap[key] ?? null
+          const isCurrent = idx === 0
 
           // Saldo real: sueldo del mes ANTERIOR financió los gastos de ESTE mes
           const prevM2  = month === 1 ? 12 : month - 1
           const prevY2  = month === 1 ? year - 1 : year
           const prevInc = incomeMap[`${prevY2}-${prevM2}`] ?? null
-          const expense = expenseMap[key] ?? 0
+          const expense = expensesFailed ? 0 : (expenseMap[key] ?? 0)
           const surplus = prevInc ? prevInc.amount - expense : null
 
           return (
@@ -303,11 +303,15 @@ export default async function IngresosPage() {
               surplus={surplus}
               expense={expense}
               payslip={payslipMap[key] ?? null}
+              isCurrent={isCurrent}
+              missingTone={idx === 1 ? 'gold' : 'neutral'}
             />
           )
         })}
         </div>
       </div>
+      </>
+      )}
 
     </div>
   )

@@ -127,7 +127,7 @@ export async function savePayslip(formData: FormData): Promise<{ ok: true } | { 
     .eq('year', input.year)
     .maybeSingle()
 
-  await supabase.from('incomes').upsert(
+  const { error: incomeError } = await supabase.from('incomes').upsert(
     {
       user_id: user.id,
       month: input.month,
@@ -138,6 +138,8 @@ export async function savePayslip(formData: FormData): Promise<{ ok: true } | { 
     },
     { onConflict: 'user_id,month,year' }
   )
+  // Sin esto la liquidación quedaba guardada pero el mes seguía "Sin registrar".
+  if (incomeError) return { ok: false, error: 'Se guardó la liquidación, pero no se pudo registrar el ingreso del mes. Regístralo a mano.' }
 
   return { ok: true }
 }
@@ -156,7 +158,8 @@ export async function deletePayslip(month: number, year: number): Promise<{ ok: 
     .maybeSingle()
 
   if (existing?.pdf_path) {
-    await supabase.storage.from('payslips').remove([existing.pdf_path])
+    const { error: removeError } = await supabase.storage.from('payslips').remove([existing.pdf_path])
+    if (removeError) return { ok: false, error: 'No se pudo eliminar el PDF' }
   }
 
   const { error } = await supabase

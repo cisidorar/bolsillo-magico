@@ -53,7 +53,8 @@ export function useBackdropDialog(onClose: () => void, label: string) {
     }
     document.addEventListener('keydown', onKey)
     el.style.outline = 'none'
-    el.focus({ preventScroll: true })
+    // Si un hijo ya tomó el foco (autoFocus de un input), no se lo quitamos.
+    if (!el.contains(document.activeElement)) el.focus({ preventScroll: true })
     cleanup.current = () => {
       document.removeEventListener('keydown', onKey)
       const i = openDialogs.indexOf(token)

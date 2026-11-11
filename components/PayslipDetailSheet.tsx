@@ -6,6 +6,7 @@ import { formatCLP } from '@/lib/utils'
 import { getPayslipDownloadUrl, deletePayslip } from '@/app/actions/payslips'
 import type { BreakdownLine } from '@/lib/payslip-parser'
 import { FileText, Download, Trash2, RefreshCw, Loader2 } from 'lucide-react'
+import { DELETE_ERROR } from '@/lib/db-error'
 
 export interface PayslipData {
   employerName: string | null
@@ -38,7 +39,7 @@ function Group({ title, items }: { title: string; items: BreakdownLine[] }) {
   if (items.length === 0) return null
   const subtotal = items.reduce((s, i) => s + i.amount, 0)
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
       <div className="flex items-center justify-between px-4 py-2">
         <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{title}</span>
         <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
@@ -63,19 +64,30 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   async function handleDownload() {
     if (!payslip.pdfPath) return
-    setDownloading(true)
+    setDownloading(true); setActionError('')
+    // La pestaña se abre ANTES del await: iOS y la mayoría de los navegadores
+    // bloquean window.open cuando se llama después de una espera.
+    const tab = window.open('', '_blank')
     const url = await getPayslipDownloadUrl(payslip.pdfPath)
     setDownloading(false)
-    if (url) window.open(url, '_blank')
+    if (!url) {
+      tab?.close()
+      setActionError('No se pudo abrir el PDF. Inténtalo de nuevo.')
+      return
+    }
+    if (tab) tab.location.href = url
+    else window.location.href = url
   }
 
   async function handleDelete() {
-    setDeleting(true)
-    await deletePayslip(month, year)
+    setDeleting(true); setActionError('')
+    const res = await deletePayslip(month, year)
     setDeleting(false)
+    if (!res.ok) { setActionError(DELETE_ERROR); return }
     setDeleted(true) // ocultar de inmediato sin esperar el refresh
     router.refresh()
   }
@@ -83,7 +95,7 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
   if (deleted) return null
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', boxShadow: '0 0 0 1.5px var(--border)' }}>
       <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: 'var(--primary-soft)' }}>
         <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--primary)' }} />
         <span className="flex-1 text-xs font-bold" style={{ color: 'var(--primary)' }}>
@@ -92,7 +104,7 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
         <button
           onClick={handleDownload}
           disabled={!payslip.pdfPath || downloading}
-          className="flex items-center gap-1 text-[11px] font-semibold disabled:opacity-50"
+          className="flex items-center gap-1 min-h-[44px] px-2 text-[11px] font-semibold disabled:opacity-50"
           style={{ color: 'var(--primary)' }}
         >
           {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
@@ -100,24 +112,27 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
         </button>
         <button
           onClick={() => setConfirmDelete(true)}
-          className="p-0.5"
-          style={{ color: 'var(--coral)' }}
+          className="w-11 h-11 -mr-2 flex items-center justify-center"
+          style={{ color: 'var(--coral-ink)' }}
           aria-label="Eliminar liquidación"
         >
-          <Trash2 className="w-3.5 h-3.5" />
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
 
       <div className="p-3 space-y-2.5" style={{ background: 'var(--surface)' }}>
+        {actionError && (
+          <p className="text-xs font-medium text-center" role="alert" style={{ color: 'var(--coral-ink)' }}>{actionError}</p>
+        )}
         {confirmDelete && (
-          <div className="rounded-2xl p-3.5 space-y-2.5" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+          <div className="rounded-2xl p-3.5 space-y-2.5" style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))' }}>
             <p className="text-xs text-center font-medium" style={{ color: 'var(--ink-2)' }}>
-              ¿Eliminar la liquidación de {monthName}? El PDF y el ingreso no se tocan.
+              ¿Eliminar la liquidación de {monthName}? Se borran el PDF y el detalle; el ingreso del mes se queda.
             </p>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="flex-1 py-2 text-xs font-semibold rounded-xl border"
+                className="flex-1 min-h-[44px] text-xs font-semibold rounded-xl border"
                 style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
               >
                 Cancelar
@@ -125,18 +140,18 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-xl"
+                className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] text-xs font-bold rounded-xl"
                 style={{ background: 'var(--coral)', color: 'white' }}
               >
                 {deleting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                {deleting ? 'Eliminando…' : 'Sí, eliminar'}
+                {deleting ? 'Eliminando…' : 'Eliminar'}
               </button>
             </div>
           </div>
         )}
 
         {(payslip.position || payslip.contractType || payslip.daysWorked !== null) && (
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
             {payslip.position && (
               <div className="flex items-center justify-between px-4 py-2">
                 <span className="text-xs" style={{ color: 'var(--ink-3)' }}>Cargo</span>
@@ -158,6 +173,9 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
           </div>
         )}
 
+        <p className="text-[11px] px-1" style={{ color: 'var(--ink-3)' }}>
+          Los haberes imponibles son lo que paga cotizaciones (AFP, salud); los no imponibles, no.
+        </p>
         <Group title="Haberes imponibles" items={payslip.haberesImponibles} />
         <Group title="Haberes no imponibles" items={payslip.haberesNoImponibles} />
         <Group title="Descuentos legales" items={payslip.descuentosLegales} />
@@ -169,7 +187,11 @@ export default function PayslipInlineDetail({ month, year, monthName, payslip }:
         </div>
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Total descuentos</span>
-          <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--coral)' }}>−{formatCLP(payslip.totalDescuentos)}</span>
+          <span className="text-xs font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>−{formatCLP(payslip.totalDescuentos)}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-xl px-3 py-2.5" style={{ background: 'var(--primary-soft)' }}>
+          <span className="text-xs font-bold" style={{ color: 'var(--ink)' }}>Lo que te depositan (líquido)</span>
+          <span className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(payslip.liquido)}</span>
         </div>
       </div>
     </div>

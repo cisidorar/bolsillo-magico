@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP } from '@/lib/utils'
 import { CalendarDays, ChevronRight, X, Trash2, RefreshCw, FileText } from 'lucide-react'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
+import { DELETE_ERROR } from '@/lib/db-error'
 import IncomeSheet from './IncomeSheet'
 import PayslipInlineDetail, { type PayslipData } from './PayslipDetailSheet'
 import type { IncomeData } from './IncomeMonthEditor'
@@ -20,6 +21,11 @@ interface Props {
   surplus:    number | null
   expense:    number
   payslip:    PayslipData | null
+  /** Un mes sin registrar solo se marca en dorado si es el último cerrado:
+   *  uno de hace 8 meses ya no es "pronto", es historia. */
+  missingTone?: 'gold' | 'neutral'
+  /** El mes en curso: su gasto es parcial, así que no se calcula Sobró/Déficit. */
+  isCurrent?: boolean
 }
 
 // ago 2026 (Cas: "quiero que ingresos... también sea la misma lógica, tocar
@@ -29,6 +35,7 @@ interface Props {
 // formulario real, IncomeSheet, ahora controlable desde afuera) en el footer.
 export default function IncomeHistoryRow({
   userId, month, year, monthName, income, prevIncome, surplus, expense, payslip,
+  missingTone = 'neutral', isCurrent = false,
 }: Props) {
   const router   = useRouter()
   const supabase = createClient()
@@ -37,16 +44,18 @@ export default function IncomeHistoryRow({
   const [formOpen,   setFormOpen]       = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting,   setDeleting]       = useState(false)
+  const [deleteError, setDeleteError]   = useState('')
 
   const isReg = income !== null
-  function closeDetail() { setDetailOpen(false); setConfirmDelete(false) }
-  const backdropClose = useBackdropClose(closeDetail)
+  function closeDetail() { setDetailOpen(false); setConfirmDelete(false); setDeleteError('') }
+  const dialog = useBackdropDialog(closeDetail, `Ingreso de ${monthName} ${year}`)
 
   async function handleDelete() {
-    setDeleting(true)
-    await supabase.from('incomes').delete()
+    setDeleting(true); setDeleteError('')
+    const { error } = await supabase.from('incomes').delete()
       .eq('user_id', userId).eq('month', month).eq('year', year)
     setDeleting(false)
+    if (error) { setDeleteError(DELETE_ERROR); return }
     closeDetail()
     router.refresh()
   }
@@ -60,7 +69,7 @@ export default function IncomeHistoryRow({
       >
         {/* Mes */}
         <div className="flex items-center gap-2 w-32 shrink-0">
-          <CalendarDays className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--ink-3)' }} />
+          <CalendarDays className="w-3.5 h-3.5 shrink-0" aria-hidden style={{ color: 'var(--ink-3)' }} />
           <div>
             <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{monthName}</span>
             <span className="text-[11px] ml-1.5" style={{ color: 'var(--ink-3)' }}>{year}</span>
@@ -71,8 +80,10 @@ export default function IncomeHistoryRow({
         <span
           className="hidden sm:inline text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
           style={isReg
-            ? { background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }
-            : { background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }
+            ? { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }
+            : missingTone === 'gold'
+            ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
+            : { background: 'var(--surface-2)', color: 'var(--ink-3)' }
           }
         >
           {isReg ? 'Registrado' : 'Sin registrar'}
@@ -87,16 +98,16 @@ export default function IncomeHistoryRow({
             ? <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(income.amount)}</p>
             : <p className="text-sm" style={{ color: 'var(--ink-3)' }}>—</p>
           }
-          {surplus !== null && expense > 0 && prevIncome && (
-            <p className="text-[10px] font-semibold tabular-nums mt-0.5"
-              style={{ color: surplus >= 0 ? 'var(--mint)' : 'var(--coral)' }}>
+          {!isCurrent && surplus !== null && expense > 0 && prevIncome && (
+            <p className="text-[11px] font-semibold tabular-nums mt-0.5"
+              style={{ color: surplus >= 0 ? 'var(--mint-ink)' : 'var(--ink-2)' }}>
               {surplus >= 0 ? 'Sobró ' : 'Déficit '}{formatCLP(Math.abs(surplus))}
-              {' '}· {surplus >= 0 ? '' : '−'}{Math.abs(Math.round((surplus / prevIncome.amount) * 100))}% del sueldo
+              {' '}· {surplus >= 0 ? '' : '−'}{Math.abs(Math.round((surplus / prevIncome.amount) * 100))}% del sueldo anterior
             </p>
           )}
         </div>
 
-        <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--ink-3)' }} />
+        <ChevronRight className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden style={{ color: 'var(--ink-3)' }} />
       </button>
 
       {/* ── Detalle de solo lectura ─────────────────────────────────────── */}
@@ -104,7 +115,7 @@ export default function IncomeHistoryRow({
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...backdropClose}
+          {...dialog}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
@@ -113,8 +124,8 @@ export default function IncomeHistoryRow({
             <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
 
             <div className="flex items-center gap-3 px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(31,190,141,0.14)' }}>
-                <CalendarDays className="w-4 h-4" style={{ color: 'var(--mint)' }} strokeWidth={2.5} />
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }}>
+                <CalendarDays className="w-4 h-4" aria-hidden style={{ color: 'var(--mint-ink)' }} strokeWidth={2.5} />
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-base font-bold truncate" style={{ color: 'var(--ink)' }}>Ingreso de {monthName}</h2>
@@ -122,7 +133,8 @@ export default function IncomeHistoryRow({
               </div>
               <button
                 onClick={closeDetail}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar"
+                className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -130,7 +142,7 @@ export default function IncomeHistoryRow({
             </div>
 
             <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }}>
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface-2)' }}>
                 <div className="flex items-center justify-between px-4 py-2.5">
                   <span className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Monto</span>
                   <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
@@ -159,10 +171,13 @@ export default function IncomeHistoryRow({
               )}
 
               {confirmDelete && (
-                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))' }}>
                   <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
                     ¿Eliminar el ingreso de {monthName}?
                   </p>
+                  {deleteError && (
+                    <p className="text-xs text-center font-medium" role="alert" style={{ color: 'var(--coral-ink)' }}>{deleteError}</p>
+                  )}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setConfirmDelete(false)}
@@ -191,7 +206,7 @@ export default function IncomeHistoryRow({
                   <button
                     onClick={() => setConfirmDelete(true)}
                     className="w-11 h-11 flex items-center justify-center rounded-2xl border shrink-0 transition-colors"
-                    style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+                    style={{ borderColor: 'var(--border)', color: 'var(--coral-ink)', background: 'var(--surface-2)' }}
                     aria-label="Eliminar"
                   >
                     <Trash2 className="w-4 h-4" />

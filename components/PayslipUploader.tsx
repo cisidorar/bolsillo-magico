@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useBackdropClose } from '@/components/useBackdropClose'
-import { formatCLP } from '@/lib/utils'
+import { useBackdropDialog } from '@/components/useBackdropClose'
+import { formatCLP, getNowChile } from '@/lib/utils'
+import { SAVE_ERROR } from '@/lib/db-error'
 import { extractPayslipDraft, savePayslip, type SavePayslipInput } from '@/app/actions/payslips'
 import type { BreakdownLine } from '@/lib/payslip-parser'
 import { Upload, X, Check, Plus, FileText, Loader2, AlertTriangle, SkipForward, PartyPopper } from 'lucide-react'
@@ -65,7 +66,7 @@ function LineGroup({
 }) {
   const subtotal = items.reduce((s, it) => s + it.amount, 0)
   return (
-    <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+    <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)' }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>{title}</span>
         {items.length > 0 && (
@@ -80,7 +81,8 @@ function LineGroup({
               value={it.label}
               onChange={e => onChange(items.map((x, i) => i === idx ? { ...x, label: e.target.value } : x))}
               placeholder="Concepto"
-              className="flex-1 text-[13px] border px-2.5 py-1.5"
+              aria-label={`${title}: concepto ${idx + 1}`}
+              className="flex-1 text-sm border px-2.5 min-h-[44px]"
               style={{ ...inputBase, background: 'var(--surface)' }}
               onFocus={focusOn} onBlur={focusOff}
             />
@@ -90,14 +92,16 @@ function LineGroup({
               value={fmtInput(it.amount)}
               onChange={e => onChange(items.map((x, i) => i === idx ? { ...x, amount: parseAmt(e.target.value) } : x))}
               placeholder="$0"
-              className="w-24 text-[13px] font-semibold border px-2.5 py-1.5 text-right tabular-nums"
+              aria-label={`${title}: monto ${idx + 1}`}
+              className="w-24 text-sm font-semibold border px-2.5 min-h-[44px] text-right tabular-nums"
               style={{ ...inputBase, background: 'var(--surface)' }}
               onFocus={focusOn} onBlur={focusOff}
             />
             <button
               type="button"
               onClick={() => onChange(items.filter((_, i) => i !== idx))}
-              className="p-1 rounded-lg shrink-0"
+              aria-label={`Quitar ${title}: línea ${idx + 1}`}
+              className="w-11 h-11 -mr-1.5 flex items-center justify-center rounded-lg shrink-0"
               style={{ color: 'var(--ink-3)' }}
             >
               <X className="w-3.5 h-3.5" />
@@ -108,7 +112,7 @@ function LineGroup({
       <button
         type="button"
         onClick={() => onChange([...items, { label: '', amount: 0 }])}
-        className="flex items-center gap-1 text-xs font-semibold mt-2"
+        className="flex items-center gap-1 min-h-[44px] text-xs font-semibold mt-1"
         style={{ color: 'var(--primary)' }}
       >
         <Plus className="w-3.5 h-3.5" /> Agregar línea
@@ -140,6 +144,9 @@ export default function PayslipUploader() {
 
   const doneCount = savedCount + skippedCount
   const isBatch   = total > 1
+  const headerTitle = isBatch ? `Subir liquidaciones (${Math.min(doneCount + 1, total)} de ${total})` : 'Subir liquidación'
+  const [periodGuessed, setPeriodGuessed] = useState(false)
+  const [confirmExit, setConfirmExit] = useState(false)
 
   function close() {
     setOpen(false)
@@ -153,8 +160,10 @@ export default function PayslipUploader() {
     setSkippedCount(0)
     if (anySaved) router.refresh()
     setAnySaved(false)
+    setConfirmExit(false)
+    setPeriodGuessed(false)
   }
-  const backdropClose = useBackdropClose(close)
+  const dialog = useBackdropDialog(close, headerTitle)
 
   async function processFile(f: File) {
     setFile(f)
@@ -163,7 +172,14 @@ export default function PayslipUploader() {
 
     const fd = new FormData()
     fd.set('file', f)
-    const result = await extractPayslipDraft(fd)
+    let result: Awaited<ReturnType<typeof extractPayslipDraft>>
+    try {
+      result = await extractPayslipDraft(fd)
+    } catch {
+      setError('No se pudo leer el archivo. Revisa tu conexión (máx. 8MB) e inténtalo de nuevo.')
+      setStep('error')
+      return
+    }
 
     if (!result.ok) {
       setError(result.error)
@@ -171,11 +187,14 @@ export default function PayslipUploader() {
       return
     }
 
-    const now = new Date()
+    const now = getNowChile()
     const d = result.draft
+    // Si el PDF no dice el período, se propone el mes actual — y se avisa,
+    // porque guardar con el mes equivocado pisa el ingreso de ese mes.
+    setPeriodGuessed(d.month == null || d.year == null)
     setForm({
-      month: d.month ?? now.getMonth() + 1,
-      year:  d.year ?? now.getFullYear(),
+      month: d.month ?? now.month,
+      year:  d.year ?? now.year,
       employerName: d.employerName ?? '',
       employerRut:  d.employerRut ?? '',
       position:     d.position ?? '',
@@ -198,7 +217,8 @@ export default function PayslipUploader() {
 
   function startBatch(files: File[]) {
     const pdfs = files.filter(f => f.type === 'application/pdf')
-    if (pdfs.length === 0) return
+    if (pdfs.length === 0) { setError('Solo se pueden subir PDF. Si tienes una foto, usa «Registrar» para ingresar el líquido a mano.'); return }
+    setError('')
     setTotal(pdfs.length)
     setSavedCount(0)
     setSkippedCount(0)
@@ -224,6 +244,7 @@ export default function PayslipUploader() {
   async function confirmSave() {
     if (!file || !form) return
     if (!form.liquido || form.liquido <= 0) { setError('Revisa el líquido a recibir — falta o es $0'); return }
+    if (form.year < 2000 || form.year > 2100) { setError('Revisa el año de la liquidación'); return }
     setStep('saving')
     setError('')
 
@@ -251,7 +272,14 @@ export default function PayslipUploader() {
     const fd = new FormData()
     fd.set('file', file)
     fd.set('data', JSON.stringify(input))
-    const result = await savePayslip(fd)
+    let result: Awaited<ReturnType<typeof savePayslip>>
+    try {
+      result = await savePayslip(fd)
+    } catch {
+      setError(SAVE_ERROR)
+      setStep('review')
+      return
+    }
 
     if (!result.ok) {
       setError(result.error)
@@ -264,13 +292,11 @@ export default function PayslipUploader() {
     advance()
   }
 
-  const headerTitle = isBatch ? `Subir liquidaciones (${Math.min(doneCount + 1, total)} de ${total})` : 'Subir liquidación'
-
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border transition-all active:scale-[.97] shrink-0"
+        className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl border transition-all active:scale-[.97] shrink-0"
         style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <Upload className="w-4 h-4" strokeWidth={2.5} />
@@ -281,7 +307,7 @@ export default function PayslipUploader() {
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...backdropClose}
+          {...dialog}
         >
           <div
             className="w-full lg:max-w-lg rounded-t-3xl lg:rounded-3xl overflow-y-auto"
@@ -293,7 +319,8 @@ export default function PayslipUploader() {
               <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>{headerTitle}</h2>
               <button
                 onClick={close}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar"
+                className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -333,6 +360,7 @@ export default function PayslipUploader() {
                     </span>
                     <span className="text-xs">Liquidación de sueldo · máx. 8MB c/u</span>
                   </button>
+                  {error && <p className="text-xs font-medium mt-3" role="alert" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
                 </div>
               )}
 
@@ -401,6 +429,7 @@ export default function PayslipUploader() {
                   {/* Mes / Año */}
                   <div className="flex gap-2">
                     <select
+                      aria-label="Mes de la liquidación"
                       value={form.month}
                       onChange={e => setForm({ ...form, month: parseInt(e.target.value) })}
                       className="flex-1 text-sm border px-3 py-2.5"
@@ -411,26 +440,33 @@ export default function PayslipUploader() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={form.year}
-                      onChange={e => setForm({ ...form, year: parseInt(e.target.value.replace(/\D/g, '')) || form.year })}
+                      aria-label="Año de la liquidación"
+                      value={form.year || ''}
+                      onChange={e => setForm({ ...form, year: parseInt(e.target.value.replace(/\D/g, '').slice(0, 4)) || 0 })}
                       className="w-24 text-sm border px-3 py-2.5 tabular-nums"
                       style={inputBase}
                       onFocus={focusOn} onBlur={focusOff}
                     />
                   </div>
 
+                  {periodGuessed && (
+                    <p className="text-[11px] font-semibold" role="status" style={{ color: 'var(--gold-ink)' }}>
+                      No pudimos leer el mes de este PDF. Revisa el período antes de guardar: si ya hay un ingreso de ese mes, se reemplaza.
+                    </p>
+                  )}
+
                   {/* Empleador / cargo */}
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text" value={form.employerName}
                       onChange={e => setForm({ ...form, employerName: e.target.value })}
-                      placeholder="Empleador" className="text-sm border px-3 py-2.5"
+                      placeholder="Empleador" aria-label="Empleador" className="text-sm border px-3 py-2.5"
                       style={inputBase} onFocus={focusOn} onBlur={focusOff}
                     />
                     <input
                       type="text" value={form.position}
                       onChange={e => setForm({ ...form, position: e.target.value })}
-                      placeholder="Cargo" className="text-sm border px-3 py-2.5"
+                      placeholder="Cargo" aria-label="Cargo" className="text-sm border px-3 py-2.5"
                       style={inputBase} onFocus={focusOn} onBlur={focusOff}
                     />
                   </div>
@@ -448,8 +484,9 @@ export default function PayslipUploader() {
                   {/* Totales */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total haberes</label>
+                      <label htmlFor="ps-haberes" className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total haberes</label>
                       <input
+                        id="ps-haberes"
                         type="text" inputMode="numeric" value={fmtInput(form.totalHaberes)}
                         onChange={e => setForm({ ...form, totalHaberes: parseAmt(e.target.value) })}
                         className="w-full text-sm font-semibold border px-3 py-2.5 tabular-nums"
@@ -457,8 +494,9 @@ export default function PayslipUploader() {
                       />
                     </div>
                     <div>
-                      <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total descuentos</label>
+                      <label htmlFor="ps-descuentos" className="text-[11px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>Total descuentos</label>
                       <input
+                        id="ps-descuentos"
                         type="text" inputMode="numeric" value={fmtInput(form.totalDescuentos)}
                         onChange={e => setForm({ ...form, totalDescuentos: parseAmt(e.target.value) })}
                         className="w-full text-sm font-semibold border px-3 py-2.5 tabular-nums"
@@ -468,11 +506,12 @@ export default function PayslipUploader() {
                   </div>
 
                   {/* Líquido — lo más importante, va a Ingresos */}
-                  <div className="rounded-2xl p-4" style={{ background: 'var(--primary-soft)', border: '1px solid var(--primary)' }}>
-                    <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--primary)' }}>
-                      Líquido a recibir — se registra en Ingresos
+                  <div className="rounded-2xl p-4" style={{ background: 'var(--primary-soft)' }}>
+                    <label htmlFor="ps-liquido" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--primary)' }}>
+                      Lo que te depositan (líquido) — se registra como tu ingreso del mes
                     </label>
                     <input
+                      id="ps-liquido"
                       type="text" inputMode="numeric" value={fmtInput(form.liquido)}
                       onChange={e => setForm({ ...form, liquido: parseAmt(e.target.value) })}
                       className="w-full text-2xl font-extrabold border px-4 py-3 tabular-nums"
@@ -481,22 +520,26 @@ export default function PayslipUploader() {
                     />
                   </div>
 
-                  {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+                  {error && <p className="text-xs font-medium" role="alert" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
 
                   <div className="flex gap-3 pt-1">
                     <button
-                      onClick={close}
-                      className="py-3 px-4 text-sm font-semibold rounded-2xl border transition-colors"
-                      style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                      onClick={() => {
+                        if (isBatch && queue.length > 0 && !confirmExit) { setConfirmExit(true); return }
+                        close()
+                      }}
+                      className="min-h-[44px] px-4 text-sm font-semibold rounded-2xl border transition-colors"
+                      style={{ color: confirmExit ? 'var(--coral-ink)' : 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
-                      Cancelar
+                      {confirmExit ? `Salir (quedan ${queue.length})` : 'Cancelar'}
                     </button>
                     {isBatch && (
                       <button
                         onClick={skipCurrent}
                         disabled={step === 'saving'}
                         title="Saltar este archivo"
-                        className="py-3 px-3 text-sm font-semibold rounded-2xl border transition-colors disabled:opacity-50"
+                        aria-label="Saltar este archivo"
+                        className="min-h-[44px] min-w-[44px] px-3 flex items-center justify-center text-sm font-semibold rounded-2xl border transition-colors disabled:opacity-50"
                         style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                       >
                         <SkipForward className="w-4 h-4" />

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useBackdropClose } from '@/components/useBackdropClose'
+import { useBackdropDialog } from '@/components/useBackdropClose'
+import { SAVE_ERROR, DELETE_ERROR } from '@/lib/db-error'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Check, Copy, Trash2, Pencil } from 'lucide-react'
@@ -27,8 +28,7 @@ interface Props {
 }
 
 const ITEM_COLORS = [
-  'var(--primary)', 'var(--mint)', 'var(--gold)', 'var(--coral)',
-  '#A78BFA', '#F472B6', '#34D399',
+  'var(--primary)', 'var(--mint)', 'var(--gold)', 'var(--coral)', 'var(--ink-3)',
 ]
 
 const inputBase: React.CSSProperties = {
@@ -95,14 +95,11 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm])
 
-  // Escape key
+  // Escape y foco los maneja useBackdropDialog; acá solo se congela el scroll.
   useEffect(() => {
     if (!showForm) return
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') cancelForm() }
-    document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { document.body.style.overflow = '' }
   }, [showForm])
 
   function openForm() {
@@ -117,7 +114,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
   // Hook llamado siempre — el modal es condicional (`{showForm && ...}`) más
   // abajo, pero el hook no puede serlo sin romper el orden de hooks (bug
   // real: crasheaba al abrir el modal, reportado por Cas).
-  const backdropClose = useBackdropClose(cancelForm)
+  const dialog = useBackdropDialog(cancelForm, `${current ? 'Editar' : 'Registrar'} ingreso de ${monthName} ${year}`)
 
   function addItem() {
     setItems(prev => [...prev, { label: '', amount: 0 }])
@@ -148,16 +145,17 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
         { onConflict: 'user_id,month,year' }
       )
     setSaving(false)
-    if (err) { setFormError('Error al guardar'); return }
+    if (err) { setFormError(SAVE_ERROR); return }
     cancelForm()
     router.refresh()
   }
 
   async function deleteIncome() {
     setDeleting(true)
-    await supabase.from('incomes').delete()
+    const { error: err } = await supabase.from('incomes').delete()
       .eq('user_id', userId).eq('month', month).eq('year', year)
     setDeleting(false)
+    if (err) { setFormError(DELETE_ERROR); return }
     cancelForm()
     router.refresh()
   }
@@ -168,7 +166,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
       {!hideTrigger && (
         <button
           onClick={openForm}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
+          className="flex items-center gap-1.5 px-4 min-h-[44px] text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"
           style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}
         >
           {current ? <Pencil className="w-4 h-4" strokeWidth={2.5} /> : <Plus className="w-4 h-4" strokeWidth={2.5} />}
@@ -181,7 +179,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
-          {...backdropClose}
+          {...dialog}
         >
           <div
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-y-auto"
@@ -197,7 +195,8 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
               </h2>
               <button
                 onClick={cancelForm}
-                className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                aria-label="Cerrar"
+                className="w-11 h-11 flex items-center justify-center rounded-full transition-colors"
                 style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}
               >
                 <X className="w-4 h-4" />
@@ -209,10 +208,11 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
               {/* Total */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="inc-total" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Total ingreso del mes
                 </label>
                 <input
+                  id="inc-total"
                   type="text"
                   inputMode="numeric"
                   value={fmt(mainAmt)}
@@ -225,7 +225,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                   onBlur={focusOff}
                 />
                 {total > 0 && (
-                  <p className="text-[11px] mt-1 font-semibold tabular-nums" style={{ color: 'var(--primary)' }}>
+                  <p className="text-[11px] mt-1 font-semibold tabular-nums" style={{ color: 'var(--primary)' }} aria-live="polite">
                     {formatCLP(total)}
                   </p>
                 )}
@@ -233,10 +233,11 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
               {/* Nota */}
               <div>
-                <label className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
+                <label htmlFor="inc-nota" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>
                   Nota (opcional)
                 </label>
                 <input
+                  id="inc-nota"
                   type="text"
                   value={desc}
                   onChange={e => setDesc(e.target.value)}
@@ -250,28 +251,28 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
               </div>
 
               {/* Desglose */}
-              <div className="rounded-2xl p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+              <div className="rounded-2xl p-4" style={{ background: 'var(--surface-2)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>
                       ¿De dónde viene?
                     </span>
                     <span
-                      className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
-                      style={{ background: 'var(--surface)', color: 'var(--ink-3)', border: '1px solid var(--border)' }}
+                      className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: 'var(--surface)', color: 'var(--ink-3)' }}
                     >
                       opcional
                     </span>
                   </div>
                   {calza && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-                      style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint)' }}>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                      style={{ background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }}>
                       <Check className="w-3 h-3" /> calza
                     </span>
                   )}
                   {noCalza && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold)' }}>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }}>
                       {formatCLP(Math.abs(total - itemsTotal))} {itemsTotal > total ? 'de más' : 'faltan'}
                     </span>
                   )}
@@ -287,6 +288,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                           value={it.label}
                           onChange={e => updateItem(idx, 'label', e.target.value)}
                           placeholder="ej: Sueldo base"
+                          aria-label={`Fuente ${idx + 1}: nombre`}
                           className="flex-1 text-sm border px-3 py-2"
                           style={{ ...inputBase, background: 'var(--surface)' }}
                           onFocus={focusOn}
@@ -298,6 +300,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                           value={it.amount ? fmt(String(it.amount)) : ''}
                           onChange={e => updateItem(idx, 'amount', e.target.value)}
                           placeholder="$0"
+                          aria-label={`Fuente ${idx + 1}: monto`}
                           className="w-28 text-sm font-semibold border px-3 py-2 text-right tabular-nums"
                           style={{ ...inputBase, background: 'var(--surface)' }}
                           onFocus={focusOn}
@@ -305,9 +308,10 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                         />
                         <button
                           onClick={() => removeItem(idx)}
-                          className="p-1 rounded-lg shrink-0 transition-colors"
+                          aria-label={`Quitar fuente ${idx + 1}`}
+                          className="w-11 h-11 -mr-2 flex items-center justify-center rounded-lg shrink-0 transition-colors"
                           style={{ color: 'var(--ink-3)' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--coral)')}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--coral-ink)')}
                           onMouseLeave={e => (e.currentTarget.style.color = 'var(--ink-3)')}
                         >
                           <X className="w-3.5 h-3.5" />
@@ -320,7 +324,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                         style={{ color: 'var(--ink-2)' }}
                       >
                         <span>Subtotal</span>
-                        <span style={{ color: calza ? 'var(--mint)' : noCalza ? 'var(--gold)' : 'var(--ink-2)' }}>
+                        <span style={{ color: calza ? 'var(--mint-ink)' : noCalza ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
                           {formatCLP(itemsTotal)}
                         </span>
                       </div>
@@ -330,7 +334,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
 
                 <button
                   onClick={addItem}
-                  className="flex items-center gap-1.5 text-sm font-semibold"
+                  className="flex items-center gap-1.5 min-h-[44px] text-sm font-semibold"
                   style={{ color: 'var(--primary)' }}
                 >
                   <Plus className="w-4 h-4" />
@@ -339,12 +343,12 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
               </div>
 
               {formError && (
-                <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{formError}</p>
+                <p className="text-xs font-medium" role="alert" style={{ color: 'var(--coral-ink)' }}>{formError}</p>
               )}
 
               {/* Confirmación de eliminación */}
               {deleteConfirm && current && (
-                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,111,97,0.08)', border: '1px solid rgba(255,111,97,0.25)' }}>
+                <div className="rounded-2xl p-4 space-y-3" style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))' }}>
                   <p className="text-sm text-center font-medium" style={{ color: 'var(--ink-2)' }}>
                     ¿Eliminar el ingreso de {monthName}?
                   </p>
@@ -363,7 +367,7 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                       style={{ background: 'var(--coral)', color: 'white' }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {deleting ? 'Eliminando…' : 'Sí, eliminar'}
+                      {deleting ? 'Eliminando…' : 'Eliminar'}
                     </button>
                   </div>
                 </div>
@@ -375,8 +379,9 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                   {current && (
                     <button
                       onClick={() => setDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-2xl border transition-colors"
-                      style={{ color: 'var(--coral)', borderColor: 'rgba(255,111,97,0.3)', background: 'var(--surface-2)' }}
+                      aria-label="Eliminar ingreso"
+                      className="flex items-center justify-center gap-1.5 px-4 min-h-[44px] text-sm font-semibold rounded-2xl border transition-colors"
+                      style={{ color: 'var(--coral-ink)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -384,7 +389,8 @@ export default function IncomeSheet({ userId, month, year, current, prevIncome, 
                   {prevIncome && !current && (
                     <button
                       onClick={copyPrev}
-                      className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-2xl border transition-colors"
+                      aria-label="Copiar mes anterior"
+                      className="flex items-center justify-center gap-1.5 px-4 min-h-[44px] text-sm font-semibold rounded-2xl border transition-colors"
                       style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
                       title="Copiar mes anterior"
                     >
