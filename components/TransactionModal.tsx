@@ -596,6 +596,26 @@ export default function TransactionModal({
                 </div>
               </div>
 
+              {/* Estimar N° acciones desde el total pagado al precio actual (aprox:
+                  la comisión y el precio real de ejecución la corrigen a mano). */}
+              {(() => {
+                const px = quotes[form.ticker.trim().toUpperCase()]?.price
+                const total = parseFloat(form.totalPaid)
+                if (form.shares || !px || !(px > 0) || !(total > 0)) return null
+                const est = Math.round((total / px) * 1e4) / 1e4
+                return (
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, shares: String(est) }))}
+                    className="w-full px-4 py-2.5 rounded-xl flex items-center gap-2 text-left"
+                    style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                    <span className="text-[11px] font-bold">
+                      ≈ {est.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acciones al precio actual ({fmtUSD(px)})
+                    </span>
+                    <span className="text-[11px] font-extrabold ml-auto">Usar</span>
+                  </button>
+                )
+              })()}
+
               {form.shares && form.totalPaid && parseFloat(form.shares) > 0 && parseFloat(form.totalPaid) > 0 && (
                 <div className="px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'var(--surface-2)' }}>
                   <span className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Precio por acción</span>
