@@ -134,6 +134,7 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const [withdrawSaving, setWithdrawSaving] = useState(false)
   const [withdrawError,  setWithdrawError] = useState('')
   const [showWithdrawn,  setShowWithdrawn] = useState(false)
+  const [bankOpen,       setBankOpen]      = useState(false)
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const today    = todayStr()
@@ -529,33 +530,36 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   id="td-f1"
                   type="text"
                   value={form.bank}
-                  onChange={e => setForm(f => ({ ...f, bank: e.target.value }))}
+                  onChange={e => { setForm(f => ({ ...f, bank: e.target.value })); setBankOpen(true) }}
+                  autoComplete="off"
                   placeholder="Elige o escribe — ej: Banco de Chile, Coopeuch"
                   maxLength={60}
                   className="w-full text-sm border px-4 py-3"
                   style={inputBase}
-                  onFocus={focusOn} onBlur={focusOff}
+                  onFocus={e => { focusOn(e); setBankOpen(true) }} onBlur={e => { focusOff(e); setBankOpen(false) }}
                   autoFocus
                 />
-                {/* nov 2026: el datalist del navegador filtra por lo escrito, así que
-                    con "Banco de Chile" ya puesto solo mostraba esa opción. Chips
-                    siempre visibles con todas las instituciones. */}
-                <div className="flex flex-wrap gap-1.5 mt-2 max-h-32 overflow-y-auto">
-                  {CL_INSTITUTIONS.map(i => {
-                    const sel = form.bank.trim().toLowerCase() === i.name.toLowerCase()
-                    return (
-                      <button key={i.domain} type="button"
-                        onClick={() => setForm(f => ({ ...f, bank: i.name }))}
-                        aria-pressed={sel}
-                        className="px-3 min-h-[36px] rounded-xl text-xs font-semibold border transition-colors"
-                        style={sel
-                          ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
-                          : { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink-2)' }}>
-                        {i.name}
-                      </button>
-                    )
-                  })}
-                </div>
+                {/* Lista desplegable que filtra al escribir (nov 2026). Selección con
+                    onMouseDown para que ocurra antes del blur del input. */}
+                {bankOpen && (() => {
+                  const q = form.bank.trim().toLowerCase()
+                  const exact = CL_INSTITUTIONS.some(i => i.name.toLowerCase() === q)
+                  const opts = CL_INSTITUTIONS.filter(i => exact || !q || i.name.toLowerCase().includes(q))
+                  if (opts.length === 0) return null
+                  return (
+                    <div className="mt-1.5 rounded-xl border overflow-y-auto max-h-48"
+                      style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 24px var(--shadow)' }}>
+                      {opts.map(i => (
+                        <button key={i.domain} type="button"
+                          onMouseDown={e => { e.preventDefault(); setForm(f => ({ ...f, bank: i.name })); setBankOpen(false) }}
+                          className="w-full text-left px-4 min-h-[44px] text-sm font-semibold transition-colors hover:bg-black/5"
+                          style={{ color: 'var(--ink)' }}>
+                          {i.name}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Monto + Interés */}
