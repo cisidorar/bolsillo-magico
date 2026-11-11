@@ -2044,10 +2044,21 @@ export default function Radar({
                             <Check className="w-3.5 h-3.5" /> En cartera
                           </span>
                         ) : followed ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl flex-shrink-0"
-                            style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
-                            <Check className="w-3.5 h-3.5" /> Siguiendo
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl"
+                              style={{ background: 'rgba(31,190,141,0.12)', color: 'var(--mint-ink)' }}>
+                              <Check className="w-3.5 h-3.5" /> Siguiendo
+                            </span>
+                            {/* Ya seguida pero sin posición: permitir registrar la compra
+                                desde acá, sin ir a la ficha → Comprar. */}
+                            <button
+                              onClick={() => { closeSearch(); setTxn({ mode: 'new', ticker: r.symbol }) }}
+                              className="px-3 min-h-[44px] rounded-xl text-[11px] font-bold border transition-colors hover:bg-black/5"
+                              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)' }}
+                            >
+                              Ya la tengo
+                            </button>
+                          </div>
                         ) : (
                           /* V6 (roadmap de vista): un solo botón "Agregar" abre este
                              buscador; desde acá se elige el destino — Seguir (sin
