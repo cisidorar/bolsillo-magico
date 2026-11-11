@@ -88,6 +88,8 @@ export interface TermDeposit {
    *  2026: encadena renovaciones para no mostrar un ciclo ya renovado como
    *  "Vencido" suelto y poder armar el historial en el detalle. */
   renewed_from_id: string | null
+  /** Fecha en que se retiró el depósito (nov 2026) — null = sigue invertido. */
+  withdrawn_at:    string | null
 }
 
 export interface SavingsAccount {

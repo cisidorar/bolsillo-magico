@@ -137,3 +137,19 @@ describe('planAutoRenewals', () => {
     expect(planAutoRenewals(dep, '2026-09-20')).toEqual([])
   })
 })
+
+describe('depósitos retirados (nov 2026)', () => {
+  const rows = [
+    { id: 'a', start_date: '2026-01-01', withdrawn_at: '2026-03-01' },
+    { id: 'b', start_date: '2026-02-01', withdrawn_at: null },
+  ]
+  it('withoutSuperseded excluye los retirados', async () => {
+    const { withoutSuperseded } = await import('./term-deposits')
+    expect(withoutSuperseded(rows).map(r => r.id)).toEqual(['b'])
+  })
+  it('supersededSince usa la fecha de retiro como fin del ciclo', async () => {
+    const { supersededSince } = await import('./term-deposits')
+    expect(supersededSince(rows).get('a')).toBe('2026-03-01')
+    expect(supersededSince(rows).has('b')).toBe(false)
+  })
+})

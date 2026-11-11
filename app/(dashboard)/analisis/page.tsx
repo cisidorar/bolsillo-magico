@@ -164,7 +164,7 @@ export default async function AnalisisPage({
     // muestran igual, pero no suman al total líquido hasta que venzan.
     supabase
       .from('term_deposits')
-      .select('id, renewed_from_id, bank, amount, interest_rate, start_date, maturity_date')
+      .select('id, renewed_from_id, withdrawn_at, bank, amount, interest_rate, start_date, maturity_date')
       .eq('user_id', user!.id),
     // Meta mensual de aporte a inversión (Fase A1/A2 del asesor financiero)
     supabase.from('profiles').select('monthly_invest_goal').eq('id', user!.id).maybeSingle(),
@@ -639,7 +639,7 @@ export default async function AnalisisPage({
   // "vencido $336.329" al lado del ciclo que lo reemplazó — mismo capital
   // contado dos veces en el fondo de emergencia.
   const depositRows = withoutSuperseded(
-    (depositsRaw ?? []) as { id: string; renewed_from_id: string | null; bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[],
+    (depositsRaw ?? []) as { id: string; renewed_from_id: string | null; withdrawn_at: string | null; bank: string; amount: number; interest_rate: number; start_date: string; maturity_date: string }[],
   )
 
   const savingsInterest = savingsRows.map(s => earnedSoFar(s.balance, Number(s.annual_rate), s.start_date))

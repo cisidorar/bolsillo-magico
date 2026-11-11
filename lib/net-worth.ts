@@ -173,7 +173,7 @@ export async function computeAndSnapshotNetWorth(
 ): Promise<NetWorthResult> {
   const [{ data: stocks }, { data: deposits }, { data: savings }, { data: usdRows }, { data: stockBuys }, { data: history }, committedDebtTotal] = await Promise.all([
     supabase.from('stock_positions').select('ticker, shares, avg_cost_usd, wallet_cost_usd').eq('user_id', userId),
-    supabase.from('term_deposits').select('id, renewed_from_id, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
+    supabase.from('term_deposits').select('id, renewed_from_id, withdrawn_at, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
     supabase.from('usd_purchases').select('usd_amount, total_paid_clp, kind').eq('user_id', userId),
     supabase.from('stock_purchases').select('total_paid_usd').eq('user_id', userId),
@@ -333,7 +333,7 @@ export async function computeNetWorthWeeklyHistory(
 ): Promise<NetWorthHistoryPoint[]> {
   const [{ data: savings }, { data: deposits }, { data: purchases }, { data: sales }, { data: usdRows }, { data: positions }] = await Promise.all([
     supabase.from('savings_accounts').select('balance, annual_rate, start_date').eq('user_id', userId),
-    supabase.from('term_deposits').select('id, renewed_from_id, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
+    supabase.from('term_deposits').select('id, renewed_from_id, withdrawn_at, amount, interest_rate, start_date, maturity_date').eq('user_id', userId),
     supabase.from('stock_purchases').select('ticker, shares, total_paid_usd, purchase_date').eq('user_id', userId).order('purchase_date'),
     supabase.from('stock_sales').select('ticker, shares_sold, sale_date').eq('user_id', userId).order('sale_date'),
     supabase.from('usd_purchases').select('usd_amount, purchase_date').eq('user_id', userId).order('purchase_date'),

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
       supabase.from('usd_purchases').select('total_paid_clp').eq('user_id', user.id).eq('kind', 'deposit')
         .gte('purchase_date', startDate).lt('purchase_date', endDate),
       supabase.from('savings_accounts').select('balance').eq('user_id', user.id),
-      supabase.from('term_deposits').select('amount, interest_rate').eq('user_id', user.id).lt('maturity_date', endDate),
+      supabase.from('term_deposits').select('amount, interest_rate').eq('user_id', user.id).is('withdrawn_at', null).lt('maturity_date', endDate),
       // 6 meses previos al mes analizado, para el promedio de gasto (fondo de emergencia)
       supabase.from('expenses').select('amount, date').eq('user_id', user.id)
         .gte('date', `${new Date(year, month - 7, 1).getFullYear()}-${String(new Date(year, month - 7, 1).getMonth() + 1).padStart(2, '0')}-01`)

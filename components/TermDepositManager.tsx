@@ -128,6 +128,13 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const [renewSaving,   setRenewSaving]   = useState(false)
   const [renewError,    setRenewError]    = useState('')
 
+  // Retiro (nov 2026): cierra el depósito y saca la plata, como en el banco
+  const [withdrawId,     setWithdrawId]    = useState<string | null>(null)
+  const [withdrawDate,   setWithdrawDate]  = useState('')
+  const [withdrawSaving, setWithdrawSaving] = useState(false)
+  const [withdrawError,  setWithdrawError] = useState('')
+  const [showWithdrawn,  setShowWithdrawn] = useState(false)
+
   // ── Computed ──────────────────────────────────────────────────────────────
   const today    = todayStr()
   // sep 2026 (Cas: "me gustaria que... no salga en vencidos" — un ciclo ya
@@ -138,8 +145,11 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
   const supersededIds = new Set(
     deposits.map(d => d.renewed_from_id).filter((id): id is string => !!id),
   )
-  const active   = deposits.filter(d => daysToMaturity(d, today) >= 0)
-  const matured  = deposits.filter(d => daysToMaturity(d, today) < 0 && !supersededIds.has(d.id))
+  const withdrawn = deposits.filter(d => !!d.withdrawn_at)
+    .sort((a, b) => (b.withdrawn_at ?? '').localeCompare(a.withdrawn_at ?? ''))
+  const live     = deposits.filter(d => !d.withdrawn_at)
+  const active   = live.filter(d => daysToMaturity(d, today) >= 0)
+  const matured  = live.filter(d => daysToMaturity(d, today) < 0 && !supersededIds.has(d.id))
 
   // Cadena de ciclos anteriores de un depósito (más reciente primero), para
   // el historial en el detalle — se arma acá y no con una query aparte porque
@@ -291,6 +301,28 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
     setDeposits(prev => [...prev, data as TermDeposit].sort((a, b) => a.maturity_date.localeCompare(b.maturity_date)))
     closeRenew()
   }, [renewId, renewState, deposits, userId, supabase])
+
+  // ── Retiro: cierra el depósito (capital + interés devengado salen) ───────
+  function openWithdraw(d: TermDeposit) {
+    setWithdrawId(d.id)
+    setWithdrawDate(todayStr())
+    setWithdrawError('')
+    setDetailId(null)
+  }
+  function closeWithdraw() { setWithdrawId(null); setWithdrawError('') }
+  const withdrawBackdropClose = useBackdropDialog(closeWithdraw, 'Retirar depósito')
+
+  async function saveWithdraw() {
+    const d = withdrawId ? deposits.find(x => x.id === withdrawId) ?? null : null
+    if (!d) return
+    if (!withdrawDate || withdrawDate < d.start_date) { setWithdrawError('La fecha no puede ser anterior al inicio del depósito'); return }
+    setWithdrawSaving(true); setWithdrawError('')
+    const { error } = await supabase.from('term_deposits').update({ withdrawn_at: withdrawDate }).eq('id', d.id).eq('user_id', userId)
+    setWithdrawSaving(false)
+    if (error) { setWithdrawError(SAVE_ERROR); return }
+    setDeposits(prev => prev.map(x => x.id === d.id ? { ...x, withdrawn_at: withdrawDate } : x))
+    closeWithdraw()
+  }
 
   // Registra de una vez las renovaciones que el banco ya hizo solo: crea los
   // ciclos encadenados (renewed_from_id) hasta el vigente, con la tasa del ciclo
@@ -903,7 +935,16 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 >
                   Cerrar
                 </button>
-                {isMatured ? (
+                {!d.withdrawn_at && (
+                  <button
+                    onClick={() => openWithdraw(d)}
+                    className="flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-colors"
+                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+                  >
+                    Retirar
+                  </button>
+                )}
+                {d.withdrawn_at ? null : isMatured ? (
                   <button
                     onClick={() => openRenew(d)}
                     className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all active:scale-[.98]"
@@ -1025,6 +1066,85 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── Retirados (historial colapsable) ─────────────────────────────── */}
+      {withdrawn.length > 0 && (
+        <div>
+          <button onClick={() => setShowWithdrawn(v => !v)} className="flex items-center gap-1.5 mb-2 px-1 min-h-[44px]">
+            <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Retirados ({withdrawn.length})</p>
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showWithdrawn ? 'rotate-90' : ''}`} style={{ color: 'var(--ink-3)' }} />
+          </button>
+          {showWithdrawn && (
+            <div className="card overflow-hidden">
+              {withdrawn.map(d => {
+                const got = d.amount + (d.withdrawn_at && d.withdrawn_at >= d.maturity_date ? totalInterest(d) : earnedToDate(d, d.withdrawn_at ?? today))
+                return (
+                  <div key={d.id} className="flex items-center gap-3 px-4 lg:px-6 py-3 border-b last:border-b-0" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{d.bank}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Retirado el {fmtDateShort(d.withdrawn_at!)}</p>
+                    </div>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(got)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Modal de retiro ──────────────────────────────────────────────── */}
+      {(() => {
+        const d = withdrawId ? deposits.find(x => x.id === withdrawId) ?? null : null
+        if (!d) return null
+        const full = withdrawDate >= d.maturity_date
+        const interest = full ? totalInterest(d) : earnedToDate(d, withdrawDate || today)
+        return (
+          <div className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center" style={{ background: 'rgba(0,0,0,0.65)' }} {...withdrawBackdropClose}>
+            <div className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden" style={{ background: 'var(--surface)', maxHeight: '92dvh' }}>
+              <div className="w-10 h-1 rounded-full mx-auto mt-3 mb-1 lg:hidden" style={{ background: 'var(--border)' }} />
+              <div className="flex items-center justify-between px-5 pt-4 pb-4 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div>
+                  <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Retirar depósito</h2>
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>{d.bank} · vence {fmtDateShort(d.maturity_date)}</p>
+                </div>
+                <button onClick={closeWithdraw} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full"
+                  style={{ background: 'var(--surface-2)', color: 'var(--ink-3)' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-5 py-5 space-y-4">
+                <div>
+                  <label htmlFor="td-wd" className="text-[11px] font-bold block mb-1.5" style={{ color: 'var(--ink-3)' }}>Fecha de retiro</label>
+                  <input id="td-wd" type="date" value={withdrawDate} onChange={e => setWithdrawDate(e.target.value)}
+                    className="w-full text-sm border px-4 py-3 rounded-xl"
+                    style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
+                </div>
+                <div className="rounded-xl px-4 py-3 space-y-1" style={{ background: 'var(--surface-2)' }}>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--ink-3)' }}><span>Capital</span><span className="tabular-nums">{formatCLP(d.amount)}</span></div>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--ink-3)' }}><span>{full ? 'Interés' : 'Interés devengado'}</span><span className="tabular-nums">{formatCLP(interest)}</span></div>
+                  <div className="flex justify-between text-sm font-bold pt-1" style={{ color: 'var(--ink)' }}><span>Recibes</span><span className="tabular-nums">{formatCLP(d.amount + interest)}</span></div>
+                </div>
+                {!full && (
+                  <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                    Retiro antes del vencimiento: el banco puede cobrar otra tasa o comisión; ajusta el monto real si cambia.
+                  </p>
+                )}
+                {withdrawError && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{withdrawError}</p>}
+                <div className="flex gap-3">
+                  <button onClick={closeWithdraw} className="flex-1 py-3 text-sm font-semibold rounded-2xl border"
+                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>Cancelar</button>
+                  <button onClick={saveWithdraw} disabled={withdrawSaving}
+                    className="flex-1 py-3 text-sm font-bold rounded-2xl disabled:opacity-50"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 6px 18px var(--shadow)' }}>
+                    {withdrawSaving ? 'Guardando…' : 'Confirmar retiro'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Modal de renovación ──────────────────────────────────────────── */}
       {(() => {

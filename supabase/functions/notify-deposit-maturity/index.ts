@@ -97,6 +97,7 @@ Deno.serve(async (req: Request) => {
   const { data: depositsRaw, error: dErr } = await supabase
     .from('term_deposits')
     .select('id, user_id, bank, amount, interest_rate, start_date, maturity_date, renewable')
+    .is('withdrawn_at', null)
     .in('maturity_date', [today, tomorrow])
 
   if (dErr) return new Response(JSON.stringify({ error: dErr.message }), { status: 500 })
@@ -196,6 +197,7 @@ async function sendRenewalFollowups(supabase: any, today: string): Promise<numbe
     .from('term_deposits')
     .select('id, user_id, bank, amount, interest_rate, maturity_date')
     .eq('maturity_date', target)
+    .is('withdrawn_at', null)
     .eq('renewable', true)
   if (!matured || matured.length === 0) return 0
 

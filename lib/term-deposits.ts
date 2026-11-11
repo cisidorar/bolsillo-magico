@@ -59,12 +59,14 @@ export interface RenewableLike {
   id:               string
   renewed_from_id?: string | null
   start_date:       string
+  /** Fecha de retiro (nov 2026): un depósito retirado ya no está invertido. */
+  withdrawn_at?:    string | null
 }
 
 /** Filtra los ciclos que ya fueron renovados (otro depósito apunta a ellos). */
 export function withoutSuperseded<T extends RenewableLike>(rows: T[]): T[] {
   const superseded = new Set(rows.map(r => r.renewed_from_id).filter((x): x is string => !!x))
-  return rows.filter(r => !superseded.has(r.id))
+  return rows.filter(r => !superseded.has(r.id) && !r.withdrawn_at)
 }
 
 /**
@@ -75,6 +77,10 @@ export function withoutSuperseded<T extends RenewableLike>(rows: T[]): T[] {
 export function supersededSince<T extends RenewableLike>(rows: T[]): Map<string, string> {
   const out = new Map<string, string>()
   for (const r of rows) {
+    if (r.withdrawn_at) {
+      const cur = out.get(r.id)
+      if (!cur || r.withdrawn_at < cur) out.set(r.id, r.withdrawn_at)
+    }
     if (!r.renewed_from_id) continue
     const prev = out.get(r.renewed_from_id)
     if (!prev || r.start_date < prev) out.set(r.renewed_from_id, r.start_date)
