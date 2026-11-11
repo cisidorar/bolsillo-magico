@@ -93,3 +93,44 @@ describe('parsePayslipText — con otros descuentos > 0', () => {
     expect(parsed.otrosDescuentos).toEqual([{ label: 'Otros descuentos', amount: 15000 }])
   })
 })
+
+describe('parsePayslipText — líneas fuera de las listas fijas (sep 2026)', () => {
+  const SEP = `IMP. PREV./SALUD: $ 2.433.231 IMP. CESANTÍA: $ 2.433.231 BASE TRIBUTABLE: $ 1.993.790
+LÍQUIDO A RECIBIR: $ 2.302.768
+Liquidación de Sueldo
+Empleador: Asesoría, Consultoría y Desarrollo FIAH SpA (76.211.029-6)
+Mes: Septiembre 2026
+Sueldo Base: $ 2.154.149
+Previsión: Uno (10.46%)
+Salud: Banmedica 4.118 UF (100.0%)
+UF: $ 41.057,20
+HABERES IMPONIBLES $ 2.433.231
+Sueldo Base $ 2.154.149
+Gratificación $ 219.115
+Aguinaldo Septiembre 2026 $ 59.967
+HABERES NO IMPONIBLES $ 400.000
+Colación $ 200.000
+Movilización $ 200.000
+DESCUENTOS LEGALES $ 480.463
+Cotiz. Previ. Obligatoria $ 254.516
+Cotiz. Salud Obligatoria $ 170.326
+Seguro Cesantía $ 14.599
+Impuesto Único $ 41.022
+OTROS DESCUENTOS $ 50.000
+Anticipo Aguinaldo Septiembre 2026 $ 50.000
+TOTAL HABERES $ 2.833.231 TOTAL DESCUENTOS $ 530.463`
+  const p = parsePayslipText(SEP)
+  const sum = (l: { amount: number }[]) => l.reduce((s, x) => s + x.amount, 0)
+
+  it('captura el aguinaldo y el anticipo con su nombre', () => {
+    expect(p.haberesImponibles.find(l => l.label.startsWith('Aguinaldo'))?.amount).toBe(59967)
+    expect(p.otrosDescuentos).toEqual([{ label: 'Anticipo Aguinaldo Septiembre 2026', amount: 50000 }])
+  })
+  it('el desglose suma los totales', () => {
+    expect(sum(p.haberesImponibles) + sum(p.haberesNoImponibles)).toBe(p.totalHaberes)
+    expect(sum(p.descuentosLegales) + sum(p.otrosDescuentos)).toBe(p.totalDescuentos)
+  })
+  it('salud: el nombre de la isapre, no el texto de IMP. PREV./SALUD', () => {
+    expect(p.saludLabel).toBe('Banmedica 4.118 UF (100.0%)')
+  })
+})

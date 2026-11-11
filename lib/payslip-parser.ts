@@ -62,7 +62,7 @@ function parseCLPInt(raw: string | undefined | null): number | null {
  *  cortando el valor antes del siguiente label conocido o salto de línea. */
 function findLabelValue(text: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`${escaped}\\s*:\\s*([^\\n]+?)(?=\\s{2,}[A-ZÁÉÍÓÚÑ][a-záéíóúñ]|\\n|$)`, 'i')
+  const re = new RegExp(`(?<![A-Za-zÁÉÍÓÚÑáéíóúñ/.])${escaped}\\s*:\\s*([^\\n]+?)(?=\\s{2,}[A-ZÁÉÍÓÚÑ][a-záéíóúñ]|\\n|$)`, 'i')
   const m = text.match(re)
   return m ? m[1].trim() : null
 }
@@ -105,6 +105,52 @@ function buildLines(text: string, candidates: string[]): BreakdownLine[] {
 const HABERES_IMPONIBLES_LABELS = ['Sueldo Base', 'Gratificación', 'Horas Extras', 'Comisiones', 'Bono']
 const HABERES_NO_IMPONIBLES_LABELS = ['Colación', 'Movilización', 'Viático', 'Asignación Familiar']
 const DESCUENTOS_LEGALES_LABELS = ['Cotiz. Previ. Obligatoria', 'Cotiz. Salud Obligatoria', 'Seguro Cesantía', 'Impuesto Único']
+
+/** Todas las líneas "Etiqueta $ monto" del texto (sin ":" en la etiqueta, así
+ *  se saltan los campos resumen como "UF: $ …" o "IMP. CESANTÍA: $ …"). */
+function extractPairs(text: string): BreakdownLine[] {
+  const out: BreakdownLine[] = []
+  const re = /([A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9.()%/ -]*?)[ \t]*\$[ \t]*([\d.]+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const amount = parseCLPInt(m[2])
+    if (amount !== null && amount > 0) out.push({ label: m[1].trim(), amount })
+  }
+  return out
+}
+
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim()
+const IGNORED_PAIR_LABELS = new Set([
+  'haberes imponibles', 'haberes no imponibles', 'descuentos legales', 'otros descuentos',
+  'total haberes', 'total descuentos', 'liquido a recibir',
+].map(norm))
+
+type Section = 'hi' | 'hni' | 'dl' | 'od'
+
+/** Línea que no está en las listas fijas (aguinaldo, anticipo, un descuento
+ *  chico nuevo…): se asigna a la sección cuyo total todavía no cuadra con la
+ *  suma de sus líneas — esa diferencia es exactamente lo que falta. Bug real
+ *  (Cas): el "Aguinaldo" de $59.967 y varios descuentos chicos se perdían y el
+ *  desglose no sumaba el total. */
+function assignUnknownLines(
+  pairs: BreakdownLine[],
+  known: Set<string>,
+  sections: Record<Section, { total: number | null; lines: BreakdownLine[] }>,
+): void {
+  const order: Section[] = ['hi', 'hni', 'dl', 'od']
+  const residual = (k: Section) => {
+    const sec = sections[k]
+    return sec.total === null ? null : sec.total - sec.lines.reduce((s, l) => s + l.amount, 0)
+  }
+  for (const p of pairs) {
+    const n = norm(p.label)
+    if (known.has(n) || IGNORED_PAIR_LABELS.has(n)) continue
+    const target =
+      order.find(k => residual(k) === p.amount) ??
+      order.find(k => { const r = residual(k); return r !== null && r > p.amount })
+    if (target) sections[target].lines.push({ label: p.label, amount: p.amount })
+  }
+}
 
 export function parsePayslipText(text: string): ParsedPayslip {
   const flat = text.replace(/\r/g, '')
@@ -165,8 +211,22 @@ export function parsePayslipText(text: string): ParsedPayslip {
   // así que solo se captura el total; el detalle línea a línea se deja para
   // que el usuario lo agregue a mano si le importa.
   const otrosDescuentosTotal = findTotalAmount(flat, 'OTROS DESCUENTOS') ?? findTotalAmount(flat, 'Otros Descuentos')
-  const otrosDescuentos: BreakdownLine[] =
-    otrosDescuentosTotal && otrosDescuentosTotal > 0 ? [{ label: 'Otros descuentos', amount: otrosDescuentosTotal }] : []
+
+  // Líneas fuera de las listas fijas: se reparten según qué total de sección
+  // queda sin cubrir (ver assignUnknownLines).
+  const sections: Record<Section, { total: number | null; lines: BreakdownLine[] }> = {
+    hi:  { total: findTotalAmount(flat, 'HABERES IMPONIBLES'),    lines: haberesImponibles },
+    hni: { total: findTotalAmount(flat, 'HABERES NO IMPONIBLES'), lines: haberesNoImponibles },
+    dl:  { total: findTotalAmount(flat, 'DESCUENTOS LEGALES'),    lines: descuentosLegales },
+    od:  { total: otrosDescuentosTotal,                           lines: [] },
+  }
+  const knownLabels = new Set([
+    ...HABERES_IMPONIBLES_LABELS, ...HABERES_NO_IMPONIBLES_LABELS, ...DESCUENTOS_LEGALES_LABELS,
+  ].map(norm))
+  assignUnknownLines(extractPairs(flat), knownLabels, sections)
+  const otrosDescuentos: BreakdownLine[] = sections.od.lines.length > 0
+    ? sections.od.lines
+    : otrosDescuentosTotal && otrosDescuentosTotal > 0 ? [{ label: 'Otros descuentos', amount: otrosDescuentosTotal }] : []
 
   const totalHaberes = findTotalAmount(flat, 'TOTAL HABERES') ?? findTotalAmount(flat, 'Total Haberes')
   const totalDescuentos = findTotalAmount(flat, 'TOTAL DESCUENTOS') ?? findTotalAmount(flat, 'Total Descuentos')
