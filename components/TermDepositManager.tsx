@@ -528,7 +528,6 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                 <input
                   id="td-f1"
                   type="text"
-                  list="cl-institutions"
                   value={form.bank}
                   onChange={e => setForm(f => ({ ...f, bank: e.target.value }))}
                   placeholder="Elige o escribe — ej: Banco de Chile, Coopeuch"
@@ -538,9 +537,25 @@ export default function TermDepositManager({ userId, initialDeposits }: Props) {
                   onFocus={focusOn} onBlur={focusOff}
                   autoFocus
                 />
-                <datalist id="cl-institutions">
-                  {CL_INSTITUTIONS.map(i => <option key={i.domain} value={i.name} />)}
-                </datalist>
+                {/* nov 2026: el datalist del navegador filtra por lo escrito, así que
+                    con "Banco de Chile" ya puesto solo mostraba esa opción. Chips
+                    siempre visibles con todas las instituciones. */}
+                <div className="flex flex-wrap gap-1.5 mt-2 max-h-32 overflow-y-auto">
+                  {CL_INSTITUTIONS.map(i => {
+                    const sel = form.bank.trim().toLowerCase() === i.name.toLowerCase()
+                    return (
+                      <button key={i.domain} type="button"
+                        onClick={() => setForm(f => ({ ...f, bank: i.name }))}
+                        aria-pressed={sel}
+                        className="px-3 min-h-[36px] rounded-xl text-xs font-semibold border transition-colors"
+                        style={sel
+                          ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary)' }
+                          : { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--ink-2)' }}>
+                        {i.name}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Monto + Interés */}
