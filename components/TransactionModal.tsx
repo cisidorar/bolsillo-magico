@@ -602,14 +602,14 @@ export default function TransactionModal({
                 const px = quotes[form.ticker.trim().toUpperCase()]?.price
                 const total = parseFloat(form.totalPaid)
                 if (form.shares || !px || !(px > 0) || !(total > 0)) return null
-                const est = Math.round((total / px) * 1e4) / 1e4
+                const est = Math.round((total / px) * 1e8) / 1e8
                 return (
                   <button type="button"
                     onClick={() => setForm(f => ({ ...f, shares: String(est) }))}
                     className="w-full px-4 py-2.5 rounded-xl flex items-center gap-2 text-left"
                     style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                     <span className="text-[11px] font-bold">
-                      ≈ {est.toLocaleString('es-CL', { maximumFractionDigits: 4 })} acciones al precio actual ({fmtUSD(px)})
+                      ≈ {est.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acciones al precio actual ({fmtUSD(px)})
                     </span>
                     <span className="text-[11px] font-extrabold ml-auto">Usar</span>
                   </button>
