@@ -87,7 +87,36 @@ export async function loadAdminData(): Promise<
   return { ok: true, waitlist: (wl ?? []) as WaitlistRow[], accounts, cap: ACCOUNT_CAP }
 }
 
-export async function inviteFromWaitlist(waitlistId: string, origin: string): Promise<AdminResult> {
+async function activeAccounts(admin: NonNullable<ReturnType<typeof serviceClient>>) {
+  // El tope cuenta cuentas activas: así una cuenta bloqueada libera un cupo.
+  const { data: usersPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
+  return (usersPage?.users ?? []).filter(u => {
+    const b = (u as { banned_until?: string | null }).banned_until
+    return !(b && new Date(b).getTime() > Date.now())
+  }).length
+}
+
+/** Manda la invitación y, si se pidió, deja la cuenta con esos módulos desde el inicio. */
+async function sendInvite(
+  admin: NonNullable<ReturnType<typeof serviceClient>>, email: string, origin: string, features?: Features,
+): Promise<{ ok: true; userId: string | null } | { ok: false; error: string }> {
+  if ((await activeAccounts(admin)) >= ACCOUNT_CAP) {
+    return { ok: false, error: `Llegaste al tope de ${ACCOUNT_CAP} cuentas activas. Bloquea una o sube MAX_ACTIVE_USERS.` }
+  }
+  // El enlace del correo pasa por /api/auth/confirm (verifica el token) y
+  // termina en /update-password, donde la persona elige su contraseña.
+  const redirectTo = `${origin.replace(/\/$/, '')}/api/auth/confirm?next=/update-password`
+  const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
+  if (invErr) {
+    console.error('[admin] invite falló:', invErr.message)
+    return { ok: false, error: invErr.message.includes('already') ? 'Ese correo ya tiene una cuenta.' : 'No se pudo mandar la invitación.' }
+  }
+  const userId = invited.user?.id ?? null
+  if (userId && features) await admin.from('profiles').update({ features }).eq('id', userId)
+  return { ok: true, userId }
+}
+
+export async function inviteFromWaitlist(waitlistId: string, origin: string, features?: Features): Promise<AdminResult> {
   if (!(await requireAdmin())) return NO_ADMIN
   const admin = serviceClient()
   if (!admin) return NO_SERVICE
@@ -95,31 +124,32 @@ export async function inviteFromWaitlist(waitlistId: string, origin: string): Pr
   const { data: row, error } = await admin.from('waitlist').select('id, email, status').eq('id', waitlistId).maybeSingle()
   if (error || !row) return { ok: false, error: 'No encontramos esa solicitud.' }
 
-  // El tope cuenta cuentas activas: así una cuenta bloqueada libera un cupo.
-  const { data: usersPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
-  const active = (usersPage?.users ?? []).filter(u => {
-    const b = (u as { banned_until?: string | null }).banned_until
-    return !(b && new Date(b).getTime() > Date.now())
-  }).length
-  if (active >= ACCOUNT_CAP) {
-    return { ok: false, error: `Llegaste al tope de ${ACCOUNT_CAP} cuentas activas. Bloquea una o sube MAX_ACTIVE_USERS.` }
-  }
-
-  // El enlace del correo pasa por /api/auth/confirm (verifica el token) y
-  // termina en /update-password, donde la persona elige su contraseña.
-  const redirectTo = `${origin.replace(/\/$/, '')}/api/auth/confirm?next=/update-password`
-  const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(row.email as string, { redirectTo })
-  if (invErr) {
-    console.error('[admin] invite falló:', invErr.message)
-    return { ok: false, error: invErr.message.includes('already') ? 'Ese correo ya tiene una cuenta.' : 'No se pudo mandar la invitación.' }
-  }
+  const res = await sendInvite(admin, row.email as string, origin, features ? normalizeFeatures(features) : undefined)
+  if (!res.ok) return res
 
   await admin.from('waitlist').update({
-    status: 'invited', invited_at: new Date().toISOString(), invited_user_id: invited.user?.id ?? null,
+    status: 'invited', invited_at: new Date().toISOString(), invited_user_id: res.userId,
   }).eq('id', waitlistId)
 
   revalidatePath('/admin')
   return { ok: true, message: `Invitación enviada a ${row.email}.` }
+}
+
+/** Invitar a alguien directo, sin que haya pasado por la lista de espera. */
+export async function inviteByEmail(email: string, origin: string, features?: Features): Promise<AdminResult> {
+  if (!(await requireAdmin())) return NO_ADMIN
+  const admin = serviceClient()
+  if (!admin) return NO_SERVICE
+  const clean = email.trim().toLowerCase()
+  if (clean.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return { ok: false, error: 'Ese correo no parece válido.' }
+
+  const res = await sendInvite(admin, clean, origin, features ? normalizeFeatures(features) : undefined)
+  if (!res.ok) return res
+  // Si ya estaba en la lista de espera, queda marcada como invitada.
+  await admin.from('waitlist').update({ status: 'invited', invited_at: new Date().toISOString(), invited_user_id: res.userId })
+    .eq('email', clean).eq('status', 'pending')
+  revalidatePath('/admin')
+  return { ok: true, message: `Invitación enviada a ${clean}.` }
 }
 
 export async function rejectWaitlist(waitlistId: string): Promise<AdminResult> {
@@ -143,6 +173,17 @@ export async function setAccountFeature(userId: string, key: FeatureKey, on: boo
   const next = { ...normalizeFeatures((prof as { features: unknown }).features), [key]: on }
   const { error: upErr } = await admin.from('profiles').update({ features: next }).eq('id', userId)
   if (upErr) return { ok: false, error: 'No se pudo guardar el cambio.' }
+  revalidatePath('/admin')
+  return { ok: true }
+}
+
+/** Deja los módulos de una cuenta exactamente como se indica (presets Básico / Completo). */
+export async function setAccountFeatures(userId: string, features: Features): Promise<AdminResult> {
+  if (!(await requireAdmin())) return NO_ADMIN
+  const admin = serviceClient()
+  if (!admin) return NO_SERVICE
+  const { error } = await admin.from('profiles').update({ features: normalizeFeatures(features) }).eq('id', userId)
+  if (error) return { ok: false, error: 'No se pudo guardar el cambio.' }
   revalidatePath('/admin')
   return { ok: true }
 }
