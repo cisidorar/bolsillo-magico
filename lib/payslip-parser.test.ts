@@ -134,3 +134,41 @@ TOTAL HABERES $ 2.833.231 TOTAL DESCUENTOS $ 530.463`
     expect(p.saludLabel).toBe('Banmedica 4.118 UF (100.0%)')
   })
 })
+
+describe('parsePayslipText — liquidación de Buk, agosto 2025 (Teletrabajo y Adicional Salud)', () => {
+  const AGO = `Liquidación de Sueldo
+Empleador: Buk SpA (76.691.442-k)
+Mes: Agosto 2025
+Sr(a): Riquelme Zamora, Catalina
+Previsión: Uno (10.49%)
+Salud: Colmena 2.62 UF (100.0%)
+UF: $ 39.383,07
+HABERES IMPONIBLES $ 1.358.111
+Sueldo Base $ 1.148.715
+Gratificación $ 209.396
+HABERES NO IMPONIBLES $ 160.000
+Movilización $ 65.000
+Teletrabajo $ 30.000
+Colación $ 65.000
+DESCUENTOS LEGALES $ 260.902
+Cotiz. Previ. Obligatoria $ 142.466
+Cotiz. Salud Obligatoria $ 95.068
+Adicional Salud $ 8.116
+Seguro Cesantía $ 8.149
+Impuesto Único $ 7.103
+OTROS DESCUENTOS $ 0
+TOTAL HABERES $ 1.518.111 TOTAL DESCUENTOS $ 260.902
+IMP. PREV./SALUD: $ 1.358.111 IMP. CESANTÍA: $ 1.358.111 BASE TRIBUTABLE: $ 1.104.312
+LÍQUIDO A RECIBIR: $ 1.257.209`
+  const p = parsePayslipText(AGO)
+  const sum = (l: { amount: number }[]) => l.reduce((s, x) => s + x.amount, 0)
+  it('captura líneas nuevas sin que estén en las listas fijas', () => {
+    expect(p.haberesNoImponibles.find(l => l.label === 'Teletrabajo')?.amount).toBe(30000)
+    expect(p.descuentosLegales.find(l => l.label === 'Adicional Salud')?.amount).toBe(8116)
+  })
+  it('el desglose suma los totales', () => {
+    expect(sum(p.haberesImponibles) + sum(p.haberesNoImponibles)).toBe(p.totalHaberes)
+    expect(sum(p.descuentosLegales) + sum(p.otrosDescuentos)).toBe(p.totalDescuentos)
+    expect(p.liquido).toBe(1257209)
+  })
+})

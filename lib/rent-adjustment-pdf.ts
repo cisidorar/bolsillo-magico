@@ -4,7 +4,8 @@
 // verificar. Solo caracteres WinAnsi (Helvetica estándar): tildes y ñ sí,
 // flechas y símbolos raros no.
 
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import { PDFDocument, StandardFonts, type PDFFont } from 'pdf-lib'
+import { PDF, drawPdfHeader, drawPdfFooter, setPdfMetadata } from './pdf-brand'
 import type { RentAdjustment } from './rent-adjustment'
 
 export interface RentAdjustmentPdfInput {
@@ -55,68 +56,34 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
   return lines
 }
 
-// Marca Bolsillo Mágico dibujada en vectores (sin archivos de imagen: funciona
-// igual en el cron de Vercel). Las formas son las de public/bolsillo-magico-icono-invertido.svg.
-const ICON_BOX  = 'M138.24 0 H373.76 A138.24 138.24 0 0 1 512 138.24 V373.76 A138.24 138.24 0 0 1 373.76 512 H138.24 A138.24 138.24 0 0 1 0 373.76 V138.24 A138.24 138.24 0 0 1 138.24 0 Z'
-const ICON_STAR = 'M256 117.76 L270.64 169.68 L322.56 184.32 L270.64 198.96 L256 250.88 L241.36 198.96 L189.44 184.32 L241.36 169.68 Z'
-const ICON_CUP  = 'M148.48 307.2 A107.52 107.52 0 0 0 363.52 307.2 Z'
-const BRAND_BLUE = rgb(0.169, 0.486, 0.965)   // #2B7CF6
-const BRAND_GOLD = rgb(1, 0.76, 0.235)        // #FFC23C
-const BRAND_NAVY = rgb(0.055, 0.165, 0.32)    // #0E2A52
-
-/** Icono (esquina superior izquierda en x, topY) + wordmark "Bolsillo Mágico". */
-function drawBrand(page: PDFPage, bold: PDFFont, x: number, topY: number, size: number, onDark = true) {
-  const scale = size / 512
-  const pageH = page.getHeight()
-  page.drawSvgPath(ICON_BOX,  { x, y: pageH - topY, scale, color: rgb(1, 1, 1) })
-  page.drawSvgPath(ICON_STAR, { x, y: pageH - topY, scale, color: BRAND_GOLD })
-  page.drawSvgPath(ICON_CUP,  { x, y: pageH - topY, scale, color: onDark ? BRAND_BLUE : BRAND_NAVY })
-  const fs = size * 0.5
-  const ty = pageH - topY - size / 2 - fs * 0.33
-  const tx = x + size + 8
-  page.drawText('Bolsillo ', { x: tx, y: ty, size: fs, font: bold, color: rgb(1, 1, 1) })
-  page.drawText('Mágico', { x: tx + bold.widthOfTextAtSize('Bolsillo ', fs), y: ty, size: fs, font: bold, color: BRAND_GOLD })
-}
-
 export async function buildRentAdjustmentPdf(input: RentAdjustmentPdfInput): Promise<Uint8Array> {
   const { adjustment: a } = input
   const doc = await PDFDocument.create()
-  const page = doc.addPage([595, 842]) // A4
+  setPdfMetadata(doc, `Aviso de reajuste de arriendo · ${monthLong(a.adjustmentMonth)}`, input.propertyLabel)
+  const page = doc.addPage([PDF.pageW, PDF.pageH])
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
-  const ink = rgb(0.055, 0.165, 0.32)
-  const muted = rgb(0.36, 0.42, 0.51)
-  const line = rgb(0.89, 0.92, 0.95)
-  const blue = rgb(0.169, 0.486, 0.965)
+  const { margin: M, navy, muted, hairline } = PDF
+  const W = PDF.pageW - M * 2
 
-  const M = 50
-  const W = 595 - M * 2
+  // Norma docs/PDF_SYSTEM.md: marca chica arriba, regla fina y texto chico abajo.
+  let y = drawPdfHeader(page, { regular: font, bold }, 'Aviso de reajuste')
+  drawPdfFooter(page, { regular: font })
 
-  // Banda de marca arriba y pie navy abajo.
-  page.drawRectangle({ x: 0, y: 842 - 84, width: 595, height: 84, color: BRAND_BLUE })
-  drawBrand(page, bold, M, 22, 40)
-  page.drawRectangle({ x: 0, y: 0, width: 595, height: 44, color: BRAND_NAVY })
-  page.drawText('Generado con Bolsillo Mágico · bolsillomagico.com', {
-    x: M, y: 17, size: 8.5, font, color: rgb(0.62, 0.71, 0.83),
-  })
-
-  let y = 842 - 84 - 44
-
-  const text = (s: string, x: number, size = 10, f: PDFFont = font, color = ink) =>
+  const text = (s: string, x: number, size = 10, f: PDFFont = font, color = navy) =>
     page.drawText(s, { x, y, size, font: f, color })
-  const rightText = (s: string, xRight: number, size = 10, f: PDFFont = font, color = ink) =>
+  const rightText = (s: string, xRight: number, size = 10, f: PDFFont = font, color = navy) =>
     page.drawText(s, { x: xRight - f.widthOfTextAtSize(s, size), y, size, font: f, color })
-  const rule = (yy: number) => page.drawLine({ start: { x: M, y: yy }, end: { x: M + W, y: yy }, thickness: 0.8, color: line })
-  const para = (s: string, size = 10, f: PDFFont = font, color = ink, gap = 14) => {
+  const rule = (yy: number) => page.drawLine({ start: { x: M, y: yy }, end: { x: M + W, y: yy }, thickness: 0.8, color: hairline })
+  const para = (s: string, size = 10, f: PDFFont = font, color = navy, gap = 14) => {
     for (const l of wrap(s, f, size, W)) { text(l, M, size, f, color); y -= gap }
   }
 
-  // Encabezado
-  text('Aviso de Reajuste de Arriendo', M, 20, bold)
-  y -= 20
-  text(`Emitido el ${dayLong(input.issuedOn)}`, M, 10, font, muted)
-  y -= 12
-  rule(y); y -= 22
+  // Título + fecha de emisión
+  text('Aviso de Reajuste de Arriendo', M, 19, bold)
+  y -= 18
+  text(`Emitido el ${dayLong(input.issuedOn)}`, M, 9.5, font, muted)
+  y -= 28
 
   // Partes
   const rows: [string, string][] = [
@@ -125,41 +92,41 @@ export async function buildRentAdjustmentPdf(input: RentAdjustmentPdfInput): Pro
     ['Arrendatario', input.tenantName],
   ]
   for (const [k, v] of rows) { text(k, M, 10, font, muted); text(v, M + 90, 10, bold); y -= 16 }
-  y -= 6
+  y -= 8
 
-  // Resumen
   para(
     `Se informa al arrendatario que, conforme al contrato de arrendamiento, la renta se reajusta a partir del arriendo de ` +
     `${monthLong(a.adjustmentMonth)}, según la variación acumulada del IPC de los 6 meses indicados abajo.`,
-    10, font, ink, 14,
+    10, font, navy, 14,
   )
-  y -= 8
+  y -= 10
 
-  // Tabla IPC
-  page.drawRectangle({ x: M, y: y - 6, width: W, height: 22, color: rgb(0.93, 0.96, 1) })
-  text('Mes', M + 10, 9, bold, muted)
-  rightText('Variación mensual IPC', M + W - 10, 9, bold, muted)
-  y -= 24
+  // Tabla IPC: encabezado en tinte suave (acento, no relleno sólido)
+  page.drawRectangle({ x: M, y: y - 7, width: W, height: 22, color: PDF.tint })
+  text('MES', M + 10, 8, bold, muted)
+  rightText('VARIACIÓN MENSUAL IPC', M + W - 10, 8, bold, muted)
+  y -= 26
   for (const m of a.windowMonths) {
     text(monthShort(m.date), M + 10, 10)
     rightText(m.pct === null ? 'sin dato' : pct(m.pct), M + W - 10, 10)
-    y -= 4; rule(y); y -= 14
+    y -= 5; rule(y); y -= 14
   }
   text('IPC acumulado (compuesto mes a mes)', M + 10, 10, bold)
   rightText(a.cumulativePct === null ? '-' : pct(a.cumulativePct, 4), M + W - 10, 10, bold)
-  y -= 28
+  y -= 30
 
-  // Resultado
-  page.drawRectangle({ x: M, y: y - 64, width: W, height: 78, color: blue })
-  const white = rgb(1, 1, 1)
-  y -= 8
-  text('Renta vigente', M + 16, 10, font, white); rightText(clp(a.previousRent), M + W - 16, 10, font, white)
+  // Resultado: un solo bloque destacado, en tinte suave con borde fino. El
+  // azul de marca va solo en la cifra principal.
+  const boxH = 76
+  page.drawRectangle({ x: M, y: y - boxH + 14, width: W, height: boxH, color: PDF.tint, borderColor: PDF.tintLine, borderWidth: 1 })
+  y -= 6
+  text('Renta vigente', M + 16, 10, font, muted); rightText(clp(a.previousRent), M + W - 16, 10)
   y -= 18
-  text(a.floored ? 'Ajuste (IPC negativo: se mantiene la renta)' : 'Aumento', M + 16, 10, font, white)
-  rightText(a.floored ? clp(0) : '+' + clp(a.delta), M + W - 16, 10, font, white)
-  y -= 22
-  text(`Renta desde ${monthLong(a.adjustmentMonth)}`, M + 16, 13, bold, white)
-  rightText(clp(a.newRent), M + W - 16, 16, bold, white)
+  text(a.floored ? 'Ajuste (IPC negativo: se mantiene la renta)' : 'Aumento', M + 16, 10, font, muted)
+  rightText(a.floored ? clp(0) : '+' + clp(a.delta), M + W - 16, 10)
+  y -= 24
+  text(`Renta desde ${monthLong(a.adjustmentMonth)}`, M + 16, 12, bold)
+  rightText(clp(a.newRent), M + W - 16, 18, bold, PDF.blue)
   y -= 52
 
   // Notas
@@ -174,6 +141,5 @@ export async function buildRentAdjustmentPdf(input: RentAdjustmentPdfInput): Pro
   text('Cláusula del contrato', M, 9, bold, muted); y -= 14
   para(input.clauseText ?? CLAUSE_QUINTO, 8.5, font, muted, 12)
 
-  void (page as PDFPage)
   return doc.save()
 }
