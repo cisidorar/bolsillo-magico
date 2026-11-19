@@ -51,9 +51,57 @@ async function fetchCached<T>(supabase: SupabaseClient, cacheKey: string, fetche
   }
 }
 
-/** Serie de IPC (% variación mensual), últimos ~12-13 meses según mindicador.cl. Cache-first (24h). */
+// ── IPC oficial: Banco Central (BDE) ─────────────────────────────────────────
+// mindicador.cl se quedó en dic 2025 (nov 2026: sin ningún mes de 2026), y el
+// reajuste del arriendo necesita el IPC más reciente. La BDE del Banco Central
+// publica la misma serie del INE (IPC base 2023=100) con API gratuita y token
+// (BCCH_API_TOKEN, ver si3.bcentral.cl → Mi Cuenta → Apikey Token). Se usa el
+// ÍNDICE y no la variación: la variación viene redondeada a 1 decimal, y el
+// cociente de índices da el acumulado exacto de la ventana.
+const BCCH_IPC_INDEX = 'F074.IPC.IND.Z.EP23.C.M'
+
+interface BcchObs { indexDateString: string; value: string; statusCode?: string }
+
+/**
+ * Observaciones del índice IPC (dd-mm-yyyy + valor) → variación mensual en %
+ * por mes (YYYY-MM-01). Sin redondear. Necesita el mes anterior para calcular
+ * el primero, así que ese primero se descarta. Pura y testeada.
+ */
+export function ipcFromBcchIndex(obs: BcchObs[]): IpcObservation[] {
+  const points = obs
+    .filter(o => o.value !== null && o.value !== '' && !Number.isNaN(Number(o.value)))
+    .map(o => {
+      const [, mm, yyyy] = o.indexDateString.split('-')
+      return { date: `${yyyy}-${mm}-01`, index: Number(o.value) }
+    })
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const out: IpcObservation[] = []
+  for (let i = 1; i < points.length; i++) {
+    out.push({ date: points[i].date, pctChange: (points[i].index / points[i - 1].index - 1) * 100 })
+  }
+  return out
+}
+
+async function fetchBcchIpc(token: string): Promise<IpcObservation[] | null> {
+  const first = new Date(Date.now() - 20 * 30 * 86_400_000).toISOString().slice(0, 10)
+  const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?token=${encodeURIComponent(token)}` +
+    `&function=GetSeries&timeseries=${BCCH_IPC_INDEX}&firstdate=${first}`
+  const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+  if (!res.ok) return null
+  const raw = await res.json() as { Codigo?: number; Series?: { Obs?: BcchObs[] | null } }
+  if (raw.Codigo !== 0 || !raw.Series?.Obs?.length) return null
+  const obs = ipcFromBcchIndex(raw.Series.Obs)
+  return obs.length > 0 ? obs : null
+}
+
+/**
+ * Serie de IPC (% variación mensual). Fuente principal: Banco Central (si hay
+ * BCCH_API_TOKEN); respaldo: mindicador.cl. Si ambas responden, lo del Banco
+ * Central pisa a mindicador mes a mes (y agrega los meses que a mindicador le
+ * faltan). Cache-first (24h).
+ */
 export async function fetchClIpcSeries(supabase: SupabaseClient): Promise<IpcObservation[] | null> {
-  return fetchCached(supabase, 'CL_IPC', async () => {
+  const mind = await fetchCached(supabase, 'CL_IPC', async () => {
     const res = await fetch('https://mindicador.cl/api/ipc', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
     if (!res.ok) return null
     const raw = await res.json() as MindicadorSerie<unknown>
@@ -62,6 +110,19 @@ export async function fetchClIpcSeries(supabase: SupabaseClient): Promise<IpcObs
       .sort((a, b) => a.date.localeCompare(b.date))
     return obs.length > 0 ? obs : null
   })
+
+  const token = process.env.BCCH_API_TOKEN
+  if (!token) return mind
+  const bcch = await fetchCached(supabase, 'CL_IPC_BCCH', () => fetchBcchIpc(token))
+  if (!bcch) return mind
+  return mergeIpcSeries(mind ?? [], bcch)
+}
+
+/** Une dos series por mes; `primary` gana cuando ambas tienen el mismo mes. */
+export function mergeIpcSeries(fallback: IpcObservation[], primary: IpcObservation[]): IpcObservation[] {
+  const byMonth = new Map(fallback.map(o => [o.date, o]))
+  for (const o of primary) byMonth.set(o.date, o)
+  return [...byMonth.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** Valor actual de la UF. Cache-first (24h) — la UF cambia una vez al día. */

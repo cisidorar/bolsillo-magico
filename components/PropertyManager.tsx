@@ -23,12 +23,13 @@ import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
-  extractAseoReceiptDraft, generateUtilityReminders,
+  extractAseoReceiptDraft, generateUtilityReminders, applyRentAdjustment, getRentAdjustmentPdfUrl,
 } from '@/app/actions/property'
 import type { ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 import {
-  nextAdjustmentDate, computeAdjustedRent, noticeDeadline, type LeaseLike,
+  nextAdjustmentDate, noticeDeadline, type LeaseLike,
 } from '@/lib/lease'
+import { computeRentAdjustment } from '@/lib/rent-adjustment'
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
 import PropertyEstado from '@/components/PropertyEstado'
@@ -144,11 +145,23 @@ export interface Lease {
   notes: string | null
 }
 
+export interface PendingAdjustment {
+  id: string
+  adjustment_month: string
+  previous_rent: number
+  new_rent: number
+  cumulative_pct: number
+  floored: boolean
+  window_months: { date: string; pct: number | null }[]
+  notified_at: string | null
+}
+
 interface Props {
   property: Property | null
   charges: Charge[]
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
+  pendingAdjustment?: PendingAdjustment | null
   today: string
   view: 'estado' | 'cobros' | 'info'
   /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
@@ -212,7 +225,7 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-export default function PropertyManager({ property, charges, lease, ipcSeries, today, view, openNew, categories = [], paymentMethods = [] }: Props) {
+export default function PropertyManager({ property, charges, lease, ipcSeries, pendingAdjustment = null, today, view, openNew, categories = [], paymentMethods = [] }: Props) {
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
   // Property es edición. Antes era boolean y no podía distinguir los dos casos
@@ -445,6 +458,13 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, t
           <div className="space-y-5">
             <LeaseCard
               lease={lease} ipcSeries={ipcSeries} today={today} busy={busy}
+              pendingAdjustment={pendingAdjustment}
+              onApplyAdjustment={() => pendingAdjustment && run(() => applyRentAdjustment(pendingAdjustment.id))}
+              onOpenAdjustmentPdf={async () => {
+                if (!pendingAdjustment) return
+                const r = await getRentAdjustmentPdfUrl(pendingAdjustment.id)
+                if (r.ok) window.open(r.url, '_blank', 'noopener')
+              }}
               onEdit={() => setLeaseForm(true)}
               onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
             />
@@ -927,11 +947,14 @@ function Fact({ label, value, bold, color }: { label: string; value: string; bol
  * cuándo toca reajustar, cuándo hay que avisar si no se renueva, y si faltan
  * meses de arriendo por generar.
  */
-function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
+function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, onApplyAdjustment, onOpenAdjustmentPdf, onEdit, onGenerate }: {
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
   today: string
   busy: boolean
+  pendingAdjustment: PendingAdjustment | null
+  onApplyAdjustment: () => void
+  onOpenAdjustmentPdf: () => void
   onEdit: () => void
   onGenerate: () => void
 }) {
@@ -966,7 +989,10 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
   // así que avisar el 1 de diciembre no serviría de nada — hay que tener el
   // dato antes de emitir el cobro del mes.
   const adjSoon = adjDays !== null && adjDays <= 45 && adjDays >= 0
-  const adjusted = adjSoon && ipcSeries ? computeAdjustedRent(l, ipcSeries, nextAdj!) : null
+  // Ventana de 6 meses con 2 de desfase (lib/rent-adjustment.ts): el IPC de la ventana ya está publicado antes del día de pago.
+  const adjusted = adjSoon && ipcSeries && lease.adjustment_kind === 'ipc'
+    ? computeRentAdjustment(lease.rent_amount, ipcSeries, nextAdj!, lease.adjustment_months ?? undefined)
+    : null
 
   const notice = noticeDeadline(l)
   const noticeDays = notice ? daysBetween(today, notice) : null
@@ -1009,7 +1035,42 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
       </dl>
 
       {/* Reajuste — gold, es accionable pero no urgente (UX5) */}
-      {adjSoon && (
+      {pendingAdjustment ? (
+        <div className="mt-3 p-3 rounded-xl"
+             style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+          <div className="flex items-start gap-2">
+            <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
+            <div className="min-w-0">
+              <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
+                {pendingAdjustment.floored
+                  ? 'Reajuste calculado: el IPC fue negativo, la renta se mantiene'
+                  : `Reajuste calculado: la renta sube a ${formatCLP(pendingAdjustment.new_rent)}`}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                IPC acumulado {Number(pendingAdjustment.cumulative_pct).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%
+                {!pendingAdjustment.floored && <> · +{formatCLP(pendingAdjustment.new_rent - pendingAdjustment.previous_rent)}</>}
+                {' '}desde {fmtDate(pendingAdjustment.adjustment_month)}.
+                {pendingAdjustment.notified_at ? ' Te lo mandé por correo con el PDF.' : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2.5">
+            <button onClick={onOpenAdjustmentPdf}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-semibold border"
+              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              Ver PDF
+            </button>
+            <button onClick={onApplyAdjustment} disabled={busy}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+              Confirmar reajuste
+            </button>
+          </div>
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
+            Al confirmar, la renta del contrato y los arriendos aún no pagados desde esa fecha se actualizan.
+          </p>
+        </div>
+      ) : adjSoon && (
         <div className="mt-3 p-3 rounded-xl flex items-start gap-2"
              style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
           <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
@@ -1017,18 +1078,18 @@ function LeaseCard({ lease, ipcSeries, today, busy, onEdit, onGenerate }: {
             <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
               Toca reajustar {adjDays === 0 ? 'hoy' : `en ${adjDays} ${adjDays === 1 ? 'día' : 'días'}`}
             </p>
-            {adjusted && !adjusted.floored && (
+            {adjusted?.complete && !adjusted.floored && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
                 Con el IPC del período la renta sube a {formatCLP(adjusted.newRent)}
-                {' '}(+{formatCLP(adjusted.delta)}, {adjusted.pctApplied.toFixed(1)}%)
+                {' '}(+{formatCLP(adjusted.delta)}, {(adjusted.cumulativePct ?? 0).toFixed(2)}%)
               </p>
             )}
-            {adjusted?.floored && (
+            {adjusted?.complete && adjusted.floored && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
                 El IPC del período fue negativo — la renta se mantiene en {formatCLP(lease.rent_amount)}.
               </p>
             )}
-            {!adjusted && (
+            {!adjusted?.complete && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
                 El IPC del período todavía no se publica.
               </p>

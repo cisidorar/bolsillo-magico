@@ -71,3 +71,46 @@ describe('realReturnPct', () => {
     expect(realReturnPct(3, 5)).toBeLessThan(0)
   })
 })
+
+import { ipcFromBcchIndex, mergeIpcSeries } from './cl-indicators'
+
+describe('ipcFromBcchIndex', () => {
+  it('convierte el índice en variación mensual sin redondear', () => {
+    const r = ipcFromBcchIndex([
+      { indexDateString: '01-04-2026', value: '110.00' },
+      { indexDateString: '01-05-2026', value: '110.55' },
+      { indexDateString: '01-06-2026', value: '110.77' },
+    ])
+    expect(r).toHaveLength(2)
+    expect(r[0].date).toBe('2026-05-01')
+    expect(r[0].pctChange).toBeCloseTo(0.5, 6)
+    expect(r[1].pctChange).toBeCloseTo((110.77 / 110.55 - 1) * 100, 10)
+  })
+  it('el acumulado de la ventana es el cociente de índices', () => {
+    const idx = [100, 100.3, 100.5, 100.9, 101.0, 101.4, 101.9]
+    const obs = idx.map((v, i) => ({ indexDateString: `01-${String(i + 4).padStart(2, '0')}-2026`, value: String(v) }))
+    const r = ipcFromBcchIndex(obs)
+    const factor = r.reduce((f, o) => f * (1 + o.pctChange / 100), 1)
+    expect(factor).toBeCloseTo(101.9 / 100, 10)
+  })
+  it('ignora observaciones sin valor (mes aún no publicado)', () => {
+    const r = ipcFromBcchIndex([
+      { indexDateString: '01-09-2026', value: '112.00' },
+      { indexDateString: '01-10-2026', value: '112.50' },
+      { indexDateString: '01-11-2026', value: '' },
+    ])
+    expect(r).toHaveLength(1)
+    expect(r[0].date).toBe('2026-10-01')
+  })
+})
+
+describe('mergeIpcSeries', () => {
+  it('lo primario pisa al respaldo y agrega meses nuevos, ordenado', () => {
+    const r = mergeIpcSeries(
+      [{ date: '2025-12-01', pctChange: -0.2 }, { date: '2026-01-01', pctChange: 0.1 }],
+      [{ date: '2026-01-01', pctChange: 0.41 }, { date: '2026-02-01', pctChange: 0.3 }],
+    )
+    expect(r.map(o => o.date)).toEqual(['2025-12-01', '2026-01-01', '2026-02-01'])
+    expect(r[1].pctChange).toBe(0.41)
+  })
+})

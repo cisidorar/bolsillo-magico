@@ -77,6 +77,14 @@ export default async function PropiedadPage({
 
   const lease = (leaseRes.data ?? null) as Lease | null
 
+  // Reajuste ya calculado por el cron y aún sin confirmar (rent_adjustments).
+  const pendingAdjustment = lease
+    ? ((await supabase.from('rent_adjustments')
+        .select('id, adjustment_month, previous_rent, new_rent, cumulative_pct, floored, window_months, notified_at')
+        .eq('user_id', user.id).eq('lease_id', lease.id).is('applied_at', null)
+        .order('adjustment_month', { ascending: false }).limit(1).maybeSingle()).data ?? null)
+    : null
+
   // El H1 es la dirección de la propiedad que estás mirando, no el nombre del
   // módulo: con varias propiedades "Propiedad" no dice cuál. La bajada carga
   // el resto del contexto (unidad, comuna, arrendatario) para que el hero no
@@ -139,7 +147,7 @@ export default async function PropiedadPage({
       </div>
 
       <PropertyManager property={property} charges={charges} lease={lease}
-                       ipcSeries={ipcSeries} today={today} view={view}
+                       ipcSeries={ipcSeries} pendingAdjustment={pendingAdjustment} today={today} view={view}
                        openNew={params.nueva === '1'}
                        categories={(catsRaw ?? []) as Category[]}
                        paymentMethods={(pmsRaw ?? []) as PaymentMethod[]} />
