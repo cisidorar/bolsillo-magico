@@ -1,10 +1,10 @@
 'use client'
 
-import { SHOW_TRIPS } from '@/lib/features'
+import { SHOW_TRIPS, type Features } from '@/lib/features'
 import Link from 'next/link'
 import {
   X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings,
-  Building2, Plane, HandCoins,
+  Building2, Plane, HandCoins, ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { useBackdropClose } from '@/components/useBackdropClose'
@@ -12,6 +12,9 @@ import { useBackdropClose } from '@/components/useBackdropClose'
 interface Props {
   isOpen: boolean
   onClose: () => void
+  /** Módulos de esta cuenta; sin dato (cuenta vieja) se muestra todo. */
+  features?: Features
+  isAdmin?: boolean
 }
 
 interface Row {
@@ -21,13 +24,14 @@ interface Row {
   bg: string
   title: string
   subtitle: string
+  feature?: keyof Features
 }
 
 // Las tres primeras son las que en mobile solo eran alcanzables desde Ajustes
 // (2-3 taps) — acá quedan a un tap desde cualquier pantalla.
 const financeRows: Row[] = [
   { href: '/ingresos',    icon: Wallet,     color: '#1FBE8D', bg: '#E6FAF3', title: 'Ingresos',    subtitle: 'Cuánto ganas cada mes' },
-  { href: '/inversiones', icon: TrendingUp, color: '#2B7CF6', bg: '#EEF4FF', title: 'Inversiones', subtitle: 'Acciones, depósitos y ahorro' },
+  { href: '/inversiones', icon: TrendingUp, color: '#2B7CF6', bg: '#EEF4FF', title: 'Inversiones', subtitle: 'Acciones, depósitos y ahorro', feature: 'inversiones' },
   { href: '/recurrentes', icon: RefreshCw,  color: '#0D9488', bg: '#F0FDFA', title: 'Recurrentes', subtitle: 'Suscripciones y cobros fijos' },
   { href: '/compartidos', icon: SHOW_TRIPS ? Plane : HandCoins, color: '#0EA5E9', bg: '#E0F2FE', title: SHOW_TRIPS ? 'Compartidos' : 'Por cobrar', subtitle: SHOW_TRIPS ? 'Viajes y gastos con otra persona' : 'Lo que te deben tus amigos' },
 ]
@@ -35,7 +39,7 @@ const financeRows: Row[] = [
 const otherRows: Row[] = [
   // Propiedad va acá y no en financeRows a propósito: no son tus finanzas
   // personales, es el chequeo de un mundo aparte que no se mezcla con ellas.
-  { href: '/propiedad',   icon: Building2,  color: '#D97706', bg: '#FFF7ED', title: 'Propiedad',      subtitle: 'Arriendo, dividendo y cuentas' },
+  { href: '/propiedad',   icon: Building2,  color: '#D97706', bg: '#FFF7ED', title: 'Propiedad',      subtitle: 'Arriendo, dividendo y cuentas', feature: 'propiedad' },
   { href: '/presupuesto', icon: Target,     color: '#2B7CF6', bg: '#EEF4FF', title: 'Límite mensual', subtitle: 'Tu presupuesto del mes' },
   { href: '/categorias',  icon: Tag,        color: '#7C3AED', bg: '#F5F3FF', title: 'Categorías',     subtitle: 'Organiza tus gastos' },
   { href: '/metodos',     icon: CreditCard, color: '#16A34A', bg: '#F0FDF4', title: 'Métodos de pago', subtitle: 'Cuentas y tarjetas' },
@@ -64,7 +68,7 @@ function SheetRow({ row, onClose }: { row: Row; onClose: () => void }) {
   )
 }
 
-export default function MoreSheet({ isOpen, onClose }: Props) {
+export default function MoreSheet({ isOpen, onClose, features, isAdmin = false }: Props) {
   // Hook llamado siempre, ANTES del `if (!isOpen) return null` — el
   // componente queda montado con isOpen alternando true/false (BottomNav no
   // lo desmonta), así que el hook no puede depender de esa condición sin
@@ -73,6 +77,9 @@ export default function MoreSheet({ isOpen, onClose }: Props) {
   const backdropClose = useBackdropClose(onClose)
 
   if (!isOpen) return null
+
+  const visible = (r: Row) => !r.feature || !features || features[r.feature]
+  const adminRow: Row = { href: '/admin', icon: ShieldCheck, color: '#2B7CF6', bg: '#EEF4FF', title: 'Admin', subtitle: 'Solicitudes y accesos' }
 
   return (
     <div
@@ -105,14 +112,14 @@ export default function MoreSheet({ isOpen, onClose }: Props) {
             Finanzas
           </p>
           <div>
-            {financeRows.map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
+            {financeRows.filter(visible).map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
           </div>
 
           <p className="text-[11px] font-semibold px-4 mt-4 mb-1" style={{ color: 'var(--ink-3)' }}>
             Configuración
           </p>
           <div>
-            {otherRows.map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
+            {[...otherRows, ...(isAdmin ? [adminRow] : [])].filter(visible).map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
             <Link
               href="/ajustes"
               onClick={onClose}

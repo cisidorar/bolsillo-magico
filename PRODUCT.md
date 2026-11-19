@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Cas (cisidorar@gmail.com) is the sole real user of the product. Registration has been closed since jul 2026 (`ROADMAP-uso-personal.md`): no public landing, no signup form, Supabase sign-ups disabled at the project level. Cas uses the full app day-to-day: expense tracking, budgets, recurring bills, income, investments, and property.
+Cas (cisidorar@gmail.com) is the sole real user of the product. Registration has been closed since jul 2026 (`ROADMAP-uso-personal.md`): no signup form, Supabase sign-ups disabled at the project level. Since nov 2026 a public landing (`/`) and an interactive demo with fictional data (`/demo`) are back, aimed at visitors who might want the app later: their only conversion is a waitlist (`join_waitlist`, migration `20261119e`), never an account. Cas uses the full app day-to-day: expense tracking, budgets, recurring bills, income, investments, and property.
 
 A second kind of participant exists but is narrow in scope: people Cas invites into a shared trip (`/compartidos`). They get their own login and see only their own share of that trip's expenses — never Cas's dashboard, income, budget, or any other section. They are not a general audience; design work outside `/compartidos` does not need to serve them.
 
@@ -37,7 +37,7 @@ Not a generic budgeting SaaS. Its edge is modeling the specific, finicky mechani
 - All money amounts are integer CLP (no decimals) except the investment world, which is USD end-to-end (entry recorded once in CLP, then tracked and shown in USD because that money typically doesn't come back to Chile).
 - Credit card statement math (`billingPeriod`, `currentStatementRange`, `lastClosedStatementRange`, `lastDueStatementRange`) is foundational and must stay correct — see `CLAUDE.md` for the exact semantics and the 2pm Chile-time cutover edge case.
 - Shared-trip income ratio is computed server-side via a `SECURITY DEFINER` Postgres function; neither party's raw income is ever exposed to the other, only the resulting %.
-- No public signup surface exists or should be reintroduced; `/`, `/demo`, and marketing pages were deliberately deleted in jul 2026 and `robots.ts` blocks all crawling.
+- No public signup surface exists. The landing (`/`) and `/demo` are public and indexable (nov 2026); every other route stays private and noindex, and `robots.ts` only allows those two. Landing and demo use fictional people and numbers only — never Cas's name, salary, positions or property data.
 - The investment/technical-signal engine (conviction score, chandelier exit, ATR-based trailing stops) is built on real technical-analysis logic, but the product's job is to translate it into a plain-language verdict ("comprar" / "esperar" / "vender") — jargon and raw indicator values are implementation detail, not the primary surface a user reads. This applies even though Cas personally understands the underlying technicals: the product's bar is a non-specialist decision, not a literacy test.
 - Dark mode is supported and synced server-side via `profiles.theme` (SSR, no flash).
 
@@ -50,7 +50,7 @@ Not a generic budgeting SaaS. Its edge is modeling the specific, finicky mechani
 
 ## Evidence on Hand
 
-No testimonials, case studies, or external proof — not applicable to a personal-use product with one real user. Nothing here should be fabricated to look like a multi-customer SaaS.
+No testimonials, case studies, or external proof — not applicable to a personal-use product with one real user. Nothing here should be fabricated to look like a multi-customer SaaS. The landing's proof is the mechanism itself (the interactive statement demo, `/demo`) plus verifiable data-handling facts (no bank connection, per-user RLS, CSV export).
 
 ## Product Principles
 
@@ -58,7 +58,7 @@ No testimonials, case studies, or external proof — not applicable to a persona
 2. **Numbers must be trustworthy at a glance.** Cas uses this instead of a bank statement or spreadsheet — ambiguity or a wrong statement shown for most of the month is a real failure, not a cosmetic one (see `CLAUDE.md`'s statement-range function distinctions).
 3. **Translate technical signals into plain decisions.** The investment engine's job is a jargon-free verdict a non-specialist could act on, even though its one user could read the raw technicals.
 4. **Privacy within shared features.** Compartidos exposes only what's needed (a trip, an expense, an income %) and never raw income or unrelated personal data, by construction (RLS + security-definer functions), not by UI convention alone.
-5. **Closed by design, not by obscurity.** The product being single-user is enforced (disabled signup, no public surface, robots blocking) rather than relying on the URL being unknown.
+5. **Closed by design, not by obscurity.** Signup stays closed and is enforced server-side (disabled sign-ups, no signup form), even though a public landing and demo exist to explain the product and collect a waitlist.
 
 ## Accessibility & Inclusion
 

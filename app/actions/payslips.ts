@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getUserAccess } from '@/lib/supabase/server'
 import { extractText } from 'unpdf'
 import { parsePayslipText, type ParsedPayslip, type BreakdownLine } from '@/lib/payslip-parser'
 
@@ -15,6 +15,7 @@ export async function extractPayslipDraft(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
+  if (!(await getUserAccess())?.features.liquidaciones) return { ok: false, error: 'Esta función no está activada en tu cuenta.' }
 
   const file = formData.get('file')
   if (!(file instanceof File)) return { ok: false, error: 'No se recibió el archivo' }
@@ -65,6 +66,7 @@ export async function savePayslip(formData: FormData): Promise<{ ok: true } | { 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
+  if (!(await getUserAccess())?.features.liquidaciones) return { ok: false, error: 'Esta función no está activada en tu cuenta.' }
 
   const file = formData.get('file')
   const dataRaw = formData.get('data')

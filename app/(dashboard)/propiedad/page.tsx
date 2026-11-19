@@ -1,4 +1,4 @@
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getNowChile } from '@/lib/utils'
 import PropiedadToggle, { type PropiedadView } from '@/components/PropiedadToggle'
@@ -23,6 +23,8 @@ export default async function PropiedadPage({
     getServerSession(), createClient(), searchParams,
   ])
   if (!user) redirect('/login')
+  // Módulo apagado para esta cuenta (acceso por invitación): no se muestra ni por URL.
+  if (!(await getUserAccess())?.features.propiedad) redirect('/inicio')
 
   const view: PropiedadView =
     params.view === 'cobros' ? 'cobros' : params.view === 'info' ? 'info' : 'estado'

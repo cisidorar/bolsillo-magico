@@ -1,4 +1,4 @@
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCLP, getNowChile, nextPaydayDate, daysBetween } from '@/lib/utils'
 import Link from 'next/link'
@@ -19,6 +19,7 @@ export default async function IngresosPage() {
   const [user, supabase] = await Promise.all([getServerSession(), createClient()])
   if (!user) redirect('/login')
 
+  const canUploadPayslip = (await getUserAccess())?.features.liquidaciones ?? false
   const { year: curYear, month: curMonth, todayDate, dateStr: todayStr } = getNowChile()
 
   const periods: { month: number; year: number }[] = []
@@ -192,6 +193,7 @@ export default async function IngresosPage() {
               : prevInc}
             monthName={MONTH_NAMES[(prevMissing ? prevM : curMonth) - 1]}
             existingAmounts={existingAmounts}
+            allowUpload={canUploadPayslip}
           />}
         </div>
       </div>

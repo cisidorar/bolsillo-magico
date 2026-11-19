@@ -1,4 +1,4 @@
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Radar, { type WatchlistItem } from '@/components/Radar'
 import DepositManager from '@/components/DepositManager'
@@ -115,6 +115,8 @@ export default async function InversionesPage({ searchParams }: Props) {
     searchParams,
   ])
   if (!user) redirect('/login')
+  // Módulo apagado para esta cuenta (acceso por invitación): no se muestra ni por URL.
+  if (!(await getUserAccess())?.features.inversiones) redirect('/inicio')
 
   // Ago 2026 (ROADMAP-ahorro-depositos.md, A3): Ahorro y Depósitos se
   // fusionaron en una sola vista — 'depositos' queda como ALIAS de 'ahorro'

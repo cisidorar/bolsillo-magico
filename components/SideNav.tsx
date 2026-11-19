@@ -2,23 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Building2, Plane, HandCoins } from 'lucide-react'
-import { SHOW_TRIPS } from '@/lib/features'
+import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Building2, Plane, HandCoins, ShieldCheck } from 'lucide-react'
+import { SHOW_TRIPS, type Features } from '@/lib/features'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import UserMenu from './UserMenu'
 
-const navItems = [
+const navItems: { href: string; icon: typeof Home; label: string; feature?: keyof Features }[] = [
   { href: '/inicio',      icon: Home,      label: 'Inicio'      },
   { href: '/historial',   icon: BookOpen,  label: 'Historial'   },
   { href: '/analisis',    icon: BarChart2, label: 'Análisis'    },
   { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
-  { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones'  },
+  { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones', feature: 'inversiones' },
   { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
   { href: '/compartidos',  icon: SHOW_TRIPS ? Plane : HandCoins, label: SHOW_TRIPS ? 'Compartidos' : 'Por cobrar' },
   // Va al final del bloque justo porque es un mundo aparte: arriba están tus
   // finanzas, Propiedad es el chequeo del depto en arriendo y no se mezcla.
-  { href: '/propiedad',    icon: Building2,  label: 'Propiedad'    },
+  { href: '/propiedad',    icon: Building2,  label: 'Propiedad', feature: 'propiedad' },
   { href: '/ajustes',      icon: Settings,   label: 'Ajustes'      },
 ]
 
@@ -26,9 +26,12 @@ interface Props {
   userName:  string
   userEmail: string
   avatarUrl: string | null
+  /** Módulos de esta cuenta; sin dato (cuenta vieja) se muestra todo. */
+  features?: Features
+  isAdmin?:  boolean
 }
 
-export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
+export default function SideNav({ userName, userEmail, avatarUrl, features, isAdmin = false }: Props) {
   const pathname   = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -67,7 +70,9 @@ export default function SideNav({ userName, userEmail, avatarUrl }: Props) {
 
         {/* ── Nav items ──────────────────────────────────────── */}
         <nav className="flex flex-col gap-0.5 flex-1">
-          {navItems.map(item => {
+          {[...navItems, ...(isAdmin ? [{ href: '/admin', icon: ShieldCheck, label: 'Admin' }] : [])]
+            .filter(item => !('feature' in item && item.feature) || !features || features[item.feature as keyof Features])
+            .map(item => {
             const Icon   = item.icon
             // /ajustes/perfil tiene su propia entrada (el bloque de usuario),
             // así que no debe marcar "Ajustes" como activo también.

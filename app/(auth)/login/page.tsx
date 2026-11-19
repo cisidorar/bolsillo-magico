@@ -63,12 +63,8 @@ function LoginForm() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [lockedUntil])
 
-  useEffect(() => {
-    // Login page is always dark mode — el resto de la app respeta la
-    // preferencia guardada, pero acá siempre coincide con el mockup.
-    document.documentElement.classList.add('dark')
-    return () => { document.documentElement.classList.remove('dark') }
-  }, [])
+  // Nov 2026: el login ya no fuerza el oscuro — sigue el tema del dispositivo
+  // (script en app/layout.tsx), igual que la landing pública que lleva acá.
 
   useEffect(() => {
     if (searchParams.get('error')) {
@@ -81,7 +77,7 @@ function LoginForm() {
     if (next >= MAX_ATTEMPTS) {
       const until = Date.now() + LOCKOUT_SECS * 1000
       setLockedUntil(until); setCountdown(LOCKOUT_SECS); setAttempts(0)
-      setError(`Demasiados intentos fallidos. Esperá ${LOCKOUT_SECS} segundos.`)
+      setError(`Demasiados intentos fallidos. Espera ${LOCKOUT_SECS} segundos.`)
     } else {
       setAttempts(next)
       setError(`Email o contraseña incorrectos. ${MAX_ATTEMPTS - next} intento${MAX_ATTEMPTS - next === 1 ? '' : 's'} restante${MAX_ATTEMPTS - next === 1 ? '' : 's'}.`)
@@ -93,7 +89,7 @@ function LoginForm() {
     setError(''); setResetSent(false)
 
     if (lockedUntil && Date.now() < lockedUntil) {
-      setError(`Demasiados intentos. Esperá ${countdown} segundos.`)
+      setError(`Demasiados intentos. Espera ${countdown} segundos.`)
       return
     }
 
@@ -195,13 +191,13 @@ function LoginForm() {
           </div>
 
           {resetSent && (
-            <p className="text-xs font-semibold rounded-xl px-4 py-2.5" style={{ color: 'var(--mint)', background: 'var(--primary-soft)' }}>
+            <p className="text-xs font-semibold rounded-xl px-4 py-2.5" style={{ color: 'var(--mint-ink)', background: 'var(--primary-soft)' }}>
               Si ese correo tiene una cuenta, te enviamos un enlace para restablecer la contraseña.
             </p>
           )}
 
           {error && (
-            <p className="text-xs font-bold rounded-xl px-4 py-2.5" style={{ color: 'var(--coral)', background: 'rgba(255,111,97,0.1)', border: '1px solid rgba(255,111,97,0.25)' }}>
+            <p className="text-xs font-bold rounded-xl px-4 py-2.5" role="alert" style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
               {error}
             </p>
           )}
@@ -222,6 +218,11 @@ function LoginForm() {
 
         </div>
       </div>
+
+      <p className="text-sm mt-6 text-center" style={{ color: 'var(--ink-2)' }}>
+        ¿No tienes cuenta? Se entra por invitación.{' '}
+        <a href="/#lista" className="font-bold" style={{ color: 'var(--primary)' }}>Pide acceso</a>
+      </p>
 
     </div>
   )

@@ -26,11 +26,11 @@ export async function middleware(request: NextRequest) {
   // La seguridad de datos la provee RLS en Supabase; este middleware solo enruta.
   const { data: { user } } = await supabase.auth.getUser()
 
-  // A2/A3 (roadmap uso personal, jul 2026): sin landing pública ni /demo —
-  // la app es de uso personal, "/" va directo al login (o al dashboard si ya
-  // hay sesión), no hay nada público que mostrarle a un visitante anónimo.
-  if (request.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL(user ? '/inicio' : '/login', request.url))
+  // Nov 2026: "/" vuelve a ser la landing pública para quien no tiene sesión
+  // (el registro sigue cerrado: la landing lleva a la demo y a la lista de
+  // espera). Con sesión, directo al dashboard.
+  if (request.nextUrl.pathname === '/' && user) {
+    return NextResponse.redirect(new URL('/inicio', request.url))
   }
 
   // Rutas protegidas: redirigir a login si no está autenticado. Cada página
@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
   const protectedPaths = [
     '/inicio', '/historial', '/analisis', '/ajustes', '/recurrentes',
     '/presupuesto', '/categorias', '/metodos', '/cuenta', '/ingresos', '/inversiones',
+    '/propiedad', '/compartidos', '/admin',
   ]
   const isProtected = protectedPaths.some(p =>
     request.nextUrl.pathname === p || request.nextUrl.pathname.startsWith(p + '/')

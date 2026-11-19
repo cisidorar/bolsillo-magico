@@ -1,4 +1,4 @@
-import { getServerSession, createClient } from '@/lib/supabase/server'
+import { getServerSession, getUserAccess, createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import SideNav from '@/components/SideNav'
@@ -8,6 +8,7 @@ import Link from 'next/link'
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getServerSession()
   if (!user) redirect('/login')
+  const access = await getUserAccess()
 
   // Datos para el menú de usuario del SideNav
   const supabase = await createClient()
@@ -23,7 +24,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-page)' }}>
       <AutoRegister />
       {/* Desktop sidebar */}
-      <SideNav userName={userName} userEmail={user.email ?? ''} avatarUrl={profile?.avatar_url ?? null} />
+      <SideNav userName={userName} userEmail={user.email ?? ''} avatarUrl={profile?.avatar_url ?? null}
+               features={access?.features} isAdmin={access?.isAdmin ?? false} />
       {/* Mobile top bar */}
       <header className="mobile-topbar lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-center h-12">
         <Link href="/inicio" className="flex items-center gap-2">
@@ -47,7 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
       {/* Mobile bottom nav */}
-      <BottomNav />
+      <BottomNav features={access?.features} isAdmin={access?.isAdmin ?? false} />
     </div>
   )
 }

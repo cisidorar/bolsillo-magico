@@ -15,13 +15,15 @@ interface Props {
   prevIncome:      IncomeData | null
   monthName:       string
   existingAmounts: Record<string, number>
+  /** Cuentas sin lector de liquidaciones registran el monto a mano, directo. */
+  allowUpload?: boolean
 }
 
 // Una sola puerta para registrar el sueldo. Con la liquidación a mano es el
 // camino más rápido y exacto, así que "Subir liquidación" es la primera
 // opción; el monto a mano queda como alternativa. Editar un mes que ya existe
 // salta directo al formulario: ahí no hay nada que elegir.
-export default function RegisterEntry({ userId, month, year, current, prevIncome, monthName, existingAmounts }: Props) {
+export default function RegisterEntry({ userId, month, year, current, prevIncome, monthName, existingAmounts, allowUpload = true }: Props) {
   const [chooserOpen, setChooserOpen] = useState(false)
   const [formOpen, setFormOpen]       = useState(false)
   const [uploadOpen, setUploadOpen]   = useState(false)
@@ -29,7 +31,7 @@ export default function RegisterEntry({ userId, month, year, current, prevIncome
   const dialog = useBackdropDialog(() => setChooserOpen(false), `Registrar el sueldo de ${monthName}`)
 
   function start() {
-    if (current) setFormOpen(true)
+    if (current || !allowUpload) setFormOpen(true)
     else setChooserOpen(true)
   }
 

@@ -75,6 +75,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="es" className={serverTheme} suppressHydrationWarning>
+      {/* Sin sesión (landing, demo, login) no hay tema guardado: se sigue el del
+          dispositivo. Corre antes de pintar, así no hay destello claro→oscuro. */}
+      {!themeKnown && (
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: "try{if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.classList.add('dark')}catch(e){}" }} />
+        </head>
+      )}
       <body className={`${fredoka.variable} ${jakarta.variable}`} suppressHydrationWarning>
         <ThemeProvider serverTheme={themeKnown ? (serverTheme === 'dark' ? 'dark' : 'light') : null} />
         <ToastProvider>{children}</ToastProvider>

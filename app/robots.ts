@@ -1,14 +1,10 @@
 import { MetadataRoute } from 'next'
 
-// A2 (roadmap uso personal, jul 2026): la app dejó de ser pública — cerrar el
-// rastreo por completo en vez de exponer la lista de rutas del dashboard.
+// Nov 2026: la landing y la demo vuelven a ser públicas (el registro sigue
+// cerrado). Solo esas dos se rastrean; todo lo demás es la app privada.
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [
-      {
-        userAgent: '*',
-        disallow: '/',
-      },
-    ],
+    rules: [{ userAgent: '*', allow: ['/$', '/demo'], disallow: '/' }],
+    sitemap: 'https://bolsillomagico.com/sitemap.xml',
   }
 }

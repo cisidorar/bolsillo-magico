@@ -24,7 +24,8 @@ export default function PayCycleTimeline({ lastPay, nextPay, today, payslipDone,
   // La liquidación suele llegar ~5 días después del pago.
   const slipDate = new Date(ms(lastPay) + 5 * 86_400_000)
   const slipStr = `${slipDate.getFullYear()}-${String(slipDate.getMonth() + 1).padStart(2, '0')}-${String(slipDate.getDate()).padStart(2, '0')}`
-  const slipPct = nextPay ? Math.min(pct(slipStr), 40) : 20
+  // Mínimo 30%: más cerca del pago, en un teléfono las etiquetas se pisan.
+  const slipPct = nextPay ? Math.max(30, Math.min(pct(slipStr), 40)) : 30
 
   const node = (left: number, label: string, sub: string, done: boolean, key: string) => (
     <div key={key} className="absolute top-0 -translate-x-1/2 flex flex-col items-center" style={{ left: `${left}%` }}>
