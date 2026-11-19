@@ -33,6 +33,7 @@ export default async function PerfilPage() {
           <ProfileEditor
             userId={user.id}
             displayName={profile?.display_name ?? null}
+            fullName={profile?.full_name ?? null}
             email={user.email ?? ''}
             avatarUrl={profile?.avatar_url ?? null}
             username={profile?.username ?? null}

@@ -526,7 +526,7 @@ export async function createRentAdjustmentNow(
 
   const [{ data: prop }, { data: profile }] = await Promise.all([
     supabase.from('properties').select('alias, address, comuna, unit_number').eq('id', lease.property_id).single(),
-    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+    supabase.from('profiles').select('display_name, full_name').eq('id', user.id).maybeSingle(),
   ])
   const propertyLabel = [prop?.alias, prop?.address && `${prop.address}${prop.unit_number ? ` depto ${prop.unit_number}` : ''}`, prop?.comuna]
     .filter(Boolean).join(', ')
@@ -535,7 +535,7 @@ export async function createRentAdjustmentNow(
   try {
     pdf = await buildRentAdjustmentPdf({
       propertyLabel: propertyLabel || 'Propiedad arrendada',
-      landlordName: profile?.display_name ?? 'Arrendadora',
+      landlordName: profile?.full_name?.trim() || profile?.display_name || 'Arrendadora',
       tenantName: lease.tenant_name, adjustment: adj, issuedOn: getNowChile().dateStr,
     })
   } catch { return { ok: false, error: 'No se pudo generar el PDF' } }

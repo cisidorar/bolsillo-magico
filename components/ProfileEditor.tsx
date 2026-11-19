@@ -9,6 +9,7 @@ import { normalizeUsername, usernameError } from '@/lib/username'
 interface Props {
   userId: string
   displayName: string | null
+  fullName: string | null
   email: string
   avatarUrl: string | null
   username: string | null
@@ -22,13 +23,14 @@ interface Props {
  * tres veces en la misma pantalla: SideNav, acá y en "Cuenta"). Separado así,
  * cada columna de /ajustes/perfil trae UNA tarjeta con un propósito propio.
  */
-export default function ProfileEditor({ userId, displayName, email, avatarUrl, username, discoverable }: Props) {
+export default function ProfileEditor({ userId, displayName, fullName, email, avatarUrl, username, discoverable }: Props) {
   const router   = useRouter()
   const supabase = createClient()
   const fileRef  = useRef<HTMLInputElement>(null)
 
   const [editing, setEditing]         = useState(false)
   const [name, setName]               = useState(displayName ?? '')
+  const [full, setFull]               = useState(fullName ?? '')
   const [saving, setSaving]           = useState(false)
   const [nameError, setNameError]     = useState('')
   const [localAvatar, setLocalAvatar] = useState<string | null>(avatarUrl)
@@ -48,7 +50,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
     if (!trimmed) { setNameError('Escribe un nombre'); return }
     setSaving(true); setNameError('')
     const { error } = await supabase
-      .from('profiles').update({ display_name: trimmed }).eq('id', userId)
+      .from('profiles').update({ display_name: trimmed, full_name: full.trim() || null }).eq('id', userId)
     setSaving(false)
     if (error) { setNameError('Error al guardar. Intenta de nuevo.'); return }
     setEditing(false)
@@ -79,7 +81,7 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
   }
 
   function cancelName() {
-    setName(displayName ?? ''); setNameError(''); setEditing(false)
+    setName(displayName ?? ''); setFull(fullName ?? ''); setNameError(''); setEditing(false)
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -142,6 +144,11 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
           <div className="min-w-0">
             <p className="font-bold text-gray-900 truncate">{displayName || '—'}</p>
             <p className="text-sm text-gray-400 truncate">{email}</p>
+            {!fullName && (
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--gold-ink)' }}>
+                Falta tu nombre completo: aparece en tus PDF y avisos.
+              </p>
+            )}
           </div>
         </div>
 
@@ -182,6 +189,17 @@ export default function ProfileEditor({ userId, displayName, email, avatarUrl, u
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 focus:bg-white transition-colors"
             />
             {nameError && <p className="text-xs text-red-500 mt-1.5">{nameError}</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nombre completo</label>
+            <input
+              value={full}
+              onChange={e => setFull(e.target.value)}
+              maxLength={80}
+              placeholder="Nombre y apellidos, como en tu cédula"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-400 focus:bg-white transition-colors"
+            />
+            <p className="text-[11px] text-gray-400 mt-1.5">Se usa en documentos como el aviso de reajuste. Tu nombre corto sigue siendo el de la app.</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={cancelName} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">

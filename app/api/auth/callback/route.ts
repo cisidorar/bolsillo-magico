@@ -18,10 +18,14 @@ export async function GET(request: Request) {
 
       // Si el usuario ingresó su nombre al registrarse, guardarlo en profiles
       const displayName = data.user.user_metadata?.display_name as string | undefined
-      if (displayName?.trim()) {
+      const fullName    = data.user.user_metadata?.full_name as string | undefined
+      if (displayName?.trim() || fullName?.trim()) {
         await supabase
           .from('profiles')
-          .update({ display_name: displayName.trim() })
+          .update({
+            ...(displayName?.trim() ? { display_name: displayName.trim() } : {}),
+            ...(fullName?.trim()    ? { full_name: fullName.trim() }       : {}),
+          })
           .eq('id', data.user.id)
       }
 
