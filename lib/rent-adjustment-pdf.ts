@@ -55,6 +55,29 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
   return lines
 }
 
+// Marca Bolsillo Mágico dibujada en vectores (sin archivos de imagen: funciona
+// igual en el cron de Vercel). Las formas son las de public/bolsillo-magico-icono-invertido.svg.
+const ICON_BOX  = 'M138.24 0 H373.76 A138.24 138.24 0 0 1 512 138.24 V373.76 A138.24 138.24 0 0 1 373.76 512 H138.24 A138.24 138.24 0 0 1 0 373.76 V138.24 A138.24 138.24 0 0 1 138.24 0 Z'
+const ICON_STAR = 'M256 117.76 L270.64 169.68 L322.56 184.32 L270.64 198.96 L256 250.88 L241.36 198.96 L189.44 184.32 L241.36 169.68 Z'
+const ICON_CUP  = 'M148.48 307.2 A107.52 107.52 0 0 0 363.52 307.2 Z'
+const BRAND_BLUE = rgb(0.169, 0.486, 0.965)   // #2B7CF6
+const BRAND_GOLD = rgb(1, 0.76, 0.235)        // #FFC23C
+const BRAND_NAVY = rgb(0.055, 0.165, 0.32)    // #0E2A52
+
+/** Icono (esquina superior izquierda en x, topY) + wordmark "Bolsillo Mágico". */
+function drawBrand(page: PDFPage, bold: PDFFont, x: number, topY: number, size: number, onDark = true) {
+  const scale = size / 512
+  const pageH = page.getHeight()
+  page.drawSvgPath(ICON_BOX,  { x, y: pageH - topY, scale, color: rgb(1, 1, 1) })
+  page.drawSvgPath(ICON_STAR, { x, y: pageH - topY, scale, color: BRAND_GOLD })
+  page.drawSvgPath(ICON_CUP,  { x, y: pageH - topY, scale, color: onDark ? BRAND_BLUE : BRAND_NAVY })
+  const fs = size * 0.5
+  const ty = pageH - topY - size / 2 - fs * 0.33
+  const tx = x + size + 8
+  page.drawText('Bolsillo ', { x: tx, y: ty, size: fs, font: bold, color: rgb(1, 1, 1) })
+  page.drawText('Mágico', { x: tx + bold.widthOfTextAtSize('Bolsillo ', fs), y: ty, size: fs, font: bold, color: BRAND_GOLD })
+}
+
 export async function buildRentAdjustmentPdf(input: RentAdjustmentPdfInput): Promise<Uint8Array> {
   const { adjustment: a } = input
   const doc = await PDFDocument.create()
@@ -68,7 +91,16 @@ export async function buildRentAdjustmentPdf(input: RentAdjustmentPdfInput): Pro
 
   const M = 50
   const W = 595 - M * 2
-  let y = 842 - 60
+
+  // Banda de marca arriba y pie navy abajo.
+  page.drawRectangle({ x: 0, y: 842 - 84, width: 595, height: 84, color: BRAND_BLUE })
+  drawBrand(page, bold, M, 22, 40)
+  page.drawRectangle({ x: 0, y: 0, width: 595, height: 44, color: BRAND_NAVY })
+  page.drawText('Generado con Bolsillo Mágico · bolsillomagico.com', {
+    x: M, y: 17, size: 8.5, font, color: rgb(0.62, 0.71, 0.83),
+  })
+
+  let y = 842 - 84 - 44
 
   const text = (s: string, x: number, size = 10, f: PDFFont = font, color = ink) =>
     page.drawText(s, { x, y, size, font: f, color })

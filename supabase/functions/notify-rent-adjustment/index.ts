@@ -32,6 +32,14 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(bin)
 }
 
+// Mismo wordmark que el resto de los correos de Bolsillo Mágico.
+function brandWordmark(siteUrl: string) {
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto"><tr>
+    <td style="vertical-align:middle;padding-right:8px"><img src="${siteUrl}/bolsillo-magico-icono-invertido.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block"></td>
+    <td style="vertical-align:middle"><span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1"><span style="color:rgba(255,255,255,0.95)">Bolsillo </span><span style="color:#F8C945">Mágico</span></span></td>
+  </tr></table>`
+}
+
 interface WindowMonth { date: string; pct: number | null }
 
 Deno.serve(async () => {
@@ -78,6 +86,7 @@ Deno.serve(async () => {
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#E8EFF8;padding:32px 16px"><tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%">
   <tr><td style="background:#2B7CF6;padding:32px 40px;text-align:center">
+    <div style="margin-bottom:22px">${brandWordmark(SITE_URL)}</div>
     <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.75);text-transform:uppercase;letter-spacing:1.5px">Reajuste de arriendo · ${propLabel}</p>
     <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff">${headline}</p>
   </td></tr>
@@ -101,6 +110,10 @@ Deno.serve(async () => {
     <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:#5B6B82">2. Reenvía el PDF adjunto a ${lease.tenant_name}${lease.tenant_email ? ` (${lease.tenant_email})` : ''} y a la corredora.</p>
     <p style="margin:0 0 24px;font-size:13px;line-height:1.6;color:#5B6B82">3. En la app, confirma el reajuste para actualizar la renta de los arriendos que aún no se pagan.</p>
     <p style="text-align:center;margin:0"><a href="${SITE_URL}/propiedad" style="display:inline-block;background:#1B6DD4;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px">Abrir Propiedad</a></p>
+  </td></tr>
+  <tr><td style="background:#0E2A52;padding:22px 40px;text-align:center">
+    ${brandWordmark(SITE_URL)}
+    <p style="margin:14px 0 0;font-size:11px;color:#5E7396;line-height:1.6">Recibes este correo porque tienes un contrato de arriendo con reajuste por IPC en Bolsillo Mágico.</p>
   </td></tr>
 </table></td></tr></table></body></html>`
 
