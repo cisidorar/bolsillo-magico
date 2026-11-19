@@ -3,11 +3,13 @@ import Link from 'next/link'
 // Cáscara común de las pantallas de acceso (login, crear/cambiar contraseña).
 // Antes cada una tenía su propio fondo, tarjeta y CSS; ahora son una sola cara.
 // Server Component: sin estado, solo estructura y estilos de los campos.
-export default function AuthShell({ title, subtitle, children, footer }: {
+export default function AuthShell({ title, subtitle, children, footer, logoLink = true }: {
   title: string
   subtitle?: string
   children: React.ReactNode
   footer?: React.ReactNode
+  /** En la app instalada (PWA) el logo no debe sacar a la persona hacia la landing. */
+  logoLink?: boolean
 }) {
   return (
     <main className="min-h-svh flex flex-col items-center justify-center px-5 py-10"
@@ -31,14 +33,10 @@ export default function AuthShell({ title, subtitle, children, footer }: {
         .auth-field input::placeholder { color: var(--ink-3); }
         /* Edge pinta su propio ojo en los campos de contraseña: se oculta para que no haya dos. */
         .auth-field input::-ms-reveal, .auth-field input::-ms-clear { display:none; }
-        /* Blanco sobre --primary (#4D93FF) da ~3,2:1; el CTA usa el azul del hero
-           de la app (#1B6DD4, ~5:1) en claro y el --primary de siempre en oscuro. */
-        .auth-cta { background:#1B6DD4; color:#FFFFFF; box-shadow: 0 6px 18px rgba(27,109,212,.22); }
-        .dark .auth-cta { background: var(--primary); color: var(--primary-ink); box-shadow: 0 6px 18px rgba(77,147,255,.18); }
-        .auth-cta:disabled { background: var(--surface-2); color: var(--ink-2); box-shadow:none; cursor:not-allowed; }
       `}</style>
 
-      <Link href="/" className="flex flex-col items-center mb-7 min-h-[44px]" aria-label="Bolsillo Mágico, ir al inicio">
+      {logoLink ? (
+        <Link href="/" className="flex flex-col items-center mb-7 min-h-[44px]" aria-label="Bolsillo Mágico, ir al inicio">
         {/* <img> plano: el SVG no pasa por next/image sin dangerouslyAllowSVG. Decorativo: el nombre ya está en el título. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/bolsillo-magico-icono.svg" alt="" width={56} height={56} className="mb-3 rounded-2xl" />
@@ -46,6 +44,16 @@ export default function AuthShell({ title, subtitle, children, footer }: {
           <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
         </span>
       </Link>
+      ) : (
+        <div className="flex flex-col items-center mb-7">
+        {/* <img> plano: el SVG no pasa por next/image sin dangerouslyAllowSVG. Decorativo: el nombre ya está en el título. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/bolsillo-magico-icono.svg" alt="" width={56} height={56} className="mb-3 rounded-2xl" />
+        <span className="text-xl" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
+          <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
+        </span>
+      </div>
+      )}
 
       <div className="card w-full max-w-sm p-6">
         <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>{title}</h1>

@@ -55,7 +55,7 @@ export default function PayCycleTimeline({ lastPay, nextPay, today, payslipDone,
         {node(slipPct, 'Liquidación', payslipDone ? 'registrada' : 'por registrar', payslipDone, 'slip')}
         {nextPay && node(100, 'Próximo pago', daysToPay !== null ? (daysToPay === 0 ? 'hoy' : `en ${daysToPay} días`) : short(nextPay), false, 'next')}
         {nextPay && todayPct > 0 && todayPct < 100 && (
-          <div className="absolute -translate-x-1/2 -top-5 text-[11px] font-bold" style={{ left: `${todayPct}%`, color: 'var(--primary)' }}>
+          <div className="absolute -translate-x-1/2 -top-5 text-[11px] font-bold" style={{ left: `${todayPct}%`, color: 'var(--primary-text)' }}>
             Hoy
           </div>
         )}

@@ -15,6 +15,9 @@
     --primary:      #4D93FF;
     --primary-ink:  #FFFFFF;
     --primary-soft: #E8EFFE;
+    /* --primary como TEXTO sobre superficie clara: #4D93FF da ~3,2:1; #1B6DD4 ~5:1
+       (el mismo azul del hero). En oscuro el --primary de siempre ya lee bien. */
+    --primary-text: #1B6DD4;
     --gold:         #FFC23C;
     /* Texto/ícono sobre superficie clara — #FFC23C puro da ~1.6:1 de contraste
        contra blanco (falla AA). Mismo matiz, oscurecido para leer como
@@ -65,6 +68,7 @@
     --primary:      #4D93FF;
     --primary-ink:  #07122A;
     --primary-soft: #16233D;
+    --primary-text: #4D93FF;
     --gold:         #FFD166;
     /* En oscuro el --gold brillante ya lee bien contra superficies oscuras —
        no hace falta un segundo tono. */
@@ -110,6 +114,12 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* Botón principal de las pantallas públicas y de acceso (landing, demo, login):
+     blanco sobre #4D93FF no llega a 4,5:1, así que en claro usa el azul del hero. */
+  .cta-primary { background:#1B6DD4; color:#FFFFFF; box-shadow: 0 6px 18px rgba(27,109,212,.22); }
+  .dark .cta-primary { background: var(--primary); color: var(--primary-ink); box-shadow: 0 6px 18px rgba(77,147,255,.18); }
+  .cta-primary:disabled { background: var(--surface-2); color: var(--ink-2); box-shadow:none; cursor:not-allowed; }
 
   body {
     background-color: var(--bg);

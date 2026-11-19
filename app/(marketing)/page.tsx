@@ -76,7 +76,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-1 sm:gap-2">
             <a href="#pilares" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Qué hace</a>
             <Link href="/demo" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Demo</Link>
-            <Link href="/login" className="inline-flex items-center min-h-[44px] px-4 text-sm font-bold rounded-xl" style={{ color: 'var(--primary)', background: 'var(--primary-soft)' }}>
+            <Link href="/login" className="inline-flex items-center min-h-[44px] px-4 text-sm font-bold rounded-xl" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
               Iniciar sesión
             </Link>
           </div>
@@ -94,8 +94,7 @@ export default function LandingPage() {
               Bolsillo Mágico entiende el ciclo de tu tarjeta, tu sueldo de fin de mes y los cobros fijos que se te olvidan. En pesos chilenos, sin redondeos.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <Link href="/demo" className="inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]"
-                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)', boxShadow: '0 8px 20px rgba(43,124,246,0.18)' }}>
+              <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
                 Probar la demo <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
               <a href="#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold"
@@ -214,7 +213,7 @@ export default function LandingPage() {
                   <p className="text-sm flex-1" style={{ color: 'var(--ink)' }}>
                     <span className="font-bold">Gimnasio</span> se repite cada mes, cerca del día 5.
                   </p>
-                  <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'var(--primary)' }}>Crear recurrente</span>
+                  <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'var(--primary-text)' }}>Crear recurrente</span>
                 </div>
               </div>
             }

@@ -29,7 +29,8 @@ export async function middleware(request: NextRequest) {
   // Nov 2026: "/" vuelve a ser la landing pública para quien no tiene sesión
   // (el registro sigue cerrado: la landing lleva a la demo y a la lista de
   // espera). Con sesión, directo al dashboard.
-  if (request.nextUrl.pathname === '/' && user) {
+  // `?landing=1` deja ver la landing aun con sesión (para mostrarla o revisarla).
+  if (request.nextUrl.pathname === '/' && user && !request.nextUrl.searchParams.has('landing')) {
     return NextResponse.redirect(new URL('/inicio', request.url))
   }
 
@@ -48,7 +49,12 @@ export async function middleware(request: NextRequest) {
   )
 
   if (!user && isProtected) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    // Se recuerda a dónde iba (un enlace a un viaje, un gasto...) para volver
+    // ahí después de iniciar sesión, en vez de caer siempre en /inicio.
+    const loginUrl = new URL('/login', request.url)
+    const dest = request.nextUrl.pathname + request.nextUrl.search
+    if (dest !== '/inicio') loginUrl.searchParams.set('next', dest)
+    return NextResponse.redirect(loginUrl)
   }
 
   // Si ya está autenticado y va al login, redirigir al dashboard

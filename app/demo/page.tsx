@@ -129,7 +129,7 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
                     <span className="text-sm font-semibold">{p.name}</span>
                     <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>{p.day} de {p.prevMonth ? prevMonthName : monthName}</span>
                     {p.id === lastAdded && (
-                      <span className="text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full" style={{ color: 'var(--primary)', background: 'var(--primary-soft)' }}>nueva</span>
+                      <span className="text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>nueva</span>
                     )}
                   </span>
                   <span className="text-sm font-bold tabular-nums">{formatCLP(p.amount)}</span>
@@ -366,7 +366,7 @@ export default function DemoPage() {
           </Link>
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Demo · datos de ejemplo</p>
           <Link href="/#lista" className="inline-flex items-center min-h-[44px] px-3 rounded-xl text-sm font-bold"
-                style={{ color: 'var(--primary)', background: 'var(--primary-soft)' }}>
+                style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
             Pedir acceso
           </Link>
         </div>
@@ -376,7 +376,7 @@ export default function DemoPage() {
               <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}
                 className="min-h-[52px] rounded-xl flex flex-col items-center justify-center gap-0.5 text-xs font-bold transition-colors"
                 style={tab === id
-                  ? { background: 'var(--surface)', color: 'var(--primary)', boxShadow: '0 2px 8px var(--shadow)' }
+                  ? { background: 'var(--surface)', color: 'var(--primary-text)', boxShadow: '0 2px 8px var(--shadow)' }
                   : { color: 'var(--ink-2)' }}>
                 <Icon className="w-4 h-4" aria-hidden />
                 {label}
@@ -406,6 +406,10 @@ export default function DemoPage() {
             Pedir acceso
           </Link>
         </div>
+        <p className="text-sm text-center mt-6" style={{ color: 'var(--ink-2)' }}>
+          ¿Ya tienes cuenta?{' '}
+          <Link href="/login" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Inicia sesión</Link>
+        </p>
       </main>
     </div>
   )

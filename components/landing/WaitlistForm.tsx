@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Check, Loader2 } from 'lucide-react'
 import { joinWaitlist } from '@/app/(marketing)/actions'
 
@@ -20,9 +21,14 @@ export default function WaitlistForm({ source = 'landing' }: { source?: string }
 
   if (state === 'done') {
     return (
-      <p role="status" className="inline-flex items-center gap-2 text-base font-bold" style={{ color: 'var(--mint-on-brand)' }}>
-        <Check className="w-5 h-5" aria-hidden /> Listo. Te escribimos si hay un lugar para ti.
-      </p>
+      <div role="status" className="space-y-2">
+        <p className="inline-flex items-center gap-2 text-base font-bold" style={{ color: 'var(--mint-on-brand)' }}>
+          <Check className="w-5 h-5" aria-hidden /> Listo. Te escribimos si hay un lugar para ti.
+        </p>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
+          Mientras tanto, <Link href="/demo" className="font-bold underline underline-offset-2 inline-flex items-center min-h-[44px]">prueba la demo</Link>.
+        </p>
+      </div>
     )
   }
 
@@ -36,7 +42,7 @@ export default function WaitlistForm({ source = 'landing' }: { source?: string }
           type="email"
           required
           autoComplete="email"
-          placeholder="tucorreo@gmail.com"
+          placeholder="nombre@correo.cl"
           className="flex-1 min-h-[52px] rounded-2xl px-4 text-base outline-none"
           style={{ background: 'rgba(255,255,255,0.96)', color: '#0E2A52', border: '2px solid transparent' }}
           onFocus={e => (e.currentTarget.style.borderColor = '#FFFFFF')}

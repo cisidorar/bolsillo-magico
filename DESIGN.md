@@ -133,6 +133,8 @@ A deliberately narrow palette: one soft, friendly blue carries the brand and nea
 **The On-Brand Accent Rule.** `--mint`/`--coral`/`--gold` are tuned for neutral (`--surface`/`--bg`) grounds, not for sitting directly on the hero's solid `--primary` blue — on that one surface, use `--mint-on-brand` (`#34D6A2`), `--coral-on-brand` (`#f87171`), and `--gold-on-brand` (`#FFE08A`) instead, each theme-invariant like `--primary` itself since the hero is always that blue regardless of light/dark. A `-soft` variant of mint/coral (`--mint-on-brand-soft` `#6EE7B7`, `--coral-on-brand-soft` `#FCA5A5`) exists for a second, lower-emphasis figure on the same hero (e.g. a month-over-month delta next to the primary remaining-budget figure) — never introduce a third shade by hand; reach for `-soft` first.
 
 
+**The Primary-Text Rule.** `--primary` (`#4D93FF`) as *text* on a light surface only reaches ~3.2:1. Blue text and links on light grounds use `--primary-text` (`#1B6DD4` light / `#4D93FF` dark, the same blue as the hero surface). The filled CTA of the public and access screens (landing, demo, login) is `.cta-primary` — `#1B6DD4` with white text in light mode, `--primary` with `--primary-ink` in dark — for the same reason.
+
 **The One Interactive Blue Rule.** `--primary` is the only color that means "this is interactive / this is the brand." A second static blue utility (`.text-brand-600` etc., `#2B7CF6`) exists purely as a technical workaround — Tailwind JIT can't generate responsive variants of a CSS-custom-property-backed color — and should be treated as an implementation detail of that workaround, never a second brand hue to design with intentionally.
 
 ## Typography

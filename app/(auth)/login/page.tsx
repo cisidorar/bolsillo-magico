@@ -23,6 +23,14 @@ const MAX_ATTEMPTS  = 5
 const LOCKOUT_SECS  = 60
 const RESET_COOLDOWN_SECS = 45
 
+// A dónde volver después de entrar (lo pone el middleware). Solo rutas internas
+// de la app: nada de "//otro.sitio", "/\\otro.sitio" ni rutas de acceso.
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/inicio'
+  if (/^\/(login|update-password|api)(\/|\?|$)/.test(raw)) return '/inicio'
+  return raw
+}
+
 const BAD_LINK = 'Este enlace ya se usó o venció. Si te invitaron, toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo, o pídele a quien te invitó que lo reenvíe.'
 
 function LoginForm() {
@@ -44,6 +52,11 @@ function LoginForm() {
   // Lo que anuncian los lectores de pantalla: no cada segundo, solo al empezar,
   // cada 15 s y al terminar.
   const [lockNote, setLockNote] = useState('')
+  // En la app instalada no se ofrece la landing: quien la instaló ya tiene cuenta.
+  const [installed, setInstalled] = useState(false)
+  useEffect(() => {
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true)
+  }, [])
 
   useEffect(() => {
     if (!lockedUntil) return
@@ -113,7 +126,7 @@ function LoginForm() {
     // Navegación completa (no router.push): el <html> lleva la clase del tema
     // que decide el servidor según la persona, y esta pantalla se renderizó sin
     // sesión. Un push suave dejaba el modo claro.
-    window.location.assign('/inicio')
+    window.location.assign(safeNext(searchParams.get('next')))
   }
 
   async function handleForgotPassword() {
@@ -136,12 +149,16 @@ function LoginForm() {
     <AuthShell
       title="Inicia sesión"
       subtitle="Qué bueno verte de nuevo."
-      footer={
+      logoLink={!installed}
+      footer={installed ? undefined : (
         <>
-          ¿No tienes cuenta? Se entra por invitación.{' '}
-          <Link href="/#lista" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary)' }}>Pide acceso</Link>
+          <p>¿No tienes cuenta? Se entra por invitación.</p>
+          <p className="flex items-center justify-center gap-x-4 flex-wrap">
+            <Link href="/#lista" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Pide acceso</Link>
+            <Link href="/demo" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Ver la demo</Link>
+          </p>
         </>
-      }
+      )}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <AuthField
@@ -160,7 +177,7 @@ function LoginForm() {
             <button
               type="button" onClick={handleForgotPassword} disabled={resetBusy || resetWait > 0}
               className="mt-1 min-h-[44px] -ml-1 px-1 text-xs font-bold disabled:opacity-60"
-              style={{ color: 'var(--primary)' }}
+              style={{ color: 'var(--primary-text)' }}
             >
               {resetBusy ? 'Enviando…' : resetWait > 0 ? `Reenviar en ${resetWait} s` : '¿Olvidaste tu contraseña?'}
             </button>
@@ -182,7 +199,7 @@ function LoginForm() {
 
         <button
           type="submit" disabled={loading || isLocked}
-          className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
+          className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
           style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
         >
           {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Entrando…</>

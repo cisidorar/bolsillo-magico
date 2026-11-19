@@ -89,7 +89,7 @@ function UpdatePasswordForm() {
           <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
             Los enlaces del correo se pueden usar una sola vez y vencen. Ve a iniciar sesión y toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo. Si te invitaron y no te funciona, pídele a quien te invitó que lo reenvíe.
           </p>
-          <Link href="/login" className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center mt-2" style={{ minHeight: 52 }}>
+          <Link href="/login" className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center mt-2" style={{ minHeight: 52 }}>
             Ir a iniciar sesión
           </Link>
         </div>
@@ -110,7 +110,7 @@ function UpdatePasswordForm() {
           <button
             type="button"
             onClick={() => window.location.assign('/inicio')}
-            className="auth-cta w-full rounded-2xl font-bold text-base mt-2"
+            className="cta-primary w-full rounded-2xl font-bold text-base mt-2"
             style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
           >
             Entrar a Inicio
@@ -150,7 +150,7 @@ function UpdatePasswordForm() {
 
         <button
           type="submit" disabled={loading}
-          className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
+          className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
           style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
         >
           {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Guardando…</> : 'Guardar contraseña'}
