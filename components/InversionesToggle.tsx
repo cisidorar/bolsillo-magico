@@ -21,8 +21,11 @@ export type InversionesView = 'acciones' | 'watchlist' | 'ahorro' | 'billetera'
  */
 export default function InversionesToggle({
   active,
+  allowed,
 }: {
   active: InversionesView
+  /** Pestañas que esta cuenta puede ver (módulos Inversiones / Ahorro). Sin dato: todas. */
+  allowed?: InversionesView[]
 }) {
   const tabs: { view: InversionesView; href: string; label: string; Icon: typeof TrendingUp }[] = [
     { view: 'acciones',   href: '/inversiones',                  label: 'Mis acciones',        Icon: TrendingUp },
@@ -30,9 +33,12 @@ export default function InversionesToggle({
     { view: 'billetera',  href: '/inversiones?view=billetera',   label: 'Billetera',           Icon: Wallet },
     { view: 'ahorro',     href: '/inversiones?view=ahorro',      label: 'Ahorro y depósitos',  Icon: Landmark },
   ]
+  const visibleTabs = allowed ? tabs.filter(t => allowed.includes(t.view)) : tabs
+  // Con una sola pestaña no hay nada que alternar.
+  if (visibleTabs.length < 2) return null
   return (
     <div className="view-toggle-wrap flex items-center gap-1 rounded-xl p-1">
-      {tabs.map(({ view, href, label, Icon }) => (
+      {visibleTabs.map(({ view, href, label, Icon }) => (
         <Link
           key={view}
           href={href}

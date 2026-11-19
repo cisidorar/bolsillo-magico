@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import ServiceLogo from '@/components/ServiceLogo'
-import InversionesToggle from '@/components/InversionesToggle'
+import InversionesToggle, { type InversionesView } from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisError } from '@/lib/analysis-cache'
@@ -190,6 +190,8 @@ type View = 'mias' | 'watchlist'
 
 interface Props {
   view:              View
+  /** Pestañas visibles según los módulos de la cuenta (ver InversionesToggle). */
+  allowedTabs?:      InversionesView[]
   userId:            string
   initialPositions:  StockPosition[]
   walletUsdBase?:    number
@@ -228,7 +230,7 @@ interface Props {
 }
 
 export default function Radar({
-  view, userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
+  view, allowedTabs, userId, initialPositions, walletUsdBase = 0, initialSales = [], initialPurchases = [],
   spyBenchmark = null, lastAutoUpdate = null, initialWatchlist,
   todayDecision = null, todaySignals = [], portfolioHistory = [],
   portfolioSnapshots = [], dollarsBoughtHistory = [],
@@ -955,7 +957,7 @@ export default function Radar({
             — ver comentario de arriba sobre por qué ml-auto y no
             justify-between del padre. */}
         <div className="flex items-center justify-between gap-2 flex-1 sm:flex-initial sm:ml-auto min-w-0">
-          <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} />
+          <InversionesToggle active={view === 'mias' ? 'acciones' : 'watchlist'} allowed={allowedTabs} />
           {/* V6 (roadmap de vista): antes había DOS botones para "meter un
               ticker nuevo" (Seguir → buscador, Agregar → formulario manual) —
               dos flujos para lo mismo. Ahora uno solo: Agregar abre la

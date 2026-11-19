@@ -3,17 +3,17 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, BookOpen, BarChart2, Plus, RefreshCw, Wallet, TrendingUp, Settings, Building2, Plane, HandCoins, ShieldCheck } from 'lucide-react'
-import { SHOW_TRIPS, type Features } from '@/lib/features'
+import { SHOW_TRIPS, hasFeature, type Features, type FeatureKey } from '@/lib/features'
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import UserMenu from './UserMenu'
 
-const navItems: { href: string; icon: typeof Home; label: string; feature?: keyof Features }[] = [
+const navItems: { href: string; icon: typeof Home; label: string; feature?: FeatureKey | FeatureKey[] }[] = [
   { href: '/inicio',      icon: Home,      label: 'Inicio'      },
   { href: '/historial',   icon: BookOpen,  label: 'Historial'   },
   { href: '/analisis',    icon: BarChart2, label: 'Análisis'    },
   { href: '/ingresos',     icon: Wallet,     label: 'Ingresos'     },
-  { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones', feature: 'inversiones' },
+  { href: '/inversiones',  icon: TrendingUp, label: 'Inversiones', feature: ['inversiones', 'ahorro'] },
   { href: '/recurrentes',  icon: RefreshCw,  label: 'Recurrentes'  },
   { href: '/compartidos',  icon: SHOW_TRIPS ? Plane : HandCoins, label: SHOW_TRIPS ? 'Compartidos' : 'Por cobrar' },
   // Va al final del bloque justo porque es un mundo aparte: arriba están tus
@@ -71,7 +71,7 @@ export default function SideNav({ userName, userEmail, avatarUrl, features, isAd
         {/* ── Nav items ──────────────────────────────────────── */}
         <nav className="flex flex-col gap-0.5 flex-1">
           {[...navItems, ...(isAdmin ? [{ href: '/admin', icon: ShieldCheck, label: 'Admin' }] : [])]
-            .filter(item => !('feature' in item && item.feature) || !features || features[item.feature as keyof Features])
+            .filter(item => !('feature' in item) || hasFeature(features, item.feature))
             .map(item => {
             const Icon   = item.icon
             // /ajustes/perfil tiene su propia entrada (el bloque de usuario),

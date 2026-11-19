@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { computeCommittedDebt } from '@/lib/net-worth'
 
 // Vercel Hobby plan default timeout is 10s — OpenAI calls need more
@@ -190,6 +190,8 @@ export async function POST(request: Request) {
     // ── A07: Auth — validated JWT, not just cookie ────────────────────────────
     const user = await getServerSession()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Módulo "Resumen con IA": cada llamada tiene costo, así que se enciende por cuenta.
+    if (!(await getUserAccess())?.features.ia) return NextResponse.json({ error: 'Esta función no está activada en tu cuenta.' }, { status: 403 })
 
     // ── A07: Safe JSON parse — malformed body → 400, not 500 ─────────────────
     let body: unknown

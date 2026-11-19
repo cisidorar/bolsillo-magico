@@ -1,6 +1,6 @@
 'use client'
 
-import { SHOW_TRIPS, type Features } from '@/lib/features'
+import { SHOW_TRIPS, hasFeature, type Features, type FeatureKey } from '@/lib/features'
 import Link from 'next/link'
 import {
   X, ChevronRight, Wallet, TrendingUp, RefreshCw, Target, Tag, CreditCard, Settings,
@@ -24,14 +24,14 @@ interface Row {
   bg: string
   title: string
   subtitle: string
-  feature?: keyof Features
+  feature?: FeatureKey | FeatureKey[]
 }
 
 // Las tres primeras son las que en mobile solo eran alcanzables desde Ajustes
 // (2-3 taps) — acá quedan a un tap desde cualquier pantalla.
 const financeRows: Row[] = [
   { href: '/ingresos',    icon: Wallet,     color: '#1FBE8D', bg: '#E6FAF3', title: 'Ingresos',    subtitle: 'Cuánto ganas cada mes' },
-  { href: '/inversiones', icon: TrendingUp, color: '#2B7CF6', bg: '#EEF4FF', title: 'Inversiones', subtitle: 'Acciones, depósitos y ahorro', feature: 'inversiones' },
+  { href: '/inversiones', icon: TrendingUp, color: '#2B7CF6', bg: '#EEF4FF', title: 'Inversiones', subtitle: 'Acciones, depósitos y ahorro', feature: ['inversiones', 'ahorro'] },
   { href: '/recurrentes', icon: RefreshCw,  color: '#0D9488', bg: '#F0FDFA', title: 'Recurrentes', subtitle: 'Suscripciones y cobros fijos' },
   { href: '/compartidos', icon: SHOW_TRIPS ? Plane : HandCoins, color: '#0EA5E9', bg: '#E0F2FE', title: SHOW_TRIPS ? 'Compartidos' : 'Por cobrar', subtitle: SHOW_TRIPS ? 'Viajes y gastos con otra persona' : 'Lo que te deben tus amigos' },
 ]
@@ -78,7 +78,7 @@ export default function MoreSheet({ isOpen, onClose, features, isAdmin = false }
 
   if (!isOpen) return null
 
-  const visible = (r: Row) => !r.feature || !features || features[r.feature]
+  const visible = (r: Row) => hasFeature(features, r.feature)
   const adminRow: Row = { href: '/admin', icon: ShieldCheck, color: '#2B7CF6', bg: '#EEF4FF', title: 'Admin', subtitle: 'Solicitudes y accesos' }
 
   return (

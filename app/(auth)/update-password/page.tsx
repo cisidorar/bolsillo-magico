@@ -81,7 +81,7 @@ function UpdatePasswordForm() {
 
   if (phase === 'expired') {
     return (
-      <AuthShell title="Este enlace ya no sirve">
+      <AuthShell title="Este enlace ya no sirve" back={{ href: '/', label: 'Volver al inicio' }}>
         <div className="flex flex-col items-center text-center gap-3">
           <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
             <LinkIcon className="w-5 h-5" aria-hidden />

@@ -8,7 +8,7 @@ import { useBackdropDialog } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { formatCLP, monthName, getNowChile } from '@/lib/utils'
 import { Plus, Trash2, X, RefreshCw, ArrowUp, ArrowDown, DollarSign, Info, ChevronRight, Undo2 } from 'lucide-react'
-import InversionesToggle from '@/components/InversionesToggle'
+import InversionesToggle, { type InversionesView } from '@/components/InversionesToggle'
 import type { StockPurchase, StockSale } from '@/app/(dashboard)/inversiones/page'
 
 // ── Billetera en dólares (Racional u otra) ────────────────────────────────────
@@ -35,6 +35,7 @@ export interface UsdPurchase {
 
 interface Props {
   userId:           string
+  allowedTabs?:     InversionesView[]
   initialPurchases: UsdPurchase[]
   /** Σ gastado en compras de acciones — se descuenta del saldo.
    *  sep 2026: antes era el costo de las posiciones ABIERTAS, que dejaba de
@@ -85,7 +86,7 @@ function fmtPct(n: number): string {
   return n >= 0 ? `+${s}%` : `-${s}%`
 }
 
-export default function UsdWalletManager({ userId, initialPurchases, spentUsd, stockPurchases = [], sales = [] }: Props) {
+export default function UsdWalletManager({ userId, allowedTabs, initialPurchases, spentUsd, stockPurchases = [], sales = [] }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const { showToast } = useToast()
@@ -551,7 +552,7 @@ export default function UsdWalletManager({ userId, initialPurchases, spentUsd, s
           separado a lo ancho acá rompía la congruencia entre pestañas. Mismo
           breakpoint (sm) que usa Radar.tsx para no desalinearse en tablet. */}
       <div className="flex items-center justify-between sm:justify-end gap-2 mb-1.5">
-        <InversionesToggle active="billetera" />
+        <InversionesToggle active="billetera" allowed={allowedTabs} />
         <button
           onClick={openAdd}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-[.97] shrink-0"

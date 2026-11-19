@@ -121,6 +121,31 @@
   .dark .cta-primary { background: var(--primary); color: var(--primary-ink); box-shadow: 0 6px 18px rgba(77,147,255,.18); }
   .cta-primary:disabled { background: var(--surface-2); color: var(--ink-2); box-shadow:none; cursor:not-allowed; }
 
+  /* ── Movimiento de la landing y la demo ─────────────────────────────────────
+     Un solo momento autorado (la mini-demo del hero se mueve sola una vez); el
+     resto es entrada discreta. Todo parte de "ya visible": sin soporte o con
+     movimiento reducido, la página se ve completa y quieta. */
+  @keyframes lpHeroIn { from { transform: translateY(12px); filter: blur(4px); } to { transform: none; filter: none; } }
+  .lp-hero-in { animation: lpHeroIn .7s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 90ms); }
+  @keyframes sdFlip { from { transform: translateY(6px); filter: blur(3px); opacity: .4; } to { transform: none; filter: none; opacity: 1; } }
+  .sd-flip { animation: sdFlip .38s cubic-bezier(.16,1,.3,1); }
+  @keyframes lpPop { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+  .lp-pop { animation: lpPop .45s cubic-bezier(.16,1,.3,1); }
+  @keyframes lpTab { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .lp-tab { animation: lpTab .4s cubic-bezier(.16,1,.3,1) both; }
+  .lp-cta-bar { transform: translateY(110%); transition: transform .35s cubic-bezier(.16,1,.3,1); }
+  .lp-cta-bar[data-show="true"] { transform: none; }
+  @supports (animation-timeline: view()) {
+    @keyframes lpReveal { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .lp-reveal { animation: lpReveal linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
+    @keyframes lpFill { from { clip-path: inset(0 100% 0 0 round 9999px); } to { clip-path: inset(0 0 0 0 round 9999px); } }
+    .lp-fill { animation: lpFill linear both; animation-timeline: view(); animation-range: entry 15% cover 40%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-hero-in, .lp-reveal, .lp-fill, .lp-tab, .lp-pop, .sd-flip { animation: none !important; }
+    .lp-cta-bar { transition: none; }
+  }
+
   body {
     background-color: var(--bg);
     color: var(--ink);

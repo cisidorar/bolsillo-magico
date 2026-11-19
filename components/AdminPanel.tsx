@@ -8,9 +8,7 @@ import {
   inviteFromWaitlist, inviteByEmail, rejectWaitlist, setAccountFeature, setAccountFeatures, setAccountBlocked,
   type WaitlistRow, type AccountRow, type AdminResult,
 } from '@/app/actions/admin'
-import { FEATURE_KEYS, FEATURE_LABELS, DEFAULT_FEATURES, type FeatureKey, type Features } from '@/lib/features'
-
-const ALL_ON: Features = { inversiones: true, propiedad: true, liquidaciones: true }
+import { FEATURE_KEYS, FEATURE_LABELS, FEATURE_PRESETS, DEFAULT_FEATURES, type FeatureKey, type Features } from '@/lib/features'
 
 function when(iso: string | null): string {
   if (!iso) return 'nunca'
@@ -168,6 +166,16 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
               Invitar
             </button>
           </div>
+          <div className="flex flex-wrap items-center gap-x-1">
+            <span className="text-[11px] font-bold uppercase tracking-wide mr-1" style={{ color: 'var(--ink-3)' }}>Rápido</span>
+            {FEATURE_PRESETS.map(pr => (
+              <button key={pr.id} type="button" disabled={busy !== null || sameFeatures(inviteFeatures, pr.features)}
+                onClick={() => setInviteFeatures(pr.features)}
+                className="min-h-[44px] px-2 text-xs font-semibold disabled:opacity-40" style={{ color: 'var(--primary)' }}>
+                {pr.label}
+              </button>
+            ))}
+          </div>
           <ModulePicker value={inviteFeatures} onChange={setInviteFeatures} disabled={busy !== null} />
         </form>
         {full && (
@@ -264,8 +272,6 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
             const f = featuresOf(a)
             const count = FEATURE_KEYS.filter(k => f[k]).length
             const name = a.display_name && !a.display_name.includes('@') ? a.display_name : a.email.split('@')[0]
-            const isBasic = sameFeatures(f, DEFAULT_FEATURES)
-            const isFull = sameFeatures(f, ALL_ON)
             return (
               <li key={a.id} className="rounded-2xl p-4" style={{ background: 'var(--surface-2)', opacity: a.banned ? 0.65 : 1 }}>
                 <div className="flex items-start gap-3">
@@ -310,11 +316,14 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
                   <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
                     Módulos · {count} de {FEATURE_KEYS.length}
                   </p>
-                  <div className="flex gap-1" role="group" aria-label={`Acceso rápido para ${a.email}`}>
-                    <button type="button" disabled={busy !== null || isBasic} onClick={() => preset(a, DEFAULT_FEATURES, 'básico')}
-                      className="min-h-[44px] px-2.5 text-xs font-semibold disabled:opacity-40" style={{ color: 'var(--primary)' }}>Básico</button>
-                    <button type="button" disabled={busy !== null || isFull} onClick={() => preset(a, ALL_ON, 'completo')}
-                      className="min-h-[44px] px-2.5 text-xs font-semibold disabled:opacity-40" style={{ color: 'var(--primary)' }}>Completo</button>
+                  <div className="flex flex-wrap justify-end" role="group" aria-label={`Acceso rápido para ${a.email}`}>
+                    {FEATURE_PRESETS.map(pr => (
+                      <button key={pr.id} type="button" disabled={busy !== null || sameFeatures(f, pr.features)}
+                        onClick={() => preset(a, pr.features, pr.label.toLowerCase())}
+                        className="min-h-[44px] px-2 text-xs font-semibold disabled:opacity-40" style={{ color: 'var(--primary)' }}>
+                        {pr.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>

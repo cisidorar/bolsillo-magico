@@ -4,7 +4,7 @@ import Radar, { type WatchlistItem } from '@/components/Radar'
 import DepositManager from '@/components/DepositManager'
 import TermDepositManager from '@/components/TermDepositManager'
 import RentaFijaSummary from '@/components/RentaFijaSummary'
-import InversionesToggle from '@/components/InversionesToggle'
+import InversionesToggle, { type InversionesView } from '@/components/InversionesToggle'
 import UsdWalletManager, { type UsdPurchase } from '@/components/UsdWalletManager'
 import { computeSpyBenchmark, type SpyBenchmarkResult } from '@/lib/benchmark'
 import { computePortfolioHistory, type PortfolioPoint } from '@/lib/portfolio-history'
@@ -116,7 +116,19 @@ export default async function InversionesPage({ searchParams }: Props) {
   ])
   if (!user) redirect('/login')
   // Módulo apagado para esta cuenta (acceso por invitación): no se muestra ni por URL.
-  if (!(await getUserAccess())?.features.inversiones) redirect('/inicio')
+  // Dos módulos: "inversiones" (acciones, watchlist, billetera) y "ahorro"
+  // (ahorro y depósitos). Con uno solo, la otra mitad no se ve ni por URL.
+  const access = await getUserAccess()
+  const canInv    = access?.features.inversiones ?? false
+  const canAhorro = access?.features.ahorro ?? false
+  if (!canInv && !canAhorro) redirect('/inicio')
+  const wantsAhorro = sp.view === 'ahorro' || sp.view === 'depositos'
+  if (!canInv && !wantsAhorro) redirect('/inversiones?view=ahorro')
+  if (!canAhorro && wantsAhorro) redirect('/inversiones')
+  const allowedTabs: InversionesView[] = [
+    ...(canInv ? (['acciones', 'watchlist', 'billetera'] as InversionesView[]) : []),
+    ...(canAhorro ? (['ahorro'] as InversionesView[]) : []),
+  ]
 
   // Ago 2026 (ROADMAP-ahorro-depositos.md, A3): Ahorro y Depósitos se
   // fusionaron en una sola vista — 'depositos' queda como ALIAS de 'ahorro'
@@ -508,7 +520,7 @@ export default async function InversionesPage({ searchParams }: Props) {
               vistas del toggle"). Acá no hay botón al lado, así que el toggle
               viaja solo. */}
           <div className="flex items-center justify-start sm:justify-end mb-1.5">
-            <InversionesToggle active="ahorro" />
+            <InversionesToggle active="ahorro" allowed={allowedTabs} />
           </div>
           <RentaFijaSummary
             savings={(savings ?? []) as SavingsAccount[]}
@@ -543,6 +555,7 @@ export default async function InversionesPage({ searchParams }: Props) {
           spentUsd={walletCash.spent}
           stockPurchases={(purchases ?? []) as StockPurchase[]}
           sales={(sales ?? []) as StockSale[]}
+          allowedTabs={allowedTabs}
         />
       ) : isWatchlist ? (
         /* Ago 2026 (split Mis acciones / Watchlist): esta vista es 100%
@@ -551,6 +564,7 @@ export default async function InversionesPage({ searchParams }: Props) {
            (eso es contexto sobre lo que YA tienes, vive en Mis acciones). */
         <Radar
           view="watchlist"
+          allowedTabs={allowedTabs}
           userId={user.id}
           initialPositions={(stocks ?? []) as StockPosition[]}
           walletUsdBase={walletCash.deposited + walletCash.proceeds}
@@ -581,6 +595,7 @@ export default async function InversionesPage({ searchParams }: Props) {
               seguimiento, sin ranking ni tabs (eso vive en ?view=watchlist). */}
           <Radar
             view="mias"
+            allowedTabs={allowedTabs}
             userId={user.id}
             initialPositions={(stocks ?? []) as StockPosition[]}
             walletUsdBase={walletCash.deposited + walletCash.proceeds}

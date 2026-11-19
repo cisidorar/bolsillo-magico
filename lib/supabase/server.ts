@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import { normalizeFeatures } from '@/lib/features'
+import { normalizeFeatures, ALL_FEATURES } from '@/lib/features'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -53,7 +53,7 @@ export const getUserAccess = cache(async () => {
   // Si las columnas todavía no existen (código desplegado antes de la migración
   // 20261120), no se le esconde nada a nadie: todo encendido, sin admin.
   if (error) {
-    return { userId: user.id, features: { inversiones: true, propiedad: true, liquidaciones: true }, isAdmin: false }
+    return { userId: user.id, features: ALL_FEATURES, isAdmin: false }
   }
   return {
     userId:   user.id,

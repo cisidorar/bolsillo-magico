@@ -100,7 +100,7 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
         </div>
         <p className="text-3xl font-extrabold tabular-nums mt-2" style={{ fontFamily: 'var(--font-fredoka), sans-serif' }}>{formatCLP(used)}</p>
         <div className="h-2 rounded-full overflow-hidden mt-3" style={{ background: 'var(--surface-2)' }}>
-          <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, Math.round((used / cupo) * 100))}%`, background: 'var(--primary)' }} />
+          <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.min(100, Math.round((used / cupo) * 100))}%`, background: 'var(--primary)' }} />
         </div>
         <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>de un cupo de {formatCLP(cupo)}</p>
       </div>
@@ -195,7 +195,7 @@ function SueldoView() {
           {queda >= 0 ? formatCLP(queda) : `−${formatCLP(-queda)}`}
         </p>
         <div className="h-2 rounded-full overflow-hidden mt-3" style={{ background: 'var(--surface-2)' }}>
-          <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${Math.min(100, Math.round(((gastado + extra) / sueldo) * 100))}%`, background: 'var(--primary)' }} />
+          <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.min(100, Math.round(((gastado + extra) / sueldo) * 100))}%`, background: 'var(--primary)' }} />
         </div>
         <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
           Llevas gastado {formatCLP(gastado + extra)} de {formatCLP(sueldo)}{queda < 0 && ' · te pasaste'}
@@ -393,10 +393,12 @@ export default function DemoPage() {
             : tab === 'fijos' ? 'Lo fijo que se te olvida'
             : 'Tu plata que crece'}
         </h1>
-        {tab === 'tarjeta' && <TarjetaView monthName={monthName} prevMonthName={prevMonthName} />}
-        {tab === 'sueldo' && <SueldoView />}
-        {tab === 'fijos' && <FijosView />}
-        {tab === 'inversiones' && <InversionesView />}
+        <div key={tab} className="lp-tab">
+          {tab === 'tarjeta' && <TarjetaView monthName={monthName} prevMonthName={prevMonthName} />}
+          {tab === 'sueldo' && <SueldoView />}
+          {tab === 'fijos' && <FijosView />}
+          {tab === 'inversiones' && <InversionesView />}
+        </div>
 
         <div className="mt-10 rounded-3xl p-6 hero-gradient">
           <p className="text-lg font-semibold" style={{ color: '#FFFFFF', fontFamily: 'var(--font-fredoka), sans-serif' }}>¿Te sirve algo así?</p>

@@ -1,18 +1,21 @@
 import Link from 'next/link'
-import { ArrowRight, Sparkles, ShieldCheck, Download, Landmark } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Download, Landmark } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
 import StatementDemo from '@/components/landing/StatementDemo'
+import SueldoDemo from '@/components/landing/SueldoDemo'
+import FijosDemo from '@/components/landing/FijosDemo'
+import MobileCta from '@/components/landing/MobileCta'
 import WaitlistForm from '@/components/landing/WaitlistForm'
-import PayCycleTimeline from '@/components/PayCycleTimeline'
 
 // ── Landing pública (nov 2026) ──────────────────────────────────────────────
 // Vuelve a ser pública, con el registro todavía cerrado: el objetivo es que se
-// entienda qué hace distinto a Bolsillo Mágico, dejar probarlo en /demo y
-// juntar correos en la lista de espera. Nada de cuentas gratis prometidas.
+// entienda qué hace distinto a Bolsillo Mágico, dejar probarlo ahí mismo y
+// juntar solicitudes de acceso. Nada de cuentas gratis prometidas.
 //
-// Cuatro pilares, cada uno con un pedazo de interfaz real (mismos tokens y
-// .card que la app) y datos ficticios — nunca nombres ni montos reales.
-// Server Component: solo la mini-demo y el formulario son clientes.
+// Cada pilar trae un pedazo de interfaz real (mismos tokens y .card que la
+// app) con datos ficticios — nunca nombres ni montos reales — y los tres que
+// se pueden tocar (hero, sueldo, fijos) responden. Server Component: solo las
+// demos, la barra móvil y el formulario son clientes.
 
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 
@@ -21,8 +24,8 @@ function Wordmark() {
     <span className="inline-flex items-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
-      <span className="text-lg font-semibold" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-        Bolsillo <span style={{ color: 'var(--primary)' }}>Mágico</span>
+      <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
+        <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
       </span>
     </span>
   )
@@ -33,15 +36,13 @@ function Pillar({ id, title, children, visual, flip }: {
 }) {
   return (
     <section id={id} className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center scroll-mt-24">
-      <div className={flip ? 'lg:order-2' : ''}>
+      <div className={`lp-reveal ${flip ? 'lg:order-2' : ''}`}>
         <h2 className="text-3xl lg:text-4xl font-semibold leading-tight text-balance" style={{ color: 'var(--ink)' }}>{title}</h2>
         <div className="mt-4 space-y-3 text-base leading-relaxed max-w-[60ch]" style={{ color: 'var(--ink-2)' }}>
           {children}
         </div>
       </div>
-      <div className={flip ? 'lg:order-1' : ''} aria-hidden={false}>
-        {visual}
-      </div>
+      <div className={`lp-reveal ${flip ? 'lg:order-1' : ''}`}>{visual}</div>
     </section>
   )
 }
@@ -59,8 +60,7 @@ export default function LandingPage() {
     : null
   const paidMonth = MONTHS[Number(lastPay.slice(5, 7)) - 1]
 
-  const sueldo = 1450000
-  const gastado = 831800
+  const cycle = { lastPay, nextPay, today, payslipDone: true, paidMonthName: paidMonth, daysToPay }
 
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
@@ -87,13 +87,13 @@ export default function LandingPage() {
         {/* ── Hero ── */}
         <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-10 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
           <div>
-            <h1 className="font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.4rem, 6vw, 4rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+            <h1 className="lp-hero-in font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.4rem, 6vw, 4rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
               Sabe cuánto vas a pagar en tu próximo estado de cuenta.
             </h1>
-            <p className="mt-5 text-lg leading-relaxed max-w-[52ch]" style={{ color: 'var(--ink-2)' }}>
+            <p className="lp-hero-in mt-5 text-lg leading-relaxed max-w-[52ch]" style={{ color: 'var(--ink-2)', ['--i' as string]: 1 }}>
               Bolsillo Mágico entiende el ciclo de tu tarjeta, tu sueldo de fin de mes y los cobros fijos que se te olvidan. En pesos chilenos, sin redondeos.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+            <div id="hero-actions" className="lp-hero-in mt-8 flex flex-col sm:flex-row gap-3" style={{ ['--i' as string]: 2 }}>
               <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
                 Probar la demo <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
@@ -102,11 +102,32 @@ export default function LandingPage() {
                 Pedir acceso
               </a>
             </div>
-            <p className="mt-5 text-sm" style={{ color: 'var(--ink-3)' }}>
+            <p className="lp-hero-in mt-5 text-sm" style={{ color: 'var(--ink-3)', ['--i' as string]: 3 }}>
               Por ahora se entra por invitación, entre amigos. La demo funciona sin cuenta y con datos de ejemplo.
             </p>
           </div>
-          <StatementDemo />
+          <div className="lp-hero-in" style={{ ['--i' as string]: 2 }}><StatementDemo /></div>
+        </section>
+
+        {/* ── Lo de siempre vs. esto ── */}
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20 lg:pb-28 lp-reveal">
+          <h2 className="text-3xl lg:text-4xl font-semibold leading-tight text-balance max-w-[22ch]" style={{ color: 'var(--ink)' }}>
+            Saber cuánto gastaste no alcanza.
+          </h2>
+          <div className="mt-8 grid lg:grid-cols-[1fr_1.35fr] gap-4 lg:gap-6 items-stretch">
+            <div className="rounded-3xl p-6 lg:p-8" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>Una app de gastos cualquiera</p>
+              <p className="text-2xl lg:text-3xl font-semibold mt-3 leading-snug" style={{ color: 'var(--ink-2)' }}>
+                Gastaste <span className="tabular-nums">{formatCLP(831800)}</span> este mes.
+              </p>
+            </div>
+            <div className="card p-6 lg:p-8" style={{ boxShadow: '0 18px 40px var(--shadow)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--primary-text)' }}>Bolsillo Mágico</p>
+              <p className="text-2xl lg:text-3xl font-semibold mt-3 leading-snug" style={{ color: 'var(--ink)' }}>
+                Tu estado cierra en 2 días con <span className="tabular-nums">{formatCLP(412380)}</span>. Del sueldo de {paidMonth} te quedan <span className="tabular-nums">{formatCLP(618200)}</span>.
+              </p>
+            </div>
+          </div>
         </section>
 
         {/* ── Pilares ── */}
@@ -124,12 +145,12 @@ export default function LandingPage() {
                   </div>
                   <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
                         style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
-                    Cierra mañana
+                    Cierra en 2 días
                   </span>
                 </div>
                 <p className="text-3xl font-extrabold tabular-nums" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>{formatCLP(412380)}</p>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                  <div className="h-full rounded-full" style={{ width: '60%', background: 'var(--primary)' }} />
+                  <div className="lp-fill h-full rounded-full" style={{ width: '60%', background: 'var(--primary)' }} />
                 </div>
                 <ul className="space-y-2.5 pt-1">
                   {[
@@ -157,23 +178,7 @@ export default function LandingPage() {
             id="sueldo"
             flip
             title="Tu sueldo, y lo que te queda de él."
-            visual={
-              <div className="space-y-4">
-                <div className="card p-5 lg:p-6">
-                  <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Lo que queda de tu sueldo de {paidMonth}</p>
-                  <p className="text-4xl font-extrabold tabular-nums mt-1" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-                    {formatCLP(sueldo - gastado)}
-                  </p>
-                  <div className="h-2 rounded-full overflow-hidden mt-3" style={{ background: 'var(--surface-2)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.round((gastado / sueldo) * 100)}%`, background: 'var(--primary)' }} />
-                  </div>
-                  <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                    Llevas gastado {formatCLP(gastado)} de {formatCLP(sueldo)}
-                  </p>
-                </div>
-                <PayCycleTimeline lastPay={lastPay} nextPay={nextPay} today={today} payslipDone paidMonthName={paidMonth} daysToPay={daysToPay} />
-              </div>
-            }
+            visual={<SueldoDemo cycle={cycle} />}
           >
             <p>Si te pagan a fin de mes, con ese sueldo vives el mes siguiente. Bolsillo Mágico lo cuenta así: te muestra cuánto queda, cuándo llega el próximo pago y qué ya está comprometido con cuotas y cobros fijos.</p>
             <p>Sube tu liquidación en PDF y el ingreso del mes se registra solo.</p>
@@ -182,41 +187,7 @@ export default function LandingPage() {
           <Pillar
             id="fijos"
             title="Lo fijo que se te olvida."
-            visual={
-              <div className="card p-5 lg:p-6">
-                <p className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Recurrentes</p>
-                <ul className="space-y-3">
-                  <li className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>Spotify</span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                            style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
-                        subió {formatCLP(1000)}
-                      </span>
-                      <span className="text-sm font-bold tabular-nums">{formatCLP(7390)}</span>
-                    </span>
-                  </li>
-                  <li className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold">Plan celular</span>
-                    <span className="text-sm font-bold tabular-nums">{formatCLP(15990)}</span>
-                  </li>
-                  <li className="flex items-center justify-between gap-3">
-                    <span>
-                      <span className="text-sm font-semibold">Dentista</span>
-                      <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>cuota 2 de 4</span>
-                    </span>
-                    <span className="text-sm font-bold tabular-nums">{formatCLP(45000)}</span>
-                  </li>
-                </ul>
-                <div className="mt-4 rounded-2xl p-3.5 flex items-center gap-3" style={{ background: 'var(--primary-soft)' }}>
-                  <Sparkles className="w-4 h-4 shrink-0" style={{ color: 'var(--primary)' }} aria-hidden />
-                  <p className="text-sm flex-1" style={{ color: 'var(--ink)' }}>
-                    <span className="font-bold">Gimnasio</span> se repite cada mes, cerca del día 5.
-                  </p>
-                  <span className="text-xs font-bold whitespace-nowrap" style={{ color: 'var(--primary-text)' }}>Crear recurrente</span>
-                </div>
-              </div>
-            }
+            visual={<FijosDemo />}
           >
             <p>Suscripciones, cuotas y cuentas que se registran solas el día que corresponde. Si un cobro sube de precio, te enteras.</p>
             <p>Y si algo se repite cada mes sin que lo hayas marcado como fijo, la app te lo sugiere.</p>
@@ -252,7 +223,7 @@ export default function LandingPage() {
         </div>
 
         {/* ── Confianza: lo verificable, sin testimonios inventados ── */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20">
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20 lp-reveal">
           <h2 className="text-2xl lg:text-3xl font-semibold" style={{ color: 'var(--ink)' }}>Tus datos son tuyos.</h2>
           <ul className="mt-6 grid sm:grid-cols-3 gap-x-10 gap-y-6 max-w-5xl">
             {[
@@ -263,7 +234,7 @@ export default function LandingPage() {
               const I = Icon as typeof Landmark
               return (
                 <li key={t as string} className="flex gap-3">
-                  <I className="w-5 h-5 mt-0.5 shrink-0" style={{ color: 'var(--primary)' }} aria-hidden />
+                  <I className="w-5 h-5 mt-0.5 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
                   <span>
                     <span className="block text-base font-bold" style={{ color: 'var(--ink)' }}>{t as string}</span>
                     <span className="block text-sm mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{d as string}</span>
@@ -274,7 +245,7 @@ export default function LandingPage() {
           </ul>
         </section>
 
-        {/* ── Lista de espera ── */}
+        {/* ── Pedir acceso ── */}
         <section id="lista" className="hero-gradient scroll-mt-16">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-16 lg:py-24 grid lg:grid-cols-2 gap-8 items-center">
             <div>
@@ -290,7 +261,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <footer className="mx-auto max-w-6xl px-4 sm:px-6 py-10 pb-28 sm:pb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <Wordmark />
         <div className="flex items-center gap-4 text-sm">
           <Link href="/demo" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Demo</Link>
@@ -298,6 +269,8 @@ export default function LandingPage() {
           <span style={{ color: 'var(--ink-3)' }}>Hecho en Chile · {year}</span>
         </div>
       </footer>
+
+      <MobileCta />
     </div>
   )
 }

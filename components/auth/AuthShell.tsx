@@ -1,15 +1,18 @@
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 // Cáscara común de las pantallas de acceso (login, crear/cambiar contraseña).
 // Antes cada una tenía su propio fondo, tarjeta y CSS; ahora son una sola cara.
 // Server Component: sin estado, solo estructura y estilos de los campos.
-export default function AuthShell({ title, subtitle, children, footer, logoLink = true }: {
+export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back }: {
   title: string
   subtitle?: string
   children: React.ReactNode
   footer?: React.ReactNode
   /** En la app instalada (PWA) el logo no debe sacar a la persona hacia la landing. */
   logoLink?: boolean
+  /** Enlace visible para volver (a la landing). En la app instalada no se muestra. */
+  back?: { href: string; label: string }
 }) {
   return (
     <main className="min-h-svh flex flex-col items-center justify-center px-5 py-10"
@@ -34,6 +37,14 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
         /* Edge pinta su propio ojo en los campos de contraseña: se oculta para que no haya dos. */
         .auth-field input::-ms-reveal, .auth-field input::-ms-clear { display:none; }
       `}</style>
+
+      {back && (
+        <div className="w-full max-w-sm mb-2">
+          <Link href={back.href} className="inline-flex items-center gap-1.5 min-h-[44px] -ml-1 pr-3 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
+            <ArrowLeft className="w-4 h-4" aria-hidden /> {back.label}
+          </Link>
+        </div>
+      )}
 
       {logoLink ? (
         <Link href="/" className="flex flex-col items-center mb-7 min-h-[44px]" aria-label="Bolsillo Mágico, ir al inicio">

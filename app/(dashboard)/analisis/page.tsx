@@ -1,4 +1,4 @@
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, getNowChile, billingPeriod } from '@/lib/utils'
 import { computeAndSnapshotNetWorth, computeNetWorthWeeklyHistory, type NetWorthResult, type NetWorthHistoryPoint } from '@/lib/net-worth'
 import { getCategoryIcon } from '@/lib/category-icons'
@@ -47,7 +47,8 @@ export default async function AnalisisPage({
   const isAnual = view === 'anual'
   const isPatrimonio = view === 'patrimonio'
 
-  const [user, supabase] = await Promise.all([getServerSession(), createClient()])
+  const [user, supabase, access] = await Promise.all([getServerSession(), createClient(), getUserAccess()])
+  const canUseAI = access?.features.ia ?? false
 
   // E5 (roadmap economía): IPC Chile — solo se pide en la vista anual, que es
   // la única que compara años entre sí (donde "en pesos de hoy" tiene sentido).
@@ -2287,10 +2288,10 @@ export default async function AnalisisPage({
         <SpendingPatterns anomalies={anomalies} merchants={merchants} prevLabel={prevMonthName} />
 
         {/* Trigger AI analysis in background when there are expenses */}
-        {totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
+        {canUseAI && totalSelected > 0 && !isAnual && <AnalyzeTrigger month={month} year={year} />}
 
         {/* B4 — Informe de cierre de mes: solo meses ya cerrados con gastos */}
-        {totalSelected > 0 && !isAnual && isClosedMonth && <MonthReviewTrigger month={month} year={year} />}
+        {canUseAI && totalSelected > 0 && !isAnual && isClosedMonth && <MonthReviewTrigger month={month} year={year} />}
         {totalSelected > 0 && !isAnual && isClosedMonth && monthReview && (
           <div className="mb-5">
             <MonthReviewCard title={monthReview.title} summary={monthReview.description} />
@@ -2312,7 +2313,7 @@ export default async function AnalisisPage({
                     <Sparkles className="w-2.5 h-2.5" /> IA
                   </span>
                 )}
-                <RegenerateInsightsButton month={month} year={year} />
+                {canUseAI && <RegenerateInsightsButton month={month} year={year} />}
                 <ChevronRight className="w-4 h-4 ml-auto transition-transform group-open:rotate-90" style={{ color: 'var(--ink-3)' }} />
               </summary>
               <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch mt-3">
@@ -2354,7 +2355,7 @@ export default async function AnalisisPage({
                     <Sparkles className="w-2.5 h-2.5" /> IA
                   </span>
                 )}
-                <RegenerateInsightsButton month={month} year={year} />
+                {canUseAI && <RegenerateInsightsButton month={month} year={year} />}
               </div>
               <div className="grid gap-2 lg:grid-cols-3 lg:items-stretch">
                 {finalOportunidades.map((op, i) => (

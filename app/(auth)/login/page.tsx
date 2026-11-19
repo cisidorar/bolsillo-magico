@@ -150,6 +150,7 @@ function LoginForm() {
       title="Inicia sesión"
       subtitle="Qué bueno verte de nuevo."
       logoLink={!installed}
+      back={installed ? undefined : { href: '/', label: 'Volver al inicio' }}
       footer={installed ? undefined : (
         <>
           <p>¿No tienes cuenta? Se entra por invitación.</p>
