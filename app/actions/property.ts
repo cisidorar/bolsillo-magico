@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { countsAsExpense, chargeExpenseDescription, KIND_LABEL, aseoDueDates, aseoRef, nextUtilityDueDate, utilityReminderRef, billChargeRef, type UtilityKind } from '@/lib/property-charges'
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
+import { computeRentAdjustment, monthStart } from '@/lib/rent-adjustment'
+import { buildRentAdjustmentPdf } from '@/lib/rent-adjustment-pdf'
+import { getNowChile } from '@/lib/utils'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
 import { parseAseoReceipt, type ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
@@ -516,6 +519,75 @@ export async function applyRentAdjustment(adjustmentId: string): Promise<Result>
 
   await supabase.from('rent_adjustments')
     .update({ applied_at: new Date().toISOString() }).eq('id', adj.id).eq('user_id', user.id)
+  revalidatePath('/propiedad')
+  return { ok: true }
+}
+
+/**
+ * Calcula el reajuste AHORA con los IPC que escribe el usuario (o los que ya
+ * hay prellenados) y genera el PDF, sin esperar al cron y sin mandar correo.
+ * Sirve para verlo ya y como respaldo si el IPC automático no llega. Reemplaza
+ * un reajuste previo del mismo mes que aún no esté confirmado.
+ */
+export async function createRentAdjustmentNow(
+  leaseId: string,
+  adjustmentMonth: string,
+  monthlyPct: { date: string; pct: number }[],
+): Promise<Result> {
+  const { supabase, user } = await currentUser()
+  if (!user) return { ok: false, error: 'No autenticado' }
+  if (monthlyPct.length === 0 || monthlyPct.some(m => !Number.isFinite(m.pct) || Math.abs(m.pct) > 20)) {
+    return { ok: false, error: 'Revisa los valores de IPC (deben ser números, en %)' }
+  }
+
+  const { data: lease } = await supabase
+    .from('lease_contracts').select('id, property_id, tenant_name, rent_amount, adjustment_months')
+    .eq('id', leaseId).eq('user_id', user.id).eq('is_active', true).single()
+  if (!lease) return { ok: false, error: 'No se encontró el contrato' }
+
+  const month = monthStart(adjustmentMonth)
+  const adj = computeRentAdjustment(
+    lease.rent_amount,
+    monthlyPct.map(m => ({ date: monthStart(m.date), pctChange: m.pct })),
+    month, lease.adjustment_months ?? undefined,
+  )
+  if (!adj.complete) return { ok: false, error: 'Faltan meses de IPC en la ventana' }
+
+  const { data: existing } = await supabase.from('rent_adjustments')
+    .select('id, applied_at').eq('lease_id', lease.id).eq('adjustment_month', month).maybeSingle()
+  if (existing?.applied_at) return { ok: false, error: 'Ese reajuste ya estaba confirmado' }
+
+  const [{ data: prop }, { data: profile }] = await Promise.all([
+    supabase.from('properties').select('alias, address, comuna, unit_number').eq('id', lease.property_id).single(),
+    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+  ])
+  const propertyLabel = [prop?.alias, prop?.address && `${prop.address}${prop.unit_number ? ` depto ${prop.unit_number}` : ''}`, prop?.comuna]
+    .filter(Boolean).join(', ')
+
+  let pdf: Uint8Array
+  try {
+    pdf = await buildRentAdjustmentPdf({
+      propertyLabel: propertyLabel || 'Propiedad arrendada',
+      landlordName: profile?.display_name ?? 'Arrendadora',
+      tenantName: lease.tenant_name, adjustment: adj, issuedOn: getNowChile().dateStr,
+    })
+  } catch { return { ok: false, error: 'No se pudo generar el PDF' } }
+
+  const pdfPath = `${user.id}/${lease.property_id}/reajuste-${month.slice(0, 7)}.pdf`
+  // La política de Storage no permite upsert: se borra el anterior y se sube de nuevo.
+  await supabase.storage.from('property-docs').remove([pdfPath])
+  const { error: upErr } = await supabase.storage.from('property-docs')
+    .upload(pdfPath, pdf, { contentType: 'application/pdf' })
+  if (upErr) return { ok: false, error: `No se pudo guardar el PDF: ${upErr.message}` }
+
+  if (existing) await supabase.from('rent_adjustments').delete().eq('id', existing.id).eq('user_id', user.id)
+  const { error: insErr } = await supabase.from('rent_adjustments').insert({
+    user_id: user.id, lease_id: lease.id, adjustment_month: month,
+    previous_rent: adj.previousRent, new_rent: adj.newRent,
+    cumulative_pct: adj.cumulativePct, floored: adj.floored,
+    window_months: adj.windowMonths, pdf_path: pdfPath,
+  })
+  if (insErr) return { ok: false, error: insErr.message }
   revalidatePath('/propiedad')
   return { ok: true }
 }

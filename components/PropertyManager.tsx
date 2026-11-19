@@ -23,13 +23,13 @@ import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
-  extractAseoReceiptDraft, generateUtilityReminders, applyRentAdjustment, getRentAdjustmentPdfUrl,
+  extractAseoReceiptDraft, generateUtilityReminders, applyRentAdjustment, getRentAdjustmentPdfUrl, createRentAdjustmentNow,
 } from '@/app/actions/property'
 import type { ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 import {
   nextAdjustmentDate, noticeDeadline, type LeaseLike,
 } from '@/lib/lease'
-import { computeRentAdjustment } from '@/lib/rent-adjustment'
+import { computeRentAdjustment, adjustmentWindow, monthStart } from '@/lib/rent-adjustment'
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
 import PropertyEstado from '@/components/PropertyEstado'
@@ -1094,6 +1094,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, onApplyAd
                 El IPC del período todavía no se publica.
               </p>
             )}
+            <ManualAdjustment lease={lease} nextAdj={nextAdj!} ipcSeries={ipcSeries} />
           </div>
         </div>
       )}
@@ -2375,5 +2376,77 @@ function CatPill({ c, selected, onSelect }: { c: Category; selected: boolean; on
       {Icon ? <Icon className="w-4 h-4" style={{ color: selected ? c.color : undefined }} /> : <span className="text-base">{c.icon}</span>}
       {c.name}
     </button>
+  )
+}
+
+
+/**
+ * Calcular el reajuste ahora con el IPC a mano (nov 2026): para ver el aviso y
+ * el PDF sin esperar al cron, y como respaldo si el IPC automático no llega.
+ * Los 6 meses vienen prellenados con lo que haya en la serie.
+ */
+function ManualAdjustment({ lease, nextAdj, ipcSeries }: {
+  lease: Lease
+  nextAdj: string
+  ipcSeries: IpcObservation[] | null
+}) {
+  const router = useRouter()
+  const months = adjustmentWindow(nextAdj, lease.adjustment_months ?? undefined)
+  const known = new Map((ipcSeries ?? []).map(o => [o.date.slice(0, 7), o.pctChange]))
+  const [open, setOpen] = useState(false)
+  const [vals, setVals] = useState<string[]>(() => months.map(d => {
+    const v = known.get(d.slice(0, 7)); return v === undefined ? '' : String(v)
+  }))
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const label = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-CL', { month: 'short', year: '2-digit' }).replace('.', '')
+  const parsed = vals.map(v => parseFloat(v.replace(',', '.')))
+  const ready = parsed.every(n => Number.isFinite(n))
+
+  async function generate() {
+    setSaving(true); setErr('')
+    const r = await createRentAdjustmentNow(lease.id, monthStart(nextAdj), months.map((date, i) => ({ date, pct: parsed[i] })))
+    setSaving(false)
+    if (!r.ok) { setErr(r.error); return }
+    setOpen(false)
+    router.refresh()
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="mt-2 px-3 min-h-[44px] rounded-xl text-xs font-semibold border"
+        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+        Calcular ahora con IPC a mano
+      </button>
+    )
+  }
+  return (
+    <div className="mt-2">
+      <p className="text-[11px] mb-2" style={{ color: 'var(--ink-3)' }}>
+        IPC mensual en % de los 6 meses que corresponden (INE). Genera el aviso y el PDF al instante, sin enviar correo.
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {months.map((d, i) => (
+          <label key={d} className="block">
+            <span className="text-[10px] font-bold block mb-1" style={{ color: 'var(--ink-3)' }}>{label(d)}</span>
+            <input type="number" inputMode="decimal" step="0.01" value={vals[i]} placeholder="0,3"
+              onChange={e => setVals(v => v.map((x, j) => j === i ? e.target.value : x))}
+              className="w-full text-sm border px-3 py-2 rounded-xl"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
+          </label>
+        ))}
+      </div>
+      {err && <p className="text-xs mt-2 font-medium" style={{ color: 'var(--coral-ink)' }}>{err}</p>}
+      <div className="flex gap-2 mt-2.5">
+        <button onClick={() => setOpen(false)} className="px-3 min-h-[44px] rounded-xl text-xs font-semibold border"
+          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>Cancelar</button>
+        <button onClick={generate} disabled={!ready || saving}
+          className="px-3 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
+          style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+          {saving ? 'Generando…' : 'Generar aviso'}
+        </button>
+      </div>
+    </div>
   )
 }
