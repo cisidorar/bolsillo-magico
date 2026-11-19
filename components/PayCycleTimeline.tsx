@@ -27,8 +27,12 @@ export default function PayCycleTimeline({ lastPay, nextPay, today, payslipDone,
   // Mínimo 30%: más cerca del pago, en un teléfono las etiquetas se pisan.
   const slipPct = nextPay ? Math.max(30, Math.min(pct(slipStr), 40)) : 30
 
-  const node = (left: number, label: string, sub: string, done: boolean, key: string) => (
-    <div key={key} className="absolute top-0 -translate-x-1/2 flex flex-col items-center" style={{ left: `${left}%` }}>
+  // Los extremos alinean su texto hacia adentro: centrado, "Próximo pago"
+  // se salía de la tarjeta en un teléfono.
+  const node = (left: number, label: string, sub: string, done: boolean, key: string, align: 'start' | 'center' | 'end' = 'center') => (
+    <div key={key}
+      className={`absolute top-0 flex flex-col ${align === 'start' ? 'items-start' : align === 'end' ? 'items-end' : '-translate-x-1/2 items-center'}`}
+      style={{ left: `${left}%`, marginLeft: align === 'start' ? -6 : undefined, marginRight: align === 'end' ? -6 : undefined, transform: align === 'end' ? 'translateX(calc(-100% + 6px))' : undefined }}>
       <span className="w-3 h-3 rounded-full" style={{ background: done ? 'var(--primary)' : 'var(--surface)', boxShadow: `0 0 0 2px ${done ? 'var(--primary)' : 'var(--border)'}` }} />
       <span className="text-[11px] font-bold mt-2 whitespace-nowrap" style={{ color: 'var(--ink)' }}>{label}</span>
       <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>{sub}</span>
@@ -37,23 +41,23 @@ export default function PayCycleTimeline({ lastPay, nextPay, today, payslipDone,
 
   return (
     <div className="card p-5 lg:p-6 mb-6">
-      <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu ciclo de sueldo</h2>
+      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tu ciclo de sueldo</p>
       <p className="text-[11px] mt-0.5 mb-5" style={{ color: 'var(--ink-3)' }}>
         Con el sueldo de {paidMonthName} pagas los gastos de este mes.
       </p>
       <div
         role="img"
         aria-label={`Pago del ${short(lastPay)}, liquidación ${payslipDone ? 'registrada' : 'pendiente'}${nextPay ? `, próximo pago el ${short(nextPay)}` : ''}`}
-        className="relative mx-4 mb-14"
+        className="relative mx-1.5 mb-14"
         style={{ height: 12 }}
       >
         <div className="absolute left-0 right-0 top-[5px] h-[2px] rounded-full" style={{ background: 'var(--border)' }} />
         {nextPay && (
           <div className="absolute left-0 top-[5px] h-[2px] rounded-full" style={{ width: `${todayPct}%`, background: 'var(--primary)' }} />
         )}
-        {node(0, 'Te pagaron', short(lastPay), true, 'pay')}
+        {node(0, 'Te pagaron', short(lastPay), true, 'pay', 'start')}
         {node(slipPct, 'Liquidación', payslipDone ? 'registrada' : 'por registrar', payslipDone, 'slip')}
-        {nextPay && node(100, 'Próximo pago', daysToPay !== null ? (daysToPay === 0 ? 'hoy' : `en ${daysToPay} días`) : short(nextPay), false, 'next')}
+        {nextPay && node(100, 'Próximo pago', daysToPay !== null ? (daysToPay === 0 ? 'hoy' : `en ${daysToPay} días`) : short(nextPay), false, 'next', 'end')}
         {nextPay && todayPct > 0 && todayPct < 100 && (
           <div className="absolute -translate-x-1/2 -top-5 text-[11px] font-bold" style={{ left: `${todayPct}%`, color: 'var(--primary-text)' }}>
             Hoy

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, ShieldCheck, Download, Landmark } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
-import StatementDemo from '@/components/landing/StatementDemo'
+import PayDateDemo from '@/components/landing/PayDateDemo'
 import SueldoDemo from '@/components/landing/SueldoDemo'
 import FijosDemo from '@/components/landing/FijosDemo'
 import MobileCta from '@/components/landing/MobileCta'
@@ -25,7 +25,7 @@ function Wordmark() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
       <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-        <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
+        <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
       </span>
     </span>
   )
@@ -36,7 +36,7 @@ function Pillar({ id, title, children, visual, flip }: {
 }) {
   return (
     <section id={id} className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center scroll-mt-24">
-      <div className={`lp-reveal ${flip ? 'lg:order-2' : ''}`}>
+      <div className={flip ? 'lg:order-2' : ''}>
         <h2 className="text-3xl lg:text-4xl font-semibold leading-tight text-balance" style={{ color: 'var(--ink)' }}>{title}</h2>
         <div className="mt-4 space-y-3 text-base leading-relaxed max-w-[60ch]" style={{ color: 'var(--ink-2)' }}>
           {children}
@@ -84,29 +84,36 @@ export default function LandingPage() {
       </header>
 
       <main id="contenido">
-        {/* ── Hero ── */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-10 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
-          <div>
-            <h1 className="lp-hero-in font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.4rem, 6vw, 4rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
-              Sabe cuánto vas a pagar en tu próximo estado de cuenta.
+        {/* ── Hero ──
+            En teléfono el orden es título → demo → botones: así lo primero que
+            se ve después del título es la fecha de pago, no dos botones. En
+            escritorio la demo ocupa la columna derecha. */}
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.05fr_1fr] gap-x-16 gap-y-8 lg:items-center">
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
+            <h1 className="lp-hero-in font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.3rem, 5.6vw, 3.75rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+              Cada compra con tarjeta, con su fecha de pago.
             </h1>
-            <p className="lp-hero-in mt-5 text-lg leading-relaxed max-w-[52ch]" style={{ color: 'var(--ink-2)', ['--i' as string]: 1 }}>
-              Bolsillo Mágico entiende el ciclo de tu tarjeta, tu sueldo de fin de mes y los cobros fijos que se te olvidan. En pesos chilenos, sin redondeos.
+            <p className="lp-hero-in mt-5 text-lg leading-relaxed max-w-[50ch]" style={{ color: 'var(--ink-2)', ['--i' as string]: 1 }}>
+              Bolsillo Mágico sabe cuándo factura y cuándo vence tu tarjeta: te dice cuándo pagas cada compra, cuánto viene en tu próximo estado de cuenta y cuánto te queda del sueldo.
             </p>
-            <div id="hero-actions" className="lp-hero-in mt-8 flex flex-col sm:flex-row gap-3" style={{ ['--i' as string]: 2 }}>
+          </div>
+          <div className="lp-hero-in min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2" style={{ ['--i' as string]: 2 }}>
+            <PayDateDemo />
+          </div>
+          <div className="lp-hero-in min-w-0 lg:col-start-1 lg:row-start-2 lg:self-start" style={{ ['--i' as string]: 3 }}>
+            <div id="hero-actions" className="flex flex-col sm:flex-row gap-3">
               <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
-                Probar la demo <ArrowRight className="w-4 h-4" aria-hidden />
+                Probar la demo completa <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
-              <a href="#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold"
-                 style={{ color: 'var(--ink)', background: 'var(--surface)' }}>
+              <a href="#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold border"
+                 style={{ color: 'var(--ink)', background: 'var(--surface)', borderColor: 'var(--border)', borderWidth: 1.5 }}>
                 Pedir acceso
               </a>
             </div>
-            <p className="lp-hero-in mt-5 text-sm" style={{ color: 'var(--ink-3)', ['--i' as string]: 3 }}>
+            <p className="mt-4 text-sm" style={{ color: 'var(--ink-3)' }}>
               Por ahora se entra por invitación, entre amigos. La demo funciona sin cuenta y con datos de ejemplo.
             </p>
           </div>
-          <div className="lp-hero-in" style={{ ['--i' as string]: 2 }}><StatementDemo /></div>
         </section>
 
         {/* ── Lo de siempre vs. esto ── */}
@@ -141,7 +148,7 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Visa · Cupo usado</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Estado en curso · día 18 de 30</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Estado en curso · día 28 de 30</p>
                   </div>
                   <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
                         style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
@@ -202,7 +209,7 @@ export default function LandingPage() {
                 <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Hoy, en tu lista</p>
                 <p className="text-2xl font-semibold mt-1" style={{ color: 'var(--ink)' }}>Hoy no compres nada de tu lista.</p>
                 <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                  Ninguna se ve como una buena entrada hoy. Tu meta del mes puede esperar en la billetera.
+                  Ninguna acción de tu lista está en un buen precio de entrada. La plata puede esperar en tu billetera en dólares.
                 </p>
                 <div className="grid grid-cols-2 gap-3 mt-5">
                   <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)' }}>
@@ -223,7 +230,7 @@ export default function LandingPage() {
         </div>
 
         {/* ── Confianza: lo verificable, sin testimonios inventados ── */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20 lp-reveal">
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20">
           <h2 className="text-2xl lg:text-3xl font-semibold" style={{ color: 'var(--ink)' }}>Tus datos son tuyos.</h2>
           <ul className="mt-6 grid sm:grid-cols-3 gap-x-10 gap-y-6 max-w-5xl">
             {[

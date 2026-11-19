@@ -177,7 +177,7 @@ function LoginForm() {
           below={
             <button
               type="button" onClick={handleForgotPassword} disabled={resetBusy || resetWait > 0}
-              className="mt-1 min-h-[44px] -ml-1 px-1 text-xs font-bold disabled:opacity-60"
+              className="mt-1 min-h-[44px] -ml-1 px-1 text-xs font-bold tabular-nums disabled:opacity-60"
               style={{ color: 'var(--primary-text)' }}
             >
               {resetBusy ? 'Enviando…' : resetWait > 0 ? `Reenviar en ${resetWait} s` : '¿Olvidaste tu contraseña?'}
@@ -200,7 +200,7 @@ function LoginForm() {
 
         <button
           type="submit" disabled={loading || isLocked}
-          className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
+          className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 tabular-nums transition-transform active:scale-[.99]"
           style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
         >
           {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Entrando…</>

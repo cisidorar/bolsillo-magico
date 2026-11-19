@@ -19,7 +19,6 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
           style={{ background: 'var(--bg)', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
       <style>{`
         @keyframes auth-spin { to { transform: rotate(360deg); } }
-        @media (prefers-reduced-motion: reduce) { .auth-spinner { animation-duration: 2s !important; } }
         .auth-spinner { animation: auth-spin .7s linear infinite; }
         .auth-field {
           display:flex; align-items:center; gap:10px;
@@ -52,7 +51,7 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/bolsillo-magico-icono.svg" alt="" width={56} height={56} className="mb-3 rounded-2xl" />
         <span className="text-xl" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-          <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
+          <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
         </span>
       </Link>
       ) : (
@@ -61,7 +60,7 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/bolsillo-magico-icono.svg" alt="" width={56} height={56} className="mb-3 rounded-2xl" />
         <span className="text-xl" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-          <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mágico</span>
+          <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
         </span>
       </div>
       )}

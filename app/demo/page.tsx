@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, CreditCard, Wallet, Repeat, TrendingUp, Plus, Check, Sparkles, Eye, EyeOff } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
 import PayCycleTimeline from '@/components/PayCycleTimeline'
+import WaitlistForm from '@/components/landing/WaitlistForm'
 
 // ── Demo pública (nov 2026) ─────────────────────────────────────────────────
 // Rehecha sobre los cuatro pilares de la landing, con los tokens y .card de la
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string; Icon: typeof CreditCard }[] = [
 
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
 const CLOSING = 20
+const DUE_DAY = 5
 
 function Segmented<T extends string>({ value, onChange, options, label }: {
   value: T; onChange: (v: T) => void; options: { id: T; label: string }[]; label: string
@@ -58,7 +60,9 @@ const SEED: Purchase[] = [
   { id: 7, name: 'Zapatillas',   amount: 59990, day: 22 },
 ]
 
-function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMonthName: string }) {
+function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }: {
+  monthName: string; prevMonthName: string; nextMonthName: string; next2MonthName: string
+}) {
   const [view, setView]   = useState<'compra' | 'facturacion'>('facturacion')
   const [items, setItems] = useState(SEED)
   const [amount, setAmount] = useState('')
@@ -82,10 +86,10 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
   }
 
   const groups = view === 'compra'
-    ? [{ title: `Compras de ${monthName}`, items: thisMonth }]
+    ? [{ title: `Compras de ${monthName}`, due: '', items: thisMonth }]
     : [
-        { title: `Estado que cierra el ${CLOSING} de ${monthName}`, items: inStatement },
-        { title: `Próximo estado (cierra el ${CLOSING} del mes que viene)`, items: nextStatement },
+        { title: `Estado que cierra el ${CLOSING} de ${monthName}`, due: `La pagas el ${DUE_DAY} de ${nextMonthName}`, items: inStatement },
+        { title: `Próximo estado · cierra el ${CLOSING} de ${nextMonthName}`, due: `La pagas el ${DUE_DAY} de ${next2MonthName}`, items: nextStatement },
       ]
 
   return (
@@ -94,8 +98,8 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-bold">Visa · Cupo usado</p>
           <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-                style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
-            Cierra el {CLOSING}
+                style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
+            Factura el {CLOSING} · vence el {DUE_DAY}
           </span>
         </div>
         <p className="text-3xl font-extrabold tabular-nums mt-2" style={{ fontFamily: 'var(--font-fredoka), sans-serif' }}>{formatCLP(used)}</p>
@@ -116,8 +120,11 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
       {groups.map(g => (
         <div key={g.title} className="card p-5">
           <div className="flex items-baseline justify-between gap-3 mb-3">
-            <p className="text-sm font-bold">{g.title}</p>
-            <p className="text-sm font-bold tabular-nums">{formatCLP(sum(g.items))}</p>
+            <div className="min-w-0">
+              <p className="text-sm font-bold">{g.title}</p>
+              {g.due && <p className="text-xs font-semibold mt-0.5" style={{ color: 'var(--primary-text)' }}>{g.due}</p>}
+            </div>
+            <p className="text-sm font-bold tabular-nums shrink-0">{formatCLP(sum(g.items))}</p>
           </div>
           {g.items.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Todavía nada.</p>
@@ -129,7 +136,9 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
                     <span className="text-sm font-semibold">{p.name}</span>
                     <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>{p.day} de {p.prevMonth ? prevMonthName : monthName}</span>
                     {p.id === lastAdded && (
-                      <span className="text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>nueva</span>
+                      <span className="text-[11px] font-bold ml-2 px-2 py-0.5 rounded-full" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
+                        nueva · la pagas el {DUE_DAY} de {p.day > CLOSING ? next2MonthName : nextMonthName}
+                      </span>
                     )}
                   </span>
                   <span className="text-sm font-bold tabular-nums">{formatCLP(p.amount)}</span>
@@ -156,12 +165,11 @@ function TarjetaView({ monthName, prevMonthName }: { monthName: string; prevMont
             {Array.from({ length: 30 }, (_, i) => i + 1).map(d => <option key={d} value={d}>Día {d}</option>)}
           </select>
           <button type="submit" aria-label="Agregar compra"
-            className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+            className="cta-primary w-11 h-11 shrink-0 rounded-xl flex items-center justify-center">
             <Plus className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Después del {CLOSING}, mira cómo salta al próximo estado en la vista por facturación.</p>
+        <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Si compras después del {CLOSING}, la pagas un mes más tarde: prueba con el día 21.</p>
       </form>
     </div>
   )
@@ -275,13 +283,12 @@ function FijosView() {
 
       {!created && (
         <div className="card p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-          <Sparkles className="w-5 h-5 shrink-0" style={{ color: 'var(--primary)' }} aria-hidden />
+          <Sparkles className="w-5 h-5 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
           <p className="text-sm flex-1">
             <span className="font-bold">Gimnasio {formatCLP(24990)}</span> se repite cada mes cerca del día 5, pero no está entre tus fijos.
           </p>
           <button type="button" onClick={() => setCreated(true)}
-            className="min-h-[44px] px-4 rounded-xl text-sm font-bold"
-            style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+            className="cta-primary min-h-[44px] px-4 rounded-xl text-sm font-bold">
             Crear recurrente
           </button>
         </div>
@@ -353,9 +360,14 @@ function InversionesView() {
 
 export default function DemoPage() {
   const [tab, setTab] = useState<Tab>('tarjeta')
+  // Cambiar este número vuelve a montar la pestaña: así "Reiniciar" deja la
+  // demo como al llegar, sin recargar la página.
+  const [run, setRun] = useState(0)
   const { month } = getNowChile()
   const monthName = MONTHS[month - 1]
   const prevMonthName = MONTHS[(month + 10) % 12]
+  const nextMonthName = MONTHS[month % 12]
+  const next2MonthName = MONTHS[(month + 1) % 12]
 
   return (
     <div className="min-h-svh" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
@@ -364,11 +376,13 @@ export default function DemoPage() {
           <Link href="/" className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
             <ArrowLeft className="w-4 h-4" aria-hidden /> Volver
           </Link>
-          <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Demo · datos de ejemplo</p>
-          <Link href="/#lista" className="inline-flex items-center min-h-[44px] px-3 rounded-xl text-sm font-bold"
-                style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
+          <p className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
+            <span className="sm:hidden">Datos de ejemplo</span><span className="hidden sm:inline">Demo · datos de ejemplo</span>
+          </p>
+          <a href="#pedir" className="inline-flex items-center min-h-[44px] px-3 rounded-xl text-sm font-bold whitespace-nowrap"
+             style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
             Pedir acceso
-          </Link>
+          </a>
         </div>
         <nav aria-label="Secciones de la demo" className="mx-auto max-w-xl px-4 pb-3">
           <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl" style={{ background: 'var(--surface-2)' }}>
@@ -387,26 +401,30 @@ export default function DemoPage() {
       </header>
 
       <main className="mx-auto max-w-xl px-4 pt-4 pb-16">
-        <h1 className="text-2xl font-semibold mb-4">
-          {tab === 'tarjeta' ? 'Tu tarjeta, como la ve tu banco'
-            : tab === 'sueldo' ? 'Tu sueldo y lo que queda'
-            : tab === 'fijos' ? 'Lo fijo que se te olvida'
-            : 'Tu plata que crece'}
-        </h1>
-        <div key={tab} className="lp-tab">
-          {tab === 'tarjeta' && <TarjetaView monthName={monthName} prevMonthName={prevMonthName} />}
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h1 className="text-2xl font-semibold">
+            {tab === 'tarjeta' ? 'Cuándo pagas cada compra'
+              : tab === 'sueldo' ? 'Tu sueldo y lo que queda'
+              : tab === 'fijos' ? 'Lo fijo que se te olvida'
+              : 'Tu plata que crece'}
+          </h1>
+          <button type="button" onClick={() => setRun(r => r + 1)}
+            className="min-h-[44px] px-3 rounded-xl text-xs font-semibold shrink-0" style={{ color: 'var(--ink-2)' }}>
+            Reiniciar
+          </button>
+        </div>
+        <div key={`${tab}-${run}`} className="lp-tab">
+          {tab === 'tarjeta' && <TarjetaView monthName={monthName} prevMonthName={prevMonthName} nextMonthName={nextMonthName} next2MonthName={next2MonthName} />}
           {tab === 'sueldo' && <SueldoView />}
           {tab === 'fijos' && <FijosView />}
           {tab === 'inversiones' && <InversionesView />}
         </div>
 
-        <div className="mt-10 rounded-3xl p-6 hero-gradient">
+        {/* El formulario vive acá mismo: antes "Pedir acceso" sacaba de la demo. */}
+        <div id="pedir" className="mt-10 rounded-3xl p-6 hero-gradient scroll-mt-36">
           <p className="text-lg font-semibold" style={{ color: '#FFFFFF', fontFamily: 'var(--font-fredoka), sans-serif' }}>¿Te sirve algo así?</p>
-          <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.92)' }}>Bolsillo Mágico se comparte por invitación. Pide acceso con tu correo.</p>
-          <Link href="/#lista" className="inline-flex items-center mt-4 min-h-[44px] px-5 rounded-xl text-sm font-bold"
-                style={{ background: '#FFFFFF', color: '#0E2A52' }}>
-            Pedir acceso
-          </Link>
+          <p className="text-sm mt-1 mb-4" style={{ color: 'rgba(255,255,255,0.92)' }}>Bolsillo Mágico se comparte por invitación. Deja tu correo y te escribimos si hay un lugar para ti.</p>
+          <WaitlistForm source="demo" />
         </div>
         <p className="text-sm text-center mt-6" style={{ color: 'var(--ink-2)' }}>
           ¿Ya tienes cuenta?{' '}

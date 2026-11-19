@@ -25,9 +25,11 @@ export default function WaitlistForm({ source = 'landing' }: { source?: string }
         <p className="inline-flex items-center gap-2 text-base font-bold" style={{ color: 'var(--mint-on-brand)' }}>
           <Check className="w-5 h-5" aria-hidden /> Listo. Te escribimos si hay un lugar para ti.
         </p>
-        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
-          Mientras tanto, <Link href="/demo" className="font-bold underline underline-offset-2 inline-flex items-center min-h-[44px]">prueba la demo</Link>.
-        </p>
+        {source !== 'demo' && (
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
+            Mientras tanto, <Link href="/demo" className="font-bold underline underline-offset-2 inline-flex items-center min-h-[44px]">prueba la demo</Link>.
+          </p>
+        )}
       </div>
     )
   }
