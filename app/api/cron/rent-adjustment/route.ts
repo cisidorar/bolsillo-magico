@@ -6,6 +6,7 @@ import { computeRentAdjustment, shouldNotifyAdjustment, monthStart, DEFAULT_WIND
 import { buildRentAdjustmentPdf } from '@/lib/rent-adjustment-pdf'
 import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 import { getNowChile } from '@/lib/utils'
+import { applyRentAdjustmentCore } from '@/lib/rent-adjustment-apply'
 
 // ── Cron: reajuste semestral del arriendo por IPC (nov 2026) ─────────────────
 // Diario. Por cada contrato activo con reajuste por IPC: calcula el próximo
@@ -98,7 +99,22 @@ export async function GET(request: Request) {
     created++
   }
 
+  // Aplicación automática: el contrato reajusta solo, así que el primer día del
+  // mes del reajuste se aplica lo ya calculado y avisado por correo. (Confirmar
+  // a mano en la app antes es opcional.)
+  const applied: string[] = []
+  if (!dry) {
+    const { data: due } = await supabase
+      .from('rent_adjustments').select('id, user_id')
+      .is('applied_at', null).not('notified_at', 'is', null)
+      .lte('adjustment_month', monthStart(today))
+    for (const row of due ?? []) {
+      const r = await applyRentAdjustmentCore(supabase, row.user_id as string, row.id as string)
+      if (r.ok) applied.push(row.id as string)
+    }
+  }
+
   // La Edge Function manda los correos pendientes (notified_at null + pdf_path).
   const mail = dry || created === 0 ? null : await invokeEdgeFunction(url, key, 'notify-rent-adjustment')
-  return NextResponse.json({ today, dry, leases: leases.length, created, mail, report })
+  return NextResponse.json({ today, dry, leases: leases.length, created, applied: applied.length, mail, report })
 }

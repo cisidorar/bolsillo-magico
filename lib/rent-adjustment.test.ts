@@ -87,4 +87,14 @@ describe('shouldNotifyAdjustment', () => {
 
 describe('monthStart', () => {
   it('normaliza al día 1', () => expect(monthStart('2026-12-17')).toBe('2026-12-01'))
+
+  it('escala a reajuste anual: ventana de 12 meses con 2 de desfase', () => {
+    const w = adjustmentWindow('2027-06-01', 12)
+    expect(w).toHaveLength(12)
+    expect(w[0]).toBe('2026-05-01')
+    expect(w[11]).toBe('2027-04-01')
+    const r = computeRentAdjustment(335_000, obs(w.map(d => [d, 0.5] as [string, number])), '2027-06-01', 12)
+    expect(r.complete).toBe(true)
+    expect(r.cumulativePct).toBeCloseTo((Math.pow(1.005, 12) - 1) * 100, 1)
+  })
 })

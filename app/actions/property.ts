@@ -6,6 +6,7 @@ import { countsAsExpense, chargeExpenseDescription, KIND_LABEL, aseoDueDates, as
 import { rentDueDate, rentPeriodsToGenerate, rentRef, mortgageRef, type LeaseLike } from '@/lib/lease'
 import { computeRentAdjustment, monthStart } from '@/lib/rent-adjustment'
 import { buildRentAdjustmentPdf } from '@/lib/rent-adjustment-pdf'
+import { applyRentAdjustmentCore } from '@/lib/rent-adjustment-apply'
 import { getNowChile } from '@/lib/utils'
 import { extractText } from 'unpdf'
 import { parseUtilityBill, type ParsedUtilityBill } from '@/lib/utility-bill-parser'
@@ -484,43 +485,9 @@ export async function deleteLease(id: string): Promise<Result> {
 export async function applyRentAdjustment(adjustmentId: string): Promise<Result> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
-
-  const { data: adj } = await supabase
-    .from('rent_adjustments')
-    .select('id, lease_id, adjustment_month, new_rent, applied_at')
-    .eq('id', adjustmentId).eq('user_id', user.id).single()
-  if (!adj) return { ok: false, error: 'No se encontró el reajuste' }
-  if (adj.applied_at) return { ok: false, error: 'Este reajuste ya estaba confirmado' }
-
-  const { data: lease } = await supabase
-    .from('lease_contracts').select('id, property_id')
-    .eq('id', adj.lease_id).eq('user_id', user.id).single()
-  if (!lease) return { ok: false, error: 'No se encontró el contrato' }
-
-  const { error: leaseErr } = await supabase.from('lease_contracts')
-    .update({ rent_amount: adj.new_rent, last_adjustment_date: adj.adjustment_month, updated_at: new Date().toISOString() })
-    .eq('id', lease.id).eq('user_id', user.id)
-  if (leaseErr) return { ok: false, error: leaseErr.message }
-
-  // Arriendos impagos desde el mes del reajuste en adelante.
-  const [ay, am] = String(adj.adjustment_month).split('-').map(Number)
-  const { data: unpaid } = await supabase
-    .from('property_charges').select('id, period_year, period_month')
-    .eq('user_id', user.id).eq('property_id', lease.property_id)
-    .eq('kind', 'rent').is('paid_date', null)
-  const ids = (unpaid ?? [])
-    .filter(c => c.period_year * 12 + c.period_month >= ay * 12 + am)
-    .map(c => c.id)
-  if (ids.length > 0) {
-    const { error: chErr } = await supabase.from('property_charges')
-      .update({ amount: adj.new_rent }).in('id', ids).eq('user_id', user.id)
-    if (chErr) return { ok: false, error: chErr.message }
-  }
-
-  await supabase.from('rent_adjustments')
-    .update({ applied_at: new Date().toISOString() }).eq('id', adj.id).eq('user_id', user.id)
-  revalidatePath('/propiedad')
-  return { ok: true }
+  const res = await applyRentAdjustmentCore(supabase, user.id, adjustmentId)
+  if (res.ok) revalidatePath('/propiedad')
+  return res
 }
 
 /**

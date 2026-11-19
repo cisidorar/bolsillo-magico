@@ -82,9 +82,17 @@ export function ipcFromBcchIndex(obs: BcchObs[]): IpcObservation[] {
   return out
 }
 
-async function fetchBcchIpc(token: string): Promise<IpcObservation[] | null> {
+/** Credenciales de la BDE: token (vence al año) o usuario+clave (no vencen: mejor para algo que debe correr solo cada 6 meses). */
+function bcchAuthQuery(): string | null {
+  const user = process.env.BCCH_USER, pass = process.env.BCCH_PASS, token = process.env.BCCH_API_TOKEN
+  if (user && pass) return `user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`
+  if (token) return `token=${encodeURIComponent(token)}`
+  return null
+}
+
+async function fetchBcchIpc(auth: string): Promise<IpcObservation[] | null> {
   const first = new Date(Date.now() - 20 * 30 * 86_400_000).toISOString().slice(0, 10)
-  const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?token=${encodeURIComponent(token)}` +
+  const url = `https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx?${auth}` +
     `&function=GetSeries&timeseries=${BCCH_IPC_INDEX}&firstdate=${first}`
   const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
   if (!res.ok) return null
@@ -111,9 +119,9 @@ export async function fetchClIpcSeries(supabase: SupabaseClient): Promise<IpcObs
     return obs.length > 0 ? obs : null
   })
 
-  const token = process.env.BCCH_API_TOKEN
-  if (!token) return mind
-  const bcch = await fetchCached(supabase, 'CL_IPC_BCCH', () => fetchBcchIpc(token))
+  const auth = bcchAuthQuery()
+  if (!auth) return mind
+  const bcch = await fetchCached(supabase, 'CL_IPC_BCCH', () => fetchBcchIpc(auth))
   if (!bcch) return mind
   return mergeIpcSeries(mind ?? [], bcch)
 }

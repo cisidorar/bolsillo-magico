@@ -1040,7 +1040,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
         )}
         {nextAdj && (
           <Row label="Próximo reajuste" value={`${fmtDate(nextAdj)}${
-            lease.adjustment_months ? ` · IPC ${lease.adjustment_months}m` : ''}`} />
+            lease.adjustment_months ? ` · cada ${lease.adjustment_months} meses, automático` : ''}`} />
         )}
       </dl>
 
@@ -1073,11 +1073,11 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
             <button onClick={onApplyAdjustment} disabled={busy}
               className="px-3 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-              Confirmar reajuste
+              Aplicar ahora
             </button>
           </div>
           <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
-            Al confirmar, la renta del contrato y los arriendos aún no pagados desde esa fecha se actualizan.
+            Se aplica solo el {fmtDate(pendingAdjustment.adjustment_month)}: la renta y los arriendos aún no pagados desde esa fecha se actualizan. Puedes aplicarlo antes si quieres.
           </p>
         </div>
       ) : adjSoon && (
@@ -1101,7 +1101,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
             )}
             {!adjusted?.complete && (
               <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-                El IPC del período todavía no se publica.
+                Se calcula solo cuando el INE publique el IPC del período y te llega por correo con el PDF. No tienes que hacer nada.
               </p>
             )}
             <ManualAdjustment lease={lease} nextAdj={nextAdj!} ipcSeries={ipcSeries} />
@@ -2113,8 +2113,11 @@ function LeaseForm({ lease, propertyId, busy, error, backdrop, onCancel, onSave,
           </Field>
           {adjKind !== 'none' && (
             <Field label="Cada cuántos meses">
-              <input className={inputCls} style={inputStyle} value={adjMonths} inputMode="numeric"
-                     onChange={e => setAdjM(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="6" />
+              <select className={inputCls} style={inputStyle} value={adjMonths} onChange={e => setAdjM(e.target.value)}>
+                <option value="6">Cada 6 meses (semestral)</option>
+                <option value="12">Cada 12 meses (anual)</option>
+                {!['6', '12'].includes(adjMonths) && <option value={adjMonths}>Cada {adjMonths} meses</option>}
+              </select>
             </Field>
           )}
         </div>
@@ -2443,16 +2446,16 @@ function ManualAdjustment({ lease, nextAdj, ipcSeries }: {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="mt-2 px-3 min-h-[44px] rounded-xl text-xs font-semibold border"
-        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-        Calcular ahora con IPC a mano
+      <button onClick={() => setOpen(true)} className="mt-1 min-h-[44px] text-[11px] font-semibold underline"
+        style={{ color: 'var(--ink-3)' }}>
+        Ingresar IPC manualmente
       </button>
     )
   }
   return (
     <div className="mt-2">
       <p className="text-[11px] mb-2" style={{ color: 'var(--ink-3)' }}>
-        IPC mensual en % de los 6 meses que corresponden (INE). Genera el aviso y el PDF al instante, sin enviar correo.
+        IPC mensual en % de los {months.length} meses que corresponden (INE). Genera el aviso y el PDF al instante, sin enviar correo.
       </p>
       <div className="grid grid-cols-3 gap-2">
         {months.map((d, i) => (
