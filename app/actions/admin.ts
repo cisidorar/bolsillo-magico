@@ -104,8 +104,8 @@ async function sendInvite(
     return { ok: false, error: `Llegaste al tope de ${ACCOUNT_CAP} cuentas activas. Bloquea una o sube MAX_ACTIVE_USERS.` }
   }
   // El enlace del correo pasa por /api/auth/confirm (verifica el token) y
-  // termina en /update-password, donde la persona elige su contraseña.
-  const redirectTo = `${origin.replace(/\/$/, '')}/api/auth/confirm?next=/update-password`
+  // termina en /update-password?welcome=1, donde la persona crea su contraseña.
+  const redirectTo = `${origin.replace(/\/$/, '')}/api/auth/confirm?next=${encodeURIComponent('/update-password?welcome=1')}`
   const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
   if (invErr) {
     console.error('[admin] invite falló:', invErr.message)

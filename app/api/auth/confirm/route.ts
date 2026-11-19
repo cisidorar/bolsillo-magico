@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 // Destino del enlace de los correos de invitación y de recuperación. Verifica
 // el token del correo (token_hash) y deja a la persona con sesión en `next`.
 // Requiere que las plantillas de Supabase apunten acá:
-//   {{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/update-password
+//   {{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/update-password%3Fwelcome%3D1
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const tokenHash = searchParams.get('token_hash')

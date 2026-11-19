@@ -1,153 +1,169 @@
 'use client'
 
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
-import Image from 'next/image'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Lock, CheckCircle2, Loader2, LinkIcon } from 'lucide-react'
+import AuthShell from '@/components/auth/AuthShell'
+import AuthField from '@/components/auth/AuthField'
 
-export default function UpdatePasswordPage() {
-  const router  = useRouter()
+// Dos caminos llegan acá con una sesión temporal creada por el enlace del
+// correo: quien fue INVITADO (primera contraseña, ?welcome=1) y quien pidió
+// "¿Olvidaste tu contraseña?". Es la primera pantalla que ve un amigo invitado,
+// así que habla de bienvenida y no de "nueva contraseña".
+
+type Phase = 'checking' | 'ready' | 'expired' | 'done'
+const MIN_LEN = 8
+
+function UpdatePasswordForm() {
   const supabase = createClient()
+  const welcome  = useSearchParams().get('welcome') === '1'
 
+  const [phase,   setPhase]   = useState<Phase>('checking')
   const [pass,    setPass]    = useState('')
   const [confirm, setConfirm] = useState('')
-  const [showPw,  setShowPw]  = useState(false)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
-  const [done,    setDone]    = useState(false)
+
+  // El enlace del correo deja una sesión; si no hay (enlace usado, vencido o
+  // alguien que entró directo), se avisa de entrada en vez de dejarlo escribir
+  // una contraseña que no se va a poder guardar. La sesión puede tardar un
+  // instante en establecerse, por eso se espera antes de dar el enlace por malo.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setPhase(p => (p === 'checking' ? 'ready' : p))
+    })
+    supabase.auth.getSession().then(({ data }) => { if (data.session) setPhase(p => (p === 'checking' ? 'ready' : p)) })
+    const t = setTimeout(() => setPhase(p => (p === 'checking' ? 'expired' : p)), 3000)
+    return () => { sub.subscription.unsubscribe(); clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'done') return
+    const t = setTimeout(() => window.location.assign('/inicio'), 4000)
+    return () => clearTimeout(t)
+  }, [phase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (!pass) { setError('Ingresá una contraseña'); return }
-    if (pass.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return }
-    if (pass !== confirm) { setError('Las contraseñas no coinciden'); return }
+    if (pass.length < MIN_LEN) { setError(`La contraseña necesita al menos ${MIN_LEN} caracteres.`); return }
+    if (pass !== confirm) { setError('Las contraseñas no coinciden.'); return }
 
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password: pass })
+    const { error: upErr } = await supabase.auth.updateUser({ password: pass })
     setLoading(false)
 
-    if (error) {
-      // El token de recuperación expiró o ya fue usado
-      setError('No se pudo actualizar la contraseña. Solicitá un nuevo enlace desde el login.')
+    if (upErr) {
+      const msg = upErr.message.toLowerCase()
+      if (msg.includes('session')) { setPhase('expired'); return }
+      if (msg.includes('same') || msg.includes('different')) setError('Elige una contraseña distinta de la anterior.')
+      else if (msg.includes('weak') || msg.includes('password should')) setError('Esa contraseña es muy débil. Prueba con una más larga o con más variedad.')
+      else setError('No pudimos guardar tu contraseña. Revisa tu conexión e inténtalo de nuevo.')
       return
     }
+    // Si alguien más tenía una sesión abierta con la contraseña anterior, se cierra.
+    try { await supabase.auth.signOut({ scope: 'others' }) } catch { /* no bloquea */ }
+    setPhase('done')
+  }
 
-    setDone(true)
-    setTimeout(() => router.push('/inicio'), 2500)
+  if (phase === 'checking') {
+    return (
+      <AuthShell title={welcome ? 'Crea tu contraseña' : 'Tu contraseña'}>
+        <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
+          <Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Verificando tu enlace…
+        </p>
+      </AuthShell>
+    )
+  }
+
+  if (phase === 'expired') {
+    return (
+      <AuthShell title="Este enlace ya no sirve">
+        <div className="flex flex-col items-center text-center gap-3">
+          <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+            <LinkIcon className="w-5 h-5" aria-hidden />
+          </span>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            Los enlaces del correo se pueden usar una sola vez y vencen. Ve a iniciar sesión y toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo. Si te invitaron y no te funciona, pídele a quien te invitó que lo reenvíe.
+          </p>
+          <Link href="/login" className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center mt-2" style={{ minHeight: 52 }}>
+            Ir a iniciar sesión
+          </Link>
+        </div>
+      </AuthShell>
+    )
+  }
+
+  if (phase === 'done') {
+    return (
+      <AuthShell title="Listo">
+        <div className="flex flex-col items-center text-center gap-3" role="status">
+          <span className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }}>
+            <CheckCircle2 className="w-6 h-6" aria-hidden />
+          </span>
+          <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+            {welcome ? 'Tu contraseña quedó guardada. Ya puedes usar Bolsillo Mágico.' : 'Tu contraseña quedó actualizada.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.assign('/inicio')}
+            className="auth-cta w-full rounded-2xl font-bold text-base mt-2"
+            style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
+          >
+            Entrar a Inicio
+          </button>
+        </div>
+      </AuthShell>
+    )
   }
 
   return (
-    <div
-      className="min-h-svh flex items-center justify-center px-5 py-10"
-      style={{ background: '#2B7CF6' }}
+    <AuthShell
+      title={welcome ? 'Crea tu contraseña' : 'Nueva contraseña'}
+      subtitle={welcome
+        ? 'Te invitaron a Bolsillo Mágico. Elige una contraseña para entrar.'
+        : 'Elige una contraseña nueva para tu cuenta.'}
     >
-      <div className="w-full max-w-sm">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <AuthField
+          id="new-password" name="new-password" label="Contraseña" type="password" revealable
+          value={pass} onChange={setPass} autoComplete="new-password" enterKeyHint="next"
+          hint={`Mínimo ${MIN_LEN} caracteres`} icon={<Lock className="w-4 h-4" />}
+          invalid={!!error} describedBy={error ? 'pw-error' : undefined}
+        />
+        <AuthField
+          id="confirm-password" name="confirm-password" label="Repite la contraseña" type="password" revealable
+          value={confirm} onChange={setConfirm} autoComplete="new-password" enterKeyHint="go"
+          icon={<Lock className="w-4 h-4" />}
+          invalid={!!error} describedBy={error ? 'pw-error' : undefined}
+        />
 
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 relative mb-3">
-            <Image src="/bolsillo-magico-icono-invertido.png" alt="Bolsillo Mágico" fill style={{ objectFit: 'contain' }} priority />
-          </div>
-          <h1 className="text-2xl font-semibold text-white tracking-tight">Bolsillo Mágico</h1>
-          <p className="text-sm text-white/60 font-medium mt-1">Nueva contraseña</p>
-        </div>
+        {error && (
+          <p id="pw-error" role="alert" className="text-xs font-bold rounded-xl px-4 py-3"
+             style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
+            {error}
+          </p>
+        )}
 
-        {/* Card */}
-        <div className="bg-white rounded-3xl p-6 shadow-2xl">
+        <button
+          type="submit" disabled={loading}
+          className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
+          style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
+        >
+          {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Guardando…</> : 'Guardar contraseña'}
+        </button>
+      </form>
+    </AuthShell>
+  )
+}
 
-          <style>{`
-            @keyframes spin { to { transform: rotate(360deg); } }
-            .field {
-              display:flex; align-items:center; gap:10px;
-              background:#F4F7FB; border:1.5px solid #E4EAF1;
-              border-radius:14px; padding:0 14px; height:52px;
-            }
-            .field:focus-within { border-color:#4D93FF; box-shadow:0 0 0 3px rgba(77,147,255,.15); }
-            .field input {
-              flex:1; background:transparent; border:none; outline:none;
-              font-size:15px; color:#0E2A52; font-family:inherit; min-width:0;
-            }
-            .field input::placeholder { color:#94A3B8; }
-          `}</style>
-
-          {done ? (
-            /* ── Éxito ── */
-            <div className="text-center py-4">
-              <div className="mx-auto mb-3 w-14 h-14 rounded-full flex items-center justify-center" style={{ background: '#E7F7F0' }}>
-                <CheckCircle2 size={28} color="#1FBE8D" strokeWidth={2} />
-              </div>
-              <p className="text-base font-bold mb-1" style={{ color: '#0E2A52' }}>¡Contraseña actualizada!</p>
-              <p className="text-sm" style={{ color: '#94A3B8' }}>Redirigiendo al dashboard…</p>
-            </div>
-          ) : (
-            /* ── Formulario ── */
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-700 pb-1">Elegí tu nueva contraseña</p>
-
-              {/* Nueva contraseña */}
-              <div className="field">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={pass}
-                  onChange={e => setPass(e.target.value)}
-                  placeholder="Nueva contraseña"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  style={{ color: '#94A3B8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}
-                >
-                  {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-
-              {/* Confirmar */}
-              <div className="field">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={confirm}
-                  onChange={e => setConfirm(e.target.value)}
-                  placeholder="Confirmar contraseña"
-                  autoComplete="new-password"
-                />
-              </div>
-
-              {error && (
-                <p className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
-                  {error}
-                </p>
-              )}
-
-              <button
-                onClick={handleSubmit as any}
-                disabled={loading}
-                className="w-full rounded-2xl text-white font-bold text-base flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                style={{
-                  height: 52,
-                  background: loading ? '#A9C4EE' : '#2B7CF6',
-                  boxShadow: loading ? 'none' : '0 6px 20px rgba(43,124,246,.18)',
-                  border: 'none', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {loading
-                  ? <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-                  : 'Guardar contraseña →'
-                }
-              </button>
-            </div>
-          )}
-        </div>
-
-      </div>
-    </div>
+export default function UpdatePasswordPage() {
+  return (
+    <Suspense>
+      <UpdatePasswordForm />
+    </Suspense>
   )
 }

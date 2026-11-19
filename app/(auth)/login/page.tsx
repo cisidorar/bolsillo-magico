@@ -1,230 +1,197 @@
 'use client'
 
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useState, useEffect, useRef, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Mail, Lock, Loader2 } from 'lucide-react'
+import AuthShell from '@/components/auth/AuthShell'
+import AuthField from '@/components/auth/AuthField'
 
-// A1/A4 (roadmap uso personal, jul 2026): la app dejó de tener registro
-// abierto — Cas decidió que es de uso personal. El modo signup se quita del
-// FORM acá, pero el cierre real es server-side: Supabase Dashboard →
-// Authentication → Sign In / Up → desactivar "Allow new users to sign up".
-// Sin ese toggle, supabase.auth.signUp() sigue siendo llamable por cualquiera
-// con la anon key (que es pública en el bundle) — este archivo por sí solo
-// no cierra la puerta.
+// El registro está cerrado: se entra por invitación (ver /admin). Eso lo cierra
+// Supabase ("Allow new users to sign up" apagado), no esta pantalla.
 //
-// Rediseño (jul 2026, sobre mockup de referencia de Cas): layout de una sola
-// columna centrada, tema oscuro con los tokens de la app (no hardcode — así
-// queda consistente si algún día cambian --primary/--surface). Se dejó
-// explícitamente afuera el login social (Google/Apple) del mockup — a
-// pedido de Cas: no está configurado en Supabase, y no vale la pena abrir
-// esa puerta justo después de cerrar el registro.
+// Nov 2026: el login sigue el tema del dispositivo (script en app/layout.tsx) y
+// comparte cáscara y campos con /update-password (components/auth).
+//
+// Ojo con el bloqueo: es solo fricción en el navegador (se reinicia al
+// recargar y cualquiera puede llamar a Supabase directo). El freno real es el
+// límite de intentos del propio Supabase, que llega como 429 y acá también
+// activa el bloqueo.
 
 const MAX_ATTEMPTS  = 5
 const LOCKOUT_SECS  = 60
+const RESET_COOLDOWN_SECS = 45
 
-const SPINNER = (
-  <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .7s linear infinite' }} />
-)
+const BAD_LINK = 'Este enlace ya se usó o venció. Si te invitaron, toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo, o pídele a quien te invitó que lo reenvíe.'
 
 function LoginForm() {
-  const router       = useRouter()
-  const searchParams = useSearchParams()
   const supabase     = createClient()
+  const searchParams = useSearchParams()
 
-  const [email,     setEmail]     = useState('')
-  const [pass,      setPass]      = useState('')
-  const [showPw,    setShowPw]    = useState(false)
-  const [loading,   setLoading]   = useState(false)
-  const [error,     setError]     = useState('')
+  const [email,   setEmail]   = useState('')
+  const [pass,    setPass]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
-  // "¿Olvidaste?" — el mockup lo pedía; no existía ningún trigger para el
-  // flujo de reset (solo /update-password, que recibe el link del correo).
   const [resetSent, setResetSent] = useState(false)
   const [resetBusy, setResetBusy] = useState(false)
+  const [resetWait, setResetWait] = useState(0)
 
-  // Rate limiting
   const [attempts,    setAttempts]    = useState(0)
   const [lockedUntil, setLockedUntil] = useState<number | null>(null)
   const [countdown,   setCountdown]   = useState(0)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Lo que anuncian los lectores de pantalla: no cada segundo, solo al empezar,
+  // cada 15 s y al terminar.
+  const [lockNote, setLockNote] = useState('')
 
   useEffect(() => {
     if (!lockedUntil) return
-    timerRef.current = setInterval(() => {
+    const id = setInterval(() => {
       const remaining = Math.ceil((lockedUntil - Date.now()) / 1000)
       if (remaining <= 0) {
-        setLockedUntil(null); setCountdown(0); setError('')
-        if (timerRef.current) clearInterval(timerRef.current)
+        setLockedUntil(null); setCountdown(0); setError(''); setLockNote('Ya puedes volver a intentar.')
+        clearInterval(id)
       } else {
         setCountdown(remaining)
+        if (remaining % 15 === 0) setLockNote(`Espera ${remaining} segundos para volver a intentar.`)
       }
     }, 1000)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    return () => clearInterval(id)
   }, [lockedUntil])
 
-  // Nov 2026: el login ya no fuerza el oscuro — sigue el tema del dispositivo
-  // (script en app/layout.tsx), igual que la landing pública que lleva acá.
+  useEffect(() => {
+    if (resetWait <= 0) return
+    const id = setTimeout(() => setResetWait(w => w - 1), 1000)
+    return () => clearTimeout(id)
+  }, [resetWait])
 
+  // Viene de /api/auth/confirm o /callback cuando el enlace del correo falló.
   useEffect(() => {
     if (searchParams.get('error')) {
-      setError('El enlace de autenticación expiró o no es válido. Intenta de nuevo.')
+      setError(BAD_LINK)
+      // Que no vuelva a salir al recargar.
+      window.history.replaceState(null, '', window.location.pathname)
     }
   }, [searchParams])
 
+  function lock(message: string) {
+    setLockedUntil(Date.now() + LOCKOUT_SECS * 1000)
+    setCountdown(LOCKOUT_SECS); setAttempts(0)
+    setError(message); setLockNote(`Espera ${LOCKOUT_SECS} segundos para volver a intentar.`)
+  }
+
   function registerFailedAttempt() {
     const next = attempts + 1
-    if (next >= MAX_ATTEMPTS) {
-      const until = Date.now() + LOCKOUT_SECS * 1000
-      setLockedUntil(until); setCountdown(LOCKOUT_SECS); setAttempts(0)
-      setError(`Demasiados intentos fallidos. Espera ${LOCKOUT_SECS} segundos.`)
-    } else {
-      setAttempts(next)
-      setError(`Email o contraseña incorrectos. ${MAX_ATTEMPTS - next} intento${MAX_ATTEMPTS - next === 1 ? '' : 's'} restante${MAX_ATTEMPTS - next === 1 ? '' : 's'}.`)
-    }
+    if (next >= MAX_ATTEMPTS) { lock('Demasiados intentos. Espera un momento antes de volver a probar.'); return }
+    setAttempts(next)
+    setError(next >= 3
+      ? 'Correo o contraseña incorrectos. Si no recuerdas tu contraseña, toca «¿Olvidaste tu contraseña?».'
+      : 'Correo o contraseña incorrectos.')
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setResetSent(false)
-
-    if (lockedUntil && Date.now() < lockedUntil) {
-      setError(`Demasiados intentos. Espera ${countdown} segundos.`)
-      return
-    }
-
-    if (!email || !pass) { setError('Completa todos los campos'); return }
+    if (lockedUntil && Date.now() < lockedUntil) return
+    if (!email.trim() || !pass) { setError('Escribe tu correo y tu contraseña.'); return }
     setLoading(true)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-    if (error) {
+    const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass })
+    if (authError) {
       setLoading(false)
-      if (error.message === 'Invalid login credentials') { registerFailedAttempt(); return }
-      setError(error.message); return
+      const msg = authError.message.toLowerCase()
+      if (authError.status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
+        lock('Demasiados intentos. Espera un momento antes de volver a probar.'); return
+      }
+      // "Email not confirmed" y las credenciales malas se muestran igual: así el
+      // mensaje no revela si el correo tiene cuenta.
+      if (msg.includes('invalid login') || msg.includes('not confirmed')) { registerFailedAttempt(); return }
+      setError('No pudimos iniciar sesión. Revisa tu conexión e inténtalo de nuevo.'); return
     }
     setAttempts(0)
     // Navegación completa (no router.push): el <html> lleva la clase del tema
-    // que decide el servidor según el usuario, y la pantalla de login se
-    // renderizó sin sesión (sin tema). Un push suave dejaba el modo claro.
+    // que decide el servidor según la persona, y esta pantalla se renderizó sin
+    // sesión. Un push suave dejaba el modo claro.
     window.location.assign('/inicio')
   }
 
   async function handleForgotPassword() {
     setError(''); setResetSent(false)
-    if (!email) { setError('Escribe tu correo arriba y toca "¿Olvidaste?" de nuevo.'); return }
+    if (!email.trim()) { setError('Escribe tu correo arriba y vuelve a tocar «¿Olvidaste tu contraseña?».'); return }
     setResetBusy(true)
-    await supabase.auth.resetPasswordForEmail(email, {
+    await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/update-password`,
     })
     setResetBusy(false)
     // Mensaje genérico a propósito: no confirma si el correo existe o no.
-    setResetSent(true)
+    setResetSent(true); setResetWait(RESET_COOLDOWN_SECS)
   }
 
-  const isLocked    = !!lockedUntil && Date.now() < lockedUntil
-  const btnDisabled = loading || isLocked
+  const isLocked = !!lockedUntil
+  // El aviso de enlace vencido no es culpa de ningún campo: no se marcan en rojo.
+  const hasError = !!error && error !== BAD_LINK
 
   return (
-    <div className="min-h-svh flex flex-col items-center justify-center px-5 py-12" style={{ background: 'var(--bg)' }}>
+    <AuthShell
+      title="Inicia sesión"
+      subtitle="Qué bueno verte de nuevo."
+      footer={
+        <>
+          ¿No tienes cuenta? Se entra por invitación.{' '}
+          <Link href="/#lista" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary)' }}>Pide acceso</Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        <AuthField
+          id="email" name="email" label="Correo electrónico" type="email" inputMode="email"
+          value={email} onChange={setEmail} autoComplete="username" enterKeyHint="next"
+          placeholder="nombre@correo.cl" icon={<Mail className="w-4 h-4" />}
+          invalid={hasError} describedBy={hasError ? 'login-error' : undefined}
+        />
 
-      {/* Logo + wordmark — <img> plano (no next/image): mismo patrón que
-          SideNav.tsx para este SVG, que si no requiere dangerouslyAllowSVG
-          en next.config. */}
-      <div className="flex flex-col items-center mb-8">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/bolsillo-magico-icono.svg" alt="Bolsillo Mágico" width={64} height={64} className="mb-4 rounded-2xl" />
-        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--ink)' }}>
-          Bolsillo <span style={{ color: 'var(--primary)' }}>Mágico</span>
-        </h1>
-      </div>
-
-      {/* Card */}
-      <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <style>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-          .field {
-            display:flex; align-items:center; gap:10px;
-            background: var(--bg); border:1.5px solid var(--border);
-            border-radius:14px; padding:0 14px; height:52px;
+        <AuthField
+          id="password" name="password" label="Contraseña" type="password" revealable
+          value={pass} onChange={setPass} autoComplete="current-password" enterKeyHint="go"
+          icon={<Lock className="w-4 h-4" />}
+          invalid={hasError} describedBy={hasError ? 'login-error' : undefined}
+          below={
+            <button
+              type="button" onClick={handleForgotPassword} disabled={resetBusy || resetWait > 0}
+              className="mt-1 min-h-[44px] -ml-1 px-1 text-xs font-bold disabled:opacity-60"
+              style={{ color: 'var(--primary)' }}
+            >
+              {resetBusy ? 'Enviando…' : resetWait > 0 ? `Reenviar en ${resetWait} s` : '¿Olvidaste tu contraseña?'}
+            </button>
           }
-          .field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
-          .field input {
-            flex:1; background:transparent; border:none; outline:none;
-            font-size:15px; color: var(--ink); font-family:inherit; min-width:0;
-          }
-          .field input::placeholder { color: var(--ink-3); }
-        `}</style>
+        />
 
-        <h2 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>Inicia sesión</h2>
-        <p className="text-sm mt-1 mb-6" style={{ color: 'var(--ink-3)' }}>Bienvenida de vuelta a tu bolsillo.</p>
+        {resetSent && (
+          <p role="status" className="text-xs font-semibold rounded-xl px-4 py-3" style={{ color: 'var(--ink)', background: 'var(--primary-soft)' }}>
+            Si ese correo tiene una cuenta, te enviamos un enlace para crear o cambiar tu contraseña. Revisa también el correo no deseado.
+          </p>
+        )}
 
-        <div className="flex flex-col gap-4">
+        {error && (
+          <p id="login-error" role="alert" className="text-xs font-bold rounded-xl px-4 py-3"
+             style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
+            {error}
+          </p>
+        )}
 
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--ink-3)' }}>Correo electrónico</label>
-            <div className="field">
-              <Mail className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="tucorreo@gmail.com" autoComplete="email" disabled={isLocked} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Contraseña</label>
-              <button type="button" onClick={handleForgotPassword} disabled={resetBusy}
-                className="text-xs font-bold disabled:opacity-60" style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
-                {resetBusy ? 'Enviando…' : '¿Olvidaste?'}
-              </button>
-            </div>
-            <div className="field">
-              <Lock className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-              <input type={showPw ? 'text' : 'password'} value={pass} onChange={e => setPass(e.target.value)}
-                placeholder="Contraseña"
-                autoComplete="current-password"
-                disabled={isLocked} />
-              <button type="button" onClick={() => setShowPw(!showPw)}
-                style={{ color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexShrink: 0 }}>
-                {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button>
-            </div>
-          </div>
-
-          {resetSent && (
-            <p className="text-xs font-semibold rounded-xl px-4 py-2.5" style={{ color: 'var(--mint-ink)', background: 'var(--primary-soft)' }}>
-              Si ese correo tiene una cuenta, te enviamos un enlace para restablecer la contraseña.
-            </p>
-          )}
-
-          {error && (
-            <p className="text-xs font-bold rounded-xl px-4 py-2.5" role="alert" style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
-              {error}
-            </p>
-          )}
-
-          <button onClick={handleSubmit as any} disabled={btnDisabled}
-            className="w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all"
-            style={{
-              height: 52,
-              background: btnDisabled ? 'var(--border)' : 'var(--primary)',
-              color: 'var(--primary-ink)',
-              boxShadow: btnDisabled ? 'none' : '0 6px 20px rgba(43,124,246,.18)',
-              border: 'none', cursor: btnDisabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-            }}>
-            {loading ? SPINNER
-              : isLocked ? `Bloqueado · ${countdown}s`
-              : 'Iniciar sesión'}
-          </button>
-
-        </div>
-      </div>
-
-      <p className="text-sm mt-6 text-center" style={{ color: 'var(--ink-2)' }}>
-        ¿No tienes cuenta? Se entra por invitación.{' '}
-        <a href="/#lista" className="font-bold" style={{ color: 'var(--primary)' }}>Pide acceso</a>
-      </p>
-
-    </div>
+        <button
+          type="submit" disabled={loading || isLocked}
+          className="auth-cta w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
+          style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
+        >
+          {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Entrando…</>
+            : isLocked ? `Espera ${countdown} s`
+            : 'Iniciar sesión'}
+        </button>
+        <p className="sr-only" role="status" aria-live="polite">{lockNote}</p>
+      </form>
+    </AuthShell>
   )
 }
 
