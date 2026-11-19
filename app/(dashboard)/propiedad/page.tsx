@@ -85,6 +85,14 @@ export default async function PropiedadPage({
         .order('adjustment_month', { ascending: false }).limit(1).maybeSingle()).data ?? null)
     : null
 
+  // Reajustes ya confirmados (historial con PDF en la tarjeta del contrato).
+  const pastAdjustments = lease
+    ? ((await supabase.from('rent_adjustments')
+        .select('id, adjustment_month, previous_rent, new_rent, cumulative_pct, floored')
+        .eq('user_id', user.id).eq('lease_id', lease.id).not('applied_at', 'is', null)
+        .order('adjustment_month', { ascending: false }).limit(5)).data ?? [])
+    : []
+
   // El H1 es la dirección de la propiedad que estás mirando, no el nombre del
   // módulo: con varias propiedades "Propiedad" no dice cuál. La bajada carga
   // el resto del contexto (unidad, comuna, arrendatario) para que el hero no
@@ -147,7 +155,7 @@ export default async function PropiedadPage({
       </div>
 
       <PropertyManager property={property} charges={charges} lease={lease}
-                       ipcSeries={ipcSeries} pendingAdjustment={pendingAdjustment} today={today} view={view}
+                       ipcSeries={ipcSeries} pendingAdjustment={pendingAdjustment} pastAdjustments={pastAdjustments} today={today} view={view}
                        openNew={params.nueva === '1'}
                        categories={(catsRaw ?? []) as Category[]}
                        paymentMethods={(pmsRaw ?? []) as PaymentMethod[]} />

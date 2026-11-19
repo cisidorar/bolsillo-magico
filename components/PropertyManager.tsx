@@ -156,12 +156,22 @@ export interface PendingAdjustment {
   notified_at: string | null
 }
 
+export interface PastAdjustment {
+  id: string
+  adjustment_month: string
+  previous_rent: number
+  new_rent: number
+  cumulative_pct: number
+  floored: boolean
+}
+
 interface Props {
   property: Property | null
   charges: Charge[]
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
   pendingAdjustment?: PendingAdjustment | null
+  pastAdjustments?: PastAdjustment[]
   today: string
   view: 'estado' | 'cobros' | 'info'
   /** ?nueva=1 — el switcher pide abrir el formulario de propiedad en blanco. */
@@ -225,7 +235,7 @@ function relativeDue(dueDate: string, today: string): string {
   return `hace ${Math.abs(days)} días`
 }
 
-export default function PropertyManager({ property, charges, lease, ipcSeries, pendingAdjustment = null, today, view, openNew, categories = [], paymentMethods = [] }: Props) {
+export default function PropertyManager({ property, charges, lease, ipcSeries, pendingAdjustment = null, pastAdjustments = [], today, view, openNew, categories = [], paymentMethods = [] }: Props) {
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
   // Property es edición. Antes era boolean y no podía distinguir los dos casos
@@ -466,7 +476,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, p
                 if (r.ok) window.open(r.url, '_blank', 'noopener')
               }}
               onEdit={() => setLeaseForm(true)}
-              onGenerate={() => run(() => generateLeaseCharges(property.id, today))}
+              pastAdjustments={pastAdjustments}
             />
             {property.mortgage_principal && (
               <MortgageCard property={property} charges={charges}
@@ -947,7 +957,7 @@ function Fact({ label, value, bold, color }: { label: string; value: string; bol
  * cuándo toca reajustar, cuándo hay que avisar si no se renueva, y si faltan
  * meses de arriendo por generar.
  */
-function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, onApplyAdjustment, onOpenAdjustmentPdf, onEdit, onGenerate }: {
+function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjustments, onApplyAdjustment, onOpenAdjustmentPdf, onEdit }: {
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
   today: string
@@ -956,7 +966,7 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, onApplyAd
   onApplyAdjustment: () => void
   onOpenAdjustmentPdf: () => void
   onEdit: () => void
-  onGenerate: () => void
+  pastAdjustments: PastAdjustment[]
 }) {
   if (!lease) {
     return (
@@ -1111,16 +1121,34 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, onApplyAd
         </div>
       )}
 
-      <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-        <button onClick={onGenerate} disabled={busy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-50"
-          style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-          <Sparkles className="w-3.5 h-3.5" /> Generar arriendos y dividendos al día
-        </button>
-        <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
-          Crea los meses que falten desde el inicio del contrato. Correrlo dos veces no duplica.
-        </p>
-      </div>
+      {/* Historial de reajustes ya confirmados, cada uno con su PDF. Sin
+          estado vacío: mientras no haya ninguno, la sección no existe. */}
+      {pastAdjustments.length > 0 && (
+        <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>Reajustes anteriores</p>
+          <ul className="space-y-1">
+            {pastAdjustments.map(a => (
+              <li key={a.id} className="flex items-center gap-2 text-xs">
+                <span className="flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
+                  {fmtDate(a.adjustment_month)} · {formatCLP(a.previous_rent)} → {formatCLP(a.new_rent)}
+                  {' '}<span style={{ color: 'var(--ink-3)' }}>
+                    ({a.floored ? 'IPC negativo' : `+${Number(a.cumulative_pct).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`})
+                  </span>
+                </span>
+                <button
+                  onClick={async () => {
+                    const r = await getRentAdjustmentPdfUrl(a.id)
+                    if (r.ok) window.open(r.url, '_blank', 'noopener')
+                  }}
+                  className="px-2.5 min-h-[44px] text-xs font-semibold flex-shrink-0"
+                  style={{ color: 'var(--primary)' }}>
+                  PDF
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
