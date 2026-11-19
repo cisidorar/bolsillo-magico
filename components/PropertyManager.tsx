@@ -163,6 +163,7 @@ export interface PastAdjustment {
   new_rent: number
   cumulative_pct: number
   floored: boolean
+  applied_at: string | null
 }
 
 interface Props {
@@ -1125,24 +1126,24 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
           estado vacío: mientras no haya ninguno, la sección no existe. */}
       {pastAdjustments.length > 0 && (
         <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>Reajustes anteriores</p>
+          <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>Últimos reajustes</p>
           <ul className="space-y-1">
             {pastAdjustments.map(a => (
               <li key={a.id} className="flex items-center gap-2 text-xs">
                 <span className="flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
                   {fmtDate(a.adjustment_month)} · {formatCLP(a.previous_rent)} → {formatCLP(a.new_rent)}
                   {' '}<span style={{ color: 'var(--ink-3)' }}>
-                    ({a.floored ? 'IPC negativo' : `+${Number(a.cumulative_pct).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`})
+                    ({a.floored ? 'IPC negativo' : `+${Number(a.cumulative_pct).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`}{a.applied_at ? '' : ' · pendiente'})
                   </span>
                 </span>
                 <button
                   onClick={async () => {
-                    const r = await getRentAdjustmentPdfUrl(a.id)
-                    if (r.ok) window.open(r.url, '_blank', 'noopener')
+                    const r = await getRentAdjustmentPdfUrl(a.id, true)
+                    if (r.ok) window.location.href = r.url
                   }}
                   className="px-2.5 min-h-[44px] text-xs font-semibold flex-shrink-0"
                   style={{ color: 'var(--primary)' }}>
-                  PDF
+                  Descargar PDF
                 </button>
               </li>
             ))}

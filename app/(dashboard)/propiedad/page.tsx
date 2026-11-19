@@ -85,12 +85,12 @@ export default async function PropiedadPage({
         .order('adjustment_month', { ascending: false }).limit(1).maybeSingle()).data ?? null)
     : null
 
-  // Reajustes ya confirmados (historial con PDF en la tarjeta del contrato).
+  // Últimos 2 reajustes ya generados (con PDF), confirmados o no, para descargarlos.
   const pastAdjustments = lease
     ? ((await supabase.from('rent_adjustments')
-        .select('id, adjustment_month, previous_rent, new_rent, cumulative_pct, floored')
-        .eq('user_id', user.id).eq('lease_id', lease.id).not('applied_at', 'is', null)
-        .order('adjustment_month', { ascending: false }).limit(5)).data ?? [])
+        .select('id, adjustment_month, previous_rent, new_rent, cumulative_pct, floored, applied_at')
+        .eq('user_id', user.id).eq('lease_id', lease.id).not('pdf_path', 'is', null)
+        .order('adjustment_month', { ascending: false }).limit(2)).data ?? [])
     : []
 
   // El H1 es la dirección de la propiedad que estás mirando, no el nombre del

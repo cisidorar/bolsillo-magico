@@ -562,6 +562,7 @@ export async function createRentAdjustmentNow(
 /** URL firmada (10 min) del PDF del aviso de reajuste. */
 export async function getRentAdjustmentPdfUrl(
   adjustmentId: string,
+  download = false,
 ): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const { supabase, user } = await currentUser()
   if (!user) return { ok: false, error: 'No autenticado' }
@@ -569,7 +570,9 @@ export async function getRentAdjustmentPdfUrl(
     .from('rent_adjustments').select('pdf_path')
     .eq('id', adjustmentId).eq('user_id', user.id).single()
   if (!adj?.pdf_path) return { ok: false, error: 'El PDF todavía no está disponible' }
-  const { data, error } = await supabase.storage.from('property-docs').createSignedUrl(adj.pdf_path, 600)
+  // `download` fuerza la descarga con un nombre legible en vez de abrirlo en la pestaña.
+  const { data, error } = await supabase.storage.from('property-docs')
+    .createSignedUrl(adj.pdf_path, 600, download ? { download: adj.pdf_path.split('/').pop() ?? true } : undefined)
   if (error || !data) return { ok: false, error: error?.message ?? 'No se pudo abrir el PDF' }
   return { ok: true, url: data.signedUrl }
 }
