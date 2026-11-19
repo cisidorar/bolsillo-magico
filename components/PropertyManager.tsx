@@ -1121,11 +1121,17 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
         </div>
       )}
 
-      {/* Historial de reajustes ya confirmados, cada uno con su PDF. Sin
-          estado vacío: mientras no haya ninguno, la sección no existe. */}
-      {pastAdjustments.length > 0 && (
+      {/* Los 2 últimos reajustes generados, con su PDF, siempre a la vista
+          (aplicados o pendientes). Con reajuste activo la sección no desaparece:
+          sin ninguno dice cuándo llegará el primero. */}
+      {lease.adjustment_kind !== 'none' && (
         <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
           <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>Últimos reajustes</p>
+          {pastAdjustments.length === 0 && (
+            <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+              Aún no hay reajustes generados{nextAdj ? `. El primero se genera solo para el ${fmtDate(nextAdj)}` : ''}; aquí quedará su PDF para verlo y descargarlo cuando quieras.
+            </p>
+          )}
           <ul className="space-y-1">
             {pastAdjustments.map(a => (
               <li key={a.id} className="flex items-center gap-2 text-xs">
