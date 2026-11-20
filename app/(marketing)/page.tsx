@@ -88,7 +88,7 @@ export default function LandingPage() {
             En teléfono el orden es título → demo → botones: así lo primero que
             se ve después del título es la fecha de pago, no dos botones. En
             escritorio la demo ocupa la columna derecha. */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.05fr_1fr] gap-x-16 gap-y-8 lg:items-center">
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[0.85fr_1.15fr] gap-x-14 gap-y-8 lg:items-center">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
             <h1 className="lp-hero-in font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.3rem, 5.6vw, 3.75rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
               Cada compra con tarjeta, con su fecha de pago.
