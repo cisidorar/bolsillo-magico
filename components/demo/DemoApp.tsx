@@ -142,6 +142,7 @@ function Demo({ onReset }: { onReset: () => void }) {
               <span className="hidden sm:inline">Demo con datos de ejemplo. Nada se guarda.</span><span className="sm:hidden">Datos de ejemplo</span>
             </p>
             <div className="flex items-center gap-1">
+              <Link href="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-3 rounded-xl text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Iniciar sesión</Link>
               <button type="button" onClick={onReset} className="min-h-[44px] px-3 rounded-xl text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Reiniciar</button>
               <a href="#pedir" className="inline-flex items-center min-h-[44px] px-3.5 rounded-xl text-sm font-bold whitespace-nowrap" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
                 Pedir acceso

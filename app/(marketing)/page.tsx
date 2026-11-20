@@ -7,6 +7,7 @@ import FijosDemo from '@/components/landing/FijosDemo'
 import PorCobrarDemo from '@/components/landing/PorCobrarDemo'
 import MobileCta from '@/components/landing/MobileCta'
 import WaitlistForm from '@/components/landing/WaitlistForm'
+import { SiteHeader, SiteFooter } from '@/components/site/SiteChrome'
 
 // ── Landing pública (nov 2026) ──────────────────────────────────────────────
 // Vuelve a ser pública, con el registro todavía cerrado: el objetivo es que se
@@ -19,18 +20,6 @@ import WaitlistForm from '@/components/landing/WaitlistForm'
 // demos, la barra móvil y el formulario son clientes.
 
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
-
-function Wordmark() {
-  return (
-    <span className="inline-flex items-center gap-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
-      <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
-        <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
-      </span>
-    </span>
-  )
-}
 
 function Pillar({ id, title, children, visual, flip }: {
   id: string; title: string; children: React.ReactNode; visual: React.ReactNode; flip?: boolean
@@ -70,27 +59,7 @@ export default function LandingPage() {
         Saltar al contenido
       </a>
 
-      {/* ── Nav ── */}
-      <header className="sticky top-0 z-40" style={{ background: 'color-mix(in srgb, var(--bg) 88%, transparent)', backdropFilter: 'blur(14px)' }}>
-        <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4" aria-label="Principal">
-          <Link href="/" aria-label="Bolsillo Mágico, inicio" className="min-h-[44px] inline-flex items-center"><Wordmark /></Link>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <a href="#pilares" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Qué hace</a>
-            <Link href="/seguridad" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Seguridad</Link>
-            {/* Quien llega desde Google o un link no tiene cuenta: el botón
-                destacado es la demo, que se prueba sin registrarse. Pedir
-                acceso y entrar quedan como enlaces (en teléfono viven más
-                abajo, no caben junto al botón). */}
-            <Link href="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>
-              Iniciar sesión
-            </Link>
-            <a href="#lista" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Pedir acceso</a>
-            <Link href="/demo" className="cta-primary inline-flex items-center min-h-[44px] px-4 rounded-xl text-sm font-bold transition-transform active:scale-[.98]">
-              Probar la demo
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <SiteHeader home />
 
       <main id="contenido">
         {/* ── Hero ──
@@ -336,15 +305,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 sm:px-6 py-10 pb-28 sm:pb-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <Wordmark />
-        <div className="flex items-center gap-4 text-sm">
-          <Link href="/demo" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Demo</Link>
-          <Link href="/seguridad" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Seguridad</Link>
-          <Link href="/login" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Iniciar sesión</Link>
-          <span style={{ color: 'var(--ink-3)' }}>Hecho en Chile · {year}</span>
-        </div>
-      </footer>
+      <SiteFooter year={year} extraBottomPad />
 
       <MobileCta />
     </div>

@@ -150,12 +150,12 @@ function LoginForm() {
       title="Inicia sesión"
       subtitle="Qué bueno verte de nuevo."
       logoLink={!installed}
-      back={installed ? undefined : { href: '/', label: 'Volver al inicio' }}
+      chrome={!installed}
       footer={installed ? undefined : (
         <>
           <p>¿No tienes cuenta? Se entra por invitación.</p>
           <p className="flex items-center justify-center gap-x-4 flex-wrap">
-            <Link href="/#lista" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Pide acceso</Link>
+            <Link href="/?landing=1#lista" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Pide acceso</Link>
             <Link href="/demo" className="font-bold inline-flex items-center min-h-[44px]" style={{ color: 'var(--primary-text)' }}>Ver la demo</Link>
           </p>
         </>

@@ -613,3 +613,11 @@
   background: color-mix(in srgb, var(--gold) 10%, var(--surface)) !important;
   border-color: color-mix(in srgb, var(--gold) 30%, transparent) !important;
 }
+
+/* Las navegaciones que recargan el documento (entrar desde el login a la app,
+   por ejemplo) hacen un fundido corto en vez de un parpadeo en blanco.
+   Solo con movimiento permitido; el navegador que no lo soporta lo ignora. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
+}

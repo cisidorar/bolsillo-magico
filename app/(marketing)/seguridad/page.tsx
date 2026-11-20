@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
+import { SiteHeader, SiteFooter } from '@/components/site/SiteChrome'
 
 const title = 'Cómo cuidamos tus datos — Bolsillo Mágico'
 const description =
@@ -51,18 +52,10 @@ const sections: { title: string; items: { head: string; body: string }[] }[] = [
 export default function SeguridadPage() {
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
-      <header className="mx-auto max-w-3xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        <Link href="/?landing=1" className="min-h-[44px] inline-flex items-center gap-2" aria-label="Bolsillo Mágico, inicio">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
-          <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif' }}>
-            <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
-          </span>
-        </Link>
-        <Link href="/demo" className="cta-primary inline-flex items-center min-h-[44px] px-4 rounded-xl text-sm font-bold">Probar la demo</Link>
-      </header>
+      <SiteHeader current="seguridad" />
 
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 pt-8 pb-20 lg:pt-14">
+      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-20 lg:pt-14">
+        <div className="max-w-3xl">
         <h1 className="text-3xl lg:text-5xl font-semibold leading-tight text-balance" style={{ color: 'var(--ink)' }}>
           Cómo cuidamos tus datos.
         </h1>
@@ -102,7 +95,9 @@ export default function SeguridadPage() {
             Pedir acceso
           </Link>
         </div>
+        </div>
       </main>
+      <SiteFooter year={new Date().getFullYear()} />
     </div>
   )
 }

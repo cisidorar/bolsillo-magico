@@ -200,3 +200,11 @@ Problema: la demo era un mini-simulador de 4 pestañas que no se parecía a la a
 - **Datos**: 100% ficticios (Sofía, Ana, Beto, Caro, Dani; Visa que cierra el 20 y vence el 5), con fechas relativas a hoy.
 - `/api/logo` sirve sin sesión solo una lista fija de dominios (`DEMO_DOMAINS`) para que los logos de la demo carguen; con sesión sigue igual.
 - No verificado: teléfono a 375px (el navegador no baja de ~546px y el marco está bloqueado por seguridad).
+
+## Continuidad entre landing, demo, seguridad e inicio de sesión (20 nov 2026, sin publicar)
+
+- `components/site/SiteChrome.tsx`: encabezado y pie únicos (logo, Qué hace · Seguridad · Iniciar sesión · Pedir acceso · Probar la demo). Lo usan la landing, `/seguridad` y el login; el logo cae en el mismo punto en las tres (medido: x=348 px).
+- El login (`AuthShell` con `chrome`) deja de ser una tarjeta suelta: lleva el encabezado y el pie del sitio. En la app instalada (PWA) y en `/update-password` (flujo de invitación) se mantiene la versión mínima.
+- `/seguridad` alinea su contenido al mismo borde que el logo.
+- Entrar desde el login a la app (carga completa) hace un fundido corto con `@view-transition` (solo con movimiento permitido).
+- La demo suma «Iniciar sesión» en su barra superior. Todos los enlaces a la landing usan `/?landing=1` porque con sesión `/` redirige al dashboard.

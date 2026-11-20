@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { SiteHeader, SiteFooter } from '@/components/site/SiteChrome'
 
 // Cáscara común de las pantallas de acceso (login, crear/cambiar contraseña).
 // Antes cada una tenía su propio fondo, tarjeta y CSS; ahora son una sola cara.
 // Server Component: sin estado, solo estructura y estilos de los campos.
-export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back }: {
+export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back, chrome = false }: {
   title: string
   subtitle?: string
   children: React.ReactNode
@@ -13,10 +14,10 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
   logoLink?: boolean
   /** Enlace visible para volver (a la landing). En la app instalada no se muestra. */
   back?: { href: string; label: string }
+  /** Encabezado y pie del sitio (mismos que la landing), para que el login no se sienta como otra ventana. Reemplaza al logo y al «volver». */
+  chrome?: boolean
 }) {
-  return (
-    <main className="min-h-svh flex flex-col items-center justify-center px-5 py-10"
-          style={{ background: 'var(--bg)', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
+  const styles = (
       <style>{`
         @keyframes auth-spin { to { transform: rotate(360deg); } }
         .auth-spinner { animation: auth-spin .7s linear infinite; }
@@ -36,7 +37,36 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
         /* Edge pinta su propio ojo en los campos de contraseña: se oculta para que no haya dos. */
         .auth-field input::-ms-reveal, .auth-field input::-ms-clear { display:none; }
       `}</style>
+  )
+  const body = (
+    <>
+      <div className="card w-full max-w-sm p-6">
+        <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>{title}</h1>
+        {subtitle && <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>{subtitle}</p>}
+        <div className="mt-6">{children}</div>
+      </div>
 
+      {footer && <div className="text-sm mt-6 text-center max-w-sm" style={{ color: 'var(--ink-2)' }}>{footer}</div>}
+    </>
+  )
+
+  if (chrome) {
+    return (
+      <div className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
+        {styles}
+        <SiteHeader current="login" />
+        <main className="flex-1 flex flex-col items-center justify-center px-5 py-10">
+          {body}
+        </main>
+        <SiteFooter year={new Date().getFullYear()} />
+      </div>
+    )
+  }
+
+  return (
+    <main className="min-h-svh flex flex-col items-center justify-center px-5 py-10"
+          style={{ background: 'var(--bg)', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
+      {styles}
       {back && (
         <div className="w-full max-w-sm mb-2">
           <Link href={back.href} className="inline-flex items-center gap-1.5 min-h-[44px] -ml-1 pr-3 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
@@ -65,13 +95,7 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
       </div>
       )}
 
-      <div className="card w-full max-w-sm p-6">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>{title}</h1>
-        {subtitle && <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>{subtitle}</p>}
-        <div className="mt-6">{children}</div>
-      </div>
-
-      {footer && <div className="text-sm mt-6 text-center max-w-sm" style={{ color: 'var(--ink-2)' }}>{footer}</div>}
+      {body}
     </main>
   )
 }
