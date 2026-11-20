@@ -150,6 +150,20 @@ export async function adoptExpenseIntoTrip(input: {
   return { ok: true, id: r.data as string }
 }
 
+/** Pasa varios gastos propios al viaje de una vez (para un viaje que ya ocurrió). */
+export async function adoptManyIntoTrip(groupId: string, items: { expenseId: string; tripCategory: TripCategory }[], splitKind: SplitKind): Promise<Result<{ done: number }>> {
+  let done = 0
+  for (const it of items) {
+    const r = await rpc<string>('shared_expense_adopt', {
+      p_group: groupId, p_expense: it.expenseId, p_trip_category: it.tripCategory,
+      p_split_kind: splitKind, p_participants: null, p_exact: null,
+    })
+    if (!r.ok) return done > 0 ? { ok: false, error: `Pasé ${done} y se detuvo: ${r.error}` } : r
+    done++
+  }
+  return { ok: true, done }
+}
+
 /** Saca un gasto del viaje: vuelve a ser un gasto normal por el total. */
 export async function releaseExpenseFromTrip(sharedExpenseId: string) {
   return rpc('shared_expense_release', { p_shared_expense: sharedExpenseId })

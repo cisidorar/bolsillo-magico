@@ -117,6 +117,20 @@ export default async function CompartidosPage({
       }
     }))
 
+    // Gastos tuyos de las fechas del viaje que aún no están en él (para cargar un viaje ya hecho).
+    let candidates: { id: string; description: string | null; amount: number; date: string }[] = []
+    if (selected.start_date && !selected.closed_at) {
+      const shift = (d: string, n: number) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10) }
+      const { data: cand } = await supabase.from('expenses')
+        .select('id, description, amount, date, card_extra')
+        .eq('user_id', user.id).is('shared_expense_id', null).is('recurring_expense_id', null)
+        .gte('date', shift(selected.start_date, -1)).lte('date', shift(selected.end_date ?? selected.start_date, 1))
+        .gt('amount', 0).order('date', { ascending: true }).limit(60)
+      candidates = (cand ?? []).filter(c => !(c.card_extra as number | null)).map(c => ({
+        id: c.id as string, description: c.description as string | null, amount: c.amount as number, date: c.date as string,
+      }))
+    }
+
     const { data: linkRow } = selected.created_by === user.id
       ? await supabase.from('shared_group_share_links').select('expires_at')
           .eq('group_id', selected.id).is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
@@ -140,6 +154,7 @@ export default async function CompartidosPage({
         capacity={capacity}
         goal={(goalRow ?? null) as TripGoal | null}
         planItems={(planRaw ?? []) as SharedPlanItemRow[]}
+        candidates={candidates}
         shareLinkExpires={(linkRow?.expires_at as string | undefined) ?? null}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}

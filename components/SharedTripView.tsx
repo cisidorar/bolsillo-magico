@@ -19,6 +19,7 @@ import SharedExpenseSheet from './SharedExpenseSheet'
 import TripSettingsSheet from './TripSettingsSheet'
 import UserSearch from './UserSearch'
 import TripGuestForm from './TripGuestForm'
+import TripAdoptSuggestions, { type AdoptCandidate } from './TripAdoptSuggestions'
 import TripPlanCard, { type TripGoal } from './TripPlanCard'
 import TripSpendHero from './TripSpendHero'
 import TripPlanItems from './TripPlanItems'
@@ -41,7 +42,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, today, dateFormat,
+  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, candidates = [], today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -60,6 +61,8 @@ export default function SharedTripView({
   planItems:      SharedPlanItemRow[]
   /** Vence el enlace de solo lectura activo (solo lo ve quien creó el viaje) */
   shareLinkExpires?: string | null
+  /** Gastos tuyos de las fechas del viaje que aún no están en él */
+  candidates?: AdoptCandidate[]
   today:          string
   dateFormat:     DateFormat
 }) {
@@ -417,11 +420,16 @@ export default function SharedTripView({
     </div>
   )
 
+  const suggested = !closed && candidates.length > 0 ? (
+    <TripAdoptSuggestions groupId={group.id} candidates={candidates} today={today}
+      splitKind={group.split_mode === 'income' && !group.split_error ? 'group' : 'equal'} />
+  ) : null
+
   const main =
-    phase === 'planning'  ? <>{steps}{planCard}{gastos}{saldo}</>
-    : phase === 'traveling' ? <>{spendHero}{saldo}{gastos}</>
-    : phase === 'settling'  ? <>{settlementLedger}{summary}{gastos}</>
-    : phase === 'done'      ? <>{doneCard}{summary}{gastos}</>
+    phase === 'planning'  ? <>{steps}{planCard}{suggested}{gastos}{saldo}</>
+    : phase === 'traveling' ? <>{spendHero}{suggested}{saldo}{gastos}</>
+    : phase === 'settling'  ? <>{settlementLedger}{suggested}{summary}{gastos}</>
+    : phase === 'done'      ? <>{doneCard}{suggested}{summary}{gastos}</>
     : <>{summary}{gastos}</>
 
   return (
