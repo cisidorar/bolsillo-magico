@@ -27,7 +27,7 @@ interface Props {
   buttonOnly?: boolean
 }
 
-export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTop, firstItem, buttonOnly }: Props) {
+export default function OverduePaySheet({ atrasado: r, userId, dateStr, firstItem, buttonOnly }: Props) {
   const router   = useRouter()
   const supabase = createClient()
 
@@ -82,7 +82,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold transition-all hover:opacity-80 active:scale-[.98]"
             style={{
               background: 'rgba(255,111,97,0.28)',
-              color: 'var(--coral)',
+              color: 'var(--coral-ink)',
             }}
           >
             Registrar pago
@@ -94,18 +94,17 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
         onClick={() => setOpen(true)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left transition-opacity hover:opacity-80 active:opacity-60"
         style={{
-          borderTop: borderTop ? '1px solid rgba(255,111,97,0.3)' : undefined,
-          background: firstItem ? 'rgba(255,111,97,0.04)' : undefined,
+                    background: firstItem ? 'rgba(255,111,97,0.04)' : undefined,
         }}
       >
         <ServiceLogo domain={r.domain} name={r.name} size={32} className="flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{r.name}</p>
-          <p className="text-[10px] font-semibold" style={{ color: 'var(--coral)' }}>
+          <p className="text-[11px] font-semibold" style={{ color: 'var(--coral-ink)' }}>
             Atrasado · hace {r.daysLate} día{r.daysLate !== 1 ? 's' : ''}
           </p>
         </div>
-        <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral)' }}>
+        <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral-ink)' }}>
           {formatCLP(r.amount)}
         </p>
       </button>
@@ -147,7 +146,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
                 <ServiceLogo domain={r.domain} name={r.name} size={44} className="flex-shrink-0" />
                 <div>
                   <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>{r.name}</p>
-                  <p className="text-[11px] font-semibold" style={{ color: 'var(--coral)' }}>
+                  <p className="text-[11px] font-semibold" style={{ color: 'var(--coral-ink)' }}>
                     Atrasado hace {r.daysLate} día{r.daysLate !== 1 ? 's' : ''}
                   </p>
                 </div>
@@ -174,7 +173,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
 
               {/* Error */}
               {error && (
-                <p className="text-xs font-semibold" style={{ color: 'var(--coral)' }}>{error}</p>
+                <p className="text-xs font-semibold" style={{ color: 'var(--coral-ink)' }}>{error}</p>
               )}
 
               {/* Acciones */}
@@ -183,8 +182,8 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, borderTo
                   className="flex items-center justify-center gap-2 py-3 rounded-2xl"
                   style={{ background: 'rgba(31,190,141,0.1)' }}
                 >
-                  <Check className="w-4 h-4" style={{ color: 'var(--mint)' }} />
-                  <p className="text-sm font-bold" style={{ color: 'var(--mint)' }}>¡Registrado!</p>
+                  <Check className="w-4 h-4" style={{ color: 'var(--mint-ink)' }} />
+                  <p className="text-sm font-bold" style={{ color: 'var(--mint-ink)' }}>¡Registrado!</p>
                 </div>
               ) : (
                 <div className="flex gap-2">

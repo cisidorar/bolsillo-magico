@@ -53,7 +53,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
             <div className="min-w-0">
               <span className="text-sm block" style={{ color: 'var(--ink-2)' }}>Sueldo</span>
               {sueldo === null && (
-                <Link href="/ingresos" className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
+                <Link href="/ingresos" className="text-[11px] font-semibold inline-flex items-center min-h-[32px]" style={{ color: 'var(--primary)' }}>
                   Aún no lo registras →
                 </Link>
               )}
@@ -68,7 +68,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
         {card && (
           <Link
             href={`/cuenta/${card.id}?month=${card.statementMonth}&year=${card.statementYear}`}
-            className="flex items-center justify-between -mx-1 px-1 py-0.5 rounded-lg transition-opacity hover:opacity-70"
+            className="flex items-center justify-between -mx-2 px-2 py-2 min-h-[44px] rounded-xl transition-colors hover:bg-[var(--surface-2)] active:bg-[var(--surface-2)]"
           >
             <div className="flex items-center gap-2 min-w-0">
               <ServiceLogo domain={card.domain} name={card.name} size={20} className="flex-shrink-0" />
@@ -85,7 +85,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
                         : `Factura · venció ${fmtShort(card.dueDate)} · hace ${Math.abs(card.daysToDue ?? 0)}d`}
                   </span>
                 ) : (
-                  <span className="text-[10px]" style={{ color: 'var(--ink-3)' }}>Sin día de pago configurado</span>
+                  <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Sin día de pago configurado</span>
                 )}
               </div>
             </div>
@@ -100,7 +100,7 @@ export default function CicloSueldo({ sueldo, sueldoMonthLabel, card, investGoal
             <div className="min-w-0">
               <span className="text-sm block" style={{ color: 'var(--ink-2)' }}>Invertido este mes</span>
               {investedThisMonth === 0 ? (
-                <Link href="/inversiones" className="text-[10px] font-semibold" style={{ color: 'var(--primary)' }}>
+                <Link href="/inversiones" className="text-[11px] font-semibold inline-flex items-center min-h-[32px]" style={{ color: 'var(--primary)' }}>
                   Aún no registras aportes →
                 </Link>
               ) : investGoal !== null ? (

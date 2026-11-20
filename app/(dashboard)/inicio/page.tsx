@@ -728,7 +728,7 @@ export default async function DashboardPage() {
         {/* ── Header desktop ── */}
         <div className="hidden lg:flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+            <h1 className="font-display text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>
               ¡{greeting}, {displayName}!
               <GreetIcon className="w-5 h-5 flex-shrink-0" style={{ color: greetIconColor }} />
             </h1>
@@ -831,7 +831,7 @@ export default async function DashboardPage() {
                           className="h-full transition-all"
                           style={{
                             width: `${usedPct}%`,
-                            backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold)',
+                            backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold-on-brand)',
                           }}
                         />
                         {!isOver && pendingPct > 0 && (
@@ -930,7 +930,6 @@ export default async function DashboardPage() {
               </div>
               <div
                 className="card-flat flex flex-col items-center justify-center text-center px-6 py-12"
-                style={{ borderColor: 'var(--border)', borderStyle: 'dashed' }}
               >
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
@@ -972,6 +971,36 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
+            {/* ── Pago(s) atrasado(s) ── */}
+            {atrasados.length > 0 && (
+              <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
+                <div className="flex items-center gap-2 px-4 py-3">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
+                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>
+                    {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
+                  </h2>
+                </div>
+                {atrasados.map((r, i) => (
+                  <OverduePaySheet
+                    key={r.id}
+                    atrasado={r}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    borderTop={i > 0}
+                    firstItem={false}
+                  />
+                ))}
+                {atrasados.length === 1 && (
+                  <OverduePaySheet
+                    atrasado={atrasados[0]}
+                    userId={atrasadosUserId}
+                    dateStr={dateStr}
+                    buttonOnly
+                  />
+                )}
+              </div>
+            )}
+
             {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
             {tripsOn && nextTrip && <NextTripCard trip={nextTrip} />}
 
@@ -1006,8 +1035,8 @@ export default async function DashboardPage() {
                         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Tarjeta {card.name}</p>
                         <Link href={`/cuenta/${card.id}`} className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver</Link>
                       </div>
-                      <div className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
                           <CreditCard className="w-4 h-4" style={{ color: 'var(--ink-3)' }} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1027,36 +1056,6 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {/* ── Pago(s) atrasado(s) ── */}
-            {atrasados.length > 0 && (
-              <div className="card-flat overflow-hidden" style={{ background: 'rgba(255,111,97,0.10)' }}>
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
-                  <h2 className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>
-                    {atrasados.length === 1 ? 'Pago atrasado' : `${atrasados.length} pagos atrasados`}
-                  </h2>
-                </div>
-                {atrasados.map((r, i) => (
-                  <OverduePaySheet
-                    key={r.id}
-                    atrasado={r}
-                    userId={atrasadosUserId}
-                    dateStr={dateStr}
-                    borderTop={i > 0}
-                    firstItem={false}
-                  />
-                ))}
-                {atrasados.length === 1 && (
-                  <OverduePaySheet
-                    atrasado={atrasados[0]}
-                    userId={atrasadosUserId}
-                    dateStr={dateStr}
-                    buttonOnly
-                  />
-                )}
-              </div>
-            )}
-
             {/* ── Próximos pagos ── */}
             {proximosPagos.length > 0 && (
               <div className="card-flat p-4">
@@ -1064,12 +1063,10 @@ export default async function DashboardPage() {
                   <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Próximos pagos</h2>
                   <Link href="/recurrentes?view=calendar" className="text-xs font-semibold hover:opacity-70 transition-opacity" style={{ color: 'var(--primary)' }}>Ver todo</Link>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3.5">
                   {proximosPagos.map(r => (
-                    <div key={r.id} className="flex items-center gap-3 rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ background: 'var(--surface)' }}>
-                        <ServiceLogo domain={r.domain} name={r.name} size={28} />
-                      </div>
+                    <div key={r.id} className="flex items-center gap-3">
+                      <ServiceLogo domain={r.domain} name={r.name} size={36} className="flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ink)' }}>{r.name}</p>
                         <p className="text-xs mt-0.5" style={{ color: r.isToday ? 'var(--coral-ink)' : r.daysUntil <= 3 ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
@@ -1172,7 +1169,7 @@ export default async function DashboardPage() {
                     <div className="h-2 bg-white/15 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct}>
                       <div className="h-full transition-all" style={{
                         width: `${usedPct}%`,
-                        backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold)',
+                        backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold-on-brand)',
                       }} />
                       {!isOver && pendingPct > 0 && (
                         <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)' }} />
