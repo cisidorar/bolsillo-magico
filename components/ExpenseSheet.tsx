@@ -101,6 +101,7 @@ export default function ExpenseSheet({
   const [trips, setTrips] = useState<{ id: string; name: string; split_mode: string; split_error: string | null; start_date: string | null; end_date: string | null }[]>([])
   const [tripId, setTripId] = useState<string | null>(null)
   const [tripCat, setTripCat] = useState<TripCategory>('otros')
+  const [tripOpen, setTripOpen] = useState(false)
 
   // Por cobrar (nov 2026): "pagué por otros y me van a transferir". En un gasto
   // nuevo se marca antes de guardar y al guardar se abre el reparto; en uno ya
@@ -154,9 +155,11 @@ export default function ExpenseSheet({
       const { data: gs } = await supabase.from('shared_groups')
         .select('id, name, split_mode, split_error, start_date, end_date').in('id', ids).is('closed_at', null)
       if (cancelled) return
-      // El selector solo aparece mientras estás de viaje (y 7 días después, por cargos
-      // que llegan tarde). Fuera de eso no estorba: un gasto ya registrado se pasa
-      // al viaje desde su detalle en Historial ("Pasar a un viaje").
+      // El viaje está "vivo" desde que lo creas hasta 7 días después de la vuelta (por
+      // cargos que llegan tarde). Antes de la salida solo se ve un enlace discreto
+      // ("Asignar a un viaje") para pasajes y alojamiento; durante el viaje el gasto
+      // parte asignado. Fuera de ese período no aparece nada: un gasto ya registrado
+      // se pasa al viaje desde su detalle en Historial.
       const d = new Date()
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const lateLimit = (end: string) => {
@@ -164,11 +167,12 @@ export default function ExpenseSheet({
         return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`
       }
       const list = ((gs ?? []) as typeof trips)
-        .filter(t => t.start_date && t.start_date <= today && lateLimit(t.end_date ?? t.start_date) >= today)
+        .filter(t => lateLimit(t.end_date ?? t.start_date ?? today) >= today)
       setTrips(list)
       // Si hoy estás entre la salida y la vuelta, el gasto parte asignado a ese viaje.
       const ongoing = list.filter(t => t.start_date && t.start_date <= today && (t.end_date ?? t.start_date) >= today)
       setTripId(ongoing.length === 1 ? ongoing[0].id : null)
+      setTripOpen(ongoing.length > 0)
     })()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -475,11 +479,16 @@ export default function ExpenseSheet({
   ) : null
 
   // ─── Shared sub-components ────────────────────────────────────────────────
-  const tripPicker = !isEditing && trips.length > 0 ? (
+  const tripPicker = !isEditing && trips.length > 0 && !tripOpen ? (
+    <button type="button" onClick={() => { setTripOpen(true); if (!tripId && trips.length === 1) setTripId(trips[0].id) }}
+      className="text-xs font-semibold text-left" style={{ color: 'var(--primary)' }}>
+      + Asignar a un viaje
+    </button>
+  ) : !isEditing && trips.length > 0 ? (
     <div>
       <p className="text-xs font-semibold text-gray-500 mb-2">¿Es de un viaje?</p>
       <div className="flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => setTripId(null)} aria-pressed={tripId === null}
+        <button type="button" onClick={() => { setTripId(null); setTripOpen(false) }} aria-pressed={tripId === null}
           className={cn('px-3 py-1.5 rounded-full text-xs border transition-all', tripId === null ? 'sheet-chip-active' : 'sheet-chip')}>No</button>
         {trips.map(t => (
           <button key={t.id} type="button" onClick={() => setTripId(t.id)} aria-pressed={tripId === t.id}
