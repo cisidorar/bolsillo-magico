@@ -154,11 +154,19 @@ export default function ExpenseSheet({
       const { data: gs } = await supabase.from('shared_groups')
         .select('id, name, split_mode, split_error, start_date, end_date').in('id', ids).is('closed_at', null)
       if (cancelled) return
-      const list = (gs ?? []) as typeof trips
-      setTrips(list)
-      // Si estás de viaje (hoy entre la salida y la vuelta), el gasto parte asignado a ese viaje.
+      // El selector solo aparece mientras estás de viaje (y 7 días después, por cargos
+      // que llegan tarde). Fuera de eso no estorba: un gasto ya registrado se pasa
+      // al viaje desde su detalle en Historial ("Pasar a un viaje").
       const d = new Date()
       const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const lateLimit = (end: string) => {
+        const e = new Date(end + 'T12:00:00'); e.setDate(e.getDate() + 7)
+        return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`
+      }
+      const list = ((gs ?? []) as typeof trips)
+        .filter(t => t.start_date && t.start_date <= today && lateLimit(t.end_date ?? t.start_date) >= today)
+      setTrips(list)
+      // Si hoy estás entre la salida y la vuelta, el gasto parte asignado a ese viaje.
       const ongoing = list.filter(t => t.start_date && t.start_date <= today && (t.end_date ?? t.start_date) >= today)
       setTripId(ongoing.length === 1 ? ongoing[0].id : null)
     })()
