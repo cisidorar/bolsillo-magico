@@ -1,9 +1,10 @@
 import Link from 'next/link'
-import { ArrowRight, ShieldCheck, Download, Landmark } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Download, Landmark, ChevronDown } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
 import PayDateDemo from '@/components/landing/PayDateDemo'
 import SueldoDemo from '@/components/landing/SueldoDemo'
 import FijosDemo from '@/components/landing/FijosDemo'
+import PorCobrarDemo from '@/components/landing/PorCobrarDemo'
 import MobileCta from '@/components/landing/MobileCta'
 import WaitlistForm from '@/components/landing/WaitlistForm'
 
@@ -42,7 +43,7 @@ function Pillar({ id, title, children, visual, flip }: {
           {children}
         </div>
       </div>
-      <div className={`lp-reveal ${flip ? 'lg:order-1' : ''}`}>{visual}</div>
+      <div className={flip ? 'lg:order-1' : ''}>{visual}</div>
     </section>
   )
 }
@@ -76,9 +77,15 @@ export default function LandingPage() {
           <div className="flex items-center gap-1 sm:gap-2">
             <a href="#pilares" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Qué hace</a>
             <Link href="/demo" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Demo</Link>
-            <Link href="/login" className="inline-flex items-center min-h-[44px] px-4 text-sm font-bold rounded-xl" style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
+            {/* Quien llega desde Google o un link no tiene cuenta: el botón
+                destacado es pedir acceso. Entrar queda como enlace (en teléfono
+                vive en el pie, no cabe junto al botón). */}
+            <Link href="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>
               Iniciar sesión
             </Link>
+            <a href="#lista" className="cta-primary inline-flex items-center min-h-[44px] px-4 rounded-xl text-sm font-bold transition-transform active:scale-[.98]">
+              Pedir acceso
+            </a>
           </div>
         </nav>
       </header>
@@ -94,7 +101,11 @@ export default function LandingPage() {
               Cada compra con tarjeta, con su fecha de pago.
             </h1>
             <p className="lp-hero-in mt-5 text-lg leading-relaxed max-w-[50ch]" style={{ color: 'var(--ink-2)', ['--i' as string]: 1 }}>
-              Bolsillo Mágico sabe cuándo factura y cuándo vence tu tarjeta: te dice cuándo pagas cada compra, cuánto viene en tu próximo estado de cuenta y cuánto te queda del sueldo.
+              Tu tarjeta, tus cuotas y tu sueldo, como funcionan en Chile: ves cuándo pagas cada compra y cuánto te queda del mes.
+            </p>
+            <p className="lp-hero-in mt-4 inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--ink-2)', ['--i' as string]: 2 }}>
+              <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
+              Sin conectar tu banco ni pedir tu clave.
             </p>
           </div>
           <div className="lp-hero-in min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2" style={{ ['--i' as string]: 2 }}>
@@ -102,22 +113,22 @@ export default function LandingPage() {
           </div>
           <div className="lp-hero-in min-w-0 lg:col-start-1 lg:row-start-2 lg:self-start" style={{ ['--i' as string]: 3 }}>
             <div id="hero-actions" className="flex flex-col sm:flex-row gap-3">
-              <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
-                Probar la demo completa <ArrowRight className="w-4 h-4" aria-hidden />
-              </Link>
-              <a href="#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold border"
-                 style={{ color: 'var(--ink)', background: 'var(--surface)', borderColor: 'var(--border)', borderWidth: 1.5 }}>
-                Pedir acceso
+              <a href="#lista" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
+                Pedir acceso <ArrowRight className="w-4 h-4" aria-hidden />
               </a>
+              <Link href="/demo" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold border transition-transform active:scale-[.98]"
+                 style={{ color: 'var(--primary-text)', background: 'var(--surface)', borderColor: 'var(--primary-text)', borderWidth: 1.5 }}>
+                Probar la demo
+              </Link>
             </div>
-            <p className="mt-4 text-sm" style={{ color: 'var(--ink-3)' }}>
+            <p className="mt-4 text-sm" style={{ color: 'var(--ink-2)' }}>
               Por ahora se entra por invitación, entre amigos. La demo funciona sin cuenta y con datos de ejemplo.
             </p>
           </div>
         </section>
 
         {/* ── Lo de siempre vs. esto ── */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20 lg:pb-28 lp-reveal">
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20 lg:pb-28">
           <h2 className="text-3xl lg:text-4xl font-semibold leading-tight text-balance max-w-[22ch]" style={{ color: 'var(--ink)' }}>
             Saber cuánto gastaste no alcanza.
           </h2>
@@ -182,8 +193,43 @@ export default function LandingPage() {
           </Pillar>
 
           <Pillar
-            id="sueldo"
+            id="registrar"
             flip
+            title="Anotar un gasto toma segundos."
+            visual={
+              <div className="card p-5 lg:p-6 space-y-4">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Nuevo gasto</p>
+                <p className="text-4xl font-extrabold tabular-nums" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>{formatCLP(18500)}</p>
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: 'var(--ink-2)' }}>Categoría</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Comida', 'Transporte', 'Salud', 'Compras'].map((c, i) => (
+                      <span key={c} className="px-3.5 py-2 rounded-xl text-sm font-semibold"
+                            style={i === 0 ? { background: 'var(--primary-soft)', color: 'var(--primary-text)' } : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: 'var(--ink-2)' }}>Pagaste con</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Visa', 'Débito', 'Efectivo'].map((c, i) => (
+                      <span key={c} className="px-3.5 py-2 rounded-xl text-sm font-semibold"
+                            style={i === 0 ? { background: 'var(--primary-soft)', color: 'var(--primary-text)' } : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-sm rounded-2xl p-3.5" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
+                  La fecha ya viene en hoy, y la app calcula en qué estado de la Visa cae.
+                </p>
+              </div>
+            }
+          >
+            <p>Un gasto es el monto, la categoría y con qué pagaste. Lo demás lo calcula la app: en qué estado cae y cuándo lo pagas.</p>
+            <p>Lo fijo se registra solo, y si ya llevas tus gastos en una planilla, los importas en CSV. Nunca pedimos tu clave del banco.</p>
+          </Pillar>
+
+          <Pillar
+            id="sueldo"
             title="Tu sueldo, y lo que te queda de él."
             visual={<SueldoDemo cycle={cycle} />}
           >
@@ -193,6 +239,7 @@ export default function LandingPage() {
 
           <Pillar
             id="fijos"
+            flip
             title="Lo fijo que se te olvida."
             visual={<FijosDemo />}
           >
@@ -201,55 +248,74 @@ export default function LandingPage() {
           </Pillar>
 
           <Pillar
-            id="inversiones"
-            flip
-            title="Tu plata que crece, en simple."
-            visual={
-              <div className="card p-5 lg:p-6">
-                <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Hoy, en tu lista</p>
-                <p className="text-2xl font-semibold mt-1" style={{ color: 'var(--ink)' }}>Hoy no compres nada de tu lista.</p>
-                <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-                  Ninguna acción de tu lista está en un buen precio de entrada. La plata puede esperar en tu billetera en dólares.
-                </p>
-                <div className="grid grid-cols-2 gap-3 mt-5">
-                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)' }}>
-                    <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Billetera</p>
-                    <p className="text-base font-bold tabular-nums mt-1">US$1.240,50</p>
-                  </div>
-                  <div className="rounded-2xl p-3.5" style={{ background: 'var(--surface-2)' }}>
-                    <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Depósito a plazo</p>
-                    <p className="text-base font-bold tabular-nums mt-1">{formatCLP(2000000)}</p>
-                  </div>
-                </div>
-              </div>
-            }
+            id="deben"
+            title="Cuando pagas por otros, sabes quién te debe."
+            visual={<PorCobrarDemo />}
           >
-            <p>Acciones y ETFs en dólares, depósitos a plazo con bancos chilenos y tu patrimonio en un solo lugar. Cada día, una lectura en palabras simples: comprar, esperar o vender.</p>
-            <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Es una herramienta de seguimiento, no asesoría financiera.</p>
+            <p>Pagas la cena de cuatro con tu tarjeta. Bolsillo Mágico divide el gasto: en tus gastos queda solo tu parte, y tu estado de cuenta sigue mostrando el total que cobra el banco.</p>
+            <p>Ves quién te debe, desde cuándo y cuánto, y puedes recordárselo por WhatsApp.</p>
           </Pillar>
+
+          <p className="text-base max-w-[60ch]" style={{ color: 'var(--ink-2)' }}>
+            Y si inviertes o arriendas una propiedad, hay módulos opcionales para eso. Es una herramienta de seguimiento, no asesoría financiera.
+          </p>
         </div>
 
         {/* ── Confianza: lo verificable, sin testimonios inventados ── */}
         <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-20">
-          <h2 className="text-2xl lg:text-3xl font-semibold" style={{ color: 'var(--ink)' }}>Tus datos son tuyos.</h2>
-          <ul className="mt-6 grid sm:grid-cols-3 gap-x-10 gap-y-6 max-w-5xl">
+          <div className="card p-6 lg:p-10">
+            <h2 className="text-2xl lg:text-3xl font-semibold" style={{ color: 'var(--ink)' }}>Tus datos son tuyos.</h2>
+            <ul className="mt-8 grid sm:grid-cols-3 gap-x-10 gap-y-8">
+              {[
+                [Landmark, 'No se conecta a tu banco', 'Registras tú, o importas un CSV. No pedimos claves bancarias.'],
+                [ShieldCheck, 'Cada dato es solo tuyo', 'La base de datos separa a cada persona: nadie más puede leer tus gastos.'],
+                [Download, 'Te lo llevas cuando quieras', 'Exporta todos tus gastos en CSV en cualquier momento.'],
+              ].map(([Icon, t, d]) => {
+                const I = Icon as typeof Landmark
+                return (
+                  <li key={t as string} className="flex gap-3.5">
+                    <I className="w-6 h-6 mt-0.5 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
+                    <span>
+                      <span className="block text-lg font-semibold leading-snug" style={{ color: 'var(--ink)' }}>{t as string}</span>
+                      <span className="block text-base mt-1.5 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{d as string}</span>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        </section>
+
+        {/* ── Preguntas: las objeciones de siempre, con respuestas que no maquillan ── */}
+        <section className="mx-auto max-w-3xl px-4 sm:px-6 pb-20 lg:pb-28">
+          <h2 className="text-3xl lg:text-4xl font-semibold leading-tight text-balance" style={{ color: 'var(--ink)' }}>
+            Lo que quizás te estás preguntando.
+          </h2>
+          <div className="mt-8 space-y-3">
             {[
-              [Landmark, 'No se conecta a tu banco', 'Registras tú, o importas un CSV. No pedimos claves bancarias.'],
-              [ShieldCheck, 'Cada dato es solo tuyo', 'La base de datos separa a cada persona: nadie más puede leer tus gastos.'],
-              [Download, 'Te lo llevas cuando quieras', 'Exporta todos tus gastos en CSV en cualquier momento.'],
-            ].map(([Icon, t, d]) => {
-              const I = Icon as typeof Landmark
-              return (
-                <li key={t as string} className="flex gap-3">
-                  <I className="w-5 h-5 mt-0.5 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
-                  <span>
-                    <span className="block text-base font-bold" style={{ color: 'var(--ink)' }}>{t as string}</span>
-                    <span className="block text-sm mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>{d as string}</span>
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+              ['¿Tengo que anotar todos mis gastos a mano?',
+                'Sí: un gasto es el monto, la categoría y con qué pagaste. A cambio, lo fijo se registra solo el día que corresponde, y si ya llevas una planilla la importas en CSV.'],
+              ['¿Por qué no se conecta a mi banco?',
+                'Para no pedirte nunca tu clave ni depender de una conexión que puede romperse. El costo es que registras tú; lo que ganas es saber, antes de que llegue el estado, cuánto viene y cuándo lo pagas.'],
+              ['¿Funciona con mi tarjeta?',
+                'Con cualquier tarjeta de crédito: indicas el día en que factura y el día en que vence, y la app calcula en qué estado cae cada compra. También sirve para débito y efectivo.'],
+              ['¿Quién puede ver mis datos?',
+                'Solo tú. La base de datos separa a cada persona, y puedes exportar todos tus gastos en CSV cuando quieras.'],
+              ['¿Es asesoría financiera?',
+                'No. Es una herramienta de seguimiento: te muestra lo que ya pasó y lo que viene, no te dice qué hacer con tu plata.'],
+              ['¿Cómo entro?',
+                'Por invitación, de a poco. Deja tu correo en el formulario de abajo y te escribimos si hay un lugar para ti.'],
+            ].map(([q, a]) => (
+              <details key={q} className="lp-faq group rounded-2xl" style={{ background: 'var(--surface)' }}>
+                <summary className="flex items-center justify-between gap-4 min-h-[56px] px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-base font-semibold rounded-2xl"
+                  style={{ color: 'var(--ink)' }}>
+                  {q}
+                  <ChevronDown className="w-5 h-5 shrink-0 transition-transform duration-200 group-open:rotate-180" style={{ color: 'var(--ink-3)' }} aria-hidden />
+                </summary>
+                <p className="lp-faq-a px-5 pb-5 text-base leading-relaxed max-w-[60ch]" style={{ color: 'var(--ink-2)' }}>{a}</p>
+              </details>
+            ))}
+          </div>
         </section>
 
         {/* ── Pedir acceso ── */}
@@ -260,7 +326,7 @@ export default function LandingPage() {
                 Pide acceso.
               </h2>
               <p className="mt-4 text-lg leading-relaxed max-w-[48ch]" style={{ color: 'rgba(255,255,255,0.92)' }}>
-                Bolsillo Mágico se comparte por invitación, de a poco. Deja tu correo y te escribimos si hay un lugar para ti.
+                Bolsillo Mágico es nuevo y se comparte por invitación, de a poco. Deja tu correo y te escribimos si hay un lugar para ti; lo que nos cuentes cambia lo que sigue.
               </p>
             </div>
             <WaitlistForm />

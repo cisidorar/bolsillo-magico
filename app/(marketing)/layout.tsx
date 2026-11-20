@@ -1,22 +1,17 @@
 import type { Metadata } from 'next'
 
-const title = 'Bolsillo Mágico — Tu tarjeta, tu sueldo y tus gastos, como funcionan en Chile'
+// Una sola promesa en los tres puntos de contacto (Google, vista previa del
+// link y H1 de la landing). Google corta el título cerca de los 60 caracteres
+// y la descripción cerca de los 155: ambos caben enteros.
+const title = 'Bolsillo Mágico — Cuándo pagas cada compra con tarjeta'
 const description =
-  'Sabe cuánto vas a pagar en tu próximo estado de cuenta. Bolsillo Mágico entiende el ciclo de tu tarjeta, tu sueldo de fin de mes, tus cuotas y tus cobros fijos. Prueba la demo y pide acceso: se entra por invitación.'
+  'Ve cuándo pagas cada compra con tarjeta, cuánto viene en tu próximo estado de cuenta y cuánto te queda del sueldo. Hecha para Chile.'
 
 // El layout raíz marca todo como noindex (la app es privada); la landing y la
 // demo son la excepción pública y lo sobrescriben acá.
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
-  keywords: [
-    'estado de cuenta tarjeta de crédito',
-    'control de gastos Chile',
-    'cuotas y suscripciones',
-    'presupuesto mensual',
-    'sueldo y gastos',
-    'finanzas personales Chile',
-  ],
   robots: { index: true, follow: true },
   alternates: { canonical: 'https://bolsillomagico.com' },
   openGraph: {
@@ -30,6 +25,22 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title, description },
 }
 
+// Para que Google muestre «Bolsillo Mágico» como nombre del sitio y no el
+// dominio. Sin precios, valoraciones ni reseñas: no existen.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Bolsillo Mágico',
+  alternateName: 'Bolsillo Magico',
+  url: 'https://bolsillomagico.com',
+  inLanguage: 'es-CL',
+}
+
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {children}
+    </>
+  )
 }

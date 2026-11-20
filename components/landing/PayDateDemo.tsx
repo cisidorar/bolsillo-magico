@@ -70,7 +70,16 @@ export default function PayDateDemo() {
   const today = getNowChile().dateStr
   const days = useMemo(() => Array.from({ length: SPAN }, (_, i) => addDays(today, i)), [today])
 
-  const [closing, setClosing]   = useState(20)
+  // El primer cuadro que ve alguien nuevo no puede ser el caso especial del
+  // día de facturación (ahí aparece el selector de las 14:00). Se parte del
+  // cierre más cercano que caiga en las próximas dos semanas, sin contar hoy.
+  const [closing, setClosing]   = useState(() => {
+    const next = CLOSING_DAYS
+      .map(c => ({ c, i: days.findIndex((d, i) => i > 0 && dayOf(d) === c) }))
+      .filter(x => x.i > 0)
+      .sort((a, b) => a.i - b.i)[0]
+    return next ? next.c : 20
+  })
   const [selected, setSelected] = useState(0)
   const [afterCut, setAfterCut] = useState(false)
   const rootRef    = useRef<HTMLDivElement>(null)
@@ -158,7 +167,7 @@ export default function PayDateDemo() {
             <button key={d} data-i={i} type="button" aria-pressed={on}
               aria-label={`${i === 0 ? 'Hoy, ' : ''}${wd} ${longDate(d)}${closes ? ', día de facturación' : ''}${isBestChip ? ', el mejor día para comprar' : ''}`}
               onClick={() => { touch(); setSelected(i) }}
-              className="snap-start shrink-0 w-12 lg:w-auto min-h-[60px] lg:min-h-[72px] rounded-xl flex flex-col items-center justify-center border transition-[background-color,border-color,transform] active:scale-95"
+              className="snap-start shrink-0 w-12 lg:w-auto min-h-[60px] lg:min-h-[72px] rounded-xl flex flex-col items-center justify-center border transition-[background-color,border-color,transform] duration-150 active:scale-[.97]"
               style={on
                 ? { background: 'var(--primary-soft)', borderColor: 'var(--primary)', color: 'var(--primary-text)', borderWidth: 1.5 }
                 : { background: 'var(--surface-2)', borderColor: 'transparent', color: 'var(--ink-2)', borderWidth: 1.5 }}>

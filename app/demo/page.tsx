@@ -1,24 +1,26 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, CreditCard, Wallet, Repeat, TrendingUp, Plus, Check, Sparkles, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, CreditCard, Wallet, Repeat, HandCoins, Plus, Check, Sparkles } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
 import PayCycleTimeline from '@/components/PayCycleTimeline'
 import WaitlistForm from '@/components/landing/WaitlistForm'
+import PorCobrarDemo from '@/components/landing/PorCobrarDemo'
 
 // ── Demo pública (nov 2026) ─────────────────────────────────────────────────
-// Rehecha sobre los cuatro pilares de la landing, con los tokens y .card de la
+// Rehecha sobre los pilares de la landing (tarjeta, sueldo, fijos y lo que te
+// deben; inversiones y propiedad son módulos opcionales y no entran acá), con los tokens y .card de la
 // app real. Todo es ficticio y vive solo en memoria: no hay cuenta, no se
 // guarda nada, y recargar vuelve al inicio. Determinista (sin Math.random) y
 // con fechas de Santiago, para que lo que muestra no cambie entre toques.
 
-type Tab = 'tarjeta' | 'sueldo' | 'fijos' | 'inversiones'
+type Tab = 'tarjeta' | 'sueldo' | 'fijos' | 'deben'
 const TABS: { id: Tab; label: string; Icon: typeof CreditCard }[] = [
   { id: 'tarjeta',     label: 'Tarjeta',     Icon: CreditCard },
   { id: 'sueldo',      label: 'Sueldo',      Icon: Wallet },
   { id: 'fijos',       label: 'Fijos',       Icon: Repeat },
-  { id: 'inversiones', label: 'Inversiones', Icon: TrendingUp },
+  { id: 'deben',       label: 'Te deben',    Icon: HandCoins },
 ]
 
 const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -65,7 +67,8 @@ function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }
 }) {
   const [view, setView]   = useState<'compra' | 'facturacion'>('facturacion')
   const [items, setItems] = useState(SEED)
-  const [amount, setAmount] = useState('')
+  // Parte con un monto de ejemplo: un toque en + ya muestra la fecha de pago.
+  const [amount, setAmount] = useState('25000')
   const [day, setDay]     = useState(21)
   const [lastAdded, setLastAdded] = useState<number | null>(null)
 
@@ -74,6 +77,7 @@ function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }
   const nextStatement = items.filter(p => !p.prevMonth && p.day > CLOSING)
   const sum = (ps: Purchase[]) => ps.reduce((s, p) => s + p.amount, 0)
   const cupo = 800000
+  const added = lastAdded != null ? items.find(p => p.id === lastAdded) : null
   const used = sum(inStatement)
 
   function add(e: React.FormEvent) {
@@ -109,6 +113,38 @@ function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }
         <p className="text-xs mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>de un cupo de {formatCLP(cupo)}</p>
       </div>
 
+      <form onSubmit={add} className="card p-5 space-y-3">
+        <p className="text-sm font-bold">Registra una compra</p>
+        <div className="flex gap-2">
+          <label htmlFor="dm-amount" className="sr-only">Monto</label>
+          <input id="dm-amount" inputMode="numeric" placeholder="$25.000"
+            value={amount ? Number(amount.replace(/\D/g, '') || 0).toLocaleString('es-CL') : ''}
+            onChange={e => setAmount(e.target.value.replace(/\D/g, ''))}
+            className="flex-1 min-w-0 min-h-[44px] rounded-xl px-3 text-sm tabular-nums outline-none"
+            style={{ background: 'var(--surface-2)', color: 'var(--ink)' }} />
+          <label htmlFor="dm-day" className="sr-only">Día de la compra</label>
+          <select id="dm-day" value={day} onChange={e => setDay(Number(e.target.value))}
+            className="min-h-[44px] rounded-xl px-3 text-sm outline-none"
+            style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>
+            {Array.from({ length: 30 }, (_, i) => i + 1).map(d => <option key={d} value={d}>Día {d}</option>)}
+          </select>
+          <button type="submit" aria-label="Agregar compra"
+            className="cta-primary w-11 h-11 shrink-0 rounded-xl flex items-center justify-center transition-transform duration-150 active:scale-[.97]">
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+        <div aria-live="polite" className="min-h-[2.5rem]">
+          {added ? (
+            <p key={added.id} className="sd-flip lp-flash text-sm font-semibold rounded-xl px-3 py-2 -mx-3" style={{ color: 'var(--ink)' }}>
+              Listo: la pagas el <span style={{ color: 'var(--primary-text)' }}>{DUE_DAY} de {added.day > CLOSING ? next2MonthName : nextMonthName}</span>
+              <span className="font-normal" style={{ color: 'var(--ink-2)' }}> · {added.day > CLOSING ? `compraste después del ${CLOSING}, entra al estado siguiente` : `entra al estado que cierra el ${CLOSING}`}.</span>
+            </p>
+          ) : (
+            <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Monto y día, nada más. Si compras después del {CLOSING}, la pagas un mes más tarde: prueba con el día 21.</p>
+          )}
+        </div>
+      </form>
+
       <Segmented label="Cómo ver los gastos" value={view} onChange={setView}
         options={[{ id: 'compra', label: 'Por compra' }, { id: 'facturacion', label: 'Por facturación' }]} />
       <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
@@ -131,7 +167,7 @@ function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }
           ) : (
             <ul className="space-y-2.5">
               {[...g.items].sort((a, b) => Number(!!b.prevMonth) - Number(!!a.prevMonth) || a.day - b.day).map(p => (
-                <li key={p.id} className="flex items-center justify-between gap-3">
+                <li key={p.id} className={`flex items-center justify-between gap-3${p.id === lastAdded ? ' lp-pop' : ''}`}>
                   <span className="min-w-0">
                     <span className="text-sm font-semibold">{p.name}</span>
                     <span className="text-xs ml-2" style={{ color: 'var(--ink-3)' }}>{p.day} de {p.prevMonth ? prevMonthName : monthName}</span>
@@ -149,28 +185,6 @@ function TarjetaView({ monthName, prevMonthName, nextMonthName, next2MonthName }
         </div>
       ))}
 
-      <form onSubmit={add} className="card p-5 space-y-3">
-        <p className="text-sm font-bold">Prueba con una compra</p>
-        <div className="flex gap-2">
-          <label htmlFor="dm-amount" className="sr-only">Monto</label>
-          <input id="dm-amount" inputMode="numeric" placeholder="$25.000"
-            value={amount ? Number(amount.replace(/\D/g, '') || 0).toLocaleString('es-CL') : ''}
-            onChange={e => setAmount(e.target.value.replace(/\D/g, ''))}
-            className="flex-1 min-w-0 min-h-[44px] rounded-xl px-3 text-sm tabular-nums outline-none"
-            style={{ background: 'var(--surface-2)', color: 'var(--ink)' }} />
-          <label htmlFor="dm-day" className="sr-only">Día de la compra</label>
-          <select id="dm-day" value={day} onChange={e => setDay(Number(e.target.value))}
-            className="min-h-[44px] rounded-xl px-3 text-sm outline-none"
-            style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>
-            {Array.from({ length: 30 }, (_, i) => i + 1).map(d => <option key={d} value={d}>Día {d}</option>)}
-          </select>
-          <button type="submit" aria-label="Agregar compra"
-            className="cta-primary w-11 h-11 shrink-0 rounded-xl flex items-center justify-center">
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Si compras después del {CLOSING}, la pagas un mes más tarde: prueba con el día 21.</p>
-      </form>
     </div>
   )
 }
@@ -216,8 +230,6 @@ function SueldoView() {
           onChange={e => setExtra(Number(e.target.value))} className="w-full h-11 accent-[var(--primary)]" />
       </div>
 
-      <PayCycleTimeline lastPay={lastPay} nextPay={nextPay} today={today} payslipDone paidMonthName={paidMonth} daysToPay={daysToPay} />
-
       <div className="card p-5">
         <p className="text-sm font-bold">Ya comprometido</p>
         <p className="text-xs mt-0.5 mb-3" style={{ color: 'var(--ink-3)' }}>Lo que tus próximos sueldos ya deben, antes de gastar nada.</p>
@@ -230,6 +242,9 @@ function SueldoView() {
           ))}
         </ul>
       </div>
+
+      <PayCycleTimeline lastPay={lastPay} nextPay={nextPay} today={today} payslipDone paidMonthName={paidMonth} daysToPay={daysToPay} />
+
     </div>
   )
 }
@@ -297,63 +312,14 @@ function FijosView() {
   )
 }
 
-// ── Inversiones ──────────────────────────────────────────────────────────────
-// Patrimonio a fin de cada año (ficticio) y un factor de IPC acumulado para
-// llevarlo a pesos de hoy. Valores fijos: la demo no debe cambiar entre toques.
-const PATRIMONIO = [
-  { y: -4, v: 3200000, ipc: 1.29 },
-  { y: -3, v: 4100000, ipc: 1.17 },
-  { y: -2, v: 5600000, ipc: 1.09 },
-  { y: -1, v: 6900000, ipc: 1.04 },
-  { y: 0,  v: 8150000, ipc: 1.0 },
-]
-
-function InversionesView() {
-  const { year } = getNowChile()
-  const [real, setReal] = useState(false)
-  const [hidden, setHidden] = useState(false)
-  const bars = useMemo(() => PATRIMONIO.map(p => ({ year: year + p.y, v: Math.round(real ? p.v * p.ipc : p.v) })), [real, year])
-  const max = Math.max(...bars.map(b => b.v))
-  const mask = (s: string) => hidden ? '••••••' : s
-
+// ── Te deben ─────────────────────────────────────────────────────────────────
+function DebenView() {
   return (
     <div className="space-y-4">
-      <div className="card p-5">
-        <p className="text-xs font-bold" style={{ color: 'var(--ink-3)' }}>Hoy, en tu lista</p>
-        <p className="text-2xl font-semibold mt-1">Hoy no compres nada de tu lista.</p>
-        <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-          Ninguna se ve como una buena entrada hoy. Tu meta del mes puede esperar en la billetera, sin apuro por forzar una compra.
-        </p>
-      </div>
-
-      <div className="card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-bold">Tu patrimonio, año a año</p>
-          <button type="button" onClick={() => setHidden(h => !h)} aria-pressed={hidden}
-            aria-label={hidden ? 'Mostrar montos' : 'Ocultar montos'}
-            className="w-11 h-11 -mr-2 flex items-center justify-center rounded-xl" style={{ color: 'var(--ink-3)' }}>
-            {hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-        </div>
-        <div className="flex items-end gap-3 h-40 mt-4" role="img"
-          aria-label={`Patrimonio por año${real ? ' en pesos de hoy' : ''}: ${bars.map(b => `${b.year} ${formatCLP(b.v)}`).join(', ')}`}>
-          {bars.map(b => (
-            <div key={b.year} className="flex-1 flex flex-col items-center justify-end h-full">
-              <div className="w-full rounded-t-xl transition-[height] duration-500" style={{ height: `${Math.round((b.v / max) * 100)}%`, background: 'var(--primary)' }} />
-              <span className="text-[11px] mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>{b.year}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-sm font-bold tabular-nums mt-3">{mask(formatCLP(bars[bars.length - 1].v))} hoy</p>
-        <div className="mt-4">
-          <Segmented label="Cómo ver los montos" value={real ? 'real' : 'nominal'} onChange={v => setReal(v === 'real')}
-            options={[{ id: 'nominal', label: 'Pesos de cada año' }, { id: 'real', label: 'Pesos de hoy' }]} />
-        </div>
-        <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-          En pesos de hoy, los años anteriores se ajustan por inflación (IPC) para comparar de verdad.
-        </p>
-      </div>
-      <p className="text-xs px-1" style={{ color: 'var(--ink-3)' }}>Es una herramienta de seguimiento, no asesoría financiera.</p>
+      <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+        Pagas con tu tarjeta por otros y la app divide el gasto. Tu estado de cuenta sigue cobrando el total, pero en tus gastos queda solo tu parte.
+      </p>
+      <PorCobrarDemo />
     </div>
   )
 }
@@ -377,7 +343,7 @@ export default function DemoPage() {
             <ArrowLeft className="w-4 h-4" aria-hidden /> Volver
           </Link>
           <p className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
-            <span className="sm:hidden">Datos de ejemplo</span><span className="hidden sm:inline">Demo · datos de ejemplo</span>
+            <span className="hidden min-[380px]:max-sm:inline">Datos de ejemplo</span><span className="hidden sm:inline">Demo · datos de ejemplo</span>
           </p>
           <a href="#pedir" className="inline-flex items-center min-h-[44px] px-3 rounded-xl text-sm font-bold whitespace-nowrap"
              style={{ color: 'var(--primary-text)', background: 'var(--primary-soft)' }}>
@@ -406,7 +372,7 @@ export default function DemoPage() {
             {tab === 'tarjeta' ? 'Cuándo pagas cada compra'
               : tab === 'sueldo' ? 'Tu sueldo y lo que queda'
               : tab === 'fijos' ? 'Lo fijo que se te olvida'
-              : 'Tu plata que crece'}
+              : 'Lo que te deben tus amigos'}
           </h1>
           <button type="button" onClick={() => setRun(r => r + 1)}
             className="min-h-[44px] px-3 rounded-xl text-xs font-semibold shrink-0" style={{ color: 'var(--ink-2)' }}>
@@ -417,13 +383,14 @@ export default function DemoPage() {
           {tab === 'tarjeta' && <TarjetaView monthName={monthName} prevMonthName={prevMonthName} nextMonthName={nextMonthName} next2MonthName={next2MonthName} />}
           {tab === 'sueldo' && <SueldoView />}
           {tab === 'fijos' && <FijosView />}
-          {tab === 'inversiones' && <InversionesView />}
+          {tab === 'deben' && <DebenView />}
         </div>
 
         {/* El formulario vive acá mismo: antes "Pedir acceso" sacaba de la demo. */}
         <div id="pedir" className="mt-10 rounded-3xl p-6 hero-gradient scroll-mt-36">
-          <p className="text-lg font-semibold" style={{ color: '#FFFFFF', fontFamily: 'var(--font-fredoka), sans-serif' }}>¿Te sirve algo así?</p>
-          <p className="text-sm mt-1 mb-4" style={{ color: 'rgba(255,255,255,0.92)' }}>Bolsillo Mágico se comparte por invitación. Deja tu correo y te escribimos si hay un lugar para ti.</p>
+          <p className="text-lg font-semibold" style={{ color: '#FFFFFF', fontFamily: 'var(--font-fredoka), sans-serif' }}>¿Te serviría algo así?</p>
+          <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.92)' }}>Bolsillo Mágico es nuevo y se comparte por invitación, de a poco. Deja tu correo y te escribimos si hay un lugar para ti; lo que nos cuentes cambia lo que sigue.</p>
+          <p className="text-sm mt-3 mb-4" style={{ color: 'rgba(255,255,255,0.92)' }}>Registras tú tus gastos, o importas un CSV: no se conecta a tu banco ni te pide la clave.</p>
           <WaitlistForm source="demo" />
         </div>
         <p className="text-sm text-center mt-6" style={{ color: 'var(--ink-2)' }}>

@@ -122,27 +122,32 @@
   .cta-primary:disabled { background: var(--surface-2); color: var(--ink-2); box-shadow:none; cursor:not-allowed; }
 
   /* ── Movimiento de la landing y la demo ─────────────────────────────────────
-     Un solo momento autorado (la mini-demo del hero se mueve sola una vez); el
-     resto es entrada discreta. Todo parte de "ya visible": sin soporte o con
-     movimiento reducido, la página se ve completa y quieta. */
-  @keyframes lpHeroIn { from { transform: translateY(12px); filter: blur(4px); } to { transform: none; filter: none; } }
-  .lp-hero-in { animation: lpHeroIn .7s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 90ms); }
+     Un solo momento autorado: la mini-demo del hero se mueve sola una vez y la
+     fecha de pago salta un mes. Alrededor, solo la entrada de la primera
+     pantalla (sube 10px, sin desenfoque: el titular se lee desde el primer
+     cuadro) y respuestas de estado. Nada aparece por scroll: lo que está más
+     abajo ya está ahí cuando llegas. Todo parte de "ya visible": sin soporte o
+     con movimiento reducido, la página se ve completa y quieta. */
+  @keyframes lpHeroIn { from { transform: translateY(10px); } to { transform: none; } }
+  .lp-hero-in { animation: lpHeroIn .5s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--i, 0) * 70ms); }
   @keyframes sdFlip { from { transform: translateY(6px); filter: blur(3px); opacity: .4; } to { transform: none; filter: none; opacity: 1; } }
   .sd-flip { animation: sdFlip .38s cubic-bezier(.16,1,.3,1); }
   @keyframes lpPop { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
   .lp-pop { animation: lpPop .45s cubic-bezier(.16,1,.3,1); }
   @keyframes lpTab { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
   .lp-tab { animation: lpTab .4s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes lpFlash { from { background-color: color-mix(in srgb, var(--mint) 22%, var(--surface)); } to { background-color: transparent; } }
+  .lp-flash { animation: lpFlash 1.1s cubic-bezier(.16,1,.3,1); }
+  @keyframes lpFaq { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .lp-faq[open] .lp-faq-a { animation: lpFaq .22s cubic-bezier(.16,1,.3,1); }
   .lp-cta-bar { transform: translateY(110%); transition: transform .35s cubic-bezier(.16,1,.3,1); }
   .lp-cta-bar[data-show="true"] { transform: none; }
   @supports (animation-timeline: view()) {
-    @keyframes lpReveal { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
-    .lp-reveal { animation: lpReveal linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
     @keyframes lpFill { from { clip-path: inset(0 100% 0 0 round 9999px); } to { clip-path: inset(0 0 0 0 round 9999px); } }
     .lp-fill { animation: lpFill linear both; animation-timeline: view(); animation-range: entry 15% cover 40%; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .lp-hero-in, .lp-reveal, .lp-fill, .lp-tab, .lp-pop, .sd-flip { animation: none !important; }
+    .lp-hero-in, .lp-fill, .lp-tab, .lp-pop, .sd-flip, .lp-flash, .lp-faq .lp-faq-a { animation: none !important; }
     .lp-cta-bar { transition: none; }
   }
 
