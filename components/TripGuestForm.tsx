@@ -65,10 +65,10 @@ export default function TripGuestForm({
       )}
 
       <div className="flex gap-2">
-        <button onClick={onCancel} className="flex-1 py-2.5 text-xs font-semibold rounded-lg border"
-          style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>Cerrar</button>
+        <button onClick={onCancel} className="flex-1 min-h-[44px] text-xs font-semibold rounded-xl"
+          style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Cerrar</button>
         <button disabled={busy || !name.trim() || income <= 0} onClick={() => onSave(name.trim(), income, months)}
-          className="flex-1 py-2.5 text-xs font-bold rounded-lg disabled:opacity-50"
+          className="flex-1 min-h-[44px] text-xs font-bold rounded-xl disabled:opacity-50"
           style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Guardar</button>
       </div>
     </div>

@@ -68,11 +68,11 @@ export default function NewTripSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-400">
+      <p className="text-[11px] text-[color:var(--ink-3)]">
         Puedes registrar gastos desde ya, aunque estés solo. Cuando invites a alguien, los gastos se recalculan.
       </p>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[color:var(--coral-ink)]">{error}</p>}
 
       <PrimaryButton onClick={submit} disabled={saving}>
         {saving ? 'Creando…' : <><Check className="w-4 h-4" /> Crear viaje</>}

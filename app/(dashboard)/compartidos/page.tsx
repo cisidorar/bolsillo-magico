@@ -218,8 +218,8 @@ export default async function CompartidosPage({
     const needsAction = phase === 'settling'
     return (
       <Link key={g.id} href={`/compartidos?g=${g.id}`}
-        className="card p-5 flex items-center gap-3 transition-colors hover:brightness-[.99]"
-        style={needsAction ? { borderColor: 'rgba(255,194,60,0.4)' } : undefined}>
+        className="card p-5 flex items-center gap-3 transition-colors hover:brightness-[.99] active:scale-[.99]"
+        >
         <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: phase === 'closed' || phase === 'done' ? 'var(--surface-2)' : 'var(--primary-soft)' }}>
           <Plane className="w-5 h-5" style={{ color: phase === 'closed' || phase === 'done' ? 'var(--ink-3)' : 'var(--primary)' }} />

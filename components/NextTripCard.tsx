@@ -63,7 +63,7 @@ export function TripSettleChips({ trips }: { trips: TripToSettle[] }) {
       {trips.map(t => (
         <Link key={t.id} href={`/compartidos?g=${t.id}`}
           className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full text-xs font-semibold"
-          style={{ background: 'rgba(255,194,60,0.14)', color: 'var(--gold)' }}>
+          style={{ background: 'rgba(255,194,60,0.14)', color: 'var(--gold-ink)' }}>
           <Plane className="w-3.5 h-3.5" />
           {t.name}: {t.net < 0 ? `debes ${formatCLP(-t.net)}` : `te deben ${formatCLP(t.net)}`}
           <ChevronRight className="w-3.5 h-3.5" />

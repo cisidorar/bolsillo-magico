@@ -74,15 +74,15 @@ export default function TripBudgetSheet({
         <FieldLabel hint={minPeople > 1 ? `Ya hay ${minPeople} en el viaje.` : 'Aunque todavía no invites a nadie.'}>¿Cuántos van?</FieldLabel>
         <div className="flex items-center gap-3">
           <button type="button" aria-label="Menos" disabled={people <= Math.max(1, minPeople)} onClick={() => setPeople(p => p - 1)}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 text-gray-600 disabled:opacity-40">
+            className="w-11 h-11 rounded-full flex items-center justify-center bg-[var(--surface-2)] text-[color:var(--ink-2)] disabled:opacity-40">
             <Minus className="w-4 h-4" />
           </button>
-          <span className="text-2xl font-bold text-gray-900 tabular-nums w-10 text-center">{people}</span>
+          <span className="text-2xl font-bold text-[color:var(--ink)] tabular-nums w-10 text-center">{people}</span>
           <button type="button" aria-label="Más" disabled={people >= 50} onClick={() => setPeople(p => p + 1)}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 text-gray-600 disabled:opacity-40">
+            className="w-11 h-11 rounded-full flex items-center justify-center bg-[var(--surface-2)] text-[color:var(--ink-2)] disabled:opacity-40">
             <Plus className="w-4 h-4" />
           </button>
-          <span className="text-xs text-gray-400">{people === 1 ? 'persona' : 'personas'}</span>
+          <span className="text-xs text-[color:var(--ink-3)]">{people === 1 ? 'persona' : 'personas'}</span>
         </div>
       </div>
 
@@ -105,8 +105,8 @@ export default function TripBudgetSheet({
           {TRIP_CATEGORIES.map(c => (
             <div key={c.key} className="flex items-center gap-3">
               <div className="w-32 flex-shrink-0">
-                <p className="text-sm font-semibold text-gray-700">{c.label}</p>
-                <p className="text-[10px] text-gray-400 leading-tight">{HINTS[c.key]}</p>
+                <p className="text-sm font-semibold text-[color:var(--ink)]">{c.label}</p>
+                <p className="text-[10px] text-[color:var(--ink-3)] leading-tight">{HINTS[c.key]}</p>
               </div>
               <div className="flex-1">
                 <InputRow icon={<span className="text-sm font-bold">$</span>}>
@@ -120,20 +120,20 @@ export default function TripBudgetSheet({
         </div>
       )}
 
-      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-1">
+      <div className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 space-y-1">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Total del viaje</span>
-          <span className="font-bold text-gray-900 tabular-nums">{formatCLP(total)}</span>
+          <span className="text-[color:var(--ink-3)]">Total del viaje</span>
+          <span className="font-bold text-[color:var(--ink)] tabular-nums">{formatCLP(total)}</span>
         </div>
         {people > 1 && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Por persona (partes iguales)</span>
-            <span className="font-bold text-gray-900 tabular-nums">{formatCLP(Math.ceil(total / people))}</span>
+            <span className="text-[color:var(--ink-3)]">Por persona (partes iguales)</span>
+            <span className="font-bold text-[color:var(--ink)] tabular-nums">{formatCLP(Math.ceil(total / people))}</span>
           </div>
         )}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[color:var(--coral-ink)]">{error}</p>}
       <PrimaryButton onClick={save} disabled={saving}>
         {saving ? 'Guardando…' : <><Check className="w-4 h-4" /> Guardar presupuesto</>}
       </PrimaryButton>

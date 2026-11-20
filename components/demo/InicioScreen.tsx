@@ -1,6 +1,6 @@
 'use client'
 
-import { Sun, Calendar, Wallet, Plus, ArrowUp, ArrowDown, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Sun, Calendar, Wallet, Plus, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react'
 import { formatCLP, daysBetween, statementDueDate, lastDueStatementRange, nextPaydayDate } from '@/lib/utils'
 import CicloSueldo from '@/components/CicloSueldo'
 import InfoTap from '@/components/InfoTap'
@@ -111,7 +111,7 @@ export default function InicioScreen({ ctx, expenses, debts, prevTotal, onOpenEx
           <div className="flex items-center justify-between gap-3 mt-2 text-xs text-white">
             <span>
               {usedPct}% usado
-              {s.upcoming > 0 && !isOver && <> · <span className="underline decoration-dotted underline-offset-2">+{formatCLP(s.upcoming)} vienen este mes</span></>}
+              {s.upcoming > 0 && !isOver && <> · +{formatCLP(s.upcoming)} vienen este mes</>}
             </span>
             <span className="flex-shrink-0">{daysRemaining} días restantes</span>
           </div>
@@ -207,7 +207,6 @@ export default function InicioScreen({ ctx, expenses, debts, prevTotal, onOpenEx
                         <span className="block text-[11px]" style={{ color: 'var(--ink-3)' }}>{shortDate(date)} · {days === 0 ? 'hoy' : days === 1 ? 'mañana' : `en ${days} días`}</span>
                       </span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(r.amount)}</span>
-                      <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                     </li>
                   )
                 })}

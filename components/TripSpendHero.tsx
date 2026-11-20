@@ -67,7 +67,7 @@ export default function TripSpendHero({
         <p className="font-display text-3xl lg:text-4xl font-extrabold tabular-nums leading-none mt-1.5" style={{ color: 'var(--ink)' }}>
           {formatCLP(spentTotal)}
         </p>
-        <p className="text-xs mt-1.5" style={{ color: over || near ? 'var(--gold)' : 'var(--ink-3)' }}>
+        <p className="text-xs mt-1.5" style={{ color: over || near ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
           de {formatCLP(total)} · {pct}%{over ? ' — se pasó del presupuesto' : ''}
           {!over && todaySpent != null ? ` · hoy ${formatCLP(todaySpent)}` : ''}
           {!over && !closed && spentTotal < total && todaySpent != null ? ` · quedan ${formatCLP(total - spentTotal)}` : ''}
@@ -78,7 +78,7 @@ export default function TripSpendHero({
       </div>
 
       {rows.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2.5 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-2.5">
           {rows.map(c => {
             const b = budget[c.key] ?? 0, s = spent[c.key]
             const catOver = b > 0 && s > b
@@ -92,7 +92,7 @@ export default function TripSpendHero({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between text-[11px]">
                     <span style={{ color: 'var(--ink-2)' }}>{c.label}</span>
-                    <span className="tabular-nums" style={{ color: catOver ? 'var(--gold)' : 'var(--ink-3)' }}>
+                    <span className="tabular-nums" style={{ color: catOver ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
                       {formatCLP(s)}{b > 0 ? ` / ${formatCLP(b)}` : ' (sin estimar)'}
                     </span>
                   </div>

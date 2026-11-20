@@ -114,11 +114,8 @@ export default function SharedTripView({
   const catLabel = (k: string) => TRIP_CATEGORIES.find(c => c.key === k)?.label ?? k
 
   const owed = mine > 0, owes = mine < 0
-  const balStyle = owed
-    ? { bg: 'rgba(31,190,141,0.12)', border: 'rgba(31,190,141,0.35)', color: 'var(--mint-ink)' }
-    : owes
-      ? { bg: 'rgba(255,194,60,0.14)', border: 'rgba(255,194,60,0.45)', color: 'var(--gold-ink)' }
-      : { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--ink-2)' }
+  // Gold nunca es un banner (UX5): la tarjeta es neutra y el estado va en el color del monto.
+  const balStyle = { bg: 'var(--surface-2)', color: owed ? 'var(--mint-ink)' : owes ? 'var(--gold-ink)' : 'var(--ink-2)' }
 
   const alone = accepted.length <= 1
   const people = Math.max(accepted.length, group.planned_people ?? accepted.length, 1)
@@ -175,7 +172,7 @@ export default function SharedTripView({
   ) : null
 
   const saldo = !alone && (expenses.length > 0 || settlements.length > 0) ? (
-    <div className="p-5" style={{ background: balStyle.bg, border: `1.5px solid ${balStyle.border}`, borderRadius: 18 }}>
+    <div className="p-5 rounded-[18px]" style={{ background: balStyle.bg }}>
       <p className="text-xs font-semibold" style={{ color: balStyle.color }}>
         {phase === 'settling' ? 'Cuadremos cuentas' : 'Tu saldo del viaje'}
       </p>
@@ -234,7 +231,7 @@ export default function SharedTripView({
   // lo que puso cada uno contra lo que le correspondía, columna por columna.
   // El divisor punteado retoma la perforación de los talonarios del plan.
   const settlementLedger = !alone && (expenses.length > 0 || settlements.length > 0) ? (
-    <div className="rounded-xl overflow-hidden" style={{ border: '1.5px solid var(--border)' }}>
+    <div className="card-flat overflow-hidden">
       <div className="px-5 py-4" style={{ background: balStyle.bg }}>
         <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Cuadremos cuentas</p>
         <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
@@ -387,7 +384,6 @@ export default function SharedTripView({
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
                 <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{relativeDate(day, dateFormat)}</p>
               </div>
               <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
@@ -439,7 +435,9 @@ export default function SharedTripView({
           <div className="flex items-center gap-2">
             <h1 className="font-display text-2xl lg:text-3xl font-bold truncate" style={{ color: 'var(--ink)' }}>{group.name}</h1>
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-              style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+              style={phase === 'settling'
+                ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
+                : { background: 'var(--primary-soft)', color: 'var(--primary)' }}>
               {TRIP_PHASE_LABEL[phase]}
             </span>
           </div>
@@ -452,7 +450,7 @@ export default function SharedTripView({
         </div>
         <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
           className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full"
-          style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--ink-2)' }}>
+          style={{ background: 'var(--surface)', color: 'var(--ink-2)' }}>
           <Settings2 className="w-4 h-4" />
         </button>
       </div>
@@ -534,13 +532,13 @@ export default function SharedTripView({
                 <UserSearch onPick={setInvitee} exclude={members.map(m => m.username).filter((u): u is string => !!u)} />
                 <div className="flex gap-2">
                   <button onClick={() => { setInviteOpen(false); setInvitee(null) }}
-                    className="flex-1 py-2 text-xs font-semibold rounded-lg border"
-                    style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>Cerrar</button>
+                    className="flex-1 min-h-[44px] text-xs font-semibold rounded-xl"
+                    style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Cerrar</button>
                   <button disabled={busy || !invitee} onClick={async () => {
                     if (!invitee) return
                     const ok = await run(() => inviteToSharedGroup(group.id, invitee.username), `Invitación enviada a @${invitee.username}`)
                     if (ok) { setInviteOpen(false); setInvitee(null) }
-                  }} className="flex-1 py-2 text-xs font-bold rounded-lg disabled:opacity-50"
+                  }} className="flex-1 min-h-[44px] text-xs font-bold rounded-xl disabled:opacity-50"
                     style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Invitar</button>
                 </div>
               </div>
@@ -558,7 +556,7 @@ export default function SharedTripView({
             )}
 
             {isCreator && members.some(m => m.is_guest) && (
-              <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="mt-4 space-y-2">
                 <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Enlace para quien no tiene cuenta</p>
                 <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
                   Solo lectura: ve los gastos, el % de cada uno y quién le debe a quién. No ve sueldos.
@@ -611,7 +609,7 @@ export default function SharedTripView({
 
             {/* Reparto (solo importa con más de una persona) */}
             {(!alone || pending.length > 0 || (group.planned_people ?? 1) > 1) && (
-              <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="mt-4 space-y-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-2)' }}>Reparto</span>
                   {(['equal', 'income'] as SplitMode[]).map(m => (

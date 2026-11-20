@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronRight, CalendarDays } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import { formatCLP, daysBetween, nextPaydayDate } from '@/lib/utils'
 import ServiceLogo from '@/components/ServiceLogo'
 import { RECURRING, SUELDO, catOf, shortDate, monthShort } from './data'
@@ -131,7 +131,6 @@ export default function RecurrentesScreen({ ctx }: { ctx: MonthCtx }) {
                     <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>{days === 0 ? 'Hoy' : days === 1 ? 'Mañana' : days <= 7 ? `En ${days} días` : shortDate(date)}</p>
                     <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(r.amount)} <span className="text-[10px] font-medium" style={{ color: 'var(--ink-3)' }}>/mes</span></p>
                   </div>
-                  <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} />
                 </div>
               )
             })}

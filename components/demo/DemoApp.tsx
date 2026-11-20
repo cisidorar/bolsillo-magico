@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Home, BookOpen, BarChart2, Wallet, RefreshCw, HandCoins, Settings, Plus, List } from 'lucide-react'
+import { ArrowLeft, Home, BookOpen, RefreshCw, HandCoins, Plus, List } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import WaitlistForm from '@/components/landing/WaitlistForm'
@@ -18,14 +18,11 @@ import { NuevoGastoSheet, ExpenseDetail } from './Sheets'
 
 type Screen = 'inicio' | 'historial' | 'recurrentes' | 'cobrar'
 
-const NAV: { id: Screen | null; label: string; Icon: typeof Home }[] = [
+const NAV: { id: Screen; label: string; Icon: typeof Home }[] = [
   { id: 'inicio', label: 'Inicio', Icon: Home },
   { id: 'historial', label: 'Historial', Icon: BookOpen },
-  { id: null, label: 'Análisis', Icon: BarChart2 },
-  { id: null, label: 'Ingresos', Icon: Wallet },
   { id: 'recurrentes', label: 'Recurrentes', Icon: RefreshCw },
   { id: 'cobrar', label: 'Por cobrar', Icon: HandCoins },
-  { id: null, label: 'Ajustes', Icon: Settings },
 ]
 
 const MOBILE_NAV: { id: Screen; label: string; Icon: typeof Home }[] = [
@@ -54,7 +51,6 @@ function Demo({ onReset }: { onReset: () => void }) {
   )
 
   function go(s: Screen) { setScreen(s); window.scrollTo({ top: 0 }) }
-  function locked() { showToast('En la demo puedes recorrer Inicio, Historial, Recurrentes y Por cobrar.') }
 
   function save(e: DExpense, newDebts: DDebt[]) {
     setExpenses(list => [e, ...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)))
@@ -86,16 +82,6 @@ function Demo({ onReset }: { onReset: () => void }) {
     showToast(`Lo asumes: ${formatCLP(amount)} de ${who}`, { action: { label: 'Deshacer', onClick: () => setPaid([id], false) } })
   }
 
-  // Los enlaces de los componentes reales apuntan a pantallas privadas: en la demo avisan en vez de salir.
-  function intercept(ev: React.MouseEvent) {
-    const a = (ev.target as HTMLElement).closest('a')
-    const href = a?.getAttribute('href') ?? ''
-    if (a && href.startsWith('/') && !href.startsWith('/demo')) {
-      ev.preventDefault(); ev.stopPropagation()
-      showToast('Eso vive en la app completa. Acá puedes recorrer Inicio, Historial, Recurrentes y Por cobrar.')
-    }
-  }
-
   return (
     <div className="min-h-svh" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
       <aside className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 pt-[18px] pb-6 px-3" style={{ background: 'var(--surface)', boxShadow: '2px 0 16px var(--shadow)' }}>
@@ -107,7 +93,7 @@ function Demo({ onReset }: { onReset: () => void }) {
           {NAV.map(({ id, label, Icon }) => {
             const active = id === screen
             return (
-              <button key={label} type="button" aria-current={active ? 'page' : undefined} onClick={() => (id ? go(id) : locked())}
+              <button key={label} type="button" aria-current={active ? 'page' : undefined} onClick={() => go(id)}
                 className="flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-[14px] font-semibold transition-colors text-left hover:bg-[var(--surface-2)]"
                 style={active ? { background: 'var(--primary-soft)', color: 'var(--primary)' } : { color: 'var(--ink-2)' }}>
                 <Icon className="w-[18px] h-[18px] flex-shrink-0" style={{ color: active ? 'var(--primary)' : 'var(--ink-3)' }} />
@@ -149,7 +135,8 @@ function Demo({ onReset }: { onReset: () => void }) {
         </div>
 
         <main className="main-content-pad">
-          <div onClickCapture={intercept}>
+          {/* Los enlaces de los componentes reales (Ciclo de sueldo) llevan a pantallas privadas: en la demo no se pueden tocar. */}
+          <div className="[&_a]:pointer-events-none [&_a]:cursor-default">
             {screen === 'inicio' && (
               <InicioScreen ctx={ctx} expenses={expenses} debts={debts} prevTotal={prevTotal} onOpenExpense={setDetail}
                 onAdd={() => setSheet(true)} onGo={go} onDebtPaid={onDebtPaid} onDebtForgive={onDebtForgive} />

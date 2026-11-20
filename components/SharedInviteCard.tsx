@@ -58,23 +58,23 @@ export default function SharedInviteCard({
           <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
             En tus gastos solo aparecerá tu parte; tus ingresos y gastos personales siguen siendo privados.
           </p>
-          {error && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral)' }}>{error}</p>}
+          {error && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
           <div className="flex flex-wrap gap-2 mt-3">
             <button disabled={busy} onClick={() => accept(income)}
-              className="px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50"
+              className="px-4 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
               {income ? 'Aceptar y mostrar mi %' : 'Aceptar'}
             </button>
             {income && (
               <button disabled={busy} onClick={() => accept(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold border disabled:opacity-50"
-                style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}>
+                className="px-4 min-h-[44px] rounded-xl text-xs font-semibold disabled:opacity-50"
+                style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
                 Entrar sin mostrar mi %
               </button>
             )}
             <button disabled={busy} onClick={decline}
-              className="px-4 py-2 rounded-xl text-xs font-semibold border disabled:opacity-50"
-              style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Rechazar</button>
+              className="px-4 min-h-[44px] rounded-xl text-xs font-semibold disabled:opacity-50"
+              style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Rechazar</button>
           </div>
         </div>
       </div>

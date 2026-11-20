@@ -25,7 +25,7 @@ export default function TripClosedSummary({
   return (
     <div className="card p-5 space-y-4">
       <div className="flex items-center gap-2">
-        <PartyPopper className="w-4 h-4" style={{ color: 'var(--mint)' }} />
+        <PartyPopper className="w-4 h-4" style={{ color: 'var(--mint-ink)' }} />
         <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Resumen del viaje</h2>
       </div>
 
@@ -36,7 +36,7 @@ export default function TripClosedSummary({
           {days ? ` · ${days} ${days === 1 ? 'día' : 'días'} (${formatCLP(Math.round(total / days))} al día)` : ''}
         </p>
         {diff != null && (
-          <p className="text-xs mt-1 font-semibold" style={{ color: diff > 0 ? 'var(--gold)' : 'var(--mint)' }}>
+          <p className="text-xs mt-1 font-semibold" style={{ color: diff > 0 ? 'var(--gold-ink)' : 'var(--mint-ink)' }}>
             {diff > 0 ? `${formatCLP(diff)} sobre` : `${formatCLP(-diff)} bajo`} el presupuesto de {formatCLP(budget)}
           </p>
         )}

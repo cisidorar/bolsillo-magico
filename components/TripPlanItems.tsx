@@ -152,7 +152,6 @@ export default function TripPlanItems({
     <div className="flex items-center justify-between mb-2">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
           <h3 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{title}</h3>
           {total > 0 && <span className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(total)}</span>}
         </div>
@@ -254,7 +253,7 @@ export default function TripPlanItems({
         </div>
       )}
 
-      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
 
       {detail && (() => {
         const it = items.find(i => i.id === detail.id) ?? detail
@@ -476,7 +475,7 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
       <div className="flex items-center gap-2">
         <Chip active={optional} onClick={() => setOptional(!optional)}>Es opcional</Chip>
       </div>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-[color:var(--coral-ink)]">{error}</p>}
       <div className="flex gap-3">
         {item && (
           confirmDelete ? (
@@ -486,7 +485,7 @@ function PlanItemSheet({ groupId, item, preset, tripDays, onClose }: {
             </button>
           ) : (
             <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar del plan"
-              className="logout-btn flex items-center px-4 py-3 text-sm font-semibold text-red-500 border rounded-2xl transition-colors flex-shrink-0">
+              className="logout-btn flex items-center px-4 py-3 text-sm font-semibold text-[color:var(--coral-ink)] border rounded-2xl transition-colors flex-shrink-0">
               <Trash2 className="w-4 h-4" />
             </button>
           )

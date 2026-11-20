@@ -183,7 +183,7 @@ export default function SharedExpenseSheet({
           <input type="text" inputMode="numeric" value={amount} onChange={e => setAmount(fmtNum(e.target.value).slice(0, 13))}
             placeholder="0" className="flex-1 text-3xl font-bold text-gray-900 bg-transparent outline-none min-w-0 tabular-nums" />
         </div>
-        {error && amountN <= 0 && <p className="text-xs text-red-500 mt-1">{error}</p>}
+        {error && amountN <= 0 && <p className="text-xs text-[color:var(--coral-ink)] mt-1">{error}</p>}
       </div>
 
       <div>
@@ -232,7 +232,7 @@ export default function SharedExpenseSheet({
                 ))}
               </div>
               {pmId && preview && myShare < amountN && (
-                <p className="text-[11px] text-gray-400 mt-2">
+                <p className="text-[11px] text-[color:var(--ink-3)] mt-2">
                   Tu tarjeta cobra {formatCLP(amountN)}; en tus gastos queda {formatCLP(myShare)}.
                 </p>
               )}
@@ -258,7 +258,7 @@ export default function SharedExpenseSheet({
             ))}
           </div>
           {kind === 'group' && !incomeOk && (
-            <p className="text-[11px] mt-2" style={{ color: 'var(--gold)' }}>
+            <p className="text-[11px] mt-2" style={{ color: 'var(--gold-ink)' }}>
               Repartir según lo que gana cada uno necesita que todos hayan aceptado mostrar su %. Mientras tanto usa «Partes iguales».
             </p>
           )}
@@ -284,7 +284,7 @@ export default function SharedExpenseSheet({
         <div className="space-y-2">
           {members.map(m => (
             <div key={m.user_id} className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 w-28 truncate">{nameOf(m.user_id)}</span>
+              <span className="text-sm text-[color:var(--ink-2)] w-28 truncate">{nameOf(m.user_id)}</span>
               <div className="flex-1">
                 <InputRow icon={<span className="text-sm font-bold">$</span>}>
                   <input inputMode="numeric" value={exact[m.user_id] ?? ''} placeholder="0"
@@ -294,18 +294,18 @@ export default function SharedExpenseSheet({
               </div>
             </div>
           ))}
-          <p className="text-[11px] text-gray-400">
+          <p className="text-[11px] text-[color:var(--ink-3)]">
             Suman {formatCLP(exactSum)} de {formatCLP(amountN)}.
           </p>
         </div>
       )}
 
       {preview && multi && (
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-1">
+        <div className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 space-y-1">
           {Object.entries(preview).map(([id, v]) => (
             <div key={id} className="flex justify-between text-sm">
-              <span className="text-gray-500">{id === meId ? 'Te toca a ti' : `Le toca a ${nameOf(id)}`}</span>
-              <span className="font-bold text-gray-900 tabular-nums">{formatCLP(v)}</span>
+              <span className="text-[color:var(--ink-3)]">{id === meId ? 'Te toca a ti' : `Le toca a ${nameOf(id)}`}</span>
+              <span className="font-bold text-[color:var(--ink)] tabular-nums">{formatCLP(v)}</span>
             </div>
           ))}
         </div>
@@ -313,7 +313,7 @@ export default function SharedExpenseSheet({
 
       </>}
 
-      {error && amountN > 0 && <p className="text-xs text-red-500">{error}</p>}
+      {error && amountN > 0 && <p className="text-xs text-[color:var(--coral-ink)]">{error}</p>}
 
       <div className="flex gap-3">
         {expense && (
@@ -324,7 +324,7 @@ export default function SharedExpenseSheet({
             </button>
           ) : (
             <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar gasto"
-              className="logout-btn flex items-center gap-2 px-4 py-3 text-sm font-semibold text-red-500 border rounded-2xl transition-colors flex-shrink-0">
+              className="logout-btn flex items-center gap-2 px-4 py-3 text-sm font-semibold text-[color:var(--coral-ink)] border rounded-2xl transition-colors flex-shrink-0">
               <Trash2 className="w-4 h-4" />
             </button>
           )

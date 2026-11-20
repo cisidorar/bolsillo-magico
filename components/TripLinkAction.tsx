@@ -83,10 +83,10 @@ export default function TripLinkAction({ expenseId, description, sharedExpenseId
       style={{ background: 'var(--surface-2)' }}>
       <Plane className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
       <span className="flex-1 min-w-0">
-        <span className="block text-sm font-semibold text-gray-800">{title}</span>
-        <span className="block text-[11px] text-gray-400">{sub}</span>
+        <span className="block text-sm font-semibold text-[color:var(--ink)]">{title}</span>
+        <span className="block text-[11px] text-[color:var(--ink-3)]">{sub}</span>
       </span>
-      <ChevronRight className="w-4 h-4 flex-shrink-0 text-gray-300" />
+      <ChevronRight className="w-4 h-4 flex-shrink-0 text-[color:var(--ink-3)]" />
     </button>
   )
 

@@ -121,7 +121,7 @@ export default function TripPlanCard({
 
       {/* Ritmo: cuánto apartar al mes para llegar con todo pagado (sin veredicto) */}
       {covered ? (
-        <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--mint)' }}>
+        <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--mint-ink)' }}>
           <CircleCheck className="w-4 h-4" /> Ya está todo pagado o ahorrado
         </p>
       ) : a.perMonth != null && a.months != null && a.months > 0 ? (
@@ -182,7 +182,7 @@ export default function TripPlanCard({
         )
       ) : null}
 
-      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
     </div>
   )
 }

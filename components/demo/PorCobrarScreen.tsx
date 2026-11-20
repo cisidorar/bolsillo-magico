@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Copy, MessageCircle, Check } from 'lucide-react'
+import { Copy, Check } from 'lucide-react'
 import { formatCLP, daysBetween } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import { longDate, shortDate, CLOSING, DUE_DAY, type DDebt } from './data'
@@ -147,10 +147,6 @@ export default function PorCobrarScreen({ debts, today, onPaid, onForgive }: {
                     Marcar todo pagado
                   </button>
                 </div>
-                <button type="button" onClick={() => showToast('En la app se abre WhatsApp con este mensaje listo')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[44px]" style={{ color: 'var(--primary)' }}>
-                  <MessageCircle className="w-3.5 h-3.5" /> Enviar por WhatsApp
-                </button>
               </div>
             )}
           </div>

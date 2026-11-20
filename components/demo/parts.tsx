@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, ChevronUp, HandCoins, Check, MessageCircle, AlertTriangle } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp, HandCoins, Check, AlertTriangle } from 'lucide-react'
 import { formatCLP, isEmoji, daysBetween, billingPeriod, statementDueDate } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import ExpenseRowIcon from '@/components/ExpenseRowIcon'
@@ -174,10 +174,6 @@ export function DebtsCard({ debts, today, onPaid, onForgive }: {
                       style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                       <Check className="w-4 h-4" /> Me pagó {formatCLP(p.total)}
                     </button>
-                    <span className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-sm font-semibold"
-                      style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-                      <MessageCircle className="w-4 h-4" /> Recordar
-                    </span>
                   </div>
                 </div>
               )}
