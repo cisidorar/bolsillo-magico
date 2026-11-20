@@ -73,6 +73,7 @@ export default function SharedTripView({
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitee, setInvitee] = useState<FoundUser | null>(null)
+  const [inviteAsGuest, setInviteAsGuest] = useState('')
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [guestForm, setGuestForm] = useState<{ id: string | null; name: string; income: number | null } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -538,14 +539,25 @@ export default function SharedTripView({
             {isCreator && inviteOpen && (
               <div className="mt-3 space-y-2">
                 <UserSearch onPick={setInvitee} exclude={members.map(m => m.username).filter((u): u is string => !!u)} />
+                {members.some(m => m.is_guest) && (
+                  <label className="block">
+                    <span className="block text-[11px] mb-1" style={{ color: 'var(--ink-3)' }}>¿Es alguien que ya agregaste sin cuenta?</span>
+                    <select value={inviteAsGuest} onChange={e => setInviteAsGuest(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm rounded-lg border" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}>
+                      <option value="">No, es otra persona</option>
+                      {members.filter(m => m.is_guest).map(m => <option key={m.user_id} value={m.user_id}>Sí, es {m.display_name}</option>)}
+                    </select>
+                    {inviteAsGuest && <span className="block text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>Al aceptar, sus gastos y saldos pasan a su cuenta y deja de ser «sin cuenta».</span>}
+                  </label>
+                )}
                 <div className="flex gap-2">
                   <button onClick={() => { setInviteOpen(false); setInvitee(null) }}
                     className="flex-1 min-h-[44px] text-xs font-semibold rounded-xl"
                     style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Cerrar</button>
                   <button disabled={busy || !invitee} onClick={async () => {
                     if (!invitee) return
-                    const ok = await run(() => inviteToSharedGroup(group.id, invitee.username), `Invitación enviada a @${invitee.username}`)
-                    if (ok) { setInviteOpen(false); setInvitee(null) }
+                    const ok = await run(() => inviteToSharedGroup(group.id, invitee.username, inviteAsGuest || null), `Invitación enviada a @${invitee.username}`)
+                    if (ok) { setInviteOpen(false); setInvitee(null); setInviteAsGuest('') }
                   }} className="flex-1 min-h-[44px] text-xs font-bold rounded-xl disabled:opacity-50"
                     style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Invitar</button>
                 </div>

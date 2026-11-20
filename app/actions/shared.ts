@@ -122,8 +122,9 @@ export async function giveSharedConsent(groupId: string, consent: boolean) {
   return rpc('shared_give_consent', { p_group: groupId, p_consent: consent })
 }
 
-export async function inviteToSharedGroup(groupId: string, username: string) {
-  return rpc('shared_group_invite', { p_group: groupId, p_username: username })
+/** `guestId`: si la persona invitada es alguien que ya agregaste sin cuenta, su historial pasa a su cuenta al aceptar. */
+export async function inviteToSharedGroup(groupId: string, username: string, guestId?: string | null) {
+  return rpc('shared_group_invite', { p_group: groupId, p_username: username, p_guest: guestId ?? null })
 }
 
 /** Suma a alguien sin cuenta. `income` es el promedio mensual ya calculado en la app. */

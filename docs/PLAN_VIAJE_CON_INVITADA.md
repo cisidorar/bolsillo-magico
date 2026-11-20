@@ -145,3 +145,16 @@ Cuatro entradas, todas terminan en lo mismo: un `shared_expense` y, en el Histor
 3. **¿Guardar los 6 sueldos de ella o solo el promedio?** Recomendado: solo el promedio, por privacidad.
 4. **¿Bonos?** Ingresar líquido sin bonos (más simple) o descartar extremos (más automático).
 5. **¿Viajes como módulo por cuenta?** Recomendado: sí, apagado por defecto en cuentas nuevas.
+
+## Estado (nov 2026)
+
+- **Fase 1 (hecha):** participante sin cuenta como miembro con uuid generado, promedio de 6 sueldos, gastos con "pagó [nombre]", pasar gastos existentes al viaje (uno a uno o varios de las fechas del viaje).
+- **Fase 2 (hecha):** enlace de solo lectura, revocable, 90 días, sin sueldos.
+- **Fase 3 (hecha):** si ella se registra, Cas la invita por @usuario y elige "es [nombre]"; al aceptar, sus gastos pagados, partes y pagos pasan a su cuenta. Mientras no tenga ingresos propios se usa el promedio que Cas le había puesto.
+- **Descartado:** editar desde el enlace sin sesión. Un enlace anónimo con permiso de escritura es el vector de riesgo más grande de todo el módulo; quien quiera cargar o editar gastos entra con su cuenta (invitación por @usuario).
+
+### Seguridad del módulo
+- Toda escritura pasa por funciones `SECURITY DEFINER` que validan `auth.uid()`; las tablas son de solo lectura por RLS.
+- Las funciones internas (`shared__*`) no son ejecutables por `anon` ni `authenticated`. Revisar con `has_function_privilege` tras cada migración nueva: las funciones nuevas nacen ejecutables por PUBLIC si no se revoca.
+- El token del enlace nunca se guarda en claro (solo sha256); se muestra una vez.
+- El registro es por invitación (admin) con tope de cuentas; el invitado debe ser `discoverable` y se busca por @usuario exacto.
