@@ -12,12 +12,13 @@ import {
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement, setSharedGroupClosed,
-  inviteToSharedGroup, removeSharedMember, setSharedMode, giveSharedConsent,
+  inviteToSharedGroup, addSharedGuest, updateSharedGuest, removeSharedMember, setSharedMode, giveSharedConsent,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
 import TripSettingsSheet from './TripSettingsSheet'
 import UserSearch from './UserSearch'
+import TripGuestForm from './TripGuestForm'
 import TripPlanCard, { type TripGoal } from './TripPlanCard'
 import TripSpendHero from './TripSpendHero'
 import TripPlanItems from './TripPlanItems'
@@ -67,6 +68,7 @@ export default function SharedTripView({
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitee, setInvitee] = useState<FoundUser | null>(null)
+  const [guestForm, setGuestForm] = useState<{ id: string | null; name: string; income: number | null } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
@@ -469,10 +471,15 @@ export default function SharedTripView({
                 <Users className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                 <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Personas</h2>
               </div>
-              {isCreator && !closed && !inviteOpen && (
-                <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2 -my-2 -mr-2" style={{ color: 'var(--primary)' }}>
-                  <UserPlus className="w-3.5 h-3.5" /> Invitar
-                </button>
+              {isCreator && !closed && !inviteOpen && !guestForm && (
+                <div className="flex items-center -my-2 -mr-2">
+                  <button onClick={() => setGuestForm({ id: null, name: '', income: null })} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--ink-3)' }}>
+                    Sin cuenta
+                  </button>
+                  <button onClick={() => setInviteOpen(true)} className="inline-flex items-center gap-1 text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--primary)' }}>
+                    <UserPlus className="w-3.5 h-3.5" /> Invitar
+                  </button>
+                </div>
               )}
             </div>
 
@@ -494,11 +501,16 @@ export default function SharedTripView({
                       {m.is_creator && <span className="text-[10px] font-bold ml-1.5" style={{ color: 'var(--ink-3)' }}>creador</span>}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                      @{m.username}
+                      {m.is_guest ? 'sin cuenta' : `@${m.username}`}
+                      {m.is_guest && m.guest_income ? ` · promedio ${formatCLP(m.guest_income)}` : ''}
                       {m.status === 'pending' && ' · invitación pendiente'}
                       {m.status === 'accepted' && income && !m.income_consent && ' · sin compartir porcentaje'}
                     </p>
                   </div>
+                  {m.is_guest && isCreator && !closed && (
+                    <button onClick={() => setGuestForm({ id: m.user_id, name: m.display_name, income: m.guest_income })}
+                      className="text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--primary)' }}>Editar</button>
+                  )}
                   {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
                     confirmRemove === m.user_id ? (
                       <button disabled={busy} onClick={async () => { await run(() => removeSharedMember(group.id, m.user_id), m.user_id === meId ? 'Saliste del viaje' : 'Listo'); setConfirmRemove(null) }}
@@ -516,7 +528,7 @@ export default function SharedTripView({
 
             {isCreator && inviteOpen && (
               <div className="mt-3 space-y-2">
-                <UserSearch onPick={setInvitee} exclude={members.map(m => m.username)} />
+                <UserSearch onPick={setInvitee} exclude={members.map(m => m.username).filter((u): u is string => !!u)} />
                 <div className="flex gap-2">
                   <button onClick={() => { setInviteOpen(false); setInvitee(null) }}
                     className="flex-1 py-2 text-xs font-semibold rounded-lg border"
@@ -529,6 +541,17 @@ export default function SharedTripView({
                     style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Invitar</button>
                 </div>
               </div>
+            )}
+
+            {isCreator && guestForm && (
+              <TripGuestForm key={guestForm.id ?? 'new'} initialName={guestForm.name} initialIncome={guestForm.income}
+                myIncome={null} busy={busy} onCancel={() => setGuestForm(null)}
+                onSave={async (name, inc, months) => {
+                  const ok = await run(() => guestForm.id
+                    ? updateSharedGuest(group.id, guestForm.id, name, inc, months)
+                    : addSharedGuest(group.id, name, inc, months), guestForm.id ? 'Listo' : `${name} entró al viaje`)
+                  if (ok) setGuestForm(null)
+                }} />
             )}
 
             {alone && pending.length === 0 && !inviteOpen && (

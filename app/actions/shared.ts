@@ -44,6 +44,11 @@ const ERRORS: Record<string, string> = {
   invalid_payment_method: 'Ese método de pago no es de quien pagó.',
   expense_not_found:    'Ese gasto ya no existe.',
   invalid_recipient:    'Destinatario inválido.',
+  invalid_income:       'Pon al menos un sueldo para sacar el promedio.',
+  too_many_guests:      'Llegaste al máximo de personas sin cuenta en este viaje.',
+  not_guest:            'Esa persona tiene cuenta; su ingreso sale de sus propios datos.',
+  only_payer:           'Solo quien pagó el gasto puede sacarlo del viaje.',
+  expense_not_adoptable: 'Ese gasto no se puede pasar a un viaje (ya está en uno o es recurrente).',
   invalid_link:         'El link tiene que empezar con http:// o https://',
 }
 
@@ -119,6 +124,35 @@ export async function giveSharedConsent(groupId: string, consent: boolean) {
 
 export async function inviteToSharedGroup(groupId: string, username: string) {
   return rpc('shared_group_invite', { p_group: groupId, p_username: username })
+}
+
+/** Suma a alguien sin cuenta. `income` es el promedio mensual ya calculado en la app. */
+export async function addSharedGuest(groupId: string, name: string, income: number, months: number): Promise<Result<{ id: string }>> {
+  const r = await rpc<string>('shared_guest_add', { p_group: groupId, p_name: name, p_income: income, p_months: months })
+  if (!r.ok) return r
+  return { ok: true, id: r.data as string }
+}
+
+export async function updateSharedGuest(groupId: string, userId: string, name: string, income: number, months: number) {
+  return rpc('shared_guest_update', { p_group: groupId, p_user: userId, p_name: name, p_income: income, p_months: months })
+}
+
+/** Pasa un gasto propio ya registrado al viaje (queda enlazado y guarda solo tu parte). */
+export async function adoptExpenseIntoTrip(input: {
+  groupId: string; expenseId: string; tripCategory: TripCategory
+  splitKind: SplitKind; participants: string[] | null; exact: Record<string, number> | null
+}): Promise<Result<{ id: string }>> {
+  const r = await rpc<string>('shared_expense_adopt', {
+    p_group: input.groupId, p_expense: input.expenseId, p_trip_category: input.tripCategory,
+    p_split_kind: input.splitKind, p_participants: input.participants, p_exact: input.exact,
+  })
+  if (!r.ok) return r
+  return { ok: true, id: r.data as string }
+}
+
+/** Saca un gasto del viaje: vuelve a ser un gasto normal por el total. */
+export async function releaseExpenseFromTrip(sharedExpenseId: string) {
+  return rpc('shared_expense_release', { p_shared_expense: sharedExpenseId })
 }
 
 export async function removeSharedMember(groupId: string, userId: string) {

@@ -79,6 +79,7 @@ export default function MoreSheet({ isOpen, onClose, features, isAdmin = false }
   if (!isOpen) return null
 
   const visible = (r: Row) => hasFeature(features, r.feature)
+  const tripsOn = SHOW_TRIPS || features?.viajes === true
   const adminRow: Row = { href: '/admin', icon: ShieldCheck, color: '#2B7CF6', bg: '#EEF4FF', title: 'Admin', subtitle: 'Solicitudes y accesos' }
 
   return (
@@ -112,7 +113,8 @@ export default function MoreSheet({ isOpen, onClose, features, isAdmin = false }
             Finanzas
           </p>
           <div>
-            {financeRows.filter(visible).map(r => <SheetRow key={r.href} row={r} onClose={onClose} />)}
+            {financeRows.filter(visible).map(r => <SheetRow key={r.href} row={r.href === '/compartidos' && tripsOn
+              ? { ...r, icon: Plane, title: 'Compartidos', subtitle: 'Viajes y gastos con otra persona' } : r} onClose={onClose} />)}
           </div>
 
           <p className="text-[11px] font-semibold px-4 mt-4 mb-1" style={{ color: 'var(--ink-3)' }}>

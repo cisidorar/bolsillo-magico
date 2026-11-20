@@ -15,6 +15,7 @@ import PorCobrarView from '@/components/PorCobrarView'
 import ReceivablesCard from '@/components/ReceivablesCard'
 import type { ReceivableWithExpense } from '@/lib/receivables'
 import { SHOW_TRIPS } from '@/lib/features'
+import { getUserAccess } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,9 @@ export default async function CompartidosPage({
   const today = getNowChile().dateStr
 
   // Viajes ocultos (lib/features.ts): solo "Por cobrar".
-  if (!SHOW_TRIPS) {
+  const access = await getUserAccess()
+  const tripsOn = SHOW_TRIPS || access?.features.viajes === true
+  if (!tripsOn) {
     const [{ data: recRaw }, { data: myPms }] = await Promise.all([
       supabase.from('expense_receivables')
         .select('*, expense:expenses(description, date, payment_method_id)')

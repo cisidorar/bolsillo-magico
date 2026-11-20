@@ -33,11 +33,15 @@ export interface SharedMemberRow {
 export interface SharedMemberInfo {
   user_id:        string
   display_name:   string
-  username:       string
+  username:       string | null
   avatar_url:     string | null
   status:         'accepted' | 'pending'
   income_consent: boolean
   is_creator:     boolean
+  /** Participante sin cuenta (solo existe dentro del viaje) */
+  is_guest:       boolean
+  /** Promedio mensual guardado del invitado; null si tiene cuenta */
+  guest_income:   number | null
 }
 
 export interface SharedExpenseRow {

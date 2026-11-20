@@ -63,6 +63,9 @@ export default function SideNav({ userName, userEmail, avatarUrl, features, isAd
         <nav className="flex flex-col gap-0.5 flex-1">
           {[...navItems, ...(isAdmin ? [{ href: '/admin', icon: ShieldCheck, label: 'Admin' }] : [])]
             .filter(item => !('feature' in item) || hasFeature(features, item.feature))
+            .map(item => item.href === '/compartidos' && features?.viajes
+              ? { ...item, icon: Plane, label: 'Compartidos' }
+              : item)
             .map(item => {
             const Icon   = item.icon
             // /ajustes/perfil tiene su propia entrada (el bloque de usuario),
