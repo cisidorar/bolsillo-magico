@@ -61,7 +61,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
       ) : (
         <>
           {hasRisk && !muteRiskBanner && (
-            <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
+            <div className="flex items-center gap-2 mx-4 mb-3 px-3 py-2 rounded-xl" style={{ background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))', border: '1.5px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
               <p className="text-xs font-semibold leading-snug" style={{ color: 'var(--coral-ink)' }}>
                 {firstNeg
@@ -84,7 +84,7 @@ export default function FlujoCaja30d({ events, hasPayday, hasIncome, cardsWithou
                     <ServiceLogo domain={e.domain ?? null} name={e.label} size={28} className="flex-shrink-0" />
                   ) : (
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: isIncome ? 'rgba(31,190,141,0.12)' : 'var(--surface-2)' }}>
-                      <Icon className="w-3.5 h-3.5" style={{ color: isIncome ? 'var(--mint)' : 'var(--ink-3)' }} />
+                      <Icon className="w-3.5 h-3.5" style={{ color: isIncome ? 'var(--mint-ink)' : 'var(--ink-3)' }} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

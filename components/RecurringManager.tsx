@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { useBackdropClose } from '@/components/useBackdropClose'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, ChevronDown, Lock, Info, Sparkles, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Trash2, Check, X, RefreshCw, Pause, Play, CreditCard, ChevronRight, Lock, Info, Sparkles, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn, formatCLP, isEmoji, getNowChile } from '@/lib/utils'
 import { getCategoryIcon } from '@/lib/category-icons'
 import { detectDomain } from '@/lib/services'
@@ -515,18 +515,20 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                 {showGroups && (
                   <button
                     onClick={() => toggleGroup(groupKey as GroupKey)}
-                    className="w-full flex items-center justify-between gap-3 mb-2 text-left"
+                    aria-expanded={!collapsed}
+                    className="w-full flex items-center justify-between gap-3 mb-2 min-h-[44px] text-left"
                   >
                     <span className="flex items-center gap-2 min-w-0">
-                      <span className="w-[3px] h-4 rounded-full flex-shrink-0" style={{ background: 'var(--primary)', opacity: 0.55 }} aria-hidden />
                       <span className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{GROUP_LABELS[groupKey as GroupKey]}</span>
                       <span className="text-xs" style={{ color: 'var(--ink-3)' }}>({groupItems.length})</span>
-                      {collapsed ? <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--ink-3)' }} />}
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform duration-200 ease-out" style={{ color: 'var(--ink-3)', transform: collapsed ? 'none' : 'rotate(90deg)' }} aria-hidden />
                     </span>
                     <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(subtotal)}</span>
                   </button>
                 )}
-                {!collapsed && (
+                <div className="grid transition-[grid-template-rows] duration-200 ease-out" style={{ gridTemplateRows: collapsed ? '0fr' : '1fr' }}
+                  inert={collapsed || undefined}>
+                  <div className="min-h-0 overflow-hidden">
                   <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
                 {groupItems.map(item => {
             const isCuotas    = item.total_installments != null && item.total_installments > 0
@@ -581,7 +583,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
               <div
                 key={item.id}
                 className={cn(
-                  'w-full px-4 transition-colors hover:bg-gray-50/60',
+                  'w-full px-4 transition-colors hover:bg-[var(--surface-2)]',
                   isCompleted ? 'py-2.5' : 'py-4',
                   !item.is_active && 'opacity-60'
                 )}
@@ -596,7 +598,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       <ServiceLogo domain={item.domain} name={item.name} size={isCompleted ? 28 : 40} />
                       {!item.is_active && !isCompleted && (
                         <span
-                          className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white"
+                          className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[var(--surface)]"
                           style={{ background: 'var(--gold-ink)' }}
                           role="img"
                           aria-label="Pausado"
@@ -605,7 +607,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                      <p className="text-sm font-semibold truncate text-[color:var(--ink)]">{item.name}</p>
                       <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         {item.category && (
                           <span className="cat-badge text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
@@ -615,11 +617,11 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         )}
                         {isAnual && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}>anual</span>
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>anual</span>
                         )}
                         {isInterval && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
-                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', border: '1px solid var(--border)' }}>
+                            style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
                             cada {item.interval_months} meses
                           </span>
                         )}
@@ -628,7 +630,7 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                             className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
                             style={priceChange.delta > 0
                               ? { background: 'color-mix(in srgb, var(--gold) 14%, var(--surface))', color: 'var(--gold-ink)' }
-                              : { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint)' }}
+                              : { background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }}
                           >
                             {priceChange.delta > 0 ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
                             {priceChange.delta > 0 ? 'subió' : 'bajó'} {formatCLP(Math.abs(priceChange.delta))}
@@ -654,26 +656,26 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                         un cargo que nunca va a existir. */}
                     {!isCompleted && (
                       <div className="hidden sm:block text-right flex-shrink-0 min-w-[90px]">
-                        <p className="text-xs font-medium text-gray-700 tabular-nums">{nextLabel}</p>
-                        <p className="text-[11px] text-gray-400">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
+                        <p className="text-xs font-medium text-[color:var(--ink-2)] tabular-nums">{nextLabel}</p>
+                        <p className="text-[11px] text-[color:var(--ink-3)]">{isAnual ? 'Fecha cobro' : 'Próximo cargo'}</p>
                       </div>
                     )}
 
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-gray-900 tabular-nums">{formatCLP(item.amount)}</p>
-                      <p className="text-[11px] text-gray-400">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
+                      <p className="text-sm font-bold text-[color:var(--ink)] tabular-nums">{formatCLP(item.amount)}</p>
+                      <p className="text-[11px] text-[color:var(--ink-3)]">{isCuotas ? '/ cuota' : isAnual ? '/ año' : isInterval ? `/ ${item.interval_months}m` : '/ mes'}</p>
                     </div>
 
                     {(isCompleted || !item.is_active) && (
                       <span className={cn(
                         'hidden sm:inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0',
-                        isCompleted ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-700'
+                        isCompleted ? 'bg-[var(--surface-2)] text-[color:var(--ink-2)]' : 'bg-[color-mix(in_srgb,var(--gold)_16%,var(--surface))] text-[color:var(--gold-ink)]'
                       )}>
                         {isCompleted ? 'Completado' : 'Pausado'}
                       </span>
                     )}
 
-                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[color:var(--ink-3)] flex-shrink-0" />
                   </button>
 
                   {/* Botón "Registrar ahora" — icono visible en todos los
@@ -687,13 +689,13 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                       title="Registrar gasto hoy"
                       aria-label="Registrar gasto hoy"
                       className={cn(
-                        'flex items-center justify-center gap-1 rounded-xl text-[11px] font-semibold border transition-all flex-shrink-0',
-                        'w-9 h-9 sm:w-auto sm:h-auto sm:px-2.5 sm:py-1.5',
+                        'flex items-center justify-center gap-1 rounded-xl text-[11px] font-semibold border transition-[background-color,color,transform] duration-150 ease-out flex-shrink-0',
+                        'w-11 h-11 sm:w-auto sm:h-auto sm:min-h-[44px] sm:px-3',
                         regState === 'done'
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                          ? 'bg-[color-mix(in_srgb,var(--mint)_14%,var(--surface))] border-transparent text-[color:var(--mint-ink)]'
                           : regState === 'loading'
-                            ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-wait'
-                            : 'bg-white border-gray-200 text-gray-500 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50'
+                            ? 'bg-[var(--surface-2)] border-transparent text-[color:var(--ink-3)] cursor-wait'
+                            : 'bg-[var(--surface-2)] border-transparent text-[color:var(--ink-2)] hover:text-[color:var(--primary)] hover:bg-[var(--primary-soft)] active:scale-[.96]'
                       )}
                     >
                       {regState === 'done' ? (
@@ -712,16 +714,16 @@ export default function RecurringManager({ items: init, categories, paymentMetho
                   // Última cuota cae en el mes actual + cuotas restantes (misma convención que "Ya comprometido")
                   const endDate = new Date()
                   endDate.setMonth(endDate.getMonth() + remaining)
-                  const endLabel = endDate.toLocaleDateString('es-CL', { month: 'long', year: endDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined })
+                  const endLabel = endDate.toLocaleDateString('es-CL', { month: 'long', year: endDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }).replace(' de ', ' ')
                   return (
                     <div className="mt-2.5 ml-[52px] flex items-center gap-2">
                       <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${(progress ?? 0) * 100}%`, background: 'var(--primary)' }} />
+                        <div className="h-full rounded-full rc-grow" style={{ width: `${(progress ?? 0) * 100}%`, background: 'var(--primary)' }} />
                       </div>
-                      <span className="text-[10px] text-gray-400 tabular-nums flex-shrink-0">
+                      <span className="text-[10px] text-[color:var(--ink-3)] tabular-nums flex-shrink-0">
                         {item.paid_installments ?? 0}/{item.total_installments} cuotas
                         {remaining > 0 && !isCompleted && (
-                          <span style={{ color: 'var(--mint)' }} className="font-semibold capitalize"> · termina en {endLabel}</span>
+                          <span style={{ color: 'var(--mint-ink)' }} className="font-semibold"> · termina en {endLabel}</span>
                         )}
                       </span>
                     </div>
@@ -731,7 +733,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
             )
           })}
                   </div>
-                )}
+                  </div>
+                </div>
               </div>
             )
           })}
@@ -739,8 +742,8 @@ export default function RecurringManager({ items: init, categories, paymentMetho
 
         <button
           onClick={openNew}
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-bold text-brand-600 transition-colors"
-          style={{ background: 'var(--surface)', border: '1.5px dashed var(--border)' }}
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-bold text-[color:var(--primary)] transition-colors"
+          style={{ background: 'var(--surface)' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--primary-soft)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
         >

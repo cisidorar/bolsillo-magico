@@ -418,7 +418,7 @@ export default async function RecurrentesPage({
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Gastos recurrentes</h1>
+          <h1 className="font-display text-2xl lg:text-3xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>Gastos recurrentes</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Visualiza, gestiona y controla tus gastos que se repiten cada mes.</p>
         </div>
       </div>

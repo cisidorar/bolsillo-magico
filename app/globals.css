@@ -621,3 +621,14 @@
   @view-transition { navigation: auto; }
   ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
 }
+
+/* Recurrentes: las barras de progreso crecen una vez al entrar (ease-out fuerte, sin rebote)
+   y la alerta de atrasados se pliega al cerrarla en vez de desaparecer de golpe. */
+@keyframes rcGrow { from { transform: scaleX(0); } }
+.rc-grow { transform-origin: left center; animation: rcGrow .7s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--d, 0ms); }
+.rc-collapse { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .22s cubic-bezier(0.23, 1, 0.32, 1), margin-bottom .22s cubic-bezier(0.23, 1, 0.32, 1), opacity .18s ease-out; }
+.rc-collapse[data-closed] { grid-template-rows: 0fr; margin-bottom: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .rc-grow { animation: none; }
+  .rc-collapse { transition: none; }
+}

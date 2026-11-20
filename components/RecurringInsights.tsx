@@ -82,14 +82,14 @@ export default function RecurringInsights({
           <div>
             <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Dónde se va tu carga mensual</p>
             <ul className="mt-2 space-y-2">
-              {topW.map(w => (
+              {topW.map((w, i) => (
                 <li key={w.key}>
                   <div className="flex items-center justify-between gap-3 text-xs">
                     <span className="truncate" style={{ color: 'var(--ink)' }}>{w.name} <span style={{ color: 'var(--ink-2)' }}>({w.count})</span></span>
                     <span className="tabular-nums flex-shrink-0" style={{ color: 'var(--ink-2)' }}>{formatCLP(w.monthly)} · {w.pct}%</span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden mt-1" style={{ background: 'var(--surface-2)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.max(w.pct, 2)}%`, background: w.color }} />
+                    <div className="h-full rounded-full rc-grow" style={{ width: `${Math.max(w.pct, 2)}%`, background: w.color, ['--d' as string]: `${i * 70}ms` }} />
                   </div>
                 </li>
               ))}
