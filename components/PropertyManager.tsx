@@ -434,7 +434,7 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, p
       {error && (
         <div className="flex items-start gap-2.5 px-4 py-3 rounded-2xl mb-5"
           style={{ background: 'color-mix(in srgb, var(--coral) 8%, var(--surface))', border: '1px solid color-mix(in srgb, var(--coral) 25%, transparent)' }}>
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--coral)' }} />
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--coral-ink)' }} />
           <p className="text-sm font-semibold" style={{ color: 'var(--coral-ink)' }}>{error}</p>
         </div>
       )}
@@ -904,7 +904,7 @@ function ChargeDetailSheet({ charge, today, busy, backdrop, onClose, onEdit, onP
           <button
             onClick={() => setConfirmDelete(true)}
             className="w-11 h-11 flex items-center justify-center rounded-2xl border flex-shrink-0"
-            style={{ borderColor: 'var(--border)', color: 'var(--coral)', background: 'var(--surface-2)' }}
+            style={{ borderColor: 'var(--border)', color: 'var(--coral-ink)', background: 'var(--surface-2)' }}
             aria-label="Eliminar"
           >
             <Trash2 className="w-4 h-4" />
@@ -1372,7 +1372,7 @@ function Actions({ busy, onCancel, submitLabel, danger }: {
         <button
           type="button"
           onClick={() => { if (confirm('¿Seguro? Esto borra también todos sus cobros.')) danger.onClick() }}
-          className="p-2.5 rounded-xl" style={{ color: 'var(--coral)' }}
+          className="p-2.5 rounded-xl" style={{ color: 'var(--coral-ink)' }}
           title={danger.label}
         >
           <Trash2 className="w-4 h-4" />

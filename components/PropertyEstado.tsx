@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChevronLeft, ChevronRight, Upload, Info, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Upload, Info, AlertTriangle } from 'lucide-react'
 import { formatCLP } from '@/lib/utils'
 import { chargeTotal, chargeOutstanding, daysBetween, KIND_LABEL, type UtilityKind } from '@/lib/property-charges'
 import {
@@ -89,7 +89,7 @@ export default function PropertyEstado({
       {model.ownerTone === 'overdue' && (
         <div className="flex items-start gap-3 px-4 py-3 rounded-2xl"
           style={{ background: tint('var(--coral)', 10), border: `1.5px solid ${tint('var(--coral)', 25)}` }}>
-          <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral)' }} />
+          <AlertTriangle className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--coral-ink)' }} />
           <p className="text-sm font-bold" style={{ color: 'var(--coral-ink)' }}>{model.ownerText}</p>
         </div>
       )}
@@ -121,26 +121,28 @@ export default function PropertyEstado({
           </button>
         </div>
 
-        <h2 className="font-display text-2xl lg:text-4xl font-extrabold mt-5 mb-4 leading-tight" style={{ color: 'var(--ink)' }}>
-          {headline}
-        </h2>
+        <div key={selectedMonth} className="pr-in">
+          <h2 className="font-display text-2xl lg:text-4xl font-extrabold mt-5 mb-4 leading-tight" style={{ color: 'var(--ink)' }}>
+            {headline}
+          </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <StatusTile who="Arrendatario" tone={model.tenantTone} text={model.tenantText} />
-          <StatusTile who="Tú" tone={model.ownerTone} text={model.ownerText} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <StatusTile who="Arrendatario" tone={model.tenantTone} text={model.tenantText} />
+            <StatusTile who="Tú" tone={model.ownerTone} text={model.ownerText} />
+          </div>
         </div>
       </div>
 
       {/* ── Paga el arrendatario ────────────────────────────────────────── */}
       {presentTenant > 0 && (
-        <section aria-labelledby="sec-tenant" className="space-y-3">
+        <section key={`t-${selectedMonth}`} aria-labelledby="sec-tenant" className="space-y-3 pr-in" style={{ ['--d' as string]: '70ms' }}>
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <h3 id="sec-tenant" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Paga el arrendatario</h3>
             <div className="flex items-center gap-2" aria-label={`${model.paidTenantCount} de ${presentTenant} pagadas`}>
               <div className="flex gap-1">
-                {model.tenantCards.map(t => (
-                  <span key={t.kind} className="h-1.5 w-8 rounded-full"
-                    style={{ background: t.charge ? TONE_DOT[cellTone(t.charge, today)] : 'var(--border)' }} />
+                {model.tenantCards.map((t, i) => (
+                  <span key={t.kind} className="h-1.5 w-8 rounded-full rc-grow"
+                    style={{ background: t.charge ? TONE_DOT[cellTone(t.charge, today)] : 'var(--border)', ['--d' as string]: `${200 + i * 70}ms` }} />
                 ))}
               </div>
               <span className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
@@ -150,11 +152,13 @@ export default function PropertyEstado({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {model.tenantCards.map(({ kind, charge }) => (
-              <TenantCard key={kind} kind={kind} charge={charge} today={today}
-                range={charge?.is_estimate ? estimateRange(charges, charge) : null}
-                onOpen={onOpen} onPay={onPay} onUnpay={onUnpay} busy={busy}
-                onUploadBill={() => onUploadBill(kind === 'electricity' || kind === 'water' || kind === 'gastos_comunes' ? kind : null)} />
+            {model.tenantCards.map(({ kind, charge }, i) => (
+              <div key={kind} className="pr-in flex flex-col [&>*]:flex-1" style={{ ['--d' as string]: `${120 + i * 60}ms` }}>
+                <TenantCard kind={kind} charge={charge} today={today}
+                  range={charge?.is_estimate ? estimateRange(charges, charge) : null}
+                  onOpen={onOpen} onPay={onPay} onUnpay={onUnpay} busy={busy}
+                  onUploadBill={() => onUploadBill(kind === 'electricity' || kind === 'water' || kind === 'gastos_comunes' ? kind : null)} />
+              </div>
             ))}
           </div>
 
@@ -170,8 +174,8 @@ export default function PropertyEstado({
                 </div>
                 {model.tenantOverdueOther.some(c => c.direction === 'in') && model.tenantOverdueOther.length > 1 && (
                   <button onClick={onBulkCollect} disabled={busy}
-                    className="px-3 min-h-[44px] rounded-xl text-xs font-semibold border disabled:opacity-50"
-                    style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                    className="px-3 min-h-[44px] rounded-xl text-xs font-semibold disabled:opacity-50 transition-transform active:scale-[.97]"
+                    style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
                     Marcar todo cobrado
                   </button>
                 )}
@@ -189,7 +193,7 @@ export default function PropertyEstado({
 
       {/* ── Pagas tú ────────────────────────────────────────────────────── */}
       {(showAseo || otherOwner.length > 0) && (
-        <section aria-labelledby="sec-owner" className="space-y-3">
+        <section key={`o-${selectedMonth}`} aria-labelledby="sec-owner" className="space-y-3 pr-in" style={{ ['--d' as string]: '140ms' }}>
           <h3 id="sec-owner" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Pagas tú</h3>
 
           {showAseo && (
@@ -216,16 +220,16 @@ export default function PropertyEstado({
                 {(aseoOverdue.length > 0 || aseoMonthPending.length > 0) && (
                   <div className="flex flex-wrap gap-2 mt-4">
                     <button disabled={busy} onClick={() => onPay((aseoOverdue[0] ?? aseoMonthPending[0]))}
-                      className="px-4 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50"
+                      className="px-4 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50 transition-transform active:scale-[.97]"
                       style={aseoOverdue.length > 0
-                        ? { background: 'var(--coral)', color: 'white' }
+                        ? { background: 'var(--coral-ink)', color: 'white' }
                         : { background: 'var(--primary)', color: 'var(--primary-ink)' }}>
                       Marcar como pagada
                     </button>
                     {aseoOverdue.length > 1 && (
                       <button disabled={busy} onClick={() => onBulkPay(aseoOverdue)}
-                        className="px-4 min-h-[44px] rounded-xl text-sm font-semibold border disabled:opacity-50"
-                        style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                        className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[.97]"
+                        style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
                         Marcar todas pagadas
                       </button>
                     )}
@@ -266,11 +270,11 @@ export default function PropertyEstado({
           que haga falta revisar cada vez que se abre "un chequeo" (P3,
           densidad visual de Estado). */}
       {grid.length > 0 && (
-        <details className="card overflow-hidden group">
+        <details className="card overflow-hidden group pr-details">
           <summary className="flex items-center justify-between gap-3 flex-wrap px-4 lg:px-5 py-3.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2">
               <span className="text-base font-bold" style={{ color: 'var(--ink)' }}>Últimos {monthKeys.length} meses</span>
-              <span className="text-[10px] font-bold transition-transform group-open:rotate-180" style={{ color: 'var(--ink-3)' }}>▾</span>
+              <ChevronDown className="w-4 h-4 transition-transform duration-200 ease-out group-open:rotate-180" style={{ color: 'var(--ink-3)' }} aria-hidden />
             </span>
             <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--ink-3)' }}>
               {([['paid', 'Pagado'], ['soon', 'Por vencer'], ['pending', 'Pendiente'], ['overdue', 'Vencido']] as [Tone, string][]).map(([t, l]) => (
@@ -366,7 +370,7 @@ function Badge({ tone, text }: { tone: Tone | 'neutral'; text: string }) {
   const color = tone === 'neutral' ? 'var(--ink-2)' : TONE_COLOR[tone]
   const base  = tone === 'neutral' ? 'var(--ink-2)' : TONE_DOT[tone]
   return (
-    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap"
+    <span key={text} className="pr-pop inline-block text-[11px] font-bold px-2.5 py-0.5 rounded-full whitespace-nowrap"
       style={{ background: tone === 'neutral' ? 'var(--surface-2)' : tint(base, 16), color }}>
       {text}
     </span>
@@ -449,7 +453,7 @@ function TenantCard({ kind, charge, today, range, busy, onOpen, onPay, onUnpay, 
           </button>
         ) : (
           <button onClick={() => onPay(charge)} disabled={busy}
-            className="w-full min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>
+            className="w-full min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50 transition-transform active:scale-[.98]" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>
             {rent ? 'Marcar como cobrado' : 'Marcar como pagado'}
           </button>
         )}

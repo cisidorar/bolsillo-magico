@@ -647,3 +647,18 @@ div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgSheet .3
 @media (prefers-reduced-motion: reduce) {
   div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgFade .18s ease-out; }
 }
+
+/* Propiedad: el chequeo se abre pocas veces, así que la entrada puede ser más cuidada. Las secciones suben escalonadas
+   (y se renuevan al cambiar de mes), el chip de estado hace un pop breve al cambiar, y el historial se despliega
+   con la altura animada (solo navegadores con ::details-content; el resto abre de golpe). */
+@keyframes prIn  { from { opacity: 0; transform: translateY(8px); } }
+@keyframes prPop { from { opacity: .4; transform: scale(.88); } }
+.pr-in  { animation: prIn .34s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: var(--d, 0ms); }
+.pr-pop { animation: prPop .28s cubic-bezier(0.23, 1, 0.32, 1); }
+.pr-details { interpolate-size: allow-keywords; }
+.pr-details::details-content { block-size: 0; overflow: hidden; transition: block-size .28s cubic-bezier(0.23, 1, 0.32, 1), content-visibility .28s allow-discrete; }
+.pr-details[open]::details-content { block-size: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .pr-in, .pr-pop { animation: none; }
+  .pr-details::details-content { transition: none; }
+}

@@ -122,7 +122,7 @@ export default async function PropiedadPage({
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-6">
         <div className="min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl lg:text-3xl font-extrabold leading-tight truncate"
+            <h1 className="font-display text-2xl lg:text-3xl font-extrabold leading-tight truncate"
                 style={{ color: 'var(--ink)' }}>
               {title}
             </h1>
@@ -133,7 +133,7 @@ export default async function PropiedadPage({
               <span
                 className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
                 style={lease
-                  ? { color: 'var(--mint)', background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }
+                  ? { color: 'var(--mint-ink)', background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }
                   : { color: 'var(--ink-3)', background: 'var(--surface-2)' }}
               >
                 {lease ? 'Arrendada' : 'Sin contrato'}
