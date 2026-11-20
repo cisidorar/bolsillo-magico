@@ -1,7 +1,7 @@
 import { createClient, getServerSession } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plane, ChevronRight } from 'lucide-react'
+import { Plane, ChevronRight, HandCoins } from 'lucide-react'
 import { formatCLP, getNowChile, type DateFormat } from '@/lib/utils'
 import { groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, type TripPhase } from '@/lib/shared-split'
 import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow } from '@/lib/shared-types'
@@ -16,6 +16,7 @@ import ReceivablesCard from '@/components/ReceivablesCard'
 import type { ReceivableWithExpense } from '@/lib/receivables'
 import { SHOW_TRIPS } from '@/lib/features'
 import { getUserAccess } from '@/lib/supabase/server'
+import CompartidosToggle, { type CompartidosTab } from '@/components/CompartidosToggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ function fmtRange(start: string | null, end: string | null): string {
 export default async function CompartidosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ g?: string }>
+  searchParams: Promise<{ g?: string; tab?: string }>
 }) {
   const [user, supabase, params] = await Promise.all([getServerSession(), createClient(), searchParams])
   if (!user) redirect('/login')
@@ -249,24 +250,45 @@ export default async function CompartidosPage({
     )
   }
 
+  // Dos vistas separadas: Viajes y Por cobrar. Sin viajes pero con cobros pendientes,
+  // abre directo en Por cobrar.
+  const tab: CompartidosTab = params.tab === 'cobrar' || (!params.tab && rows.length === 0 && invites.length === 0 && receivables.length > 0)
+    ? 'cobrar' : 'viajes'
+
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold" style={{ color: 'var(--ink)' }}>Compartidos</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-            Viajes y gastos que dividen con otras personas. Crea el viaje, carga gastos e invita cuando quieras.
+            {tab === 'cobrar'
+              ? 'Lo que pagaste con tu tarjeta y tus amigos te van a devolver.'
+              : 'Viajes que dividen con otras personas. Crea el viaje, carga gastos e invita cuando quieras.'}
           </p>
         </div>
-        <NewTripButton />
+        {tab === 'viajes' && <NewTripButton />}
       </div>
 
-      {receivables.length > 0 && (
-        <div className="lg:max-w-xl">
-          <ReceivablesCard rows={receivables} paymentMethods={(myPms ?? []) as PaymentMethod[]} today={today} flat={false} />
-        </div>
-      )}
+      <CompartidosToggle active={tab} viajes={active.length + invites.length} cobrar={receivables.length} />
 
+      {tab === 'cobrar' ? (
+        receivables.length > 0 ? (
+          <div className="lg:max-w-xl">
+            <ReceivablesCard rows={receivables} paymentMethods={(myPms ?? []) as PaymentMethod[]} today={today} flat={false} />
+          </div>
+        ) : (
+          <div className="card p-8 text-center">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--primary-soft)' }}>
+              <HandCoins className="w-6 h-6" style={{ color: 'var(--primary)' }} />
+            </div>
+            <p className="text-base font-bold" style={{ color: 'var(--ink)' }}>Nadie te debe nada</p>
+            <p className="text-sm mt-1 max-w-sm mx-auto" style={{ color: 'var(--ink-3)' }}>
+              Si pagas algo con tu tarjeta por otras personas, ábrelo en Historial y toca «Cobrar a alguien».
+            </p>
+          </div>
+        )
+      ) : (
+        <>
       {invites.map(g => (
         <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name}
           inviter={inviterById[g.id]} mode={g.split_mode} />
@@ -298,6 +320,8 @@ export default async function CompartidosPage({
               </div>
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </div>
