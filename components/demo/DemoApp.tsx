@@ -6,6 +6,7 @@ import { ArrowLeft, Home, BookOpen, BarChart2, Wallet, RefreshCw, HandCoins, Set
 import { formatCLP } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import WaitlistForm from '@/components/landing/WaitlistForm'
+import { Wordmark } from '@/components/site/SiteChrome'
 import { seedExpenses, seedDebts, monthCtx, longDate, type DDebt, type DExpense } from './data'
 import { sum, monthPrefix } from './calc'
 import { statementNote } from './parts'
@@ -97,13 +98,9 @@ function Demo({ onReset }: { onReset: () => void }) {
 
   return (
     <div className="min-h-svh" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
-      <aside className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 py-6 px-3" style={{ background: 'var(--surface)', boxShadow: '2px 0 16px var(--shadow)' }}>
-        <Link href="/?landing=1" className="flex items-center gap-2.5 mb-8 px-2 hover:opacity-80 transition-opacity" aria-label="Bolsillo Mágico, página principal">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/bolsillo-magico-icono.svg" alt="" width={36} height={36} className="flex-shrink-0 rounded-xl" />
-          <span className="font-display text-[15px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
-            Bolsillo <span style={{ color: 'var(--primary)' }}>Mágico</span>
-          </span>
+      <aside className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 pt-[18px] pb-6 px-3" style={{ background: 'var(--surface)', boxShadow: '2px 0 16px var(--shadow)' }}>
+        <Link href="/?landing=1" className="flex items-center mb-8 px-2 hover:opacity-80 transition-opacity" aria-label="Bolsillo Mágico, página principal">
+          <Wordmark />
         </Link>
         <p className="text-[11px] font-semibold px-2 mb-2" style={{ color: 'var(--ink-3)' }}>Menú</p>
         <nav className="flex flex-col gap-0.5 flex-1" aria-label="Secciones">

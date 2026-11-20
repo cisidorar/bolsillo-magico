@@ -8,12 +8,16 @@ import Link from 'next/link'
 // Fuera de la landing los enlaces llevan ?landing=1: con sesión iniciada, "/"
 // redirige al dashboard y ese atajo deja ver la landing.
 
+// La marca vive en el mismo punto en todas las vistas: icono de 36 px a 20 px
+// del borde izquierdo y centrado a 36 px de la parte de arriba. El menú lateral
+// de la app y de la demo (aside, px-3 + enlace px-2, pt-[18px]) y este
+// encabezado (px-5, alto 72 px) coinciden en esas coordenadas.
 export function Wordmark() {
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center gap-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
-      <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
+      <img src="/bolsillo-magico-icono.svg" alt="" width={36} height={36} className="rounded-xl flex-shrink-0" />
+      <span className="text-lg leading-none" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>
         <span style={{ fontWeight: 500 }}>Bolsillo </span><span style={{ fontWeight: 600, color: 'var(--primary-text)' }}>Mágico</span>
       </span>
     </span>
@@ -27,7 +31,7 @@ export function SiteHeader({ home = false, current }: { home?: boolean; current?
   const tone = (on: boolean) => ({ color: on ? 'var(--primary-text)' : 'var(--ink-2)' })
   return (
     <header className="sticky top-0 z-40" style={{ background: 'color-mix(in srgb, var(--bg) 88%, transparent)', backdropFilter: 'blur(14px)' }}>
-      <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4" aria-label="Principal">
+      <nav className="px-5 h-[72px] flex items-center justify-between gap-4" aria-label="Principal">
         <Link href="/?landing=1" aria-label="Bolsillo Mágico, página principal" className="min-h-[44px] inline-flex items-center"><Wordmark /></Link>
         <div className="flex items-center gap-1 sm:gap-2">
           <a href={`${base}#pilares`} className={textLink} style={tone(false)}>Qué hace</a>
@@ -46,7 +50,7 @@ export function SiteHeader({ home = false, current }: { home?: boolean; current?
 export function SiteFooter({ year, extraBottomPad = false }: { year: number; extraBottomPad?: boolean }) {
   const link = 'min-h-[44px] inline-flex items-center font-semibold'
   return (
-    <footer className={`mx-auto w-full max-w-6xl px-4 sm:px-6 py-10 ${extraBottomPad ? 'pb-28 sm:pb-10' : ''} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4`}>
+    <footer className={`w-full px-5 py-10 ${extraBottomPad ? 'pb-28 sm:pb-10' : ''} flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4`}>
       <Wordmark />
       <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-sm">
         <Link href="/demo" className={link} style={{ color: 'var(--ink-2)' }}>Demo</Link>

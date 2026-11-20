@@ -7,6 +7,7 @@ import { SHOW_TRIPS, hasFeature, type Features, type FeatureKey } from '@/lib/fe
 import { useState } from 'react'
 import ExpenseSheet from './ExpenseSheet'
 import UserMenu from './UserMenu'
+import { Wordmark } from '@/components/site/SiteChrome'
 
 const navItems: { href: string; icon: typeof Home; label: string; feature?: FeatureKey | FeatureKey[] }[] = [
   { href: '/inicio',      icon: Home,      label: 'Inicio'      },
@@ -38,7 +39,7 @@ export default function SideNav({ userName, userEmail, avatarUrl, features, isAd
   return (
     <>
       <aside
-        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 py-6 px-3"
+        className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 pt-[18px] pb-6 px-3"
         style={{
           background:   'var(--surface)',
           boxShadow:    '2px 0 16px var(--shadow)',
@@ -47,20 +48,10 @@ export default function SideNav({ userName, userEmail, avatarUrl, features, isAd
         {/* ── Logo ───────────────────────────────────────────── */}
         <Link
           href="/inicio"
-          className="flex items-center gap-2.5 mb-8 px-2 cursor-pointer hover:opacity-80 transition-opacity"
+          aria-label="Bolsillo Mágico, inicio"
+          className="flex items-center mb-8 px-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
-          {/* Ícono — mismo en light y dark */}
-          <img
-            src="/bolsillo-magico-icono.svg"
-            alt="Bolsillo Mágico"
-            width={36} height={36}
-            className="flex-shrink-0 rounded-xl"
-          />
-          {/* Wordmark */}
-          <span className="font-display text-[15px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
-            <span style={{ color: 'var(--ink)' }}>Bolsillo </span>
-            <span style={{ color: 'var(--primary)' }}>Mágico</span>
-          </span>
+          <Wordmark />
         </Link>
 
         {/* ── Label menú ──────────────────────────────────────── */}

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Mail, Lock, Loader2 } from 'lucide-react'
+import { Mail, Lock, Loader2, ShieldCheck } from 'lucide-react'
 import AuthShell from '@/components/auth/AuthShell'
 import AuthField from '@/components/auth/AuthField'
 
@@ -151,6 +151,20 @@ function LoginForm() {
       subtitle="Qué bueno verte de nuevo."
       logoLink={!installed}
       chrome={!installed}
+      aside={(
+        <>
+          <p className="font-semibold leading-[1.05] text-balance" style={{ fontFamily: 'var(--font-fredoka), sans-serif', fontSize: 'clamp(2.3rem, 4.4vw, 3.5rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+            Lo que viene en tu tarjeta, antes de que llegue.
+          </p>
+          <p className="mt-5 text-lg leading-relaxed max-w-[44ch]" style={{ color: 'var(--ink-2)' }}>
+            Entra para ver cuánto viene en tu próximo estado de cuenta y cuánto te queda del sueldo.
+          </p>
+          <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
+            <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
+            Sin conectar tu banco ni pedir tu clave.
+          </p>
+        </>
+      )}
       footer={installed ? undefined : (
         <>
           <p>¿No tienes cuenta? Se entra por invitación.</p>

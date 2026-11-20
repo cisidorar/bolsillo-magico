@@ -5,7 +5,7 @@ import { SiteHeader, SiteFooter } from '@/components/site/SiteChrome'
 // Cáscara común de las pantallas de acceso (login, crear/cambiar contraseña).
 // Antes cada una tenía su propio fondo, tarjeta y CSS; ahora son una sola cara.
 // Server Component: sin estado, solo estructura y estilos de los campos.
-export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back, chrome = false }: {
+export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back, chrome = false, aside }: {
   title: string
   subtitle?: string
   children: React.ReactNode
@@ -16,6 +16,8 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
   back?: { href: string; label: string }
   /** Encabezado y pie del sitio (mismos que la landing), para que el login no se sienta como otra ventana. Reemplaza al logo y al «volver». */
   chrome?: boolean
+  /** Solo con chrome y en pantallas anchas: lo que va a la izquierda de la tarjeta, como el texto del hero de la landing. */
+  aside?: React.ReactNode
 }) {
   const styles = (
       <style>{`
@@ -55,8 +57,9 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
       <div className="min-h-svh flex flex-col" style={{ background: 'var(--bg)' }}>
         {styles}
         <SiteHeader current="login" />
-        <main className="flex-1 flex flex-col items-center justify-center px-5 py-10">
-          {body}
+        <main className="flex-1 w-full mx-auto max-w-6xl px-4 sm:px-6 py-10 lg:py-16 grid lg:grid-cols-[1fr_24rem] lg:gap-x-16 items-center justify-items-center lg:justify-items-stretch">
+          {aside && <div className="hidden lg:block min-w-0">{aside}</div>}
+          <div className={`w-full max-w-sm flex flex-col items-center ${aside ? '' : 'lg:col-span-2 lg:mx-auto'}`}>{body}</div>
         </main>
         <SiteFooter year={new Date().getFullYear()} />
       </div>

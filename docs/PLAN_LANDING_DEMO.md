@@ -203,8 +203,17 @@ Problema: la demo era un mini-simulador de 4 pestañas que no se parecía a la a
 
 ## Continuidad entre landing, demo, seguridad e inicio de sesión (20 nov 2026, sin publicar)
 
-- `components/site/SiteChrome.tsx`: encabezado y pie únicos (logo, Qué hace · Seguridad · Iniciar sesión · Pedir acceso · Probar la demo). Lo usan la landing, `/seguridad` y el login; el logo cae en el mismo punto en las tres (medido: x=348 px).
+- `components/site/SiteChrome.tsx`: encabezado y pie únicos (logo, Qué hace · Seguridad · Iniciar sesión · Pedir acceso · Probar la demo). Lo usan la landing, `/seguridad` y el login; el logo cae en el mismo punto en las tres.
 - El login (`AuthShell` con `chrome`) deja de ser una tarjeta suelta: lleva el encabezado y el pie del sitio. En la app instalada (PWA) y en `/update-password` (flujo de invitación) se mantiene la versión mínima.
 - `/seguridad` alinea su contenido al mismo borde que el logo.
 - Entrar desde el login a la app (carga completa) hace un fundido corto con `@view-transition` (solo con movimiento permitido).
 - La demo suma «Iniciar sesión» en su barra superior. Todos los enlaces a la landing usan `/?landing=1` porque con sesión `/` redirige al dashboard.
+
+### Una sola ancla de marca (20 nov 2026)
+
+Lo publicado tenía el logo en x=348 (landing), x=540 (seguridad) y x=20 (demo y app). Ahora **todas las vistas** lo tienen a 20 px del borde, centrado a 36 px de la parte de arriba, con icono de 36 px (medido en landing, seguridad, login y demo; la app usa el mismo componente y el mismo relleno en su menú lateral):
+
+- `Wordmark` es único (`components/site/SiteChrome.tsx`) y lo usan el encabezado, el pie, el menú lateral de la app (`SideNav`) y el de la demo.
+- El encabezado público es de ancho completo, 72 px de alto, como el menú lateral; el menú lateral de la app sube su relleno superior a 18 px para coincidir.
+- El login tiene la misma composición que el inicio: texto a la izquierda («Lo que viene en tu tarjeta, antes de que llegue») y tarjeta a la derecha; en teléfono queda solo la tarjeta.
+- Para ver todo esto en bolsillomagico.com hay que publicar: lo que está en línea es la versión anterior.
