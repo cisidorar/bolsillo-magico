@@ -8,6 +8,7 @@ import {
   Wallet, BarChart3, ArrowRight, Zap, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
+import FlipNumber from '@/components/FlipNumber'
 import EmptyStateCTA from '@/components/EmptyStateCTA'
 import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
@@ -646,7 +647,7 @@ export default async function DashboardPage() {
     const maxCatTotal = catSummary[0]?.total ?? 1
     return (
       <>
-        {catSummary.map(c => {
+        {catSummary.map((c, i) => {
           const limit        = catBudgetMap.get(c.id) ?? null
           const catPct       = limit ? Math.min(100, Math.round((c.total / limit) * 100)) : Math.round((c.total / maxCatTotal) * 100)
           const over         = limit ? c.total > limit : false
@@ -683,7 +684,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${catPct}%`, backgroundColor: barColor }} />
+                    <div className="h-full rounded-full rc-grow" style={{ width: `${catPct}%`, backgroundColor: barColor, ['--d' as string]: `${Math.min(i, 8) * 45}ms` }} />
                   </div>
                   {!mobile && <p className="text-[11px] font-semibold flex-shrink-0 w-32 text-right" style={{ color: statusColor }}>{status}</p>}
                 </div>
@@ -792,7 +793,7 @@ export default async function DashboardPage() {
                 <div className="flex items-start justify-between gap-6">
                   <div>
                     <p className="text-sm text-white font-medium mb-2">{gastadoLabel}</p>
-                    <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight">{formatCLP(total)}</p>
+                    <p className="text-6xl font-extrabold text-white tabular-nums leading-none tracking-tight"><FlipNumber value={total}>{formatCLP(total)}</FlipNumber></p>
                     <p className="text-sm text-white mt-2">
                       {budgetAmount ? `de ${formatCLP(budgetAmount)} presupuestado` : `${typedExpenses.length} gasto${typedExpenses.length !== 1 ? 's' : ''} registrado${typedExpenses.length !== 1 ? 's' : ''}`}
                     </p>
@@ -810,9 +811,11 @@ export default async function DashboardPage() {
                     </p>
                     <p className="text-3xl font-bold leading-none"
                       style={{ color: '#fff' }}>
-                      {budgetAmount
-                        ? (isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total))
-                        : formatCLP(dailyAvg)}
+                      <FlipNumber value={total}>
+                        {budgetAmount
+                          ? (isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total))
+                          : formatCLP(dailyAvg)}
+                      </FlipNumber>
                     </p>
                   </div>
                 </div>
@@ -828,17 +831,17 @@ export default async function DashboardPage() {
                         bar={(
                       <div className="h-3 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct} style={{ background: 'rgba(255,255,255,0.18)' }}>
                         <div
-                          className="h-full transition-all"
+                          className="h-full rc-grow"
                           style={{
                             width: `${usedPct}%`,
                             backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold-on-brand)',
                           }}
                         />
                         {!isOver && pendingPct > 0 && (
-                          <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)' }} />
+                          <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '120ms' }} />
                         )}
                         {!isOver && upcomingPct > 0 && (
-                          <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+                          <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '220ms' }} />
                         )}
                       </div>
                         )}
@@ -1134,7 +1137,7 @@ export default async function DashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-white font-medium mb-1">{gastadoLabel}</p>
                     <p className="text-4xl font-extrabold text-white tabular-nums leading-none tracking-tight">
-                      {formatCLP(total)}
+                      <FlipNumber value={total}>{formatCLP(total)}</FlipNumber>
                     </p>
                     {budgetAmount && (
                       <p className="text-xs text-white mt-1.5">de {formatCLP(budgetAmount)} presupuestado</p>
@@ -1152,7 +1155,7 @@ export default async function DashboardPage() {
                       </p>
                       <p className="text-2xl font-extrabold leading-none tabular-nums"
                         style={{ color: '#fff' }}>
-                        {isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}
+                        <FlipNumber value={total}>{isOver ? `+${formatCLP(total - budgetAmount)}` : formatCLP(budgetAmount - total)}</FlipNumber>
                       </p>
                     </div>
                   )}
@@ -1167,15 +1170,15 @@ export default async function DashboardPage() {
                       monthLabel={monthLabelForBar}
                       bar={(
                     <div className="h-2 bg-white/15 rounded-full overflow-hidden flex" role="progressbar" aria-label="Presupuesto usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={usedPct}>
-                      <div className="h-full transition-all" style={{
+                      <div className="h-full rc-grow" style={{
                         width: `${usedPct}%`,
                         backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold-on-brand)',
                       }} />
                       {!isOver && pendingPct > 0 && (
-                        <div className="h-full transition-all" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)' }} />
+                        <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '120ms' }} />
                       )}
                       {!isOver && upcomingPct > 0 && (
-                        <div className="h-full transition-all" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)' }} />
+                        <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '220ms' }} />
                       )}
                     </div>
                       )}

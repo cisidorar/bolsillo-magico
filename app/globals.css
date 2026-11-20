@@ -632,3 +632,18 @@
   .rc-grow { animation: none; }
   .rc-collapse { transition: none; }
 }
+
+/* Hojas y diálogos (Nuevo gasto, detalle, ajustes de viaje…): el fondo se funde y la hoja sube desde abajo
+   (curva tipo cajón de iOS); en escritorio, donde es un diálogo centrado, escala suave desde el centro.
+   Con movimiento reducido solo se funde. */
+@keyframes dlgFade  { from { opacity: 0; } }
+@keyframes dlgSheet { from { transform: translateY(32px); opacity: 0; } }
+@keyframes dlgModal { from { transform: scale(.96); opacity: 0; } }
+div[role="dialog"][aria-modal="true"] { animation: dlgFade .18s ease-out; }
+div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgSheet .32s cubic-bezier(0.32, 0.72, 0, 1); }
+@media (min-width: 1024px) {
+  div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgModal .22s cubic-bezier(0.23, 1, 0.32, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgFade .18s ease-out; }
+}

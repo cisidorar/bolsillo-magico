@@ -115,6 +115,7 @@ export default function OverduePaySheet({ atrasado: r, userId, dateStr, firstIte
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center"
           style={{ background: 'rgba(0,0,0,0.65)' }}
+          role="dialog" aria-modal="true" aria-label="Registrar pago"
           {...backdropClose}
         >
           <div
