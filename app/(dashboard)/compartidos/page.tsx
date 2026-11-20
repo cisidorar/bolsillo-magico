@@ -116,6 +116,11 @@ export default async function CompartidosPage({
       }
     }))
 
+    const { data: linkRow } = selected.created_by === user.id
+      ? await supabase.from('shared_group_share_links').select('expires_at')
+          .eq('group_id', selected.id).is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
+      : { data: null }
+
     const weights: Record<string, number> = {}
     for (const w of (wRaw ?? []) as { user_id: string; w: number | string }[]) weights[w.user_id] = Number(w.w)
 
@@ -134,6 +139,7 @@ export default async function CompartidosPage({
         capacity={capacity}
         goal={(goalRow ?? null) as TripGoal | null}
         planItems={(planRaw ?? []) as SharedPlanItemRow[]}
+        shareLinkExpires={(linkRow?.expires_at as string | undefined) ?? null}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}
       />
@@ -232,7 +238,7 @@ export default async function CompartidosPage({
           </p>
           {people > 1 && bal.total > 0 && (
             <p className="text-xs mt-1 font-semibold tabular-nums"
-              style={{ color: net > 0 ? 'var(--mint)' : net < 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
+              style={{ color: net > 0 ? 'var(--mint-ink)' : net < 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
               {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
               <span style={{ color: 'var(--ink-3)' }} className="font-normal"> · {formatCLP(bal.total)} en total</span>
             </p>

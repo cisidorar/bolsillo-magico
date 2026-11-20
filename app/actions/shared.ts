@@ -155,6 +155,17 @@ export async function releaseExpenseFromTrip(sharedExpenseId: string) {
   return rpc('shared_expense_release', { p_shared_expense: sharedExpenseId })
 }
 
+/** Crea un enlace de solo lectura (revoca el anterior). El token se devuelve una sola vez. */
+export async function createShareLink(groupId: string): Promise<Result<{ token: string }>> {
+  const r = await rpc<string>('shared_link_create', { p_group: groupId })
+  if (!r.ok) return r
+  return { ok: true, token: r.data as string }
+}
+
+export async function revokeShareLink(groupId: string) {
+  return rpc('shared_link_revoke', { p_group: groupId })
+}
+
 export async function removeSharedMember(groupId: string, userId: string) {
   return rpc('shared_member_remove', { p_group: groupId, p_user: userId })
 }

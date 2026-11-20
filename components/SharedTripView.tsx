@@ -12,7 +12,7 @@ import {
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement, setSharedGroupClosed,
-  inviteToSharedGroup, addSharedGuest, updateSharedGuest, removeSharedMember, setSharedMode, giveSharedConsent,
+  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, removeSharedMember, setSharedMode, giveSharedConsent,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
@@ -41,7 +41,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, capacity, goal, planItems, today, dateFormat,
+  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -58,6 +58,8 @@ export default function SharedTripView({
   capacity:       number | null
   goal:           TripGoal | null
   planItems:      SharedPlanItemRow[]
+  /** Vence el enlace de solo lectura activo (solo lo ve quien creó el viaje) */
+  shareLinkExpires?: string | null
   today:          string
   dateFormat:     DateFormat
 }) {
@@ -68,6 +70,7 @@ export default function SharedTripView({
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invitee, setInvitee] = useState<FoundUser | null>(null)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [guestForm, setGuestForm] = useState<{ id: string | null; name: string; income: number | null } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -112,9 +115,9 @@ export default function SharedTripView({
 
   const owed = mine > 0, owes = mine < 0
   const balStyle = owed
-    ? { bg: 'rgba(31,190,141,0.12)', border: 'rgba(31,190,141,0.35)', color: 'var(--mint)' }
+    ? { bg: 'rgba(31,190,141,0.12)', border: 'rgba(31,190,141,0.35)', color: 'var(--mint-ink)' }
     : owes
-      ? { bg: 'rgba(255,194,60,0.14)', border: 'rgba(255,194,60,0.45)', color: 'var(--gold)' }
+      ? { bg: 'rgba(255,194,60,0.14)', border: 'rgba(255,194,60,0.45)', color: 'var(--gold-ink)' }
       : { bg: 'var(--surface-2)', border: 'var(--border)', color: 'var(--ink-2)' }
 
   const alone = accepted.length <= 1
@@ -297,7 +300,7 @@ export default function SharedTripView({
 
   const doneCard = phase === 'done' ? (
     <div className="card p-4 flex items-center gap-3">
-      <CircleCheck className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+      <CircleCheck className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--mint-ink)' }} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{alone ? 'Viaje terminado' : 'Viaje terminado y cuentas cuadradas'}</p>
         <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Ciérralo para archivarlo; puedes reabrirlo si falta algo.</p>
@@ -380,7 +383,7 @@ export default function SharedTripView({
         )
       ) : (
         <div className="space-y-4">
-          {itemsList && <p className="text-[11px] font-bold -mb-2" style={{ color: 'var(--mint)' }}>Pagado</p>}
+          {itemsList && <p className="text-[11px] font-bold -mb-2" style={{ color: 'var(--mint-ink)' }}>Pagado</p>}
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
               <div className="flex items-center gap-2 mb-2">
@@ -443,7 +446,7 @@ export default function SharedTripView({
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
             {group.start_date ? fmtRange(group.start_date, group.end_date) : 'Fechas por definir'}
             {headerHint && (
-              <span className="font-semibold" style={{ color: phase === 'settling' ? 'var(--gold)' : 'var(--ink-2)' }}> · {headerHint}</span>
+              <span className="font-semibold" style={{ color: phase === 'settling' ? 'var(--gold-ink)' : 'var(--ink-2)' }}> · {headerHint}</span>
             )}
           </p>
         </div>
@@ -454,7 +457,7 @@ export default function SharedTripView({
         </button>
       </div>
 
-      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral)' }}>{error}</p>}
+      {error && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
 
       <div className="lg:grid lg:gap-6 lg:items-start space-y-5 lg:space-y-0" style={{ gridTemplateColumns: 'minmax(0, 1fr) 340px' }}>
         {/* Columna principal — su contenido y orden cambian con la fase del viaje */}
@@ -514,7 +517,7 @@ export default function SharedTripView({
                   {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
                     confirmRemove === m.user_id ? (
                       <button disabled={busy} onClick={async () => { await run(() => removeSharedMember(group.id, m.user_id), m.user_id === meId ? 'Saliste del viaje' : 'Listo'); setConfirmRemove(null) }}
-                        className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral)' }}>Confirmar</button>
+                        className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral-ink)' }}>Confirmar</button>
                     ) : (
                       <button onClick={() => setConfirmRemove(m.user_id)} aria-label={m.user_id === meId ? 'Salir del viaje' : m.status === 'pending' ? 'Cancelar invitación' : 'Sacar del viaje'}
                         className="text-xs font-semibold flex items-center gap-1 min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>
@@ -554,6 +557,47 @@ export default function SharedTripView({
                 }} />
             )}
 
+            {isCreator && members.some(m => m.is_guest) && (
+              <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+                <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Enlace para quien no tiene cuenta</p>
+                <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                  Solo lectura: ve los gastos, el % de cada uno y quién le debe a quién. No ve sueldos.
+                </p>
+                {shareUrl ? (
+                  <div className="space-y-2">
+                    <input readOnly value={shareUrl} onFocus={e => e.currentTarget.select()}
+                      className="w-full px-3 py-2.5 text-xs rounded-lg border" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }} />
+                    <button onClick={async () => { try { await navigator.clipboard.writeText(shareUrl); showToast('Enlace copiado') } catch { /* el campo queda seleccionable */ } }}
+                      className="w-full py-2.5 text-xs font-bold rounded-lg" style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>Copiar enlace</button>
+                    <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Cópialo ahora: por seguridad no se vuelve a mostrar (puedes generar otro).</p>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button disabled={busy} onClick={async () => {
+                      setBusy(true); setError('')
+                      const r = await createShareLink(group.id)
+                      setBusy(false)
+                      if (!r.ok) { setError(r.error); return }
+                      setShareUrl(`${window.location.origin}/v/${r.token}`)
+                      router.refresh()
+                    }} className="flex-1 py-2.5 text-xs font-bold rounded-lg disabled:opacity-50"
+                      style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                      {shareLinkExpires ? 'Generar uno nuevo' : 'Crear enlace'}
+                    </button>
+                  </div>
+                )}
+                {(shareLinkExpires || shareUrl) && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                      {shareLinkExpires ? `Activo hasta el ${new Date(shareLinkExpires).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` : 'Activo'}
+                    </p>
+                    <button disabled={busy} onClick={async () => { await run(() => revokeShareLink(group.id), 'Enlace desactivado'); setShareUrl(null) }}
+                      className="text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--coral)' }}>Desactivar</button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {alone && pending.length === 0 && !inviteOpen && (
               <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
                 Solo tú por ahora. Si invitas a alguien, lo ya cargado se reparte entre todos.
@@ -584,7 +628,7 @@ export default function SharedTripView({
                 {income && !alone && (
                   <div className="text-xs space-y-1.5" style={{ color: 'var(--ink-2)' }}>
                     {group.split_error ? (
-                      <p style={{ color: 'var(--gold)' }}>
+                      <p style={{ color: 'var(--gold-ink)' }}>
                         Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto se usa lo último calculado.
                       </p>
                     ) : wSum > 0 && (
@@ -613,7 +657,7 @@ export default function SharedTripView({
               <div>
                 {settlements.map(s => (
                   <div key={s.id} className="flex items-center gap-3 py-2">
-                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint)' }} />
+                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--mint-ink)' }} />
                     <p className="flex-1 text-sm" style={{ color: 'var(--ink-2)' }}>
                       {nameOf(s.from_user)} → {nameOf(s.to_user)}{' '}
                       <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(s.amount)}</span>
