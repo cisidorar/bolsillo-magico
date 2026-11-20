@@ -98,7 +98,7 @@ function Demo({ onReset }: { onReset: () => void }) {
   return (
     <div className="min-h-svh" style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
       <aside className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-60 z-40 py-6 px-3" style={{ background: 'var(--surface)', boxShadow: '2px 0 16px var(--shadow)' }}>
-        <Link href="/" className="flex items-center gap-2.5 mb-8 px-2 hover:opacity-80 transition-opacity" aria-label="Bolsillo Mágico, inicio">
+        <Link href="/?landing=1" className="flex items-center gap-2.5 mb-8 px-2 hover:opacity-80 transition-opacity" aria-label="Bolsillo Mágico, página principal">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/bolsillo-magico-icono.svg" alt="" width={36} height={36} className="flex-shrink-0 rounded-xl" />
           <span className="font-display text-[15px] font-semibold leading-tight" style={{ color: 'var(--ink)' }}>
@@ -134,8 +134,9 @@ function Demo({ onReset }: { onReset: () => void }) {
       <div className="lg:pl-60">
         <div className="sticky top-0 z-30" style={{ background: 'color-mix(in srgb, var(--bg) 90%, transparent)', backdropFilter: 'blur(14px)' }}>
           <div className="px-4 lg:px-8 h-14 flex items-center justify-between gap-3">
-            <Link href="/" aria-label="Volver a la página principal" className="inline-flex items-center justify-center w-11 min-h-[44px] -ml-3 lg:hidden" style={{ color: 'var(--ink-2)' }}>
-              <ArrowLeft className="w-5 h-5" aria-hidden />
+            {/* ?landing=1: con sesión iniciada, "/" redirige al dashboard; este atajo deja ver la landing. */}
+            <Link href="/?landing=1" aria-label="Volver a la página principal" className="inline-flex items-center justify-center gap-1.5 min-h-[44px] -ml-3 px-3 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
+              <ArrowLeft className="w-5 h-5" aria-hidden /> <span className="hidden sm:inline">Página principal</span>
             </Link>
             <p className="text-xs font-semibold lg:text-sm" style={{ color: 'var(--ink-3)' }}>
               <span className="hidden sm:inline">Demo con datos de ejemplo. Nada se guarda.</span><span className="sm:hidden">Datos de ejemplo</span>

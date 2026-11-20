@@ -52,7 +52,7 @@ export default function SeguridadPage() {
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--ink)' }}>
       <header className="mx-auto max-w-3xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        <Link href="/" className="min-h-[44px] inline-flex items-center gap-2" aria-label="Bolsillo Mágico, inicio">
+        <Link href="/?landing=1" className="min-h-[44px] inline-flex items-center gap-2" aria-label="Bolsillo Mágico, inicio">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/bolsillo-magico-icono.svg" alt="" width={32} height={32} className="rounded-xl" />
           <span className="text-lg" style={{ fontFamily: 'var(--font-fredoka), sans-serif' }}>
@@ -97,7 +97,7 @@ export default function SeguridadPage() {
           <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold">
             Probar la demo <ArrowRight className="w-4 h-4" aria-hidden />
           </Link>
-          <Link href="/#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold"
+          <Link href="/?landing=1#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold"
             style={{ color: 'var(--primary-text)' }}>
             Pedir acceso
           </Link>
