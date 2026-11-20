@@ -186,3 +186,17 @@ La bajada explica el mecanismo («ves cuándo pagas cada compra, cuotas incluida
 - «Sin auditoría externa ni certificaciones» supone que no existe ninguna.
 - No hay borrado de cuenta hecho por la persona: por eso la página no lo menciona. Conviene construirlo antes de abrir el registro.
 - La IA externa (proveedor compatible con OpenAI, por defecto `gpt-4.1-mini`) sí recibe la descripción del gasto y los nombres de categorías; la página lo dice.
+
+---
+
+# Demo rehecha como réplica de la app real (20 nov 2026, sin publicar)
+
+Problema: la demo era un mini-simulador de 4 pestañas que no se parecía a la app. Ahora `/demo` **es la app con datos inventados** (`components/demo/*`):
+
+- **Mismo armazón**: menú lateral (escritorio) y barra inferior con botón «+» (teléfono), saludo, hero azul con presupuesto, «Te quedan», proyección y «Vs. mes anterior».
+- **Cuatro pantallas**: Inicio (últimos gastos con logos, por categoría con límites, Ciclo de sueldo, Te deben, Próximos pagos), Historial (Compra/Facturación, búsqueda, filtros, agrupado por fecha), Recurrentes (carga mensual, qué mirar, ya comprometido, próximos 30 días) y Por cobrar (lista + detalle + recordatorio).
+- **Componentes reales reutilizados**: `CicloSueldo`, `ExpenseRowIcon`, `ServiceLogo`, `InfoTap`, `PaymentIcon` y las clases `.card-flat`, `.hero-gradient`, etc.: si el diseño cambia, la demo cambia sola. Los que escriben en Supabase (`ExpenseList`, `ReceivablesCard`, `ExpenseSheet`) tienen réplicas en memoria.
+- **«Nuevo gasto» funcional**: sugiere categoría al escribir («Uber» → Transporte), muestra «entra al estado que cierra el 20 y lo pagas el 5», y con «Pagué por otros» crea cobros en Por cobrar. Todo se actualiza en vivo. «Reiniciar» vuelve al inicio.
+- **Datos**: 100% ficticios (Sofía, Ana, Beto, Caro, Dani; Visa que cierra el 20 y vence el 5), con fechas relativas a hoy.
+- `/api/logo` sirve sin sesión solo una lista fija de dominios (`DEMO_DOMAINS`) para que los logos de la demo carguen; con sesión sigue igual.
+- No verificado: teléfono a 375px (el navegador no baja de ~546px y el marco está bloqueado por seguridad).

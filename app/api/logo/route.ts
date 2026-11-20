@@ -6,14 +6,23 @@ import { imageSize } from '@/lib/image-size'
 const BLOCKED_PATTERNS = /^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/i
 
 // Proxy server-side para logos — evita restricciones CORS/localhost del browser
-export async function GET(request: Request) {
-  // Requiere sesión activa — evita que sea usado como proxy anónimo
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return new NextResponse(null, { status: 401 })
+// Marcas que muestra la demo pública (/demo). Sin sesión solo se sirven estas:
+// el proxy sigue sin servir de relevo anónimo para cualquier dominio.
+const DEMO_DOMAINS = new Set([
+  'lider.cl', 'jumbo.cl', 'tottus.cl', 'netflix.com', 'spotify.com', 'uber.com',
+  'copec.cl', 'starbucks.cl', 'zara.com', 'apple.com', 'aliexpress.com',
+  'farmaciasahumada.cl', 'cruzverde.cl', 'metro.cl', 'movistar.cl', 'visa.com',
+])
 
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const domain = searchParams.get('domain')
+
+  // Con sesión, cualquier dominio válido; sin sesión, solo los de la demo.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user && !(domain && DEMO_DOMAINS.has(domain.toLowerCase()))) return new NextResponse(null, { status: 401 })
+
   if (!domain || !/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain)) {
     return new NextResponse(null, { status: 400 })
   }
