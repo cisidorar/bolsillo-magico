@@ -16,6 +16,7 @@ import { useBackdropClose } from '@/components/useBackdropClose'
 import { useToast } from '@/components/ToastProvider'
 import { X, Trash2, ChevronRight, RefreshCw, HandCoins } from 'lucide-react'
 import SplitSheet, { type SplitTarget } from './SplitSheet'
+import TripLinkAction from './TripLinkAction'
 import ExpenseRowIcon from './ExpenseRowIcon'
 
 interface Props {
@@ -343,6 +344,12 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                     </span>
                     <ChevronRight className="w-4 h-4 flex-shrink-0 text-gray-300" />
                   </button>
+                )}
+
+                {/* Viajes: pasar este gasto a un viaje abierto (o sacarlo) */}
+                {!(e.recurring_expense_id) && (e.shared_expense_id || (e.card_extra ?? 0) === 0) && (
+                  <TripLinkAction expenseId={e.id} description={e.description}
+                    sharedExpenseId={e.shared_expense_id ?? null} onDone={closeDetail} />
                 )}
 
                 {/* Confirmación de eliminar — copia exacta del bloque de
