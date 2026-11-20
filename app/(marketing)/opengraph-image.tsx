@@ -1,13 +1,13 @@
 import { ImageResponse } from 'next/og'
 
 export const runtime = 'edge'
-export const alt = 'Bolsillo Mágico — Cada compra con tarjeta, con su fecha de pago'
+export const alt = 'Bolsillo Mágico — Que el estado de cuenta no te pille por sorpresa'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
 // Misma promesa que el título de Google y el H1 de la landing. A la derecha, el
-// producto en una tarjeta: la misma compra, un día antes y un día después del
-// cierre, con la diferencia de días que eso cambia. Sin fechas del calendario,
+// producto en una tarjeta: la misma compra antes y después del cierre, y cuándo
+// se paga en cada caso. Sin fechas del calendario,
 // para que la imagen no envejezca en el caché de WhatsApp.
 //
 // Fondo azul sólido (#1B6DD4, el del hero de la app: sin degradados) y el
@@ -37,8 +37,8 @@ export default async function Image() {
   const display = fredoka ? 'Fredoka' : undefined
 
   const rows = [
-    { buy: 'Compras el 20', pay: 'pagas en unos 15 días', best: false },
-    { buy: 'Compras el 21', pay: 'pagas en unos 45 días', best: true },
+    { buy: 'Compras hasta el 20', pay: 'la pagas el 5', best: false },
+    { buy: 'Compras desde el 21', pay: 'la pagas un mes después', best: true },
   ]
 
   return new ImageResponse(
@@ -53,7 +53,7 @@ export default async function Image() {
             <div style={{ fontSize: 34, color: '#FFFFFF', fontFamily: display }}>Bolsillo Mágico</div>
           </div>
           <div style={{ fontSize: 66, color: '#FFFFFF', lineHeight: 1.08, fontFamily: display }}>
-            Cada compra con tarjeta, con su fecha de pago.
+            Que el estado de cuenta no te pille por sorpresa.
           </div>
           <div style={{ fontSize: 28, color: 'rgba(255,255,255,0.92)', marginTop: 26 }}>
             Hecha para Chile.
@@ -61,8 +61,8 @@ export default async function Image() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 64, width: 484, background: '#FFFFFF', borderRadius: 32, padding: 36 }}>
-          <div style={{ fontSize: 26, color: '#0E2A52', fontFamily: display }}>¿Cuándo pagas esta compra?</div>
-          <div style={{ fontSize: 22, color: '#5B6B82', marginTop: 8 }}>Tu tarjeta factura el 20 y vence el 5</div>
+          <div style={{ fontSize: 26, color: '#0E2A52', fontFamily: display }}>Lo que viene · Visa</div>
+          <div style={{ fontSize: 22, color: '#5B6B82', marginTop: 8 }}>Cierra el 20 · vence el 5</div>
           {rows.map(r => (
             <div key={r.buy} style={{ display: 'flex', flexDirection: 'column', marginTop: 22, padding: '20px 24px', borderRadius: 20, background: r.best ? '#E8EFFE' : '#EDF2F8' }}>
               <div style={{ fontSize: 22, color: '#5B6B82' }}>{r.buy}</div>

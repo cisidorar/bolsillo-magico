@@ -99,3 +99,90 @@ Decisión: **los viajes (Compartidos) están ocultos en la app (`SHOW_TRIPS=fals
 - Componente compartido: `components/landing/PorCobrarDemo.tsx`.
 
 **Pendiente**: texto «Cierra en 2 días / día 28 de 30» del pilar Tarjeta (ilustrativo, no calza con la fecha de la demo del hero); desborde de `PayCycleTimeline` a 375px (no verificable: el navegador no baja de ~546px); revisar escritorio de los pilares nuevos; `critique` final.
+
+---
+
+# Etapa 3 — Replanteo con Penso, Gastus y SaveMoney (plan, 20 nov 2026)
+
+Punto de partida: una crítica externa con cuatro debilidades, comparando con Penso (penso.money), Gastus (gastus.cl) y SaveMoney. Lo que se toma de cada uno:
+
+| De | Qué hacen | Qué tomamos |
+|---|---|---|
+| Penso | Titular con una preocupación cotidiana («deja de preguntarte en qué se te fue la plata»); 3 beneficios con check por sección; FAQ larga con comparativas | Titular desde la preocupación; FAQ (ya hecha); beneficios con check |
+| Gastus | «Sin compartir claves» en el titular; cifrado explicado; «Tu plata es tuya» (compromisos); tabla comparativa; FAQ con lo que **no** hacen; beta con cupos | Página de seguridad verificable; «Lo que no hacemos»; honestidad como estilo |
+| SaveMoney | Cifras de adopción, reseñas, respaldos | Solo cuando existan de verdad: nada inventado |
+
+Ya aplicado en esta etapa (sin publicar): FAQ con respuesta animada, destello de confirmación en la demo y la demo del hero cambiada de calculadora a **«Lo que viene»** (`ProximosPagosDemo`: próximos pagos de la Visa, cada uno con fecha, monto y lo que lo compone; una compra de ejemplo cae en un pago u otro según si es antes o después del cierre).
+
+## Las cuatro debilidades y qué hacemos
+
+### 1. La promesa es técnica → hablar desde la preocupación
+
+«Cada compra con tarjeta, con su fecha de pago» describe una función. La preocupación que resolvemos es **que llegue el estado de cuenta y no alcance el sueldo**.
+
+Titulares candidatos (H1):
+- A. «Que el estado de cuenta no te pille por sorpresa.»
+- B. «Sabe hoy si tu sueldo alcanza para lo que viene en la tarjeta.»
+- C. «Lo que viene en tu tarjeta, antes de que llegue.»
+
+La bajada explica el mecanismo («ves cuándo pagas cada compra, cuotas incluidas, y cuánto te queda del sueldo»). El título de Google puede conservar «cuándo pagas cada compra con tarjeta»: es lo que alguien busca.
+
+### 2. Se destaca el registro manual → primero lo que ganas, después cómo se carga
+
+- El pilar «Anotar un gasto toma segundos» baja al final y se reescribe como **«Tres formas de cargar tus gastos»**: subir el estado de cuenta, importar un CSV o anotar a mano.
+- **Producto nuevo: importar el estado de cuenta de la tarjeta (PDF).** Se reusa el camino de la liquidación de sueldo (`app/actions/payslips.ts`: `unpdf` extrae el texto, un parser propio arma las filas, la persona revisa y confirma). Un parser por emisor, partiendo por las tarjetas de los primeros usuarios. Sin IA de terceros: el PDF se lee en nuestro servidor y no sale de ahí. Eso también es un argumento de confianza frente a Gastus, que manda los datos (anonimizados) a Claude o Gemini.
+- Después: la cartola de cuenta corriente (Excel o PDF) para el débito.
+- **La landing no lo menciona hasta que funcione.**
+
+### 3. La invitación añade fricción → la demo es el camino principal
+
+- En el hero, el botón principal pasa a ser **«Probar la demo»** (sin cuenta) y «Pedir acceso» queda secundario. La demo ya cierra pidiendo el correo.
+- «Entre amigos» sale. El reemplazo honesto es «Abrimos cupos de a poco para cuidar que todo funcione bien».
+- Si decides un número real de cupos, puede ir un contador al estilo Gastus («quedan N de M»). Inventado, nunca.
+- Alternativa más fuerte: abrir el registro gratis mientras dure la etapa de pruebas. Es una decisión tuya, más abajo.
+
+### 4. Falta evidencia de confianza → hechos comprobables, en una página propia
+
+- **Página pública `/seguridad`**, enlazada desde el hero y el pie, con solo lo que se pueda verificar:
+  - Datos en Postgres de Supabase, cifrados en reposo y en tránsito.
+  - Aislamiento por usuario con RLS, explicado en simple.
+  - Sin claves bancarias.
+  - Sin rastreadores publicitarios.
+  - Exportar todo en CSV.
+  - Cómo borrar la cuenta.
+- Cada afirmación se revisa contra la configuración real antes de publicarla: región de Supabase, analítica cargada, existencia del borrado de cuenta.
+- **«Lo que no hacemos»**: no vendemos datos, no pedimos claves, no movemos plata, no damos asesoría, no mandamos tus movimientos a una IA externa.
+- El cifrado por campo de Gastus no va por ahora: rompe las consultas y los totales, y cuesta mucho para la etapa del producto.
+- Testimonios de los primeros usuarios, con permiso, cuando existan.
+
+## Orden propuesto
+
+1. **Fase A, landing, sin producto nuevo:**
+   - Titular nuevo.
+   - Demo primero en los botones.
+   - Pilares reordenados, con el registro al final como «tres formas de cargar».
+   - `/seguridad` y «Lo que no hacemos».
+   - Cerrar lo pendiente del hero: el texto «cierra en 2 días» del bloque comparativo, la imagen OG con el concepto nuevo, borrar `PayDateDemo.tsx` y verificar en build.
+2. **Fase B, producto:** importar el estado de cuenta en PDF, con un plan propio en otro documento. Cuando funcione, la landing suma un pilar y la franja «funciona con estados de cuenta de…».
+3. **Fase C, prueba social:** testimonios reales y cupos reales.
+
+## Decisiones tomadas (20 nov 2026)
+
+1. **Titular:** «Que el estado de cuenta no te pille por sorpresa.»
+2. **Acceso:** se sigue por invitación; «Probar la demo» es el botón principal y la demo cierra pidiendo el correo.
+3. **Estado de cuenta en PDF (Fase B):** Banco de Chile, BancoEstado, CMR Falabella y Santander. Bloqueado hasta tener un PDF de ejemplo de cada uno, con los datos tapados.
+
+## Fase A — aplicada el 20 nov 2026 (sin publicar)
+
+- H1 «Que el estado de cuenta no te pille por sorpresa.»; el título de Google conserva «Cuándo pagas cada compra con tarjeta».
+- «Probar la demo» es el botón principal (hero y menú); «Pedir acceso» queda secundario. Se quitó «entre amigos».
+- Pilares: tarjeta, sueldo, fijos, te deben y, al final, «Cargar tus gastos toma segundos» (empieza con «todo lo de arriba sale de lo que registras»).
+- Nueva página pública `/seguridad` (en robots y sitemap), con «Lo que no hacemos», cómo se guardan los datos, la IA con transparencia y «Lo que todavía no tenemos». Enlazada desde el menú, el pie y la sección de confianza.
+- Imagen de vista previa y bloque comparativo alineados al concepto nuevo; `PayDateDemo.tsx` eliminado.
+- Verificado con `next build` + `next start` en escritorio (hero, demo auto-probada, pilares, FAQ, `/seguridad`). Falta mirar celular a 375px.
+
+### Afirmaciones de `/seguridad` que dependen de ti
+- «No vendemos tus datos» es un compromiso tuyo, no algo verificable en el código.
+- «Sin auditoría externa ni certificaciones» supone que no existe ninguna.
+- No hay borrado de cuenta hecho por la persona: por eso la página no lo menciona. Conviene construirlo antes de abrir el registro.
+- La IA externa (proveedor compatible con OpenAI, por defecto `gpt-4.1-mini`) sí recibe la descripción del gasto y los nombres de categorías; la página lo dice.

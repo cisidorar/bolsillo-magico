@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, ShieldCheck, Download, Landmark, ChevronDown } from 'lucide-react'
 import { formatCLP, getNowChile, nextPaydayDate } from '@/lib/utils'
-import PayDateDemo from '@/components/landing/PayDateDemo'
+import ProximosPagosDemo from '@/components/landing/ProximosPagosDemo'
 import SueldoDemo from '@/components/landing/SueldoDemo'
 import FijosDemo from '@/components/landing/FijosDemo'
 import PorCobrarDemo from '@/components/landing/PorCobrarDemo'
@@ -76,16 +76,18 @@ export default function LandingPage() {
           <Link href="/" aria-label="Bolsillo Mágico, inicio" className="min-h-[44px] inline-flex items-center"><Wordmark /></Link>
           <div className="flex items-center gap-1 sm:gap-2">
             <a href="#pilares" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Qué hace</a>
-            <Link href="/demo" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Demo</Link>
+            <Link href="/seguridad" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Seguridad</Link>
             {/* Quien llega desde Google o un link no tiene cuenta: el botón
-                destacado es pedir acceso. Entrar queda como enlace (en teléfono
-                vive en el pie, no cabe junto al botón). */}
+                destacado es la demo, que se prueba sin registrarse. Pedir
+                acceso y entrar quedan como enlaces (en teléfono viven más
+                abajo, no caben junto al botón). */}
             <Link href="/login" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>
               Iniciar sesión
             </Link>
-            <a href="#lista" className="cta-primary inline-flex items-center min-h-[44px] px-4 rounded-xl text-sm font-bold transition-transform active:scale-[.98]">
-              Pedir acceso
-            </a>
+            <a href="#lista" className="hidden sm:inline-flex items-center min-h-[44px] px-3 text-sm font-semibold rounded-xl" style={{ color: 'var(--ink-2)' }}>Pedir acceso</a>
+            <Link href="/demo" className="cta-primary inline-flex items-center min-h-[44px] px-4 rounded-xl text-sm font-bold transition-transform active:scale-[.98]">
+              Probar la demo
+            </Link>
           </div>
         </nav>
       </header>
@@ -98,10 +100,10 @@ export default function LandingPage() {
         <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[0.85fr_1.15fr] gap-x-14 gap-y-8 lg:items-center">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
             <h1 className="lp-hero-in font-semibold leading-[1.05] text-balance" style={{ fontSize: 'clamp(2.3rem, 5.6vw, 3.75rem)', letterSpacing: '-0.02em', color: 'var(--ink)' }}>
-              Cada compra con tarjeta, con su fecha de pago.
+              Que el estado de cuenta no te pille por sorpresa.
             </h1>
             <p className="lp-hero-in mt-5 text-lg leading-relaxed max-w-[50ch]" style={{ color: 'var(--ink-2)', ['--i' as string]: 1 }}>
-              Tu tarjeta, tus cuotas y tu sueldo, como funcionan en Chile: ves cuándo pagas cada compra y cuánto te queda del mes.
+              Ves cuánto viene en tu tarjeta, cuándo lo pagas y cuánto te queda del sueldo, con tus cuotas y cobros fijos ya contados.
             </p>
             <p className="lp-hero-in mt-4 inline-flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--ink-2)', ['--i' as string]: 2 }}>
               <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: 'var(--primary-text)' }} aria-hidden />
@@ -109,20 +111,20 @@ export default function LandingPage() {
             </p>
           </div>
           <div className="lp-hero-in min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-2" style={{ ['--i' as string]: 2 }}>
-            <PayDateDemo />
+            <ProximosPagosDemo />
           </div>
           <div className="lp-hero-in min-w-0 lg:col-start-1 lg:row-start-2 lg:self-start" style={{ ['--i' as string]: 3 }}>
             <div id="hero-actions" className="flex flex-col sm:flex-row gap-3">
-              <a href="#lista" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
-                Pedir acceso <ArrowRight className="w-4 h-4" aria-hidden />
-              </a>
-              <Link href="/demo" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold border transition-transform active:scale-[.98]"
-                 style={{ color: 'var(--primary-text)', background: 'var(--surface)', borderColor: 'var(--primary-text)', borderWidth: 1.5 }}>
-                Probar la demo
+              <Link href="/demo" className="cta-primary inline-flex items-center justify-center gap-2 min-h-[52px] px-6 rounded-2xl text-base font-bold transition-transform active:scale-[.98]">
+                Probar la demo <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
+              <a href="#lista" className="inline-flex items-center justify-center min-h-[52px] px-6 rounded-2xl text-base font-bold border transition-transform active:scale-[.98]"
+                 style={{ color: 'var(--primary-text)', background: 'var(--surface)', borderColor: 'var(--primary-text)', borderWidth: 1.5 }}>
+                Pedir acceso
+              </a>
             </div>
             <p className="mt-4 text-sm" style={{ color: 'var(--ink-2)' }}>
-              Por ahora se entra por invitación, entre amigos. La demo funciona sin cuenta y con datos de ejemplo.
+              La demo funciona sin cuenta y con datos de ejemplo. Abrimos cupos de a poco, para cuidar que todo funcione bien.
             </p>
           </div>
         </section>
@@ -142,7 +144,7 @@ export default function LandingPage() {
             <div className="card p-6 lg:p-8" style={{ boxShadow: '0 18px 40px var(--shadow)' }}>
               <p className="text-sm font-semibold" style={{ color: 'var(--primary-text)' }}>Bolsillo Mágico</p>
               <p className="text-2xl lg:text-3xl font-semibold mt-3 leading-snug" style={{ color: 'var(--ink)' }}>
-                Tu estado cierra en 2 días con <span className="tabular-nums">{formatCLP(412380)}</span>. Del sueldo de {paidMonth} te quedan <span className="tabular-nums">{formatCLP(618200)}</span>.
+                Tu estado de la Visa va en <span className="tabular-nums">{formatCLP(412380)}</span> y lo pagas el 5. Del sueldo de {paidMonth} te quedan <span className="tabular-nums">{formatCLP(618200)}</span>.
               </p>
             </div>
           </div>
@@ -159,12 +161,8 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Visa · Cupo usado</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Estado en curso · día 28 de 30</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Estado en curso · cierra el 20, vence el 5</p>
                   </div>
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-                        style={{ color: 'var(--gold-ink)', background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))' }}>
-                    Cierra en 2 días
-                  </span>
                 </div>
                 <p className="text-3xl font-extrabold tabular-nums" style={{ fontFamily: 'var(--font-fredoka), sans-serif', color: 'var(--ink)' }}>{formatCLP(412380)}</p>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
@@ -193,9 +191,37 @@ export default function LandingPage() {
           </Pillar>
 
           <Pillar
-            id="registrar"
+            id="sueldo"
             flip
-            title="Anotar un gasto toma segundos."
+            title="Tu sueldo, y lo que te queda de él."
+            visual={<SueldoDemo cycle={cycle} />}
+          >
+            <p>Si te pagan a fin de mes, con ese sueldo vives el mes siguiente. Bolsillo Mágico lo cuenta así: te muestra cuánto queda, cuándo llega el próximo pago y qué ya está comprometido con cuotas y cobros fijos.</p>
+            <p>Sube tu liquidación en PDF y el ingreso del mes se registra solo.</p>
+          </Pillar>
+
+          <Pillar
+            id="fijos"
+            title="Lo fijo que se te olvida."
+            visual={<FijosDemo />}
+          >
+            <p>Suscripciones, cuotas y cuentas que se registran solas el día que corresponde. Si un cobro sube de precio, te enteras.</p>
+            <p>Y si algo se repite cada mes sin que lo hayas marcado como fijo, la app te lo sugiere.</p>
+          </Pillar>
+
+          <Pillar
+            id="deben"
+            flip
+            title="Cuando pagas por otros, sabes quién te debe."
+            visual={<PorCobrarDemo />}
+          >
+            <p>Pagas la cena de cuatro con tu tarjeta. Bolsillo Mágico divide el gasto: en tus gastos queda solo tu parte, y tu estado de cuenta sigue mostrando el total que cobra el banco.</p>
+            <p>Ves quién te debe, desde cuándo y cuánto, y puedes recordárselo por WhatsApp.</p>
+          </Pillar>
+
+          <Pillar
+            id="registrar"
+            title="Cargar tus gastos toma segundos."
             visual={
               <div className="card p-5 lg:p-6 space-y-4">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>Nuevo gasto</p>
@@ -224,36 +250,8 @@ export default function LandingPage() {
               </div>
             }
           >
-            <p>Un gasto es el monto, la categoría y con qué pagaste. Lo demás lo calcula la app: en qué estado cae y cuándo lo pagas.</p>
+            <p>Todo lo de arriba sale de lo que registras, y registrar es corto: un gasto es el monto, la categoría y con qué pagaste. Lo demás lo calcula la app: en qué estado cae y cuándo lo pagas.</p>
             <p>Lo fijo se registra solo, y si ya llevas tus gastos en una planilla, los importas en CSV. Nunca pedimos tu clave del banco.</p>
-          </Pillar>
-
-          <Pillar
-            id="sueldo"
-            title="Tu sueldo, y lo que te queda de él."
-            visual={<SueldoDemo cycle={cycle} />}
-          >
-            <p>Si te pagan a fin de mes, con ese sueldo vives el mes siguiente. Bolsillo Mágico lo cuenta así: te muestra cuánto queda, cuándo llega el próximo pago y qué ya está comprometido con cuotas y cobros fijos.</p>
-            <p>Sube tu liquidación en PDF y el ingreso del mes se registra solo.</p>
-          </Pillar>
-
-          <Pillar
-            id="fijos"
-            flip
-            title="Lo fijo que se te olvida."
-            visual={<FijosDemo />}
-          >
-            <p>Suscripciones, cuotas y cuentas que se registran solas el día que corresponde. Si un cobro sube de precio, te enteras.</p>
-            <p>Y si algo se repite cada mes sin que lo hayas marcado como fijo, la app te lo sugiere.</p>
-          </Pillar>
-
-          <Pillar
-            id="deben"
-            title="Cuando pagas por otros, sabes quién te debe."
-            visual={<PorCobrarDemo />}
-          >
-            <p>Pagas la cena de cuatro con tu tarjeta. Bolsillo Mágico divide el gasto: en tus gastos queda solo tu parte, y tu estado de cuenta sigue mostrando el total que cobra el banco.</p>
-            <p>Ves quién te debe, desde cuándo y cuánto, y puedes recordárselo por WhatsApp.</p>
           </Pillar>
 
           <p className="text-base max-w-[60ch]" style={{ color: 'var(--ink-2)' }}>
@@ -283,6 +281,10 @@ export default function LandingPage() {
                 )
               })}
             </ul>
+            <p className="mt-8 text-base leading-relaxed max-w-[70ch]" style={{ color: 'var(--ink-2)' }}>
+              Tampoco vendemos tus datos, ni movemos tu plata, ni damos asesoría: es una herramienta de seguimiento.{' '}
+              <Link href="/seguridad" className="font-semibold underline underline-offset-4" style={{ color: 'var(--primary-text)' }}>Ver cómo cuidamos tus datos</Link>
+            </p>
           </div>
         </section>
 
@@ -300,11 +302,11 @@ export default function LandingPage() {
               ['¿Funciona con mi tarjeta?',
                 'Con cualquier tarjeta de crédito: indicas el día en que factura y el día en que vence, y la app calcula en qué estado cae cada compra. También sirve para débito y efectivo.'],
               ['¿Quién puede ver mis datos?',
-                'Solo tú. La base de datos separa a cada persona, y puedes exportar todos tus gastos en CSV cuando quieras.'],
+                'Solo tú. La base de datos separa a cada persona, y puedes exportar todos tus gastos en CSV cuando quieras. Lo explicamos en detalle en la página de seguridad.'],
               ['¿Es asesoría financiera?',
                 'No. Es una herramienta de seguimiento: te muestra lo que ya pasó y lo que viene, no te dice qué hacer con tu plata.'],
               ['¿Cómo entro?',
-                'Por invitación, de a poco. Deja tu correo en el formulario de abajo y te escribimos si hay un lugar para ti.'],
+                'Abrimos cupos de a poco, por invitación. Mientras tanto puedes probar la demo sin cuenta, y si quieres un lugar, deja tu correo en el formulario de abajo.'],
             ].map(([q, a]) => (
               <details key={q} className="lp-faq group rounded-2xl" style={{ background: 'var(--surface)' }}>
                 <summary className="flex items-center justify-between gap-4 min-h-[56px] px-5 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-base font-semibold rounded-2xl"
@@ -338,6 +340,7 @@ export default function LandingPage() {
         <Wordmark />
         <div className="flex items-center gap-4 text-sm">
           <Link href="/demo" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Demo</Link>
+          <Link href="/seguridad" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Seguridad</Link>
           <Link href="/login" className="min-h-[44px] inline-flex items-center font-semibold" style={{ color: 'var(--ink-2)' }}>Iniciar sesión</Link>
           <span style={{ color: 'var(--ink-3)' }}>Hecho en Chile · {year}</span>
         </div>
