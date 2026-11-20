@@ -49,6 +49,7 @@ const ERRORS: Record<string, string> = {
   not_guest:            'Esa persona tiene cuenta; su ingreso sale de sus propios datos.',
   only_payer:           'Solo quien pagó el gasto puede sacarlo del viaje.',
   expense_not_adoptable: 'Ese gasto no se puede pasar a un viaje (ya está en uno o es recurrente).',
+  group_has_activity:   'Otras personas ya tienen gastos en este viaje: ciérralo para archivarlo en vez de eliminarlo.',
   invalid_link:         'El link tiene que empezar con http:// o https://',
 }
 
@@ -246,6 +247,27 @@ export async function setSharedGroupClosed(groupId: string, closed: boolean) {
         .eq('id', m.savings_goal_id).eq('user_id', user.id)
       revalidatePath('/presupuesto')
     }
+  }
+  return r
+}
+
+/** Elimina el viaje (solo quien lo creó; ver supabase/migrations/20261125). Archiva tu meta de ahorro ligada. */
+export async function deleteSharedGroup(groupId: string) {
+  const user = await getServerSession()
+  let goalId: string | null = null
+  if (user) {
+    const supabase = await createClient()
+    const { data: m } = await supabase.from('shared_group_members')
+      .select('savings_goal_id').eq('group_id', groupId).eq('user_id', user.id).maybeSingle()
+    goalId = (m?.savings_goal_id as string | null) ?? null
+  }
+  const r = await rpc('shared_group_delete', { p_group: groupId })
+  if (!r.ok) return r
+  if (user && goalId) {
+    const supabase = await createClient()
+    await supabase.from('savings_goals').update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', goalId).eq('user_id', user.id)
+    revalidatePath('/presupuesto')
   }
   return r
 }

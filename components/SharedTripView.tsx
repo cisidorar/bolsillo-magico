@@ -740,7 +740,9 @@ export default function SharedTripView({
       )}
       {editOpen && (
         <TripSettingsSheet groupId={group.id} name={group.name} start={group.start_date} end={group.end_date}
-          closed={closed} categories={categories} myCategoryId={myCategoryId} onClose={() => setEditOpen(false)} />
+          closed={closed} categories={categories} myCategoryId={myCategoryId} onClose={() => setEditOpen(false)}
+          canDelete={isCreator}
+          deleteBlocked={accepted.some(m => m.user_id !== meId && !m.is_guest) && (expenses.length > 0 || settlements.length > 0)} />
       )}
       {budgetOpen && (
         <TripBudgetSheet groupId={group.id} budget={group.budget ?? {}} people={people} minPeople={accepted.length}
