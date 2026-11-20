@@ -1,5 +1,5 @@
 import React from 'react'
-import { createClient, getServerSession } from '@/lib/supabase/server'
+import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, lastDueStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
 import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
 import { getCategoryIcon } from '@/lib/category-icons'
@@ -104,6 +104,8 @@ export default async function DashboardPage() {
     : null
   const fundingMonth      = fundingRange?.month ?? month
   const fundingYear       = fundingRange?.year  ?? year
+
+  const tripsOn = SHOW_TRIPS || (await getUserAccess())?.features.viajes === true
 
   const [
     { data: expenses },
@@ -970,8 +972,8 @@ export default async function DashboardPage() {
           {/* Col 3 — Próximos pagos + Resumen rápido (siempre en col 3) */}
           <div className="space-y-4" style={{ gridColumn: '3' }}>
 
-            {SHOW_TRIPS && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
-            {SHOW_TRIPS && nextTrip && <NextTripCard trip={nextTrip} />}
+            {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {tripsOn && nextTrip && <NextTripCard trip={nextTrip} />}
 
             {/* ── Ciclo de sueldo ── */}
             <CicloSueldo
@@ -1262,8 +1264,8 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {SHOW_TRIPS && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
-            {SHOW_TRIPS && nextTrip && <NextTripCard trip={nextTrip} />}
+          {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {tripsOn && nextTrip && <NextTripCard trip={nextTrip} />}
 
           {/* Ciclo de sueldo mobile */}
           <CicloSueldo

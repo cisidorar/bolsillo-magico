@@ -795,7 +795,7 @@ export default async function AnalisisPage({
     ? await Promise.all([
         supabase.from('usd_purchases').select('total_paid_clp, purchase_date').eq('user_id', user!.id).eq('kind', 'deposit').then(r => r.data ?? []),
         supabase.from('lease_contracts').select('rent_amount, start_date, end_date, property:properties(alias)').eq('user_id', user!.id).then(r => r.data ?? []),
-        fetchSharedPosition(supabase, user!.id).catch(() => null),
+        (access?.features.viajes ? fetchSharedPosition(supabase, user!.id).catch(() => null) : Promise.resolve(null)),
       ])
     : [[], [], null]
 
