@@ -272,7 +272,7 @@ export default async function CompartidosPage({
 
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8 space-y-6">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="font-display text-2xl lg:text-3xl font-bold" style={{ color: 'var(--ink)' }}>Compartidos</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
@@ -281,10 +281,13 @@ export default async function CompartidosPage({
               : 'Viajes que dividen con otras personas. Crea el viaje, carga gastos e invita cuando quieras.'}
           </p>
         </div>
-        {tab === 'viajes' && <NewTripButton />}
+        {/* Mismo criterio que el toggle de /inversiones: a la izquierda en mobile,
+            al borde derecho en sm+, con la acción principal al otro extremo. */}
+        <div className="flex items-center justify-between gap-2 sm:justify-end min-w-0">
+          <CompartidosToggle active={tab} viajes={active.length + invites.length} cobrar={receivables.length} />
+          {tab === 'viajes' && <NewTripButton />}
+        </div>
       </div>
-
-      <CompartidosToggle active={tab} viajes={active.length + invites.length} cobrar={receivables.length} />
 
       {tab === 'cobrar' ? (
         receivables.length > 0 ? (
