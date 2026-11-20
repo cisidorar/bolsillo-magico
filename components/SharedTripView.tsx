@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
+import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
@@ -137,6 +137,11 @@ export default function SharedTripView({
     : phase === 'planning' && dStart != null ? (dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : null
 
+  const heroTitle =
+    phase === 'settling' ? (transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`)
+    : phase === 'traveling' ? (dayInfo ? `Día ${dayInfo.day}${dayInfo.total ? ` de ${dayInfo.total}` : ''}` : 'En viaje')
+    : phase === 'planning' ? (dStart == null ? 'Fechas por definir' : dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
+    : phase === 'done' ? 'Viaje terminado' : 'Viaje cerrado'
   const spent = spentByCategory(expenses)
   const budgetSum = budgetTotal(group.budget ?? {})
   const todaySpent = expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0)
@@ -155,6 +160,19 @@ export default function SharedTripView({
     }
   }
 
+
+  const planTotal = budgetSum > 0 ? budgetSum : budgetTotal(derivedBudget)
+  const peopleTxt = alone ? 'Solo tú' : `${accepted.length} personas`
+  const heroLine: React.ReactNode =
+    phase === 'planning'
+      ? (planTotal > 0 ? `Costaría ${formatCLP(planTotal)} · ${peopleTxt}` : `${peopleTxt} · aún sin presupuesto`)
+      : phase === 'traveling'
+        ? `${peopleTxt} · ${group.end_date ? `vuelven el ${fmtRange(group.end_date, null).replace(/ \d{4}$/, '')}` : 'sin fecha de vuelta'}`
+        : alone || bal.total === 0
+          ? `${formatCLP(bal.total)} en total`
+          : <><span className="font-bold" style={{ color: owed ? 'var(--mint-on-brand-soft)' : owes ? 'var(--gold-on-brand)' : '#fff' }}>
+              {owed ? `Te deben ${formatCLP(mine)}` : owes ? `Debes ${formatCLP(-mine)}` : 'Estás a mano'}
+            </span> · {formatCLP(bal.total)} en total</>
 
   // ── Bloques (el orden depende de la fase) ────────────────────────────────
   const steps = phase === 'planning' && (!group.start_date || (budgetSum === 0 && !hasOpenItems && expenses.length === 0)) ? (
@@ -321,7 +339,7 @@ export default function SharedTripView({
       label={phase === 'planning' ? 'Ya pagado o reservado' : 'Gastado del viaje'}
       todaySpent={phase === 'traveling' ? todaySpent : null}
       people={accepted.length}
-      dayInfo={phase === 'traveling' ? dayInfo : null}
+      dayInfo={null}
     />
   )
 
@@ -439,30 +457,45 @@ export default function SharedTripView({
         <ArrowLeft className="w-3.5 h-3.5" /> Compartidos
       </Link>
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="font-display text-2xl lg:text-3xl font-bold truncate" style={{ color: 'var(--ink)' }}>{group.name}</h1>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-              style={phase === 'settling'
-                ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
-                : { background: 'var(--primary-soft)', color: 'var(--primary)' }}>
-              {TRIP_PHASE_LABEL[phase]}
-            </span>
+      {/* Encabezado: el estado del viaje en una frase, y debajo lo único que importa de plata en esta fase. */}
+      <header className="hero-gradient rounded-3xl p-5 lg:p-7 text-white">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl lg:text-3xl font-bold leading-tight truncate">{group.name}</h1>
+            <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,.82)' }}>
+              {group.start_date ? fmtRange(group.start_date, group.end_date) : 'Fechas por definir'}
+            </p>
           </div>
-          <p className="text-sm mt-1" style={{ color: 'var(--ink-3)' }}>
-            {group.start_date ? fmtRange(group.start_date, group.end_date) : 'Fechas por definir'}
-            {headerHint && (
-              <span className="font-semibold" style={{ color: phase === 'settling' ? 'var(--gold-ink)' : 'var(--ink-2)' }}> · {headerHint}</span>
-            )}
-          </p>
+          <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
+            className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full transition-colors hover:bg-white/25"
+            style={{ background: 'rgba(255,255,255,.18)' }}>
+            <Settings2 className="w-4 h-4" />
+          </button>
         </div>
-        <button onClick={() => setEditOpen(true)} aria-label="Ajustes del viaje"
-          className="w-11 h-11 flex-shrink-0 flex items-center justify-center rounded-full"
-          style={{ background: 'var(--surface)', color: 'var(--ink-2)' }}>
-          <Settings2 className="w-4 h-4" />
-        </button>
-      </div>
+
+        <div className="mt-8 lg:mt-10 flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="font-display text-3xl lg:text-5xl font-extrabold leading-none tracking-tight">{heroTitle}</p>
+            <p className="text-sm mt-3 tabular-nums" style={{ color: 'rgba(255,255,255,.82)' }}>{heroLine}</p>
+          </div>
+          <a href="#personas" aria-label={`${accepted.length} ${accepted.length === 1 ? 'persona' : 'personas'}, ver quiénes van`}
+            className="flex items-center flex-shrink-0 min-h-[44px]">
+            {members.slice(0, 4).map((m, i) => (
+              <span key={m.user_id} className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ring-2"
+                style={{
+                  marginLeft: i ? -10 : 0, background: '#fff', color: '#1B6DD4', opacity: m.status === 'pending' ? 0.6 : 1,
+                  ['--tw-ring-color' as string]: '#1B6DD4',
+                }}>
+                {m.display_name.replace('@', '')[0]?.toUpperCase() ?? '?'}
+              </span>
+            ))}
+            {members.length > 4 && (
+              <span className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold ring-2"
+                style={{ marginLeft: -10, background: 'rgba(255,255,255,.28)', ['--tw-ring-color' as string]: '#1B6DD4' }}>+{members.length - 4}</span>
+            )}
+          </a>
+        </div>
+      </header>
 
       {error && <p className="text-xs font-medium" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
 
@@ -519,7 +552,7 @@ export default function SharedTripView({
                   </div>
                   {m.is_guest && isCreator && !closed && (
                     <button onClick={() => setGuestForm({ id: m.user_id, name: m.display_name, income: m.guest_income })}
-                      className="text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--primary)' }}>Editar</button>
+                      aria-label={`Editar a ${m.display_name}`} className="w-11 h-11 flex items-center justify-center rounded-full" style={{ color: 'var(--ink-3)' }}><Pencil className="w-3.5 h-3.5" /></button>
                   )}
                   {!closed && !m.is_creator && (isCreator || m.user_id === meId) && (
                     confirmRemove === m.user_id ? (
@@ -527,8 +560,8 @@ export default function SharedTripView({
                         className="text-xs font-bold min-h-[44px] px-3" style={{ color: 'var(--coral-ink)' }}>Confirmar</button>
                     ) : (
                       <button onClick={() => setConfirmRemove(m.user_id)} aria-label={m.user_id === meId ? 'Salir del viaje' : m.status === 'pending' ? 'Cancelar invitación' : 'Sacar del viaje'}
-                        className="text-xs font-semibold flex items-center gap-1 min-h-[44px] px-3" style={{ color: 'var(--ink-3)' }}>
-                        <X className="w-3.5 h-3.5" />{m.user_id === meId ? 'Salir' : m.status === 'pending' ? 'Cancelar' : 'Sacar'}
+                        className="w-11 h-11 flex items-center justify-center rounded-full" style={{ color: 'var(--ink-3)' }}>
+                        <X className="w-4 h-4" />
                       </button>
                     )
                   )}

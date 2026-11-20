@@ -7,7 +7,8 @@ import { groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToSt
 import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
-import { monthlyCapacity } from '@/lib/trip-plan'
+import { monthlyCapacity, budgetTotal } from '@/lib/trip-plan'
+import TripList, { type TripListRow } from '@/components/TripList'
 import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import NewTripButton from '@/components/NewTripButton'
@@ -213,57 +214,10 @@ export default async function CompartidosPage({
   const active = sorted.filter(r => r.phase !== 'done' && r.phase !== 'closed')
   const past   = sorted.filter(r => r.phase === 'done' || r.phase === 'closed')
 
-  function hint(r: (typeof rows)[number]): string | null {
-    if (r.phase === 'planning') {
-      const d = daysToStart(r.g.start_date, today)
-      return d == null ? null : d === 1 ? 'Sale mañana' : `Sale en ${d} días`
-    }
-    if (r.phase === 'traveling') {
-      const t = tripDay(r.g.start_date, r.g.end_date, today)
-      return t ? `Día ${t.day}${t.total ? ` de ${t.total}` : ''}` : null
-    }
-    if (r.phase === 'settling') {
-      return r.transferCount === 1 ? 'Falta 1 transferencia' : `Faltan ${r.transferCount} transferencias`
-    }
-    return null
-  }
-
-  const tripRow = (r: (typeof rows)[number]) => {
-    const { g, bal, net, people, phase } = r
-    const h = hint(r)
-    const needsAction = phase === 'settling'
-    return (
-      <Link key={g.id} href={`/compartidos?g=${g.id}`}
-        className="card p-5 flex items-center gap-3 transition-colors hover:brightness-[.99] active:scale-[.99]"
-        >
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: phase === 'closed' || phase === 'done' ? 'var(--surface-2)' : 'var(--primary-soft)' }}>
-          <Plane className="w-5 h-5" style={{ color: phase === 'closed' || phase === 'done' ? 'var(--ink-3)' : 'var(--primary)' }} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-bold truncate" style={{ color: 'var(--ink)' }}>{g.name}</p>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-              style={needsAction
-                ? { background: 'rgba(255,194,60,0.16)', color: 'var(--gold-ink)' }
-                : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}>{TRIP_PHASE_LABEL[phase]}</span>
-          </div>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-            {h ? <span className="font-semibold" style={{ color: needsAction ? 'var(--gold-ink)' : 'var(--ink-2)' }}>{h} · </span> : null}
-            {fmtRange(g.start_date, g.end_date)} · {people === 1 ? 'solo tú' : `${people} personas`}
-          </p>
-          {people > 1 && bal.total > 0 && (
-            <p className="text-xs mt-1 font-semibold tabular-nums"
-              style={{ color: net > 0 ? 'var(--mint-ink)' : net < 0 ? 'var(--gold-ink)' : 'var(--ink-2)' }}>
-              {net > 0 ? `Te deben ${formatCLP(net)}` : net < 0 ? `Debes ${formatCLP(-net)}` : 'A mano'}
-              <span style={{ color: 'var(--ink-3)' }} className="font-normal"> · {formatCLP(bal.total)} en total</span>
-            </p>
-          )}
-        </div>
-        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-      </Link>
-    )
-  }
+  const listRows: TripListRow[] = sorted.map(r => ({
+    id: r.g.id, name: r.g.name, start: r.g.start_date, end: r.g.end_date, phase: r.phase,
+    people: r.people, net: r.net, total: r.bal.total, budget: budgetTotal(r.g.budget ?? {}), transferCount: r.transferCount,
+  }))
 
   // Dos vistas separadas: Viajes y Por cobrar. Sin viajes pero con cobros pendientes,
   // abre directo en Por cobrar.
@@ -324,21 +278,7 @@ export default async function CompartidosPage({
           <div className="mt-4 flex justify-center"><NewTripButton label="Crear el primer viaje" /></div>
         </div>
       ) : (
-        <>
-          {active.length > 0 && (
-            <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
-              {active.map(tripRow)}
-            </div>
-          )}
-          {past.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Anteriores</p>
-              <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
-                {past.map(tripRow)}
-              </div>
-            </div>
-          )}
-        </>
+        <TripList rows={listRows} today={today} />
       )}
         </>
       )}
