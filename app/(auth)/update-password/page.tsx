@@ -4,9 +4,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Lock, CheckCircle2, Loader2, LinkIcon } from 'lucide-react'
+import { Lock, CheckCircle2, Loader2, LinkIcon, User, AtSign } from 'lucide-react'
 import AuthShell from '@/components/auth/AuthShell'
 import AuthField from '@/components/auth/AuthField'
+import AvatarPicker from '@/components/auth/AvatarPicker'
+import { AVATARS, avatarUrl } from '@/lib/avatars'
+import { normalizeUsername, usernameError } from '@/lib/username'
 
 // Dos caminos llegan acá con una sesión temporal creada por el enlace del
 // correo: quien fue INVITADO (primera contraseña, ?welcome=1) y quien pidió
@@ -25,6 +28,13 @@ function UpdatePasswordForm() {
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
+  // Registro por invitación (?welcome=1): además de la contraseña se pide cómo te ven los demás.
+  const [name,    setName]    = useState('')
+  const [handle,  setHandle]  = useState('')
+  const [avatar,  setAvatar]  = useState<string>(() => avatarUrl(AVATARS[Math.floor(Math.random() * AVATARS.length)].id))
+  const [editHandle, setEditHandle] = useState(false)
+  const findable = true   // se cambia en Ajustes; marcado por defecto
+  const [pwSaved, setPwSaved] = useState(false)   // si el perfil falla, no se vuelve a pedir la contraseña
 
   // El enlace del correo deja una sesión; si no hay (enlace usado, vencido o
   // alguien que entró directo), se avisa de entrada en vez de dejarlo escribir
@@ -41,6 +51,23 @@ function UpdatePasswordForm() {
   }, [])
 
   useEffect(() => {
+    if (!welcome || phase !== 'ready') return
+    let cancelled = false
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+      const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle()
+      const raw = (prof?.display_name as string | null) ?? ''
+      const { data: u } = await supabase.rpc('ensure_my_username')
+      if (cancelled) return
+      setName(n => n || (raw.includes('@') ? raw.split('@')[0] : raw))
+      setHandle(h => h || ((u as string | null) ?? ''))
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [welcome, phase])
+
+  useEffect(() => {
     if (phase !== 'done') return
     const t = setTimeout(() => window.location.assign('/inicio'), 4000)
     return () => clearTimeout(t)
@@ -49,29 +76,59 @@ function UpdatePasswordForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (pass.length < MIN_LEN) { setError(`La contraseña necesita al menos ${MIN_LEN} caracteres.`); return }
-    if (pass !== confirm) { setError('Las contraseñas no coinciden.'); return }
+    if (welcome) {
+      const n = name.trim()
+      if (n.length < 2) { setError('Escribe cómo quieres que te llamemos.'); return }
+      if (n.length > 40 || n.includes('@')) { setError('Usa solo tu nombre, hasta 40 letras y sin correo.'); return }
+      const uErr = usernameError(handle)
+      if (uErr) { setError(uErr); return }
+    }
+    if (!pwSaved) {
+      if (pass.length < MIN_LEN) { setError(`La contraseña necesita al menos ${MIN_LEN} caracteres.`); return }
+      if (!welcome && pass !== confirm) { setError('Las contraseñas no coinciden.'); return }
+    }
 
     setLoading(true)
-    const { error: upErr } = await supabase.auth.updateUser({ password: pass })
+    if (!pwSaved) {
+      const { error: upErr } = await supabase.auth.updateUser({ password: pass })
+      if (upErr) {
+        setLoading(false)
+        const msg = upErr.message.toLowerCase()
+        if (msg.includes('session')) { setPhase('expired'); return }
+        if (msg.includes('same') || msg.includes('different')) setError('Elige una contraseña distinta de la anterior.')
+        else if (msg.includes('weak') || msg.includes('password should')) setError('Esa contraseña es muy débil. Prueba con una más larga o con más variedad.')
+        else setError('No pudimos guardar tu contraseña. Revisa tu conexión e inténtalo de nuevo.')
+        return
+      }
+      setPwSaved(true)
+    }
+
+    if (welcome) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); setPhase('expired'); return }
+      const { error: profErr } = await supabase.from('profiles').update({
+        display_name: name.trim(), username: normalizeUsername(handle), discoverable: findable,
+        avatar_url: avatar, onboarded_at: new Date().toISOString(),
+      }).eq('id', user.id)
+      if (profErr) {
+        setLoading(false)
+        setError(profErr.code === '23505'
+          ? 'Tu contraseña ya quedó guardada. Ese @usuario ya existe: prueba con otro.'
+          : 'Tu contraseña ya quedó guardada, pero no pudimos guardar tu perfil. Inténtalo de nuevo.')
+        return
+      }
+    }
     setLoading(false)
 
-    if (upErr) {
-      const msg = upErr.message.toLowerCase()
-      if (msg.includes('session')) { setPhase('expired'); return }
-      if (msg.includes('same') || msg.includes('different')) setError('Elige una contraseña distinta de la anterior.')
-      else if (msg.includes('weak') || msg.includes('password should')) setError('Esa contraseña es muy débil. Prueba con una más larga o con más variedad.')
-      else setError('No pudimos guardar tu contraseña. Revisa tu conexión e inténtalo de nuevo.')
-      return
-    }
     // Si alguien más tenía una sesión abierta con la contraseña anterior, se cierra.
     try { await supabase.auth.signOut({ scope: 'others' }) } catch { /* no bloquea */ }
+    if (welcome) { window.location.assign('/inicio'); return }
     setPhase('done')
   }
 
   if (phase === 'checking') {
     return (
-      <AuthShell title={welcome ? 'Crea tu contraseña' : 'Tu contraseña'}>
+      <AuthShell title={welcome ? 'Crea tu cuenta' : 'Tu contraseña'}>
         <p role="status" className="flex items-center justify-center gap-2 py-6 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
           <Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Verificando tu enlace…
         </p>
@@ -105,7 +162,7 @@ function UpdatePasswordForm() {
             <CheckCircle2 className="w-6 h-6" aria-hidden />
           </span>
           <p className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
-            {welcome ? 'Tu contraseña quedó guardada. Ya puedes usar Bolsillo Mágico.' : 'Tu contraseña quedó actualizada.'}
+            {welcome ? '¡Listo! Tu cuenta quedó creada. Ya puedes usar Bolsillo Mágico.' : 'Tu contraseña quedó actualizada.'}
           </p>
           <button
             type="button"
@@ -122,24 +179,45 @@ function UpdatePasswordForm() {
 
   return (
     <AuthShell
-      title={welcome ? 'Crea tu contraseña' : 'Nueva contraseña'}
+      title={welcome ? 'Crea tu cuenta' : 'Nueva contraseña'}
       subtitle={welcome
-        ? 'Te invitaron a Bolsillo Mágico. Elige una contraseña para entrar.'
+        ? 'Te invitaron a Bolsillo Mágico. Cuéntanos cómo te llamas y elige una contraseña.'
         : 'Elige una contraseña nueva para tu cuenta.'}
     >
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+        {welcome && (
+          <>
+            <AvatarPicker value={avatar} onChange={setAvatar} />
+            <AuthField id="name" name="name" label="Tu nombre" value={name} onChange={setName}
+              autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
+              hint="Como te dicen tus amigos. Es el que verán en los viajes compartidos."
+              invalid={!!error} />
+            {editHandle ? (
+              <AuthField id="handle" name="handle" label="Tu @usuario" value={handle} onChange={v => setHandle(v.toLowerCase())}
+                autoComplete="off" enterKeyHint="next" icon={<AtSign className="w-4 h-4" />}
+                hint="Con él te invitan a viajes y gastos compartidos." invalid={!!error} />
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                Tu usuario será <span className="font-bold" style={{ color: 'var(--ink-2)' }}>@{handle || '…'}</span>.{' '}
+                <button type="button" onClick={() => setEditHandle(true)} className="font-bold underline" style={{ color: 'var(--primary)' }}>Cambiar</button>
+              </p>
+            )}
+          </>
+        )}
+        {!pwSaved && (<>
         <AuthField
           id="new-password" name="new-password" label="Contraseña" type="password" revealable
           value={pass} onChange={setPass} autoComplete="new-password" enterKeyHint="next"
           hint={`Mínimo ${MIN_LEN} caracteres`} icon={<Lock className="w-4 h-4" />}
           invalid={!!error} describedBy={error ? 'pw-error' : undefined}
         />
-        <AuthField
+ {!welcome && <AuthField
           id="confirm-password" name="confirm-password" label="Repite la contraseña" type="password" revealable
           value={confirm} onChange={setConfirm} autoComplete="new-password" enterKeyHint="go"
           icon={<Lock className="w-4 h-4" />}
           invalid={!!error} describedBy={error ? 'pw-error' : undefined}
-        />
+        />}
+        </>)}
 
         {error && (
           <p id="pw-error" role="alert" className="text-xs font-bold rounded-xl px-4 py-3"
@@ -153,7 +231,7 @@ function UpdatePasswordForm() {
           className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-transform active:scale-[.99]"
           style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
         >
-          {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Guardando…</> : 'Guardar contraseña'}
+          {loading ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Guardando…</> : welcome ? 'Crear mi cuenta' : 'Guardar contraseña'}
         </button>
       </form>
     </AuthShell>

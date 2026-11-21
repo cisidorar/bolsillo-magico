@@ -76,6 +76,7 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
   // Cambios de módulos que se ven al instante, antes de que el servidor responda.
   const [local, setLocal] = useState<Record<string, Features>>({})
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
   const [inviteFeatures, setInviteFeatures] = useState<Features>(DEFAULT_FEATURES)
 
   const pending  = waitlist.filter(w => w.status === 'pending')
@@ -123,8 +124,8 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
   }
 
   async function sendInvite() {
-    const ok = await run('invite', () => inviteByEmail(inviteEmail, window.location.origin, inviteFeatures))
-    if (ok) { setInviteEmail(''); setInviteFeatures(DEFAULT_FEATURES) }
+    const ok = await run('invite', () => inviteByEmail(inviteEmail, window.location.origin, inviteFeatures, inviteName))
+    if (ok) { setInviteEmail(''); setInviteName(''); setInviteFeatures(DEFAULT_FEATURES) }
   }
 
   return (
@@ -155,6 +156,13 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
               value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
               placeholder="correo@ejemplo.com" aria-label="Correo de la persona a invitar"
               className="flex-1 min-h-[44px] rounded-xl px-3.5 text-sm border outline-none"
+              style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+            />
+            <input
+              type="text" autoComplete="off" maxLength={40}
+              value={inviteName} onChange={e => setInviteName(e.target.value)}
+              placeholder="Nombre (opcional)" aria-label="Nombre de la persona, para que lo confirme al registrarse"
+              className="sm:w-44 min-h-[44px] rounded-xl px-3.5 text-sm border outline-none"
               style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
             />
             <button

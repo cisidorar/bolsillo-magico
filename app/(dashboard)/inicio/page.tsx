@@ -10,6 +10,7 @@ import {
 import ExpenseSheet from '@/components/ExpenseSheet'
 import FlipNumber from '@/components/FlipNumber'
 import EmptyStateCTA from '@/components/EmptyStateCTA'
+import GettingStartedCard from '@/components/GettingStartedCard'
 import AddExpenseInline from '@/components/AddExpenseInline'
 import OverduePaySheet from '@/components/OverduePaySheet'
 import ServiceLogo from '@/components/ServiceLogo'
@@ -107,6 +108,13 @@ export default async function DashboardPage() {
   const fundingYear       = fundingRange?.year  ?? year
 
   const tripsOn = SHOW_TRIPS || (await getUserAccess())?.features.viajes === true
+
+  // "Para empezar": solo cuentas de menos de 30 días; cuenta gastos en total (no solo del mes).
+  const accountAgeDays = (Date.now() - new Date(user!.created_at).getTime()) / 86_400_000
+  const showStart = accountAgeDays <= 30
+  const expenseTotal = showStart
+    ? (await supabase.from('expenses').select('id', { count: 'exact', head: true }).eq('user_id', user!.id)).count ?? 0
+    : 0
 
   const [
     { data: expenses },
@@ -288,6 +296,11 @@ export default async function DashboardPage() {
   // Cuenta regresiva al día de sueldo (configurable en Ajustes)
   const payday = (profile as { payday?: number | null } | null)?.payday ?? null
   const paydayIsLastBusinessDay = (paydayPrefRow as { payday_last_business_day?: boolean } | null)?.payday_last_business_day ?? false
+  const hasMethod = ((paymentMethods ?? []) as PaymentMethod[]).length > 0
+  const startCard = showStart && (expenseTotal === 0 || !hasMethod || !(payday || paydayIsLastBusinessDay))
+    ? <GettingStartedCard hasExpense={expenseTotal > 0} hasMethod={hasMethod} hasPayday={!!(payday || paydayIsLastBusinessDay)}
+        categories={(categories ?? []) as Category[]} paymentMethods={(paymentMethods ?? []) as PaymentMethod[]} />
+    : null
   let daysToPayday: number | null = null
   if (paydayIsLastBusinessDay) {
     const dim = new Date(year, month, 0).getDate()
@@ -1004,7 +1017,8 @@ export default async function DashboardPage() {
               </div>
             )}
 
-            {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
+            {startCard}
+          {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
             {tripsOn && nextTrip && <NextTripCard trip={nextTrip} />}
 
             {/* ── Ciclo de sueldo ── */}
@@ -1264,6 +1278,7 @@ export default async function DashboardPage() {
             </div>
           )}
 
+          {startCard}
           {tripsOn && tripsToSettle.length > 0 && <TripSettleChips trips={tripsToSettle} />}
             {tripsOn && nextTrip && <NextTripCard trip={nextTrip} />}
 

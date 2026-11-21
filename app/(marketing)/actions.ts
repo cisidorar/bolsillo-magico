@@ -25,5 +25,18 @@ export async function joinWaitlist(formData: FormData): Promise<WaitlistResult> 
     console.error('[waitlist] join_waitlist falló:', error.message)
     return { ok: false, error: 'No pudimos guardar tu correo. Inténtalo de nuevo en un rato.' }
   }
+  // Avisa a los admins por correo (edge function notify-waitlist). No bloquea ni rompe el
+  // formulario si falla: la solicitud ya quedó guardada y se ve igual en /admin.
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (url && anon) {
+      await fetch(`${url}/functions/v1/notify-waitlist`, {
+        method: 'POST', headers: { Authorization: `Bearer ${anon}` }, signal: AbortSignal.timeout(8000),
+      })
+    }
+  } catch (e) {
+    console.error('[waitlist] aviso a admins falló:', e)
+  }
   return { ok: true }
 }

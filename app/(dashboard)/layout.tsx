@@ -14,9 +14,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('display_name, avatar_url')
+    .select('display_name, avatar_url, onboarded_at')
     .eq('id', user.id)
     .maybeSingle()
+  // Quien llegó por invitación completa primero su perfil (nombre y @usuario).
+  if (profile && (profile as { onboarded_at?: string | null }).onboarded_at === null) redirect('/bienvenida')
   const rawName  = profile?.display_name ?? user.email ?? 'Usuario'
   const userName = rawName.includes('@') ? rawName.split('@')[0] : rawName
 

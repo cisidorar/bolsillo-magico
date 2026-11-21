@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Pencil, Check, X, Upload, Loader2, User, AtSign } from 'lucide-react'
+import { Pencil, Check, X, Smile, Loader2, User, AtSign } from 'lucide-react'
 import { normalizeUsername, usernameError } from '@/lib/username'
+import AvatarPicker from '@/components/auth/AvatarPicker'
 
 interface Props {
   userId: string
@@ -26,7 +27,6 @@ interface Props {
 export default function ProfileEditor({ userId, displayName, fullName, email, avatarUrl, username, discoverable }: Props) {
   const router   = useRouter()
   const supabase = createClient()
-  const fileRef  = useRef<HTMLInputElement>(null)
 
   const [editing, setEditing]         = useState(false)
   const [name, setName]               = useState(displayName ?? '')
@@ -36,6 +36,7 @@ export default function ProfileEditor({ userId, displayName, fullName, email, av
   const [localAvatar, setLocalAvatar] = useState<string | null>(avatarUrl)
   const [uploading, setUploading]     = useState(false)
   const [avatarError, setAvatarError] = useState('')
+  const [choosing, setChoosing]       = useState(false)
   // @usuario: lo que otra persona busca para invitarte a un viaje compartido
   const [editingUser, setEditingUser] = useState(false)
   const [userInput, setUserInput]     = useState(username ?? '')
@@ -84,33 +85,15 @@ export default function ProfileEditor({ userId, displayName, fullName, email, av
     setName(displayName ?? ''); setFull(fullName ?? ''); setNameError(''); setEditing(false)
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 3 * 1024 * 1024) { setAvatarError('La imagen debe pesar menos de 3 MB'); return }
-    setAvatarError('')
-    setLocalAvatar(URL.createObjectURL(file))
-    setUploading(true)
-    try {
-      const ext  = file.name.split('.').pop() ?? 'jpg'
-      const path = `${userId}/avatar.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from('avatars').upload(path, file, { upsert: true, contentType: file.type })
-      if (uploadErr) throw uploadErr
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = `${data.publicUrl}?t=${Date.now()}`
-      const { error: updateErr } = await supabase
-        .from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
-      if (updateErr) throw updateErr
-      setLocalAvatar(publicUrl)
-      router.refresh()
-    } catch {
-      setLocalAvatar(avatarUrl)
-      setAvatarError('No se pudo subir la foto. Intenta de nuevo.')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
+  async function chooseAvatar(url: string) {
+    if (url === localAvatar) { setChoosing(false); return }
+    const prev = localAvatar
+    setAvatarError(''); setLocalAvatar(url); setUploading(true)
+    const { error } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', userId)
+    setUploading(false)
+    if (error) { setLocalAvatar(prev); setAvatarError('No se pudo guardar la foto. Intenta de nuevo.'); return }
+    setChoosing(false)
+    router.refresh()
   }
 
   return (
@@ -155,12 +138,12 @@ export default function ProfileEditor({ userId, displayName, fullName, email, av
         {/* Fila 2: botones */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fileRef.current?.click()}
+            onClick={() => setChoosing(c => !c)}
             disabled={uploading}
             className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            <Upload className="w-3.5 h-3.5" />
-            Subir foto
+            <Smile className="w-3.5 h-3.5" />
+            Cambiar foto
           </button>
           <button
             onClick={() => setEditing(true)}
@@ -173,6 +156,13 @@ export default function ProfileEditor({ userId, displayName, fullName, email, av
           </button>
         </div>
       </div>
+
+      {choosing && (
+        <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+          <p className="text-xs font-semibold text-gray-500 mb-3">Elige tu foto</p>
+          <AvatarPicker value={localAvatar} onChange={chooseAvatar} />
+        </div>
+      )}
 
       {/* Formulario nombre */}
       {editing && (
@@ -261,7 +251,6 @@ export default function ProfileEditor({ userId, displayName, fullName, email, av
       </div>
 
       {avatarError && <p className="text-xs text-red-500 px-5 pb-4">{avatarError}</p>}
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
     </div>
   )
 }

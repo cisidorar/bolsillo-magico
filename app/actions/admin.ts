@@ -98,7 +98,7 @@ async function activeAccounts(admin: NonNullable<ReturnType<typeof serviceClient
 
 /** Manda la invitación y, si se pidió, deja la cuenta con esos módulos desde el inicio. */
 async function sendInvite(
-  admin: NonNullable<ReturnType<typeof serviceClient>>, email: string, origin: string, features?: Features,
+  admin: NonNullable<ReturnType<typeof serviceClient>>, email: string, origin: string, features?: Features, name?: string,
 ): Promise<{ ok: true; userId: string | null } | { ok: false; error: string }> {
   if ((await activeAccounts(admin)) >= ACCOUNT_CAP) {
     return { ok: false, error: `Llegaste al tope de ${ACCOUNT_CAP} cuentas activas. Bloquea una o sube MAX_ACTIVE_USERS.` }
@@ -106,7 +106,7 @@ async function sendInvite(
   // El enlace del correo pasa por /api/auth/confirm (verifica el token) y
   // termina en /update-password?welcome=1, donde la persona crea su contraseña.
   const redirectTo = `${origin.replace(/\/$/, '')}/api/auth/confirm?next=${encodeURIComponent('/update-password?welcome=1')}`
-  const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
+  const { data: invited, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo, ...(name ? { data: { display_name: name } } : {}) })
   if (invErr) {
     console.error('[admin] invite falló:', invErr.message)
     return { ok: false, error: invErr.message.includes('already') ? 'Ese correo ya tiene una cuenta.' : 'No se pudo mandar la invitación.' }
@@ -136,14 +136,17 @@ export async function inviteFromWaitlist(waitlistId: string, origin: string, fea
 }
 
 /** Invitar a alguien directo, sin que haya pasado por la lista de espera. */
-export async function inviteByEmail(email: string, origin: string, features?: Features): Promise<AdminResult> {
+export async function inviteByEmail(email: string, origin: string, features?: Features, name?: string): Promise<AdminResult> {
   if (!(await requireAdmin())) return NO_ADMIN
   const admin = serviceClient()
   if (!admin) return NO_SERVICE
   const clean = email.trim().toLowerCase()
   if (clean.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return { ok: false, error: 'Ese correo no parece válido.' }
 
-  const res = await sendInvite(admin, clean, origin, features ? normalizeFeatures(features) : undefined)
+  // El nombre viaja en la invitación: ella solo lo confirma al crear su cuenta.
+  const cleanName = (name ?? '').trim().slice(0, 40)
+  if (cleanName.includes('@')) return { ok: false, error: 'Pon solo el nombre, sin correo.' }
+  const res = await sendInvite(admin, clean, origin, features ? normalizeFeatures(features) : undefined, cleanName || undefined)
   if (!res.ok) return res
   // Si ya estaba en la lista de espera, queda marcada como invitada.
   await admin.from('waitlist').update({ status: 'invited', invited_at: new Date().toISOString(), invited_user_id: res.userId })
