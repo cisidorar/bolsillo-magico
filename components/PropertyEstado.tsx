@@ -121,7 +121,7 @@ export default function PropertyEstado({
           </button>
         </div>
 
-        <div key={selectedMonth} className="pr-in">
+        <div key={selectedMonth} className="pr-fade">
           <h2 className="font-display text-2xl lg:text-4xl font-extrabold mt-5 mb-4 leading-tight" style={{ color: 'var(--ink)' }}>
             {headline}
           </h2>
@@ -135,7 +135,7 @@ export default function PropertyEstado({
 
       {/* ── Paga el arrendatario ────────────────────────────────────────── */}
       {presentTenant > 0 && (
-        <section key={`t-${selectedMonth}`} aria-labelledby="sec-tenant" className="space-y-3 pr-in" style={{ ['--d' as string]: '70ms' }}>
+        <section key={`t-${selectedMonth}`} aria-labelledby="sec-tenant" className="space-y-3 pr-fade" style={{ ['--d' as string]: '40ms' }}>
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <h3 id="sec-tenant" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Paga el arrendatario</h3>
             <div className="flex items-center gap-2" aria-label={`${model.paidTenantCount} de ${presentTenant} pagadas`}>
@@ -152,8 +152,8 @@ export default function PropertyEstado({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {model.tenantCards.map(({ kind, charge }, i) => (
-              <div key={kind} className="pr-in flex flex-col [&>*]:flex-1" style={{ ['--d' as string]: `${120 + i * 60}ms` }}>
+            {model.tenantCards.map(({ kind, charge }) => (
+              <div key={kind} className="flex flex-col [&>*]:flex-1">
                 <TenantCard kind={kind} charge={charge} today={today}
                   range={charge?.is_estimate ? estimateRange(charges, charge) : null}
                   onOpen={onOpen} onPay={onPay} onUnpay={onUnpay} busy={busy}
@@ -193,7 +193,7 @@ export default function PropertyEstado({
 
       {/* ── Pagas tú ────────────────────────────────────────────────────── */}
       {(showAseo || otherOwner.length > 0) && (
-        <section key={`o-${selectedMonth}`} aria-labelledby="sec-owner" className="space-y-3 pr-in" style={{ ['--d' as string]: '140ms' }}>
+        <section key={`o-${selectedMonth}`} aria-labelledby="sec-owner" className="space-y-3 pr-fade" style={{ ['--d' as string]: '80ms' }}>
           <h3 id="sec-owner" className="text-base font-bold" style={{ color: 'var(--ink)' }}>Pagas tú</h3>
 
           {showAseo && (

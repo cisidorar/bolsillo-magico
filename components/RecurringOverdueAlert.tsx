@@ -20,8 +20,9 @@ export default function RecurringOverdueAlert({ count, names }: Props) {
       : `${names.slice(0, 2).join(', ')} y ${names.length - 2} más`
 
   return (
-    <div className="rc-collapse mb-5" data-closed={dismissed || undefined} onTransitionEnd={e => { if (dismissed && e.propertyName === 'grid-template-rows') setGone(true) }}>
+    <div className="rc-collapse" data-closed={dismissed || undefined} onTransitionEnd={e => { if (dismissed && e.propertyName === 'grid-template-rows') setGone(true) }}>
     <div className="min-h-0 overflow-hidden">
+    <div className="pb-5">
     <div
       className="flex items-start gap-3 px-4 py-3 rounded-2xl"
       style={{
@@ -46,6 +47,7 @@ export default function RecurringOverdueAlert({ count, names }: Props) {
       >
         <X className="w-4 h-4" />
       </button>
+    </div>
     </div>
     </div>
     </div>

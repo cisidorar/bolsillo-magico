@@ -67,7 +67,7 @@ export default async function MetodosPage() {
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-8">
       <div className="mb-5">
-        <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Métodos de pago</h1>
+        <h1 className="font-display text-2xl lg:text-3xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>Métodos de pago</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>Administra tus cuentas, tarjetas y días de facturación.</p>
       </div>
       <PaymentMethodManager
@@ -75,6 +75,7 @@ export default async function MetodosPage() {
         userId={user.id}
         statementTotals={statementTotals}
         usage={usage}
+        today={getNowChile().dateStr}
       />
     </div>
   )

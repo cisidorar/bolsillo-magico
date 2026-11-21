@@ -684,7 +684,7 @@ export default async function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="progress-track flex-1 h-1.5 rounded-full overflow-hidden" style={{ '--bar-color': barColor } as React.CSSProperties}>
-                    <div className="h-full rounded-full rc-grow" style={{ width: `${catPct}%`, backgroundColor: barColor, ['--d' as string]: `${Math.min(i, 8) * 45}ms` }} />
+                    <div className="h-full rounded-full rc-grow" style={{ width: `${catPct}%`, backgroundColor: barColor, ['--d' as string]: `${Math.min(i, 5) * 30}ms` }} />
                   </div>
                   {!mobile && <p className="text-[11px] font-semibold flex-shrink-0 w-32 text-right" style={{ color: statusColor }}>{status}</p>}
                 </div>
@@ -838,10 +838,10 @@ export default async function DashboardPage() {
                           }}
                         />
                         {!isOver && pendingPct > 0 && (
-                          <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '120ms' }} />
+                          <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '60ms' }} />
                         )}
                         {!isOver && upcomingPct > 0 && (
-                          <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '220ms' }} />
+                          <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '110ms' }} />
                         )}
                       </div>
                         )}
@@ -1175,10 +1175,10 @@ export default async function DashboardPage() {
                         backgroundColor: isOver ? 'var(--coral-on-brand)' : 'var(--gold-on-brand)',
                       }} />
                       {!isOver && pendingPct > 0 && (
-                        <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '120ms' }} />
+                        <div className="h-full rc-grow" style={{ width: `${pendingPct}%`, backgroundColor: 'color-mix(in srgb, var(--gold-on-brand) 45%, transparent)', ['--d' as string]: '60ms' }} />
                       )}
                       {!isOver && upcomingPct > 0 && (
-                        <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '220ms' }} />
+                        <div className="h-full rc-grow" style={{ width: `${upcomingPct}%`, backgroundColor: 'rgba(255,255,255,0.22)', ['--d' as string]: '110ms' }} />
                       )}
                     </div>
                       )}

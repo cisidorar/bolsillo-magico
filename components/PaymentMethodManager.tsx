@@ -8,7 +8,7 @@ import {
   Plus, Trash2, Check, X, Star, CreditCard, Landmark, Smartphone, Banknote,
   ChevronRight
 } from 'lucide-react'
-import { cn, formatCLP } from '@/lib/utils'
+import { cn, formatCLP, daysBetween } from '@/lib/utils'
 import ServiceLogo from './ServiceLogo'
 import Link from 'next/link'
 import type { PaymentMethod, CardType } from '@/types'
@@ -59,6 +59,8 @@ interface Props {
   userId: string
   statementTotals?: Record<string, { total: number; start: string; end: string }>
   usage?: Record<string, { expenses: number; recurring: number }>
+  /** Hoy (YYYY-MM-DD, Santiago) para calcular cuánto falta para el cierre */
+  today?: string
 }
 
 type FormState = {
@@ -154,7 +156,7 @@ function FormPanel({
     e.currentTarget.style.boxShadow = 'none'
   }
   const focusProps = { onFocus: focusOn, onBlur: focusOff }
-  const labelCls  = 'text-[10px] font-bold uppercase tracking-widest block mb-1.5'
+  const labelCls  = 'text-xs font-semibold block mb-1.5'
 
   return (
     <div className="flex flex-col gap-4">
@@ -288,7 +290,7 @@ function FormPanel({
             style={inputStyle}
             {...focusProps}
           />
-          <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>Entre 1 y 28</p>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>Entre 1 y 28</p>
         </div>
       )}
 
@@ -310,7 +312,7 @@ function FormPanel({
             style={inputStyle}
             {...focusProps}
           />
-          <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>
             Día del mes siguiente en que vence el pago (ej: cierra el 24, vence el 5). Activa la card &quot;Ciclo de sueldo&quot; en Inicio.
           </p>
         </div>
@@ -336,7 +338,7 @@ function FormPanel({
               {...focusProps}
             />
           </div>
-          <p className="text-[10px] mt-1" style={{ color: 'var(--ink-3)' }}>Ingresa 0 si no aplica · se registra el día de cierre</p>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--ink-3)' }}>Ingresa 0 si no aplica · se registra el día de cierre</p>
         </div>
       )}
 
@@ -382,7 +384,7 @@ function FormPanel({
               onClick={onDeleteConfirm}
               disabled={deleting}
               className="flex-1 min-h-[44px] text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60 flex items-center justify-center gap-1.5"
-              style={{ background: 'var(--coral)', color: 'white' }}
+              style={{ background: 'var(--coral-ink)', color: 'white' }}
             >
               {deleting
                 ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -406,8 +408,8 @@ function FormPanel({
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 min-h-[44px] border text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
-            style={{ borderColor: 'var(--border)', color: 'var(--ink-2)', background: 'var(--surface)' }}
+            className="flex-1 min-h-[44px] text-sm font-semibold rounded-xl transition-opacity hover:opacity-70"
+            style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}
           >
             Cancelar
           </button>
@@ -430,7 +432,7 @@ function FormPanel({
 }
 
 // ─── Main component ────────────────────────────────────────────────────────
-export default function PaymentMethodManager({ paymentMethods: init, userId, statementTotals = {}, usage = {} }: Props) {
+export default function PaymentMethodManager({ paymentMethods: init, userId, statementTotals = {}, usage = {}, today }: Props) {
   const router  = useRouter()
   const supabase = createClient()
 
@@ -566,8 +568,91 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
   // Editar/crear siempre abre como popup (bottom sheet en mobile, modal
   // centrado en desktop) — mismo patrón que CategoryManager y
   // TermDepositManager, en vez del panel lateral sticky que tenía antes.
+  const credit = methods.filter(m => m.card_type === 'credit')
+  const others = methods.filter(m => m.card_type !== 'credit')
+  const openTotal = credit.reduce((sum, m) => sum + (statementTotals[m.id]?.total ?? 0), 0)
+  const hasOpen = credit.some(m => statementTotals[m.id])
+
+  /** Fila de un método que no es crédito (o crédito sin período calculable). */
+  const MethodRow = ({ m }: { m: PaymentMethod }) => {
+    const type = CARD_TYPES.find(t => t.value === (m.card_type ?? 'debit')) ?? CARD_TYPES[0]
+    return (
+      <button onClick={() => openEdit(m)}
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left rounded-2xl transition-colors hover:bg-[var(--surface-2)] active:bg-[var(--surface-2)]">
+        <ServiceLogo domain={m.domain} name={m.name} size={44} fallbackColor={ALL_OPTIONS.find(b => b.domain === m.domain)?.color} className="flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{m.name}</span>
+            {m.last_four && <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--ink-3)' }}>···{m.last_four}</span>}
+            {m.is_default && <Star className="w-3.5 h-3.5 flex-shrink-0" aria-label="Predeterminado" style={{ color: 'var(--gold-ink)', fill: 'var(--gold-ink)' }} />}
+          </div>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{type.label}</p>
+        </div>
+        <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+      </button>
+    )
+  }
+
+  /** Tarjeta de crédito: el período abierto es lo que importa, con cuánto falta para el cierre. */
+  const CreditCardTile = ({ m, i }: { m: PaymentMethod; i: number }) => {
+    const stmt = statementTotals[m.id]
+    const total = stmt ? stmt.total : null
+    const daysLen = stmt ? daysBetween(stmt.start, stmt.end) + 1 : 0
+    const elapsed = stmt && today ? Math.min(daysLen, Math.max(0, daysBetween(stmt.start, today) + 1)) : 0
+    const left = stmt && today ? daysBetween(today, stmt.end) : null
+    const soon = left != null && left >= 0 && left <= 3
+    const closeText = left == null ? null : left < 0 ? 'Cerrado' : left === 0 ? 'Cierra hoy' : left === 1 ? 'Cierra mañana' : `Cierra en ${left} días`
+    return (
+      <div className="card p-4 lg:p-5 pr-in flex flex-col" style={{ ['--d' as string]: `${i * 70}ms` }}>
+        <button onClick={() => openEdit(m)} className="w-full flex items-center gap-3 text-left min-h-[44px]" aria-label={`Editar ${m.name}`}>
+          <ServiceLogo domain={m.domain} name={m.name} size={44} fallbackColor={ALL_OPTIONS.find(b => b.domain === m.domain)?.color} className="flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{m.name}</span>
+              {m.last_four && <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--ink-3)' }}>···{m.last_four}</span>}
+              {m.is_default && <Star className="w-3.5 h-3.5 flex-shrink-0" aria-label="Predeterminado" style={{ color: 'var(--gold-ink)', fill: 'var(--gold-ink)' }} />}
+            </div>
+            <p className="text-xs mt-0.5" style={{ color: m.billing_day && !m.payment_due_day ? 'var(--gold-ink)' : 'var(--ink-3)' }}>
+              {m.billing_day ? `Cierra día ${m.billing_day}` : 'Sin día de cierre'}
+              {m.payment_due_day ? ` · Paga día ${m.payment_due_day}` : m.billing_day ? ' · sin día de pago, toca para configurar' : ''}
+              {m.admin_fee != null && m.admin_fee > 0 ? ` · Admin ${formatCLP(m.admin_fee)}` : ''}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
+        </button>
+
+        {stmt && total != null && (
+          <Link href="/historial?view=billing" className="block mt-4 rounded-2xl p-4 transition-colors hover:brightness-[.98] active:scale-[.99]" style={{ background: 'var(--surface-2)' }}>
+            <div className="flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Período abierto · {fmtDate(stmt.start)} al {fmtDate(stmt.end)}</p>
+                <p className="font-display text-2xl font-extrabold tabular-nums mt-1 leading-none" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
+              </div>
+              {closeText && (
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                  style={soon
+                    ? { background: 'color-mix(in srgb, var(--gold) 16%, var(--surface))', color: 'var(--gold-ink)' }
+                    : { background: 'var(--surface)', color: 'var(--ink-2)' }}>
+                  {closeText}
+                </span>
+              )}
+            </div>
+            {today && daysLen > 0 && (
+              <div className="mt-3" role="img" aria-label={`Día ${elapsed} de ${daysLen} del período`}>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface)' }}>
+                  <div className="h-full rounded-full rc-grow" style={{ width: `${(elapsed / daysLen) * 100}%`, background: soon ? 'var(--gold)' : 'var(--primary)', ['--d' as string]: `${200 + i * 70}ms` }} />
+                </div>
+                <p className="text-[11px] mt-1.5 tabular-nums" style={{ color: 'var(--ink-3)' }}>Día {elapsed} de {daysLen} · acumulado hasta hoy</p>
+              </div>
+            )}
+          </Link>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="space-y-7">
       {methods.length === 0 ? (
         <div className="card text-center py-14 flex flex-col items-center gap-2">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1" style={{ background: 'var(--primary-soft)' }}>
@@ -577,96 +662,41 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
           <p className="text-xs" style={{ color: 'var(--ink-3)' }}>Agrega tu primera tarjeta o cuenta</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          {methods.map((m, idx) => {
-            const ct = m.card_type ?? 'debit'
-            const type = CARD_TYPES.find(t => t.value === ct) ?? CARD_TYPES[0]
-            const fallbackColor = ALL_OPTIONS.find(b => b.domain === m.domain)?.color
-            const stmt = m.card_type === 'credit' ? statementTotals[m.id] : undefined
-
-            return (
-              <div key={m.id}>
-                {/* Fila del método — clicable, abre el popup de edición */}
-                <button
-                  onClick={() => openEdit(m)}
-                  className="w-full flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-[var(--surface-2)]"
-                >
-                  <ServiceLogo
-                    domain={m.domain}
-                    name={m.name}
-                    size={44}
-                    fallbackColor={fallbackColor}
-                    className="flex-shrink-0"
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{m.name}</span>
-                      {m.last_four && (
-                        <span className="text-xs font-medium tabular-nums" style={{ color: 'var(--ink-3)' }}>···{m.last_four}</span>
-                      )}
-                      {m.is_default && (
-                        <Star className="w-3.5 h-3.5 flex-shrink-0" aria-label="Predeterminado" style={{ color: 'var(--gold-ink)', fill: 'var(--gold-ink)' }} />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span
-                        className="text-[11px] px-2 py-0.5 rounded-full font-semibold"
-                        style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}
-                      >
-                        {type.label}
-                      </span>
-                      {m.card_type === 'credit' && m.billing_day && (
-                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Cierra día {m.billing_day}</span>
-                      )}
-                      {m.card_type === 'credit' && m.payment_due_day && (
-                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Paga día {m.payment_due_day}</span>
-                      )}
-                      {m.card_type === 'credit' && m.billing_day && !m.payment_due_day && (
-                        <span className="text-[11px] font-semibold" style={{ color: 'var(--gold-ink)' }}>
-                          Sin día de pago · toca para configurar
-                        </span>
-                      )}
-                      {m.card_type === 'credit' && m.admin_fee != null && m.admin_fee > 0 && (
-                        <span className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Admin {formatCLP(m.admin_fee)}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-                </button>
-
-                {/* Estado de cuenta — crédito */}
-                {stmt && (
-                  <Link
-                    href="/historial?view=billing"
-                    onClick={e => e.stopPropagation()}
-                    className="mx-4 mb-3 flex items-center justify-between rounded-2xl px-3.5 py-2.5 transition-colors"
-                    style={{ background: 'var(--primary-soft)' }}
-                  >
-                    <div>
-                      <p className="text-[11px] font-medium" style={{ color: 'var(--ink-3)' }}>
-                        Período {fmtDate(stmt.start)} – {fmtDate(stmt.end)}
-                      </p>
-                      <p className="text-sm font-extrabold tabular-nums" style={{ color: 'var(--primary)' }}>
-                        {formatCLP(stmt.total)}
-                      </p>
-                      <p className="text-[10px]" style={{ color: 'var(--ink-3)' }}>acumulado hasta hoy</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
-                  </Link>
+        <>
+          {credit.length > 0 && (
+            <section aria-labelledby="pm-credit">
+              <div className="flex items-baseline justify-between gap-3 mb-2.5">
+                <h2 id="pm-credit" className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Tarjetas de crédito</h2>
+                {hasOpen && (
+                  <span className="text-xs tabular-nums" style={{ color: 'var(--ink-3)' }}>
+                    {formatCLP(openTotal)} en períodos abiertos
+                  </span>
                 )}
               </div>
-            )
-          })}
-        </div>
+              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                {credit.map((m, i) => <React.Fragment key={m.id}>{CreditCardTile({ m, i })}</React.Fragment>)}
+              </div>
+            </section>
+          )}
+
+          {others.length > 0 && (
+            <section aria-labelledby="pm-others">
+              <h2 id="pm-others" className="text-sm font-bold mb-2.5" style={{ color: 'var(--ink-2)' }}>
+                {credit.length > 0 ? 'Débito, cuentas y efectivo' : 'Tus métodos'}
+              </h2>
+              <div className="card p-1.5 lg:max-w-2xl pr-in" style={{ ['--d' as string]: `${credit.length * 70}ms` }}>
+                {others.map(m => <React.Fragment key={m.id}>{MethodRow({ m })}</React.Fragment>)}
+              </div>
+            </section>
+          )}
+        </>
       )}
 
       {/* Botón agregar */}
       <button
         onClick={openNew}
-        className="flex items-center justify-center gap-2 w-full py-3.5 border-2 border-dashed rounded-3xl text-sm font-bold transition-colors hover:opacity-80"
-        style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}
+        className="flex items-center justify-center gap-2 w-full lg:w-auto lg:px-8 min-h-[48px] rounded-2xl text-sm font-bold transition-[background-color,transform] active:scale-[.98] hover:bg-[var(--primary-soft)]"
+        style={{ background: 'var(--surface)', color: 'var(--primary)' }}
       >
         <Plus className="w-4 h-4" />
         Agregar método de pago
@@ -676,10 +706,10 @@ export default function PaymentMethodManager({ paymentMethods: init, userId, sta
       {expandedId && (
         <div
           className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center bg-black/50"
+          role="dialog" aria-modal="true" aria-labelledby="pm-sheet-title"
           {...backdropClose}
         >
           <div
-            role="dialog" aria-modal="true" aria-labelledby="pm-sheet-title"
             className="w-full lg:max-w-md rounded-t-3xl lg:rounded-3xl overflow-hidden"
             style={{ background: 'var(--surface)', maxHeight: '92dvh' }}
           >
