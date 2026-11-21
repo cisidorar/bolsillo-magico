@@ -253,6 +253,7 @@ function UpdatePasswordForm() {
             </div>
             <AuthField id="name" name="name" label="Tu nombre" value={name} onChange={setName}
               autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
+              placeholder="Por ejemplo, Camila"
               hint="Como te dicen tus amigos. Es el que verán en los viajes compartidos."
               invalid={!!error} />
             {editHandle ? (
