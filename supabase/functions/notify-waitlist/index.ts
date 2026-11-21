@@ -103,7 +103,7 @@ Deno.serve(async () => {
         <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 20px">
           <tr>
             <td style="vertical-align:middle;padding-right:8px">
-              <img src="${SITE_URL}/bolsillo-magico-icono-invertido.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+              <img src="${SITE_URL}/bolsillo-magico-icono-invertido.png" width="32" height="32" alt="" border="0" style="width:32px;height:32px;border-radius:8px;display:block;border:0;outline:none">
             </td>
             <td style="vertical-align:middle">
               <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
