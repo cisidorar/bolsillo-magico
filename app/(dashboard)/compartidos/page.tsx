@@ -134,7 +134,12 @@ export default async function CompartidosPage({
 
     const { data: linkRow } = selected.created_by === user.id
       ? await supabase.from('shared_group_share_links').select('expires_at')
-          .eq('group_id', selected.id).is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
+          .eq('group_id', selected.id).eq('kind', 'view').is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
+      : { data: null }
+
+    const { data: joinRow } = selected.created_by === user.id
+      ? await supabase.from('shared_group_share_links').select('expires_at')
+          .eq('group_id', selected.id).eq('kind', 'join').is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
       : { data: null }
 
     const weights: Record<string, number> = {}
@@ -157,6 +162,7 @@ export default async function CompartidosPage({
         planItems={(planRaw ?? []) as SharedPlanItemRow[]}
         candidates={candidates}
         shareLinkExpires={(linkRow?.expires_at as string | undefined) ?? null}
+        joinLinkExpires={(joinRow?.expires_at as string | undefined) ?? null}
         today={today}
         dateFormat={(prefRow?.date_format ?? 'DD/MM/AAAA') as DateFormat}
       />

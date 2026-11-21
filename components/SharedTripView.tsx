@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
+import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, Share2, Copy, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
 import {
@@ -12,7 +12,7 @@ import {
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement, setSharedGroupClosed,
-  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, removeSharedMember, setSharedMode, giveSharedConsent,
+  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, createJoinLink, revokeJoinLink, removeSharedMember, setSharedMode, giveSharedConsent,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
@@ -42,7 +42,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, candidates = [], today, dateFormat,
+  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, joinLinkExpires = null, candidates = [], today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -61,6 +61,8 @@ export default function SharedTripView({
   planItems:      SharedPlanItemRow[]
   /** Vence el enlace de solo lectura activo (solo lo ve quien creó el viaje) */
   shareLinkExpires?: string | null
+  /** Vence el enlace de invitación activo (solo lo ve quien creó el viaje) */
+  joinLinkExpires?: string | null
   /** Gastos tuyos de las fechas del viaje que aún no están en él */
   candidates?: AdoptCandidate[]
   today:          string
@@ -75,6 +77,7 @@ export default function SharedTripView({
   const [invitee, setInvitee] = useState<FoundUser | null>(null)
   const [inviteAsGuest, setInviteAsGuest] = useState('')
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [joinUrl, setJoinUrl] = useState<string | null>(null)
   const [guestForm, setGuestForm] = useState<{ id: string | null; name: string; income: number | null } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -606,6 +609,61 @@ export default function SharedTripView({
                     : addSharedGuest(group.id, name, inc, months), guestForm.id ? 'Listo' : `${name} entró al viaje`)
                   if (ok) setGuestForm(null)
                 }} />
+            )}
+
+            {/* Invitar con un enlace (como Airbnb): quien lo abre y tiene cuenta entra directo al viaje */}
+            {isCreator && !closed && (
+              <div className="mt-4 space-y-2.5">
+                <div>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Invitar con un enlace</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-3)' }}>
+                    Mándalo por WhatsApp: quien lo abra y tenga cuenta entra directo al viaje. Quien no tenga, puede pedir acceso.
+                  </p>
+                </div>
+                {joinUrl ? (
+                  <div className="space-y-2">
+                    <input readOnly value={joinUrl} onFocus={e => e.currentTarget.select()} aria-label="Enlace de invitación"
+                      className="w-full px-3 min-h-[44px] text-xs rounded-xl" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }} />
+                    <div className="flex gap-2">
+                      {typeof navigator !== 'undefined' && 'share' in navigator && (
+                        <button onClick={async () => {
+                          try { await navigator.share({ title: group.name, text: `Te invito al viaje «${group.name}» en Bolsillo Mágico`, url: joinUrl }) } catch { /* canceló */ }
+                        }} className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-bold rounded-xl"
+                          style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                          <Share2 className="w-3.5 h-3.5" /> Compartir
+                        </button>
+                      )}
+                      <button onClick={async () => { try { await navigator.clipboard.writeText(joinUrl); showToast('Enlace copiado') } catch { /* el campo queda seleccionable */ } }}
+                        className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-bold rounded-xl"
+                        style={'share' in (typeof navigator !== 'undefined' ? navigator : {}) ? { background: 'var(--surface-2)', color: 'var(--ink-2)' } : { background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                        <Copy className="w-3.5 h-3.5" /> Copiar enlace
+                      </button>
+                    </div>
+                    <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>Cópialo ahora: por seguridad no se vuelve a mostrar (puedes generar otro).</p>
+                  </div>
+                ) : (
+                  <button disabled={busy} onClick={async () => {
+                    setBusy(true); setError('')
+                    const r = await createJoinLink(group.id)
+                    setBusy(false)
+                    if (!r.ok) { setError(r.error); return }
+                    setJoinUrl(`${window.location.origin}/unirse/${r.token}`)
+                    router.refresh()
+                  }} className="w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-bold rounded-xl disabled:opacity-50"
+                    style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
+                    <Share2 className="w-3.5 h-3.5" /> {joinLinkExpires ? 'Generar un enlace nuevo' : 'Crear enlace de invitación'}
+                  </button>
+                )}
+                {(joinLinkExpires || joinUrl) && (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px]" style={{ color: 'var(--ink-3)' }}>
+                      {joinLinkExpires ? `Activo hasta el ${new Date(joinLinkExpires).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}` : 'Activo'}
+                    </p>
+                    <button disabled={busy} onClick={async () => { await run(() => revokeJoinLink(group.id), 'Enlace desactivado'); setJoinUrl(null) }}
+                      className="text-xs font-semibold min-h-[44px] px-2" style={{ color: 'var(--coral-ink)' }}>Desactivar</button>
+                  </div>
+                )}
+              </div>
             )}
 
             {isCreator && members.some(m => m.is_guest) && (

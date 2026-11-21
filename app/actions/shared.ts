@@ -49,6 +49,8 @@ const ERRORS: Record<string, string> = {
   not_guest:            'Esa persona tiene cuenta; su ingreso sale de sus propios datos.',
   only_payer:           'Solo quien pagó el gasto puede sacarlo del viaje.',
   expense_not_adoptable: 'Ese gasto no se puede pasar a un viaje (ya está en uno o es recurrente).',
+  link_invalid:         'Este enlace ya no está disponible. Pídele uno nuevo a quien te invitó.',
+  group_full:           'Este viaje ya llegó al máximo de personas.',
   group_has_activity:   'Otras personas ya tienen gastos en este viaje: ciérralo para archivarlo en vez de eliminarlo.',
   invalid_link:         'El link tiene que empezar con http:// o https://',
 }
@@ -176,6 +178,24 @@ export async function createShareLink(groupId: string): Promise<Result<{ token: 
   const r = await rpc<string>('shared_link_create', { p_group: groupId })
   if (!r.ok) return r
   return { ok: true, token: r.data as string }
+}
+
+/** Enlace de invitación (tipo Airbnb): quien lo abre, con cuenta, entra directo al viaje. El token se devuelve una sola vez. */
+export async function createJoinLink(groupId: string): Promise<Result<{ token: string }>> {
+  const r = await rpc<string>('shared_join_link_create', { p_group: groupId })
+  if (!r.ok) return r
+  return { ok: true, token: r.data as string }
+}
+
+export async function revokeJoinLink(groupId: string) {
+  return rpc('shared_join_link_revoke', { p_group: groupId })
+}
+
+/** Unirse a un viaje con el token del enlace; devuelve el id del viaje. */
+export async function acceptJoinLink(token: string, categoryId: string | null, consent: boolean): Promise<Result<{ groupId: string }>> {
+  const r = await rpc<string>('shared_join_link_accept', { p_token: token, p_category: categoryId, p_consent: consent })
+  if (!r.ok) return r
+  return { ok: true, groupId: r.data as string }
 }
 
 export async function revokeShareLink(groupId: string) {
