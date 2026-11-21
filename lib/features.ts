@@ -34,6 +34,7 @@ export const FEATURE_PRESETS: { id: string; label: string; features: Features }[
   { id: 'basico',      label: 'Básico',          features: DEFAULT_FEATURES },
   { id: 'inversiones', label: 'Con inversiones', features: { ...DEFAULT_FEATURES, inversiones: true, ahorro: true } },
   { id: 'propiedad',   label: 'Con propiedad',   features: { ...DEFAULT_FEATURES, propiedad: true } },
+  { id: 'viajes',      label: 'Con viajes',      features: { ...DEFAULT_FEATURES, viajes: true } },
   { id: 'completo',    label: 'Completo',        features: ALL_FEATURES },
 ]
 

@@ -30,7 +30,7 @@ const sameFeatures = (a: Features, b: Features) => FEATURE_KEYS.every(k => a[k] 
 
 const summarize = (f: Features): string => {
   const on = FEATURE_KEYS.filter(k => f[k]).map(k => FEATURE_LABELS[k].title)
-  return on.length === 0 ? 'solo lo básico (gastos, historial, análisis y presupuesto)' : on.join(', ')
+  return on.length === 0 ? 'solo lo básico' : `lo básico + ${on.join(', ')}`
 }
 
 /** Acceso de una invitación: atajos + un chip por módulo, con el resumen de lo que va a ver. */
@@ -45,12 +45,15 @@ function ModuleAccess({ value, onChange, disabled }: { value: Features; onChange
             <button key={pr.id} type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(pr.features)}
               className="min-h-[40px] px-3 rounded-full text-xs font-semibold disabled:opacity-60 transition-colors"
               style={on ? { color: 'var(--primary)', background: 'var(--primary-soft)' } : { color: 'var(--ink-2)', background: 'var(--surface)' }}>
-              {pr.label}
+              {pr.id === 'basico' ? 'Solo lo básico' : pr.label}
             </button>
           )
         })}
       </div>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Módulos de la invitación">
+        <span className="min-h-[44px] px-3.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5" style={{ color: 'var(--mint-ink)', background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))' }}>
+          <Check className="w-3.5 h-3.5" aria-hidden /> Lo básico
+        </span>
         {FEATURE_KEYS.map(k => {
           const on = value[k]
           return (
@@ -66,6 +69,7 @@ function ModuleAccess({ value, onChange, disabled }: { value: Features; onChange
       </div>
       <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
         <span style={{ color: 'var(--ink-3)' }}>Va a ver: </span>{summarize(value)}.
+        <span className="block mt-0.5" style={{ color: 'var(--ink-3)' }}>Lo básico: gastos, historial, análisis, presupuesto, recurrentes e ingresos. Siempre incluido.</span>
       </p>
     </div>
   )
