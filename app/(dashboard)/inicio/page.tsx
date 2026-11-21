@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { Suspense } from 'react'
+import PendingTripInvites from '@/components/PendingTripInvites'
 import { createClient, getServerSession, getUserAccess } from '@/lib/supabase/server'
 import { formatCLP, monthName, pct, isEmoji, currentStatementRange, lastClosedStatementRange, lastDueStatementRange, billingPeriod, billingPeriodRange, getNowChile, lastBusinessDay, statementDueDate, daysBetween } from '@/lib/utils'
 import { intervalDueDate, projectedIntervalDate } from '@/lib/recurring-due'
@@ -735,6 +736,8 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {/* Invitaciones a viajes sin responder: se ven al entrar y se responden acá mismo. */}
+      <Suspense fallback={null}><PendingTripInvites userId={user!.id} /></Suspense>
       <div className="px-4 lg:px-8 pt-2 lg:pt-6 pb-2">
 
         {/* ══════════════════════ DESKTOP (≥ lg) ══════════════════════ */}

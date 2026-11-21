@@ -42,7 +42,7 @@ function activeTabFor(pathname: string): string | null {
   return match?.tab ?? null
 }
 
-export default function BottomNav({ features, isAdmin = false }: { features?: Features; isAdmin?: boolean }) {
+export default function BottomNav({ features, isAdmin = false, tripInvites = 0 }: { features?: Features; isAdmin?: boolean; tripInvites?: number }) {
   const pathname = usePathname()
   const activeTab = activeTabFor(pathname)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -96,10 +96,14 @@ export default function BottomNav({ features, isAdmin = false }: { features?: Fe
                   onClick={() => setMoreOpen(true)}
                   aria-current={active ? 'page' : undefined}
                   aria-haspopup="dialog"
-                  className="flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl transition-all duration-200"
+                  className="relative flex flex-col items-center justify-center gap-0.5 px-3 rounded-xl transition-all duration-200"
                   style={{ minWidth: 44, minHeight: 44 }}
                 >
                   {content}
+                  {tripInvites > 0 && (
+                    <span className="absolute top-1.5 right-2 w-2.5 h-2.5 rounded-full" style={{ background: 'var(--primary)' }}
+                          role="img" aria-label={`${tripInvites} ${tripInvites === 1 ? 'invitación' : 'invitaciones'} a viajes`} />
+                  )}
                 </button>
               )
             }

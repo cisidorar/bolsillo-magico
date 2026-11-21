@@ -30,9 +30,11 @@ interface Props {
   /** Módulos de esta cuenta; sin dato (cuenta vieja) se muestra todo. */
   features?: Features
   isAdmin?:  boolean
+  /** Invitaciones a viajes sin responder: se marcan en «Compartidos». */
+  tripInvites?: number
 }
 
-export default function SideNav({ userName, userEmail, avatarUrl, features, isAdmin = false }: Props) {
+export default function SideNav({ userName, userEmail, avatarUrl, features, isAdmin = false, tripInvites = 0 }: Props) {
   const pathname   = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -93,6 +95,13 @@ export default function SideNav({ userName, userEmail, avatarUrl, features, isAd
                   style={{ color: active ? 'var(--primary)' : 'var(--ink-3)' }}
                 />
                 {item.label}
+                {item.href === '/compartidos' && tripInvites > 0 && (
+                  <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-[11px] font-bold tabular-nums flex items-center justify-center"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                        aria-label={`${tripInvites} ${tripInvites === 1 ? 'invitación' : 'invitaciones'} a viajes`}>
+                    {tripInvites}
+                  </span>
+                )}
               </Link>
             )
           })}

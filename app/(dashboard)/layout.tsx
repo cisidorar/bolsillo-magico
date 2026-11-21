@@ -12,11 +12,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Datos para el menú de usuario del SideNav
   const supabase = await createClient()
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('display_name, avatar_url, onboarded_at')
-    .eq('id', user.id)
-    .maybeSingle()
+  const [{ data: profile }, { data: myTrips }] = await Promise.all([
+    supabase.from('profiles').select('display_name, avatar_url, onboarded_at').eq('id', user.id).maybeSingle(),
+    // Mis filas en viajes (solo las mías: la RLS no deja ver más). Quien fue invitado o ya está en un viaje
+    // lo ve y puede responder aunque el módulo de viajes no esté activado en su cuenta.
+    supabase.from('shared_group_members').select('status').eq('user_id', user.id),
+  ])
+  const tripInvites = (myTrips ?? []).filter(m => m.status === 'pending').length
+  const inTrips = (myTrips ?? []).length > 0
+  const navFeatures = access?.features ? { ...access.features, viajes: access.features.viajes || inTrips } : access?.features
   // Quien llegó por invitación completa primero su perfil (nombre y @usuario).
   if (profile && (profile as { onboarded_at?: string | null }).onboarded_at === null) redirect('/bienvenida')
   const rawName  = profile?.display_name ?? user.email ?? 'Usuario'
@@ -27,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <AutoRegister />
       {/* Desktop sidebar */}
       <SideNav userName={userName} userEmail={user.email ?? ''} avatarUrl={profile?.avatar_url ?? null}
-               features={access?.features} isAdmin={access?.isAdmin ?? false} />
+               features={navFeatures} isAdmin={access?.isAdmin ?? false} tripInvites={tripInvites} />
       {/* Mobile top bar */}
       <header className="mobile-topbar lg:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-center h-12">
         <Link href="/inicio" className="flex items-center gap-2">
@@ -51,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
       {/* Mobile bottom nav */}
-      <BottomNav features={access?.features} isAdmin={access?.isAdmin ?? false} />
+      <BottomNav features={navFeatures} isAdmin={access?.isAdmin ?? false} tripInvites={tripInvites} />
     </div>
   )
 }

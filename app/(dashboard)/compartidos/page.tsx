@@ -45,7 +45,9 @@ export default async function CompartidosPage({
 
   // Viajes ocultos (lib/features.ts): solo "Por cobrar".
   const access = await getUserAccess()
-  const tripsOn = SHOW_TRIPS || access?.features.viajes === true
+  // Quien ya está en un viaje (o lo invitaron) lo ve aunque el módulo no esté activado: si no, no podría responder.
+  const { count: myTripRows } = await supabase.from('shared_group_members').select('group_id', { count: 'exact', head: true }).eq('user_id', user.id)
+  const tripsOn = SHOW_TRIPS || access?.features.viajes === true || (myTripRows ?? 0) > 0
   if (!tripsOn) {
     const [{ data: recRaw }, { data: myPms }] = await Promise.all([
       supabase.from('expense_receivables')
