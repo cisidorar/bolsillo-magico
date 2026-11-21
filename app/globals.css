@@ -666,3 +666,9 @@ div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgSheet .3
   .pr-in, .pr-pop, .pr-fade { animation: none; }
   .pr-details::details-content { transition: none; }
 }
+
+/* Historial: la barra de acciones aparece (sube 16px y se funde, 200 ms) al seleccionar el primer gasto.
+   Es un cambio de modo, no una animación decorativa; con movimiento reducido solo se funde. */
+@keyframes hxIn { from { opacity: 0; transform: translateY(16px); } }
+.hx-in { animation: hxIn .2s cubic-bezier(0.23, 1, 0.32, 1); }
+@media (prefers-reduced-motion: reduce) { .hx-in { animation: none; } }

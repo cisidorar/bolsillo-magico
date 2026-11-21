@@ -136,7 +136,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <button
             onClick={() => handleView('purchase')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
               view === 'purchase' ? 'view-toggle-active-purchase' : 'view-toggle-btn'
             )}
           >
@@ -146,7 +146,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <button
             onClick={() => handleView('billing')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold transition-colors',
               view === 'billing' ? 'view-toggle-active-billing' : 'view-toggle-btn'
             )}
           >
@@ -180,7 +180,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
               onClick={() => setDropdownOpen(o => !o)}
               aria-label="Filtrar por categoría"
               aria-expanded={dropdownOpen}
-              className="relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all"
+              className="relative flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors"
               style={filterBtnStyle(catIds.length > 0)}
             >
               <SlidersHorizontal className="w-4 h-4" />
@@ -234,7 +234,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <button
             onClick={() => handleView('purchase')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap',
               view === 'purchase' ? 'view-toggle-active-purchase' : 'view-toggle-btn'
             )}
           >
@@ -244,7 +244,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <button
             onClick={() => handleView('billing')}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap',
               view === 'billing' ? 'view-toggle-active-billing' : 'view-toggle-btn'
             )}
           >
@@ -278,7 +278,7 @@ export default function HistorialFilters({ categories, month, year, defaultView 
           <button
             onClick={() => setDropdownOpen(o => !o)}
             aria-expanded={dropdownOpen}
-            className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-all whitespace-nowrap"
+            className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-colors whitespace-nowrap"
             style={filterBtnStyle(catIds.length > 0)}
           >
             <SlidersHorizontal className="w-4 h-4" />

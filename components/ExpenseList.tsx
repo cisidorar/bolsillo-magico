@@ -139,8 +139,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
               key={e.id}
               onClick={() => setDetailExpense(e)}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50 active:bg-gray-100/60 group',
-                idx > 0 && 'border-t border-gray-50'
+                'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--surface-2)] active:bg-[var(--surface-2)]'
               )}
             >
               {/* Icon */}
@@ -165,7 +164,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
 
               {/* Text */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">
+                <p className="text-sm font-semibold text-[color:var(--ink)] truncate leading-tight">
                   {e.description ?? e.category?.name ?? 'Gasto'}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -182,28 +181,28 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                     </span>
                   )}
                   {e.payment_method && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[color:var(--ink-2)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded-full flex-shrink-0">
                       <PaymentIcon cardType={e.payment_method.card_type} />
                       {e.payment_method.name}
                     </span>
                   )}
                   {showDate && (
-                    <span className="text-[10px] text-gray-400">· {relativeDate(e.date, dateFormat)}</span>
+                    <span className="text-[11px] text-[color:var(--ink-3)]">· {relativeDate(e.date, dateFormat)}</span>
                   )}
                 </div>
               </div>
 
               {/* Amount + date */}
               <div className="text-right flex-shrink-0">
-                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
+                <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                   −{formatCLP(e.amount)}
                 </p>
                 {!showDate && (
-                  <p className="text-[10px] text-gray-400 mt-0.5 lg:hidden">{relativeDate(e.date, dateFormat)}</p>
+                  <p className="text-[11px] text-[color:var(--ink-3)] mt-0.5 lg:hidden">{relativeDate(e.date, dateFormat)}</p>
                 )}
               </div>
 
-              <ChevronRight className="w-4 h-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="w-4 h-4 shrink-0 text-[color:var(--ink-3)]" />
             </button>
           )
         })}
@@ -234,16 +233,16 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
             aria-label="Detalle de gasto"
           >
             <div
-              className="w-full lg:max-w-2xl bg-white rounded-t-3xl lg:rounded-3xl overflow-hidden"
+              className="w-full lg:max-w-2xl bg-[var(--surface)] rounded-t-3xl lg:rounded-3xl overflow-hidden"
               style={{ maxHeight: '92dvh' }}
             >
-              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-1 lg:hidden" />
+              <div className="w-10 h-1 bg-[var(--border)] rounded-full mx-auto mt-3 mb-1 lg:hidden" />
 
               {/* Header — mismos tokens que ExpenseSheet (px-5 pt-3 pb-3 lg:px-6,
-                  border-gray-100, título text-base font-bold text-gray-900,
+                  border-gray-100, título text-base font-bold text-[color:var(--ink)],
                   cierre w-11 h-11) para que detalle y edición se sientan la
                   misma superficie, no dos modales distintos. */}
-              <div className="flex items-center gap-3 px-5 pt-3 pb-3 lg:px-6 border-b border-gray-100">
+              <div className="flex items-center gap-3 px-5 pt-3 pb-3 lg:px-6">
                 {logoDomain ? (
                   <ServiceLogo domain={logoDomain} name={logoName} size={40} className="flex-shrink-0" />
                 ) : (
@@ -255,14 +254,14 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-base font-bold truncate text-gray-900">
+                  <h2 className="text-base font-bold truncate text-[color:var(--ink)]">
                     {e.description ?? e.category?.name ?? 'Gasto'}
                   </h2>
-                  <p className="text-xs text-gray-400">{fmtDateLong(e.date)}</p>
+                  <p className="text-xs text-[color:var(--ink-3)]">{fmtDateLong(e.date)}</p>
                 </div>
                 <button
                   onClick={closeDetail}
-                  className="w-11 h-11 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                  className="w-11 h-11 flex items-center justify-center rounded-full bg-[var(--surface-2)] text-[color:var(--ink-2)] hover:brightness-95 transition-[filter]"
                   aria-label="Cerrar"
                 >
                   <X className="w-4 h-4" />
@@ -270,16 +269,16 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
               </div>
 
               <div className="px-5 lg:px-6 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(92dvh - 190px)' }}>
-                <div className="rounded-2xl overflow-hidden divide-gray-100 bg-gray-50">
+                <div className="rounded-2xl overflow-hidden divide-gray-100 bg-[var(--surface-2)]">
                   <div className="flex items-center justify-between px-4 py-2.5">
-                    <span className="text-xs font-semibold text-gray-500">Monto</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--coral)' }}>
+                    <span className="text-xs font-semibold text-[color:var(--ink-2)]">Monto</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
                       −{formatCLP(e.amount)}
                     </span>
                   </div>
                   {e.category && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-500">Categoría</span>
+                      <span className="text-xs font-semibold text-[color:var(--ink-2)]">Categoría</span>
                       <span
                         className="cat-badge inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full"
                         style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
@@ -294,8 +293,8 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                   )}
                   {e.payment_method && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-500">Método de pago</span>
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-700">
+                      <span className="text-xs font-semibold text-[color:var(--ink-2)]">Método de pago</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--ink-2)]">
                         <PaymentIcon cardType={e.payment_method.card_type} />
                         {e.payment_method.name}
                       </span>
@@ -303,15 +302,15 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                   )}
                   {e.recurring_expense && (
                     <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs font-semibold text-gray-500">Recurrente</span>
-                      <span className="text-sm font-bold text-gray-700">{e.recurring_expense.name}</span>
+                      <span className="text-xs font-semibold text-[color:var(--ink-2)]">Recurrente</span>
+                      <span className="text-sm font-bold text-[color:var(--ink-2)]">{e.recurring_expense.name}</span>
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1">Descripción</p>
-                  <p className={cn('text-sm', e.description ? 'text-gray-700' : 'text-gray-400')}>
+                  <p className="text-xs font-semibold text-[color:var(--ink-2)] mb-1">Descripción</p>
+                  <p className={cn('text-sm', e.description ? 'text-[color:var(--ink-2)]' : 'text-[color:var(--ink-3)]')}>
                     {e.description || 'Descripción (opcional) — agrégala al editar.'}
                   </p>
                 </div>
@@ -335,14 +334,14 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                   >
                     <HandCoins className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--primary)' }} />
                     <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-semibold text-gray-800">
+                      <span className="block text-sm font-semibold text-[color:var(--ink)]">
                         {(e.card_extra ?? 0) > 0 ? `Te deben ${formatCLP(e.card_extra ?? 0)}` : 'Cobrar a alguien'}
                       </span>
-                      <span className="block text-[11px] text-gray-400">
+                      <span className="block text-[11px] text-[color:var(--ink-3)]">
                         {(e.card_extra ?? 0) > 0 ? 'Ver o cambiar el reparto' : '¿Alguien te va a devolver todo o parte de esto?'}
                       </span>
                     </span>
-                    <ChevronRight className="w-4 h-4 flex-shrink-0 text-gray-300" />
+                    <ChevronRight className="w-4 h-4 flex-shrink-0 text-[color:var(--ink-3)]" />
                   </button>
                 )}
 
@@ -356,18 +355,18 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                     ExpenseSheet.editActions, sin caja de color de fondo. */}
                 {confirmDelete && (
                   <div className="space-y-2">
-                    <p className="text-sm text-center text-gray-500">¿Seguro que quieres eliminar este gasto?</p>
+                    <p className="text-sm text-center text-[color:var(--ink-2)]">¿Seguro que quieres eliminar este gasto?</p>
                     <div className="flex gap-3">
                       <button
                         onClick={() => setConfirmDelete(false)}
-                        className="flex-1 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
+                        className="flex-1 py-3 text-sm font-semibold text-[color:var(--ink-2)] bg-[var(--surface-2)] rounded-2xl hover:brightness-95 transition-[filter]"
                       >
                         Cancelar
                       </button>
                       <button
                         onClick={() => handleDelete(e)}
                         disabled={deleting}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white bg-red-500 rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-60"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold text-white bg-[var(--coral-ink)] rounded-2xl hover:brightness-110 transition-[filter] disabled:opacity-60"
                       >
                         {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                         {deleting ? 'Eliminando...' : 'Sí, eliminar'}
@@ -378,17 +377,17 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
               </div>
 
               {!confirmDelete && (
-                <div className="border-t border-gray-100 px-5 lg:px-6 py-3 flex items-center gap-3 flex-shrink-0 bg-white">
+                <div className="px-5 lg:px-6 py-3 flex items-center gap-3 flex-shrink-0 bg-[var(--surface)]">
                   <button
                     onClick={() => setConfirmDelete(true)}
-                    className="logout-btn flex items-center justify-center w-11 h-11 text-red-500 border rounded-2xl transition-colors flex-shrink-0"
+                    className="logout-btn flex items-center justify-center w-11 h-11 text-[color:var(--coral-ink)] border rounded-2xl transition-colors flex-shrink-0"
                     aria-label="Eliminar"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={closeDetail}
-                    className="px-4 py-3 text-sm font-semibold text-gray-600 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
+                    className="px-4 py-3 text-sm font-semibold text-[color:var(--ink-2)] bg-[var(--surface-2)] rounded-2xl hover:brightness-95 transition-[filter]"
                   >
                     Cerrar
                   </button>

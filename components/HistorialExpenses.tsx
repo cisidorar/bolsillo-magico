@@ -322,7 +322,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
       {/* Floating bulk action bar */}
       {selectMode && selectedIds.size > 0 && (
         <div className="fixed bottom-24 lg:bottom-8 left-0 lg:left-60 right-0 z-[60] px-4 lg:px-8 pointer-events-none">
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto hx-in">
             <div
               className="flex flex-col gap-2.5 px-5 py-3.5 rounded-2xl text-white"
               style={{ background: 'var(--ink)', boxShadow: '0 8px 18px var(--shadow)' }}
@@ -349,8 +349,8 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                 <button
                   onClick={confirming ? handleBulkDelete : () => { setDeleteError(null); setConfirming(true) }}
                   disabled={deleting}
-                  className="flex-1 min-h-[44px] flex items-center justify-center gap-2 active:scale-95 transition-all px-4 rounded-xl text-sm font-bold disabled:opacity-60"
-                  style={{ background: 'var(--coral)', color: 'white' }}
+                  className="flex-1 min-h-[44px] flex items-center justify-center gap-2 active:scale-[.97] transition-transform px-4 rounded-xl text-sm font-bold disabled:opacity-60"
+                  style={{ background: 'var(--coral-ink)', color: 'white' }}
                 >
                   {deleting
                     ? <Loader2 className="w-4 h-4 animate-spin" />
