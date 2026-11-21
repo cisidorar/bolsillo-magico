@@ -20,7 +20,7 @@ export default async function AdminPage() {
   return (
     <div className="px-4 lg:px-8 pt-6 lg:pt-8 pb-12">
       <div className="mb-6">
-        <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>
+        <h1 className="font-display text-2xl lg:text-3xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>
           Acceso
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--ink-3)' }}>

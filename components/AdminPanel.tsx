@@ -155,7 +155,10 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 lg:space-y-0 lg:grid lg:gap-6 lg:items-start" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)' }}>
+
+      {/* Izquierda: lo que se hace (invitar y responder solicitudes). Derecha: el estado de las cuentas. */}
+      <div className="space-y-6 min-w-0">
 
       {/* ── Invitar ── */}
       <section className="card p-5 lg:p-6">
@@ -288,8 +291,10 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
         )}
       </section>
 
+      </div>
+
       {/* ── Cuentas ── */}
-      <section className="card p-5 lg:p-6">
+      <section className="card p-5 lg:p-6 min-w-0">
         <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>Cuentas</h2>
         <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
           Apagar un módulo solo lo oculta: los datos de la persona se conservan y reaparecen al volver a encenderlo.
@@ -354,7 +359,7 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
                     ))}
                   </div>
                 </div>
-                <ul>
+                <ul className="xl:grid xl:grid-cols-2 xl:gap-x-8">
                   {FEATURE_KEYS.map((k: FeatureKey) => (
                     <li key={k} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0">
