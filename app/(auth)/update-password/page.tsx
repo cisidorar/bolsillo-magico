@@ -66,7 +66,8 @@ function UpdatePasswordForm() {
   // Registro por invitación (?welcome=1): además de la contraseña se pide cómo te ven los demás.
   const [name,    setName]    = useState('')
   const [handle,  setHandle]  = useState('')
-  const [avatar,  setAvatar]  = useState<string>(() => avatarUrl(AVATARS[Math.floor(Math.random() * AVATARS.length)].id))
+  // Parte con el primero y, al conocer la cuenta, pasa a uno fijo por cuenta (Math.random daba otro en servidor y navegador).
+  const [avatar,  setAvatar]  = useState<string>(() => avatarUrl(AVATARS[0].id))
   const [editHandle, setEditHandle] = useState(false)
   const [email,   setEmail]   = useState('')
   const [pay,     setPay]     = useState<PayChoice>(null)
@@ -94,12 +95,21 @@ function UpdatePasswordForm() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || cancelled) return
       setEmail(user.email ?? '')
+      if (welcome) {
+        let h = 0
+        for (const c of user.id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+        const mine = avatarUrl(AVATARS[h % AVATARS.length].id)
+        setAvatar(a => (a === avatarUrl(AVATARS[0].id) ? mine : a))
+      }
       if (!welcome) return
       const { data: prof } = await supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle()
       const raw = (prof?.display_name as string | null) ?? ''
       const { data: u } = await supabase.rpc('ensure_my_username')
       if (cancelled) return
-      setName(n => n || (raw.includes('@') ? raw.split('@')[0] : raw))
+      // Si el nombre guardado es solo lo que sale del correo, el campo empieza vacío: que lo escriba la persona.
+      const fromEmail = (user.email ?? '').split('@')[0].toLowerCase()
+      const realName = !raw.trim() || raw.includes('@') || raw.trim().toLowerCase() === fromEmail ? '' : raw.trim()
+      setName(n => n || realName)
       setHandle(h => h || ((u as string | null) ?? ''))
     })()
     return () => { cancelled = true }
@@ -237,7 +247,10 @@ function UpdatePasswordForm() {
         </div>
         {welcome && (
           <div className="flex flex-col gap-4">
-            <AvatarPicker value={avatar} onChange={setAvatar} />
+            <div>
+              <p className="text-xs font-semibold mb-2.5" style={{ color: 'var(--ink-2)' }}>Elige tu foto</p>
+              <AvatarPicker value={avatar} onChange={setAvatar} />
+            </div>
             <AuthField id="name" name="name" label="Tu nombre" value={name} onChange={setName}
               autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
               hint="Como te dicen tus amigos. Es el que verán en los viajes compartidos."
@@ -255,6 +268,7 @@ function UpdatePasswordForm() {
           </div>
         )}
         {!pwSaved && (<div className="flex flex-col gap-4">
+        <div>
         <AuthField
           id="new-password" name="new-password" label="Contraseña" type="password" revealable
           value={pass} onChange={setPass} autoComplete="new-password" enterKeyHint="next"
@@ -262,6 +276,7 @@ function UpdatePasswordForm() {
           invalid={!!error} describedBy={[error ? 'pw-error' : '', 'pw-hint'].filter(Boolean).join(' ')}
         />
         <PasswordMeter pass={pass} check={pwCheck} />
+        </div>
  {!welcome && <AuthField
           id="confirm-password" name="confirm-password" label="Repite la contraseña" type="password" revealable
           value={confirm} onChange={setConfirm} autoComplete="new-password" enterKeyHint="go"

@@ -16,6 +16,10 @@ export default async function BienvenidaPage() {
 
   // Todas las cuentas tienen un @usuario; la primera vez se genera acá.
   const { data: username } = await supabase.rpc('ensure_my_username')
-  const raw = (profile?.display_name as string | null) ?? ''
-  return <WelcomeProfileForm userId={user.id} initialName={raw.includes('@') ? raw.split('@')[0] : raw} initialUsername={(username as string | null) ?? ''} />
+  // Si el nombre guardado es solo lo que sale del correo (nadie lo escribió), el campo
+  // empieza vacío: así la persona pone su nombre en vez de aceptar «ca_retr0» sin darse cuenta.
+  const raw = ((profile?.display_name as string | null) ?? '').trim()
+  const fromEmail = (user.email ?? '').split('@')[0].toLowerCase()
+  const initialName = !raw || raw.includes('@') || raw.toLowerCase() === fromEmail ? '' : raw
+  return <WelcomeProfileForm userId={user.id} initialName={initialName} initialUsername={(username as string | null) ?? ''} />
 }

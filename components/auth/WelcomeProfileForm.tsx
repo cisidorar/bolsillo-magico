@@ -17,7 +17,12 @@ export default function WelcomeProfileForm({ userId, initialName, initialUsernam
   const [name, setName] = useState(initialName)
   const [user, setUser] = useState(initialUsername)
   const [discoverable, setDiscoverable] = useState(true)
-  const [avatar, setAvatar] = useState<string>(() => avatarUrl(AVATARS[Math.floor(Math.random() * AVATARS.length)].id))
+  // Uno por cuenta, siempre el mismo: con Math.random el servidor y el navegador elegían distinto.
+  const [avatar, setAvatar] = useState<string>(() => {
+    let h = 0
+    for (const c of userId) h = (h * 31 + c.charCodeAt(0)) >>> 0
+    return avatarUrl(AVATARS[h % AVATARS.length].id)
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -46,13 +51,17 @@ export default function WelcomeProfileForm({ userId, initialName, initialUsernam
   return (
     <AuthShell title="Tu perfil" subtitle="Así te van a ver las personas con las que compartas gastos o viajes.">
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <AvatarPicker value={avatar} onChange={setAvatar} />
+        <div>
+          <p className="text-xs font-semibold mb-2.5" style={{ color: 'var(--ink-2)' }}>Elige tu foto</p>
+          <AvatarPicker value={avatar} onChange={setAvatar} />
+        </div>
         <AuthField id="name" name="name" label="Tu nombre" value={name} onChange={setName}
-          autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
+           autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
+          placeholder="Por ejemplo, Camila"
           hint="Como te dicen tus amigos. No el correo." invalid={!!error} />
         <AuthField id="username" name="username" label="Tu @usuario" value={user} onChange={v => setUser(v.toLowerCase())}
-          autoComplete="off" enterKeyHint="go" icon={<AtSign className="w-4 h-4" />}
-          hint="Con él te invitan a viajes y gastos compartidos. Se puede cambiar después." invalid={!!error} />
+           autoComplete="off" enterKeyHint="go" icon={<AtSign className="w-4 h-4" />}
+          hint="Te lo sugerimos nosotros; puedes cambiarlo. Con él te invitan a viajes y gastos compartidos." invalid={!!error} />
 
         <label className="flex items-start gap-3 text-sm cursor-pointer" style={{ color: 'var(--ink-2)' }}>
           <input type="checkbox" checked={discoverable} onChange={e => setDiscoverable(e.target.checked)} className="mt-1 w-4 h-4" />
