@@ -353,7 +353,7 @@ export default async function HistorialPage({
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-3xl font-semibold leading-tight" style={{ fontFamily: 'Fredoka, sans-serif', color: 'var(--ink)' }}>Historial</h1>
+        <h1 className="font-display text-2xl lg:text-3xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>Historial</h1>
         <MonthNav
           month={month}
           year={year}
@@ -430,41 +430,27 @@ export default async function HistorialPage({
             </div>
           </div>
 
-          {/* Desktop: 3 columnas */}
-          <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
-            {/* Total */}
-            <div className="card p-5 flex items-center gap-4">
-              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
-                <Wallet className="w-7 h-7" style={{ color: 'var(--primary)' }} />
+          {/* Desktop: una sola tarjeta — el total manda, las dos comparaciones lo acompañan.
+              (Antes eran tres tarjetas iguales con ícono: ninguna destacaba.) */}
+          <div className="hidden lg:flex card mb-5 p-6 items-end justify-between gap-10">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                {partialChip}
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                  {partialChip}
-                </div>
-                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
-              </div>
+              <p className="font-display text-4xl font-extrabold tabular-nums leading-none mt-2" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
+              <p className="text-xs mt-2.5" style={{ color: 'var(--ink-3)' }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
             </div>
-            {/* vs anterior */}
-            <div className="card p-5 flex items-center gap-4">
-              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': deltaBg, '--cat-color': deltaIcon } as React.CSSProperties}>
-                {delta === null || delta === 0
-                  ? <Minus className="w-7 h-7" style={{ color: deltaIcon }} />
-                  : delta > 0
-                    ? <TrendingUp   className="w-7 h-7" style={{ color: deltaIcon }} />
-                    : <TrendingDown className="w-7 h-7" style={{ color: deltaIcon }} />
-                }
-              </div>
-              <div className="min-w-0">
+
+            <div className="flex items-end gap-12 flex-shrink-0">
+              <div>
                 <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}` : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
                 {delta === null ? (
-                  <p className="text-2xl font-extrabold leading-tight" style={{ color: 'var(--ink-3)' }}>—</p>
+                  <p className="text-2xl font-extrabold leading-tight mt-1" style={{ color: 'var(--ink-3)' }}>—</p>
                 ) : (
                   <>
-                    <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: deltaText }}>
+                    <p className="text-2xl font-extrabold tabular-nums leading-tight mt-1 inline-flex items-center gap-1.5" style={{ color: deltaText }}>
+                      {delta === 0 ? <Minus className="w-5 h-5" aria-hidden /> : delta > 0 ? <TrendingUp className="w-5 h-5" aria-hidden /> : <TrendingDown className="w-5 h-5" aria-hidden />}
                       {delta > 0 ? '+' : ''}{delta}%
                     </p>
                     <p className="text-xs tabular-nums mt-0.5" style={{ color: deltaText }}>
@@ -473,16 +459,9 @@ export default async function HistorialPage({
                   </>
                 )}
               </div>
-            </div>
-            {/* Promedio */}
-            <div className="card p-5 flex items-center gap-4">
-              <div className="cat-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': 'var(--surface-2)', '--cat-color': 'var(--ink-2)' } as React.CSSProperties}>
-                <CalendarDays className="w-7 h-7" style={{ color: 'var(--ink-2)' }} />
-              </div>
-              <div className="min-w-0">
+              <div>
                 <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Promedio diario</p>
-                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
+                <p className="text-2xl font-extrabold tabular-nums leading-tight mt-1" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>por día</p>
               </div>
             </div>

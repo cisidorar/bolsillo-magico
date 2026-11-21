@@ -206,8 +206,11 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
               </button>
             </div>
 
-            {/* Expense rows */}
-            {!isCollapsed && selectMode ? (
+            {/* Filas del día: se pliegan con la altura animada (200 ms) en vez de desaparecer de golpe */}
+            <div className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+              style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }} inert={isCollapsed || undefined}>
+            <div className="min-h-0 overflow-hidden">
+            {selectMode ? (
               <div className="card overflow-hidden">
                 {group.expenses.map((e, idx) => {
                   const isSelected  = selectedIds.has(e.id)
@@ -309,9 +312,11 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                   )
                 })}
               </div>
-            ) : !isCollapsed ? (
+            ) : (
               <ExpenseList expenses={group.expenses} dateFormat={dateFormat} />
-            ) : null}
+            )}
+            </div>
+            </div>
           </div>
         )
       })}
