@@ -4,7 +4,7 @@ import HistorialExpenses from '@/components/HistorialExpenses'
 import MonthNav from '@/components/MonthNav'
 import HistorialFilters from '@/components/HistorialFilters'
 import { billingPeriod, billingPeriodRange, currentStatementRange, formatCLP, monthName, getNowChile, relativeDate, type DateFormat } from '@/lib/utils'
-import { SearchX, ClipboardList, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown, Minus, CalendarDays, CreditCard, X } from 'lucide-react'
+import { SearchX, ClipboardList, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus, CreditCard, X } from 'lucide-react'
 import Link from 'next/link'
 import type { ExpenseWithRelations } from '@/types'
 
@@ -326,14 +326,6 @@ export default async function HistorialPage({
       : `Facturación · ${monthName(month)} ${year}`
     : hasFilters ? 'Filtrado' : `${monthName(month)} ${year}`
 
-  // Gasto sube = coral, baja = mint, sin dato o sin cambio = neutro. Un solo
-  // cálculo para el layout móvil y el de escritorio.
-  const deltaIcon = delta === null || delta === 0 ? 'var(--ink-3)' : delta > 0 ? 'var(--coral)' : 'var(--mint)'
-  const deltaText = delta === null || delta === 0 ? 'var(--ink-3)' : delta > 0 ? 'var(--coral-ink)' : 'var(--mint-ink)'
-  const deltaBg   = delta === null || delta === 0
-    ? 'var(--surface-2)'
-    : `color-mix(in srgb, ${delta > 0 ? 'var(--coral)' : 'var(--mint)'} 14%, var(--surface))`
-
   // Vista facturación con el tope de 300 filas alcanzado: total, promedio y
   // conteo salen de un set truncado, así que se marcan como parciales.
   const partialChip = isBilling && billingHitLimit ? (
@@ -370,102 +362,81 @@ export default async function HistorialPage({
       {/* Stats cards */}
       {totalCount > 0 && (
         <>
-          {/* Mobile: total prominente arriba, dos chips abajo */}
-          <div className="lg:hidden mb-4 space-y-2">
-            <div className="card p-4 flex items-center gap-3">
-              <div className="cat-icon-bg w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ '--cat-bg': 'var(--primary-soft)', '--cat-color': 'var(--primary)' } as React.CSSProperties}>
-                <Wallet className="w-5 h-5" style={{ color: 'var(--primary)' }} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                  {partialChip}
+          {/* Resumen del período — tarjeta azul como en Inicio y Recurrentes (mismo lenguaje: el número que
+              importa va sobre el azul de marca). Compacta: el listado es lo que se usa, no debe quedar bajo el pliegue.
+              Sobre el azul, el color de cada comparación usa las variantes "on-brand" (DESIGN.md). */}
+          {(() => {
+            const onBrand = 'rgba(255,255,255,.82)'
+            const deltaOnBrand = delta === null || delta === 0 ? '#fff' : delta > 0 ? 'var(--coral-on-brand-soft)' : 'var(--mint-on-brand-soft)'
+            const vsLabel = isBilling
+              ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}`
+              : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`
+            const DeltaIcon = delta === null || delta === 0 ? Minus : delta > 0 ? TrendingUp : TrendingDown
+            return (
+              <>
+                {/* Móvil */}
+                <div className="lg:hidden hero-gradient rounded-3xl p-5 mb-4 text-white">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-medium" style={{ color: onBrand }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                    {partialChip}
+                  </div>
+                  <p className="font-display text-4xl font-extrabold tabular-nums leading-none mt-2">{formatCLP(total)}</p>
+                  <p className="text-xs mt-2" style={{ color: onBrand }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
+                  <div className="grid grid-cols-2 gap-4 mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,.16)' }}>
+                    <div>
+                      <p className="text-[11px] font-medium leading-tight" style={{ color: onBrand }}>{vsLabel}</p>
+                      {delta === null ? (
+                        <p className="text-xl font-extrabold mt-1">—</p>
+                      ) : (
+                        <p className="text-xl font-extrabold tabular-nums mt-1 inline-flex items-center gap-1" style={{ color: deltaOnBrand }}>
+                          <DeltaIcon className="w-4 h-4" aria-hidden />{delta > 0 ? '+' : ''}{delta}%
+                        </p>
+                      )}
+                      {delta !== null && (
+                        <p className="text-[11px] font-semibold tabular-nums" style={{ color: deltaOnBrand }}>{absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-medium leading-tight" style={{ color: onBrand }}>Promedio diario</p>
+                      <p className="text-xl font-extrabold tabular-nums mt-1">{formatCLP(dailyAvg)}</p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-2xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
-                <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{totalCount} registros</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {/* vs anterior */}
-              <div className="card p-3.5 flex items-center gap-2.5">
-                <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': deltaBg, '--cat-color': deltaIcon } as React.CSSProperties}>
-                  {delta === null || delta === 0
-                    ? <Minus className="w-4 h-4" style={{ color: deltaIcon }} />
-                    : delta > 0
-                      ? <TrendingUp   className="w-4 h-4" style={{ color: deltaIcon }} />
-                      : <TrendingDown className="w-4 h-4" style={{ color: deltaIcon }} />
-                  }
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-medium leading-tight" style={{ color: 'var(--ink-3)' }}>
-                    vs anterior{isCurrentMonth && !isBilling ? ` · d${now.getDate()}` : ''}{isBilling && isOpenBillingStatement ? ` · d${billingDaysElapsed + 1}` : ''}
-                  </p>
-                  {delta === null ? (
-                    <p className="text-base font-extrabold" style={{ color: 'var(--ink-3)' }}>—</p>
-                  ) : (
-                    <>
-                      <p className="text-base font-extrabold tabular-nums" style={{ color: deltaText }}>
-                        {delta > 0 ? '+' : ''}{delta}%
-                      </p>
-                      <p className="text-[10px] tabular-nums" style={{ color: deltaText }}>
-                        {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-              {/* Promedio diario */}
-              <div className="card p-3.5 flex items-center gap-2.5">
-                <div className="cat-icon-bg w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ '--cat-bg': 'var(--surface-2)', '--cat-color': 'var(--ink-2)' } as React.CSSProperties}>
-                  <CalendarDays className="w-4 h-4" style={{ color: 'var(--ink-2)' }} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium leading-tight" style={{ color: 'var(--ink-3)' }}>Promedio diario</p>
-                  <p className="text-base font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Desktop: una sola tarjeta — el total manda, las dos comparaciones lo acompañan.
-              (Antes eran tres tarjetas iguales con ícono: ninguna destacaba.) */}
-          <div className="hidden lg:flex card mb-5 p-6 items-end justify-between gap-10">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
-                {partialChip}
-              </div>
-              <p className="font-display text-4xl font-extrabold tabular-nums leading-none mt-2" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
-              <p className="text-xs mt-2.5" style={{ color: 'var(--ink-3)' }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
-            </div>
-
-            <div className="flex items-end gap-12 flex-shrink-0">
-              <div>
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>{isBilling ? `vs estado anterior${isOpenBillingStatement ? ` · día ${billingDaysElapsed + 1}` : ''}` : `vs mes anterior${isCurrentMonth ? ` · día ${now.getDate()}` : ''}`}</p>
-                {delta === null ? (
-                  <p className="text-2xl font-extrabold leading-tight mt-1" style={{ color: 'var(--ink-3)' }}>—</p>
-                ) : (
-                  <>
-                    <p className="text-2xl font-extrabold tabular-nums leading-tight mt-1 inline-flex items-center gap-1.5" style={{ color: deltaText }}>
-                      {delta === 0 ? <Minus className="w-5 h-5" aria-hidden /> : delta > 0 ? <TrendingUp className="w-5 h-5" aria-hidden /> : <TrendingDown className="w-5 h-5" aria-hidden />}
-                      {delta > 0 ? '+' : ''}{delta}%
-                    </p>
-                    <p className="text-xs tabular-nums mt-0.5" style={{ color: deltaText }}>
-                      {absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}
-                    </p>
-                  </>
-                )}
-              </div>
-              <div>
-                <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Promedio diario</p>
-                <p className="text-2xl font-extrabold tabular-nums leading-tight mt-1" style={{ color: 'var(--ink)' }}>{formatCLP(dailyAvg)}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>por día</p>
-              </div>
-            </div>
-          </div>
+                {/* Escritorio */}
+                <div className="hidden lg:flex hero-gradient rounded-3xl px-8 py-5 mb-5 items-end justify-between gap-10 text-white">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium" style={{ color: onBrand }}>{isBilling ? 'Total del período' : 'Total del mes'}</p>
+                      {partialChip}
+                    </div>
+                    <p className="font-display text-4xl font-extrabold tabular-nums leading-none mt-2">{formatCLP(total)}</p>
+                    <p className="text-sm mt-2" style={{ color: onBrand }}>{totalCount} registro{totalCount !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="flex items-end gap-14 flex-shrink-0">
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: onBrand }}>{vsLabel}</p>
+                      {delta === null ? (
+                        <p className="font-display text-3xl font-extrabold leading-tight mt-1">—</p>
+                      ) : (
+                        <>
+                          <p className="font-display text-3xl font-extrabold tabular-nums leading-tight mt-1 inline-flex items-center gap-2" style={{ color: deltaOnBrand }}>
+                            <DeltaIcon className="w-6 h-6" aria-hidden />{delta > 0 ? '+' : ''}{delta}%
+                          </p>
+                          <p className="text-sm font-semibold tabular-nums" style={{ color: deltaOnBrand }}>{absoluteDelta > 0 ? '+' : ''}{formatCLP(absoluteDelta)}</p>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: onBrand }}>Promedio diario</p>
+                      <p className="font-display text-3xl font-extrabold tabular-nums leading-tight mt-1">{formatCLP(dailyAvg)}</p>
+                      <p className="text-sm" style={{ color: onBrand }}>por día</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )
+          })()}
         </>
       )}
 

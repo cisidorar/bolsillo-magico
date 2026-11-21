@@ -1,8 +1,8 @@
-// Espeja el Historial real (nov 2026): título + navegador de mes, tarjetas de
-// resumen (móvil: total grande + 2 chips; escritorio: 3 tarjetas), filtros
+// Espeja el Historial real (nov 2026): título + navegador de mes (48 px), resumen
+// (tarjeta azul como Inicio y Recurrentes: total + vs mes anterior + promedio diario), filtros
 // (móvil: toggle + búsqueda en dos filas; escritorio: una sola fila), la fila
-// "Seleccionar" y los grupos por día (encabezado con barra + conteo + total y
-// una tarjeta con filas de ícono, descripción, chips y monto). Los banners
+// "Seleccionar" y los grupos por día (encabezado con día de la semana + fecha +
+// conteo + total, y una tarjeta con filas de 68 px: ícono, descripción, chips y monto). Los banners
 // condicionales (estado de cuenta, filtro por método) no se dibujan: dependen
 // de datos que el skeleton todavía no tiene.
 const bar = (w: string, h = 'h-3') => (
@@ -34,9 +34,8 @@ function DayGroup({ rows }: { rows: number }) {
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2.5 mb-2 px-0.5">
-        <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ background: 'var(--border)' }} />
-        <div className="flex-1">{bar('w-28', 'h-4')}</div>
-        <div className="h-4 w-6 rounded-full" style={{ background: 'var(--surface-2)' }} />
+        <div className="flex-1 flex items-center gap-2">{bar('w-20', 'h-4')}{bar('w-16', 'h-3')}</div>
+        <div className="hidden sm:block">{bar('w-14', 'h-3')}</div>
         {bar('w-16', 'h-4')}
         <div className="w-4 h-4 rounded" style={{ background: 'var(--surface-2)' }} />
       </div>
@@ -51,46 +50,41 @@ export default function LoadingHistorial() {
   return (
     <div className="px-4 lg:px-8 pt-2 lg:pt-8 pb-4 animate-pulse">
       {/* Header: título + navegador de mes */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4" style={{ height: 48 }}>
         <div className="h-9 w-36 rounded-xl" style={{ background: 'var(--surface-2)' }} />
-        <div className="h-8 w-36 rounded-xl" style={{ background: 'var(--surface-2)' }} />
+        <div className="h-12 w-44 rounded-xl" style={{ background: 'var(--surface-2)' }} />
       </div>
 
-      {/* Resumen — móvil */}
-      <div className="lg:hidden mb-4 space-y-2">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex-shrink-0" style={{ background: 'var(--surface-2)' }} />
-          <div className="space-y-1.5">
-            {bar('w-24', 'h-3')}
-            {bar('w-32', 'h-6')}
-            {bar('w-16', 'h-3')}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
+      {/* Resumen — tarjeta azul (móvil ~178 px: total + 2 datos · escritorio ~134 px: total · vs anterior · promedio) */}
+      <div className="lg:hidden hero-gradient rounded-3xl p-5 mb-4">
+        <div className="h-3 w-24 rounded-full" style={{ background: 'rgba(255,255,255,.22)' }} />
+        <div className="h-9 w-44 rounded-xl mt-2" style={{ background: 'rgba(255,255,255,.28)' }} />
+        <div className="h-3 w-20 rounded-full mt-2" style={{ background: 'rgba(255,255,255,.2)' }} />
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4">
           {[0, 1].map(i => (
-            <div key={i} className="card p-3.5 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl flex-shrink-0" style={{ background: 'var(--surface-2)' }} />
-              <div className="space-y-1.5">
-                {bar('w-16', 'h-2.5')}
-                {bar('w-12', 'h-4')}
-              </div>
+            <div key={i}>
+              <div className="h-3 w-24 rounded-full" style={{ background: 'rgba(255,255,255,.2)' }} />
+              <div className="h-6 w-20 rounded-lg mt-1.5" style={{ background: 'rgba(255,255,255,.28)' }} />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Resumen — escritorio */}
-      <div className="hidden lg:grid grid-cols-3 gap-4 mb-5">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="card p-5 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl flex-shrink-0" style={{ background: 'var(--surface-2)' }} />
-            <div className="space-y-2">
-              {bar('w-28', 'h-3')}
-              {bar('w-36', 'h-7')}
-              {bar('w-20', 'h-3')}
+      <div className="hidden lg:flex hero-gradient rounded-3xl px-8 py-5 mb-5 items-end justify-between gap-10">
+        <div>
+          <div className="h-4 w-28 rounded-full" style={{ background: 'rgba(255,255,255,.22)' }} />
+          <div className="h-10 w-64 rounded-xl mt-2" style={{ background: 'rgba(255,255,255,.28)' }} />
+          <div className="h-4 w-24 rounded-full mt-2" style={{ background: 'rgba(255,255,255,.2)' }} />
+        </div>
+        <div className="flex items-end gap-14 flex-shrink-0">
+          {[0, 1].map(i => (
+            <div key={i}>
+              <div className="h-4 rounded-full" style={{ background: 'rgba(255,255,255,.22)', width: i === 0 ? 144 : 112 }} />
+              <div className="h-9 rounded-xl mt-1" style={{ background: 'rgba(255,255,255,.28)', width: i === 0 ? 140 : 160 }} />
+              <div className="h-4 w-20 rounded-full mt-0.5" style={{ background: 'rgba(255,255,255,.2)' }} />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* Filtros */}
