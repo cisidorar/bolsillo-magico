@@ -634,6 +634,18 @@
   .rc-collapse { transition: none; }
 }
 
+/* Invitación a un viaje: llega desplegándose (la página de abajo baja con ella en vez de saltar) y,
+   al rechazarla, se pliega con .rc-collapse. El recorte solo vale durante el movimiento: después
+   la sombra de la tarjeta se ve completa. Con movimiento reducido, solo se funde. */
+@keyframes icIn   { from { grid-template-rows: 0fr; opacity: 0; } }
+@keyframes icClip { from, to { overflow: hidden; } }
+.ic-in { display: grid; grid-template-rows: 1fr; animation: icIn .3s cubic-bezier(0.23, 1, 0.32, 1) backwards; }
+.ic-in > div { min-height: 0; animation: icClip .3s linear backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .ic-in { animation: prFade .16s ease-out backwards; }
+  .ic-in > div { animation: none; }
+}
+
 /* Hojas y diálogos (Nuevo gasto, detalle, ajustes de viaje…): el fondo se funde y la hoja sube desde abajo
    (curva tipo cajón de iOS); en escritorio, donde es un diálogo centrado, escala suave desde el centro.
    Con movimiento reducido solo se funde. */

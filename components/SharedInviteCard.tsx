@@ -19,65 +19,84 @@ export default function SharedInviteCard({
   const router = useRouter()
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
+  // Qué botón se tocó: ese cambia su texto («Uniéndote…») para que se sienta que la app escuchó.
+  const [pending, setPending] = useState<'accept' | 'accept-private' | 'decline' | null>(null)
+  const [closing, setClosing] = useState(false)
   const [error, setError] = useState('')
 
   async function accept(consent: boolean) {
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setPending(consent ? 'accept' : 'accept-private')
     const cat = await ensureTripCategory()
     const res = await acceptSharedInvite(groupId, cat.ok ? cat.id : null, consent)
+    if (!res.ok) { setBusy(false); setPending(null); setError(res.error); return }
     setBusy(false)
-    if (!res.ok) { setError(res.error); return }
     showToast('Te uniste al viaje')
     router.push(`/compartidos?g=${groupId}`)
     router.refresh()
   }
 
   async function decline() {
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setPending('decline')
     const res = await declineSharedInvite(groupId)
     setBusy(false)
-    if (!res.ok) { setError(res.error); return }
-    router.refresh()
+    if (!res.ok) { setPending(null); setError(res.error); return }
+    // La tarjeta se pliega antes de salir: lo de abajo sube suave en vez de saltar.
+    setClosing(true)
+    setTimeout(() => router.refresh(), 230)
   }
 
   const income = mode === 'income'
 
   return (
-    <div className="card p-4" style={{ borderColor: 'var(--primary)' }}>
+    <div className="rc-collapse ic-in" data-closed={closing || undefined} aria-hidden={closing || undefined}>
+    <div style={closing ? { overflow: 'hidden' } : undefined}>
+    <div className="card p-4 lg:p-5" style={{ background: 'color-mix(in srgb, var(--primary) 7%, var(--surface))' }}>
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
-          <Mail className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
+          <Mail className="w-5 h-5" style={{ color: 'var(--primary-text)' }} aria-hidden />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{inviter} te invitó a «{groupName}»</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+          <p className="font-display text-lg font-bold leading-snug text-balance" style={{ color: 'var(--ink)' }}>
+            {inviter} te invitó a «{groupName}»
+          </p>
+          <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
             {income
-              ? 'El reparto es según lo que gana cada uno: cada uno paga en proporción a lo que gana. Nadie ve el sueldo de otro, solo el porcentaje. Si prefieres no compartirlo, puedes entrar igual y el grupo repartirá parejo hasta que cambies de opinión.'
-              : 'El reparto es en partes iguales entre todos.'}
+              ? 'Los gastos se reparten según lo que gana cada uno. Solo se comparte el porcentaje, nunca el sueldo.'
+              : 'Los gastos se reparten en partes iguales entre todos.'}
           </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-            En tus gastos solo aparecerá tu parte; tus ingresos y gastos personales siguen siendo privados.
-          </p>
-          {error && <p className="text-xs font-medium mt-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
-          <div className="flex flex-wrap gap-2 mt-3">
+          <details className="pr-details mt-1">
+            <summary className="inline-flex items-center min-h-[44px] text-sm font-bold cursor-pointer" style={{ color: 'var(--primary-text)' }}>
+              ¿Qué pasa si acepto?
+            </summary>
+            <div className="text-sm space-y-1.5 pb-1" style={{ color: 'var(--ink-2)' }}>
+              <p>En tus gastos solo aparecerá tu parte. Tus ingresos y tus gastos personales siguen siendo privados.</p>
+              {income && <p>Si prefieres no compartir tu porcentaje, puedes entrar igual: el grupo repartirá parejo hasta que cambies de opinión.</p>}
+            </div>
+          </details>
+          {error && <p role="alert" className="text-sm font-semibold mt-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <button disabled={busy} onClick={() => accept(income)}
-              className="px-4 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
+              className="px-5 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50 transition-transform active:scale-[.98]"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-              {income ? 'Aceptar y mostrar mi %' : 'Aceptar'}
+              {pending === 'accept' ? 'Uniéndote…' : income ? 'Aceptar y compartir mi %' : 'Aceptar'}
             </button>
             {income && (
               <button disabled={busy} onClick={() => accept(false)}
-                className="px-4 min-h-[44px] rounded-xl text-xs font-semibold disabled:opacity-50"
+                className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50"
                 style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
-                Entrar sin mostrar mi %
+                {pending === 'accept-private' ? 'Uniéndote…' : 'Entrar sin compartir mi %'}
               </button>
             )}
             <button disabled={busy} onClick={decline}
-              className="px-4 min-h-[44px] rounded-xl text-xs font-semibold disabled:opacity-50"
-              style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>Rechazar</button>
+              className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50"
+              style={{ color: 'var(--ink-2)' }}>
+              {pending === 'decline' ? 'Rechazando…' : 'Rechazar'}
+            </button>
           </div>
         </div>
       </div>
+    </div>
+    </div>
     </div>
   )
 }
