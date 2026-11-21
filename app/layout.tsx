@@ -64,7 +64,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         .eq('id', user.id)
         .maybeSingle()
       themeKnown = true
-      if (data?.theme === 'dark') serverTheme = 'dark'
+      // Oscuro por defecto (a pedido de Cas): solo es claro quien lo eligió explícitamente en Ajustes.
+      serverTheme = data?.theme === 'light' ? '' : 'dark'
     }
   } catch (err) {
     // Graceful fallback — ThemeProvider will use localStorage. Loggeado (antes

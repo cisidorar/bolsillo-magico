@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, Check, X, Loader2, ShieldCheck, Ban, Send } from 'lucide-react'
+import { Check, X, Loader2, ShieldCheck, Ban, Send } from 'lucide-react'
 import { useToast } from '@/components/ToastProvider'
 import {
   inviteFromWaitlist, inviteByEmail, rejectWaitlist, setAccountFeature, setAccountFeatures, setAccountBlocked,
@@ -28,26 +28,45 @@ function ago(iso: string | null): string {
 
 const sameFeatures = (a: Features, b: Features) => FEATURE_KEYS.every(k => a[k] === b[k])
 
-/** Casillas de módulos para elegir con qué parte una invitación. */
-function ModulePicker({ value, onChange, disabled }: { value: Features; onChange: (f: Features) => void; disabled?: boolean }) {
+const summarize = (f: Features): string => {
+  const on = FEATURE_KEYS.filter(k => f[k]).map(k => FEATURE_LABELS[k].title)
+  return on.length === 0 ? 'solo lo básico (gastos, historial, análisis y presupuesto)' : on.join(', ')
+}
+
+/** Acceso de una invitación: atajos + un chip por módulo, con el resumen de lo que va a ver. */
+function ModuleAccess({ value, onChange, disabled }: { value: Features; onChange: (f: Features) => void; disabled?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Módulos de la invitación">
-      {FEATURE_KEYS.map(k => {
-        const on = value[k]
-        return (
-          <button
-            key={k} type="button" aria-pressed={on} disabled={disabled}
-            onClick={() => onChange({ ...value, [k]: !on })}
-            className="min-h-[44px] px-3 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border disabled:opacity-60"
-            style={on
-              ? { color: 'var(--primary)', background: 'var(--primary-soft)', borderColor: 'var(--primary)' }
-              : { color: 'var(--ink-3)', background: 'var(--surface)', borderColor: 'var(--border)' }}
-          >
-            {on ? <Check className="w-3.5 h-3.5" aria-hidden /> : <span className="w-3.5 h-3.5 rounded-full border" style={{ borderColor: 'var(--border)' }} aria-hidden />}
-            {FEATURE_LABELS[k].title}
-          </button>
-        )
-      })}
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs font-semibold mr-1" style={{ color: 'var(--ink-3)' }}>Acceso</span>
+        {FEATURE_PRESETS.map(pr => {
+          const on = sameFeatures(value, pr.features)
+          return (
+            <button key={pr.id} type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(pr.features)}
+              className="min-h-[40px] px-3 rounded-full text-xs font-semibold disabled:opacity-60 transition-colors"
+              style={on ? { color: 'var(--primary)', background: 'var(--primary-soft)' } : { color: 'var(--ink-2)', background: 'var(--surface)' }}>
+              {pr.label}
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Módulos de la invitación">
+        {FEATURE_KEYS.map(k => {
+          const on = value[k]
+          return (
+            <button key={k} type="button" aria-pressed={on} disabled={disabled}
+              onClick={() => onChange({ ...value, [k]: !on })}
+              className="min-h-[44px] px-3.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 disabled:opacity-60 transition-colors"
+              style={on ? { color: 'var(--primary)', background: 'var(--primary-soft)' } : { color: 'var(--ink-3)', background: 'var(--surface)' }}>
+              {on ? <Check className="w-3.5 h-3.5" aria-hidden /> : <span className="w-3.5 h-3.5 rounded-full" style={{ background: 'var(--border)' }} aria-hidden />}
+              {FEATURE_LABELS[k].title}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs" style={{ color: 'var(--ink-2)' }}>
+        <span style={{ color: 'var(--ink-3)' }}>Va a ver: </span>{summarize(value)}.
+      </p>
     </div>
   )
 }
@@ -78,6 +97,9 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteFeatures, setInviteFeatures] = useState<Features>(DEFAULT_FEATURES)
+  // Cada solicitud tiene su propio acceso, visible antes de invitar (parte en lo básico).
+  const [reqFeatures, setReqFeatures] = useState<Record<string, Features>>({})
+  const reqOf = (id: string): Features => reqFeatures[id] ?? DEFAULT_FEATURES
 
   const pending  = waitlist.filter(w => w.status === 'pending')
   const resolved = waitlist.filter(w => w.status !== 'pending')
@@ -143,7 +165,7 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
           </span>
         </div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>
-          Le llega un correo para elegir su clave. Eliges de antemano qué módulos ve; después puedes cambiarlos.
+          Le llega un correo para elegir su clave. Eliges ahora qué módulos va a ver; después puedes cambiarlos en Cuentas.
         </p>
 
         <form
@@ -155,15 +177,15 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
               type="email" inputMode="email" autoComplete="off" required
               value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
               placeholder="correo@ejemplo.com" aria-label="Correo de la persona a invitar"
-              className="flex-1 min-h-[44px] rounded-xl px-3.5 text-sm border outline-none"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+              className="flex-1 min-h-[44px] rounded-xl px-3.5 text-sm outline-none"
+              style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}
             />
             <input
               type="text" autoComplete="off" maxLength={40}
               value={inviteName} onChange={e => setInviteName(e.target.value)}
               placeholder="Nombre (opcional)" aria-label="Nombre de la persona, para que lo confirme al registrarse"
-              className="sm:w-44 min-h-[44px] rounded-xl px-3.5 text-sm border outline-none"
-              style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--ink)' }}
+              className="sm:w-44 min-h-[44px] rounded-xl px-3.5 text-sm outline-none"
+              style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}
             />
             <button
               type="submit" disabled={busy !== null || full || !inviteEmail.trim()}
@@ -174,17 +196,7 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
               Invitar
             </button>
           </div>
-          <div className="flex flex-wrap items-center gap-x-1">
-            <span className="text-[11px] font-bold uppercase tracking-wide mr-1" style={{ color: 'var(--ink-3)' }}>Rápido</span>
-            {FEATURE_PRESETS.map(pr => (
-              <button key={pr.id} type="button" disabled={busy !== null || sameFeatures(inviteFeatures, pr.features)}
-                onClick={() => setInviteFeatures(pr.features)}
-                className="min-h-[44px] px-2 text-xs font-semibold disabled:opacity-40" style={{ color: 'var(--primary)' }}>
-                {pr.label}
-              </button>
-            ))}
-          </div>
-          <ModulePicker value={inviteFeatures} onChange={setInviteFeatures} disabled={busy !== null} />
+          <ModuleAccess value={inviteFeatures} onChange={setInviteFeatures} disabled={busy !== null} />
         </form>
         {full && (
           <p className="text-xs mt-3 font-semibold" style={{ color: 'var(--gold-ink)' }}>
@@ -210,47 +222,51 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
             No hay solicitudes pendientes. Quien deje su correo en la landing aparece acá.
           </p>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {pending.map(w => (
-              <li key={w.id} className="rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: 'var(--surface-2)' }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold flex items-center gap-2 break-all" style={{ color: 'var(--ink)' }}>
-                    <Mail className="w-4 h-4 shrink-0" style={{ color: 'var(--ink-3)' }} aria-hidden /> {w.email}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pidió acceso el {when(w.created_at)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busy !== null || full}
-                    onClick={() => run(`i-${w.id}`, () => inviteFromWaitlist(w.id, window.location.origin, inviteFeatures))}
-                    className="min-h-[44px] px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 disabled:opacity-50"
-                    style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
-                  >
-                    {busy === `i-${w.id}` ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Check className="w-4 h-4" aria-hidden />}
-                    Invitar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => run(`r-${w.id}`, () => rejectWaitlist(w.id))}
-                    aria-label={`Rechazar a ${w.email}`}
-                    className="min-h-[44px] px-3 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
-                    style={{ color: 'var(--ink-2)', background: 'var(--surface)' }}
-                  >
-                    <X className="w-4 h-4" aria-hidden /> Rechazar
-                  </button>
-                </div>
-              </li>
-            ))}
+          <ul className="mt-4 space-y-4">
+            {pending.map(w => {
+              const rf = reqOf(w.id)
+              return (
+                <li key={w.id} className="rounded-2xl p-4 lg:p-5 space-y-4" style={{ background: 'var(--surface-2)' }}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-sm font-bold"
+                         style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }} aria-hidden>
+                      {(w.email[0] ?? '?').toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold break-all" style={{ color: 'var(--ink)' }}>{w.email}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--ink-3)' }}>Pidió acceso el {when(w.created_at)}</p>
+                    </div>
+                  </div>
+
+                  <ModuleAccess value={rf} onChange={f => setReqFeatures(m => ({ ...m, [w.id]: f }))} disabled={busy !== null} />
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={busy !== null || full}
+                      onClick={() => run(`i-${w.id}`, () => inviteFromWaitlist(w.id, window.location.origin, rf))}
+                      className="flex-1 sm:flex-none min-h-[44px] px-5 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[.98] transition-transform"
+                      style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}
+                    >
+                      {busy === `i-${w.id}` ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Send className="w-4 h-4" aria-hidden />}
+                      Invitar con este acceso
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => run(`r-${w.id}`, () => rejectWaitlist(w.id))}
+                      aria-label={`Rechazar a ${w.email}`}
+                      className="min-h-[44px] px-4 rounded-xl text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50"
+                      style={{ color: 'var(--ink-2)', background: 'var(--surface)' }}
+                    >
+                      <X className="w-4 h-4" aria-hidden /> Rechazar
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
-        {pending.length > 0 && (
-          <p className="text-[11px] mt-3" style={{ color: 'var(--ink-3)' }}>
-            Al invitar desde aquí se usan los módulos elegidos arriba en &ldquo;Invitar&rdquo;.
-          </p>
-        )}
-
         {resolved.length > 0 && (
           <details className="mt-4">
             <summary className="text-xs font-semibold cursor-pointer min-h-[44px] flex items-center" style={{ color: 'var(--ink-2)' }}>
@@ -321,7 +337,7 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
 
                 {/* Módulos: interruptores con estado explícito */}
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-3)' }}>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
                     Módulos · {count} de {FEATURE_KEYS.length}
                   </p>
                   <div className="flex flex-wrap justify-end" role="group" aria-label={`Acceso rápido para ${a.email}`}>
@@ -334,9 +350,9 @@ export default function AdminPanel({ waitlist, accounts, cap, myId }: {
                     ))}
                   </div>
                 </div>
-                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                <ul>
                   {FEATURE_KEYS.map((k: FeatureKey) => (
-                    <li key={k} className="flex items-center justify-between gap-3 py-2.5" style={{ borderColor: 'var(--border)' }}>
+                    <li key={k} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold" style={{ color: f[k] ? 'var(--ink)' : 'var(--ink-3)' }}>{FEATURE_LABELS[k].title}</p>
                         <p className="text-xs" style={{ color: 'var(--ink-3)' }}>{FEATURE_LABELS[k].hint}</p>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cambia tu clave de Bolsillo Mágico</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <style>
+    :root { color-scheme: light; supported-color-schemes: light; }
+    @media (prefers-color-scheme: dark) {
+      .bm-page   { background:#E8EFF8 !important; }
+      .bm-card   { background:#ffffff !important; }
+      .bm-header { background:#2B7CF6 !important; }
+      .bm-cta    { background:#2B7CF6 !important; color:#ffffff !important; }
+      .bm-footer { background:#0E2A52 !important; }
+      .bm-footer-muted, .bm-footer-muted a { color:#5E7396 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#E8EFF8;font-family:'Plus Jakarta Sans','Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">Elige una clave nueva para entrar a Bolsillo Mágico.</div>
+
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" class="bm-page" bgcolor="#E8EFF8" style="background:#E8EFF8;padding:40px 16px">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0" role="presentation" class="bm-card" bgcolor="#ffffff"
+      style="background:#ffffff;border-radius:24px;overflow:hidden;max-width:100%;box-shadow:0 8px 30px rgba(14,42,82,0.10)">
+
+      <!-- ENCABEZADO -->
+      <tr><td class="bm-header" bgcolor="#2B7CF6" style="background:#2B7CF6;padding:34px 40px 32px;text-align:center">
+        <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 22px">
+          <tr>
+            <td style="vertical-align:middle;padding-right:8px">
+              <img src="{{ .SiteURL }}/bolsillo-magico-icono-invertido.png" width="32" height="32" alt="Bolsillo Mágico" style="width:32px;height:32px;border-radius:8px;display:block">
+            </td>
+            <td style="vertical-align:middle">
+              <span style="font-family:Fredoka,system-ui,sans-serif;font-size:18px;font-weight:600;letter-spacing:0.3px;line-height:1">
+                <span style="color:rgba(255,255,255,0.95)">Bolsillo </span><span style="color:#F8C945">Mágico</span>
+              </span>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:0;font-family:Fredoka,system-ui,sans-serif;font-size:26px;font-weight:600;color:#ffffff;letter-spacing:0.2px">Cambia tu clave</p>
+      </td></tr>
+
+      <!-- CONTENIDO -->
+      <tr><td style="padding:32px 40px 6px">
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.6;font-weight:700;color:#0E2A52">Hola.</p>
+        <p style="margin:0 0 14px;font-size:14px;line-height:1.7;font-weight:500;color:#5B6B82">Recibimos una solicitud para cambiar la clave de tu cuenta de <strong style="color:#0E2A52">Bolsillo Mágico</strong>.</p>
+        <p style="margin:0 0 6px;font-size:14px;line-height:1.7;font-weight:500;color:#5B6B82">Toca el botón para elegir una nueva. Tus gastos y tus datos siguen exactamente como están.</p>
+      </td></tr>
+
+      <!-- CTA -->
+      <tr><td style="padding:22px 40px 10px;text-align:center">
+        <a href="{{ .SiteURL }}/api/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=%2Fupdate-password" class="bm-cta"
+           style="display:inline-block;background:#2B7CF6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:15px 36px;border-radius:12px">Elegir mi clave nueva</a>
+      </td></tr>
+
+      <tr><td style="padding:14px 40px 34px;text-align:center">
+        <p style="margin:0;font-size:12px;line-height:1.6;color:#8A98AD">El enlace funciona una sola vez y vence en poco tiempo: si ya no sirve, pide uno nuevo desde «¿Olvidaste tu contraseña?».<br>Si no fuiste tú, ignora este correo: tu clave actual sigue funcionando.</p>
+      </td></tr>
+
+      <!-- PIE -->
+      <tr><td class="bm-footer" bgcolor="#0E2A52" style="background:#0E2A52;padding:22px 40px;text-align:center">
+        <p class="bm-footer-muted" style="margin:0;font-size:11px;line-height:1.6;color:#5E7396">Bolsillo Mágico · Hecho en Chile<br>Tus datos son tuyos: no pedimos tu clave del banco ni conectamos tus cuentas.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>

@@ -6,7 +6,7 @@ export const AVATARS = [
   { id: 'conejo',   label: 'Conejo' },
   { id: 'leon',     label: 'León' },
   { id: 'capibara', label: 'Capibara' },
-  { id: 'orca',     label: 'Orca' },
+  { id: 'tigre',    label: 'Tigre' },
   { id: 'pinguino', label: 'Pingüino' },
 ] as const
 

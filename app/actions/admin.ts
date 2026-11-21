@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getUserAccess } from '@/lib/supabase/server'
-import { FEATURE_KEYS, normalizeFeatures, type FeatureKey, type Features } from '@/lib/features'
+import { FEATURE_KEYS, FEATURE_LABELS, normalizeFeatures, type FeatureKey, type Features } from '@/lib/features'
 
 // ── Acceso por invitación (nov 2026) ─────────────────────────────────────────
 // Todo lo de acá usa la llave de servicio, que se salta RLS, así que la
@@ -96,6 +96,13 @@ async function activeAccounts(admin: NonNullable<ReturnType<typeof serviceClient
   }).length
 }
 
+/** "acceso: Inversiones, Propiedad" / "acceso básico", para el aviso que ve quien invita. */
+function accessText(features?: Features): string {
+  const f = features ? normalizeFeatures(features) : null
+  const on = f ? FEATURE_KEYS.filter(k => f[k]).map(k => FEATURE_LABELS[k].title) : []
+  return on.length ? `acceso: ${on.join(', ')}` : 'acceso básico'
+}
+
 /** Manda la invitación y, si se pidió, deja la cuenta con esos módulos desde el inicio. */
 async function sendInvite(
   admin: NonNullable<ReturnType<typeof serviceClient>>, email: string, origin: string, features?: Features, name?: string,
@@ -112,7 +119,13 @@ async function sendInvite(
     return { ok: false, error: invErr.message.includes('already') ? 'Ese correo ya tiene una cuenta.' : 'No se pudo mandar la invitación.' }
   }
   const userId = invited.user?.id ?? null
-  if (userId && features) await admin.from('profiles').update({ features }).eq('id', userId)
+  if (userId && features) {
+    const { error: fe } = await admin.from('profiles').update({ features }).eq('id', userId)
+    if (fe) {
+      console.error('[admin] no se pudieron guardar los módulos:', fe.message)
+      return { ok: false, error: 'La invitación salió, pero no se pudieron guardar los módulos. Ajústalos en Cuentas.' }
+    }
+  }
   return { ok: true, userId }
 }
 
@@ -132,7 +145,7 @@ export async function inviteFromWaitlist(waitlistId: string, origin: string, fea
   }).eq('id', waitlistId)
 
   revalidatePath('/admin')
-  return { ok: true, message: `Invitación enviada a ${row.email}.` }
+  return { ok: true, message: `Invitación enviada a ${row.email} · ${accessText(features)}.` }
 }
 
 /** Invitar a alguien directo, sin que haya pasado por la lista de espera. */
@@ -152,7 +165,7 @@ export async function inviteByEmail(email: string, origin: string, features?: Fe
   await admin.from('waitlist').update({ status: 'invited', invited_at: new Date().toISOString(), invited_user_id: res.userId })
     .eq('email', clean).eq('status', 'pending')
   revalidatePath('/admin')
-  return { ok: true, message: `Invitación enviada a ${clean}.` }
+  return { ok: true, message: `Invitación enviada a ${clean} · ${accessText(features)}.` }
 }
 
 export async function rejectWaitlist(waitlistId: string): Promise<AdminResult> {
