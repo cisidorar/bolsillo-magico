@@ -88,6 +88,14 @@ function LoginForm() {
     return () => clearTimeout(id)
   }, [resetWait])
 
+  // /login?forgot=1: viene del aviso de enlace vencido y abre directo «Cambia tu clave».
+  useEffect(() => {
+    if (searchParams.get('forgot')) {
+      setMode('forgot')
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [searchParams])
+
   // Viene de /api/auth/confirm o /callback cuando el enlace del correo falló.
   useEffect(() => {
     if (searchParams.get('error')) {

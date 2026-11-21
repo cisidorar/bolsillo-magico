@@ -5,7 +5,7 @@ import { SiteHeader, SiteFooter } from '@/components/site/SiteChrome'
 // Cáscara común de las pantallas de acceso (login, crear/cambiar contraseña).
 // Antes cada una tenía su propio fondo, tarjeta y CSS; ahora son una sola cara.
 // Server Component: sin estado, solo estructura y estilos de los campos.
-export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back, chrome = false, aside }: {
+export default function AuthShell({ title, subtitle, children, footer, logoLink = true, back, chrome = false, aside, wide = false }: {
   title: string
   subtitle?: string
   children: React.ReactNode
@@ -18,7 +18,10 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
   chrome?: boolean
   /** Solo con chrome y en pantallas anchas: lo que va a la izquierda de la tarjeta, como el texto del hero de la landing. */
   aside?: React.ReactNode
+  /** Tarjeta más ancha (formularios largos, como crear la cuenta). */
+  wide?: boolean
 }) {
+  const maxW = wide ? 'max-w-md' : 'max-w-sm'
   const styles = (
       <style>{`
         @keyframes auth-spin { to { transform: rotate(360deg); } }
@@ -42,13 +45,13 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
   )
   const body = (
     <>
-      <div className="card w-full max-w-sm p-6">
+      <div className={`card w-full ${maxW} p-6 ${wide ? 'sm:p-8' : ''}`}>
         <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>{title}</h1>
         {subtitle && <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>{subtitle}</p>}
         <div className="mt-6">{children}</div>
       </div>
 
-      {footer && <div className="text-sm mt-6 text-center max-w-sm" style={{ color: 'var(--ink-2)' }}>{footer}</div>}
+      {footer && <div className={`text-sm mt-6 text-center ${maxW}`} style={{ color: 'var(--ink-2)' }}>{footer}</div>}
     </>
   )
 
@@ -59,7 +62,7 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
         <SiteHeader current="login" />
         <main className="flex-1 w-full mx-auto max-w-6xl px-4 sm:px-6 py-10 lg:py-16 grid lg:grid-cols-[1fr_24rem] lg:gap-x-16 items-center justify-items-center lg:justify-items-stretch">
           {aside && <div className="hidden lg:block min-w-0">{aside}</div>}
-          <div className={`w-full max-w-sm flex flex-col items-center ${aside ? '' : 'lg:col-span-2 lg:mx-auto'}`}>{body}</div>
+          <div className={`w-full ${maxW} flex flex-col items-center ${aside ? '' : 'lg:col-span-2 lg:mx-auto'}`}>{body}</div>
         </main>
         <SiteFooter year={new Date().getFullYear()} />
       </div>
@@ -71,7 +74,7 @@ export default function AuthShell({ title, subtitle, children, footer, logoLink 
           style={{ background: 'var(--bg)', paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}>
       {styles}
       {back && (
-        <div className="w-full max-w-sm mb-2">
+        <div className={`w-full ${maxW} mb-2`}>
           <Link href={back.href} className="inline-flex items-center gap-1.5 min-h-[44px] -ml-1 pr-3 text-sm font-semibold" style={{ color: 'var(--ink-2)' }}>
             <ArrowLeft className="w-4 h-4" aria-hidden /> {back.label}
           </Link>

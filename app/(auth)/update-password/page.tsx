@@ -186,10 +186,10 @@ function UpdatePasswordForm() {
             <LinkIcon className="w-5 h-5" aria-hidden />
           </span>
           <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Los enlaces del correo se pueden usar una sola vez y vencen. Ve a iniciar sesión y toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo. Si te invitaron y no te funciona, pídele a quien te invitó que lo reenvíe.
+            Los enlaces del correo se pueden usar una sola vez y vencen. Pide uno nuevo con tu correo. Si te invitaron y no te funciona, pídele a quien te invitó que lo reenvíe.
           </p>
-          <Link href="/login" className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center mt-2" style={{ minHeight: 52 }}>
-            Ir a iniciar sesión
+          <Link href="/login?forgot=1" className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center mt-2" style={{ minHeight: 52 }}>
+            Pedir un enlace nuevo
           </Link>
         </div>
       </AuthShell>
@@ -221,19 +221,22 @@ function UpdatePasswordForm() {
 
   return (
     <AuthShell
+      wide={welcome}
       title={welcome ? 'Crea tu cuenta' : 'Nueva contraseña'}
       subtitle={welcome
         ? 'Te invitaron a Bolsillo Mágico. Cuéntanos cómo te llamas y elige una contraseña.'
         : 'Elige una contraseña nueva para tu cuenta.'}
     >
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
         {email && (
           <AuthField id="email" name="username" label="Tu correo" type="email" value={email} onChange={() => {}} readOnly
             autoComplete="username" icon={<Mail className="w-4 h-4" />}
             hint={welcome ? 'Con este correo vas a entrar siempre.' : undefined} />
         )}
+        </div>
         {welcome && (
-          <>
+          <div className="flex flex-col gap-4">
             <AvatarPicker value={avatar} onChange={setAvatar} />
             <AuthField id="name" name="name" label="Tu nombre" value={name} onChange={setName}
               autoComplete="given-name" enterKeyHint="next" icon={<User className="w-4 h-4" />}
@@ -249,9 +252,9 @@ function UpdatePasswordForm() {
                 <button type="button" onClick={() => setEditHandle(true)} className="font-bold underline" style={{ color: 'var(--primary)' }}>Cambiar</button>
               </p>
             )}
-          </>
+          </div>
         )}
-        {!pwSaved && (<>
+        {!pwSaved && (<div className="flex flex-col gap-4">
         <AuthField
           id="new-password" name="new-password" label="Contraseña" type="password" revealable
           value={pass} onChange={setPass} autoComplete="new-password" enterKeyHint="next"
@@ -265,7 +268,7 @@ function UpdatePasswordForm() {
           icon={<Lock className="w-4 h-4" />}
           invalid={!!error} describedBy={error ? 'pw-error' : undefined}
         />}
-        </>)}
+        </div>)}
 
         {welcome && (
           <fieldset>
