@@ -13,11 +13,11 @@ export const metadata: Metadata = {
   title: { absolute: title },
   description,
   robots: { index: true, follow: true },
-  alternates: { canonical: 'https://bolsillomagico.com' },
+  alternates: { canonical: 'https://www.bolsillomagico.com' },
   openGraph: {
     title,
     description,
-    url: 'https://bolsillomagico.com',
+    url: 'https://www.bolsillomagico.com',
     siteName: 'Bolsillo Mágico',
     locale: 'es_CL',
     type: 'website',
@@ -32,7 +32,7 @@ const jsonLd = {
   '@type': 'WebSite',
   name: 'Bolsillo Mágico',
   alternateName: 'Bolsillo Magico',
-  url: 'https://bolsillomagico.com',
+  url: 'https://www.bolsillomagico.com',
   inLanguage: 'es-CL',
 }
 

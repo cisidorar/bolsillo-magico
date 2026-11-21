@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Mail, Lock, Loader2, ShieldCheck } from 'lucide-react'
+import { Mail, MailCheck, Lock, Loader2, ShieldCheck, ArrowLeft } from 'lucide-react'
 import AuthShell from '@/components/auth/AuthShell'
 import AuthField from '@/components/auth/AuthField'
 
@@ -31,7 +31,8 @@ function safeNext(raw: string | null): string {
   return raw
 }
 
-const BAD_LINK = 'Este enlace ya se usó o venció. Si te invitaron, toca «¿Olvidaste tu contraseña?» con tu correo para recibir uno nuevo, o pídele a quien te invitó que lo reenvíe.'
+const BAD_LINK = 'Este enlace ya se usó o venció. Pide uno nuevo con tu correo, o pídele a quien te invitó que lo reenvíe.'
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 function LoginForm() {
   const supabase     = createClient()
@@ -42,9 +43,12 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
 
+  // 'forgot' es otra pantalla en la misma tarjeta: el correo escrito pasa de una a otra.
+  const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [resetSent, setResetSent] = useState(false)
   const [resetBusy, setResetBusy] = useState(false)
   const [resetWait, setResetWait] = useState(0)
+  const [resetError, setResetError] = useState('')
 
   const [attempts,    setAttempts]    = useState(0)
   const [lockedUntil, setLockedUntil] = useState<number | null>(null)
@@ -72,6 +76,11 @@ function LoginForm() {
     }, 1000)
     return () => clearInterval(id)
   }, [lockedUntil])
+
+  // Al abrir «Cambia tu clave» el botón que se tocó desaparece: el foco pasa al campo de correo.
+  useEffect(() => {
+    if (mode === 'forgot' && !resetSent) document.getElementById('reset-email')?.focus()
+  }, [mode, resetSent])
 
   useEffect(() => {
     if (resetWait <= 0) return
@@ -129,15 +138,31 @@ function LoginForm() {
     window.location.assign(safeNext(searchParams.get('next')))
   }
 
-  async function handleForgotPassword() {
-    setError(''); setResetSent(false)
-    if (!email.trim()) { setError('Escribe tu correo arriba y vuelve a tocar «¿Olvidaste tu contraseña?».'); return }
+  function openForgot() {
+    setError(''); setResetError(''); setResetSent(false); setMode('forgot')
+  }
+  function backToLogin() {
+    setResetError(''); setResetSent(false); setMode('login')
+  }
+
+  async function handleForgotPassword(e?: React.FormEvent) {
+    e?.preventDefault()
+    setResetError('')
+    if (resetBusy || resetWait > 0) return
+    const clean = email.trim()
+    if (!clean) { setResetError('Escribe tu correo para mandarte el enlace.'); return }
+    if (!EMAIL_RE.test(clean)) { setResetError('Ese correo no parece completo. Revisa que tenga la forma nombre@correo.cl.'); return }
     setResetBusy(true)
-    await supabase.auth.resetPasswordForEmail(email.trim(), {
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(clean, {
       redirectTo: `${window.location.origin}/update-password`,
     })
     setResetBusy(false)
-    // Mensaje genérico a propósito: no confirma si el correo existe o no.
+    if (resetErr && (resetErr.status === 429 || /rate limit|too many|security purposes/i.test(resetErr.message))) {
+      setResetWait(RESET_COOLDOWN_SECS)
+      setResetError('Pediste varios enlaces seguidos. Espera un momento y vuelve a intentar.')
+      return
+    }
+    // Cualquier otro resultado se ve igual a propósito: no confirma si el correo tiene cuenta.
     setResetSent(true); setResetWait(RESET_COOLDOWN_SECS)
   }
 
@@ -147,8 +172,8 @@ function LoginForm() {
 
   return (
     <AuthShell
-      title="Inicia sesión"
-      subtitle="Qué bueno verte de nuevo."
+      title={mode === 'forgot' ? (resetSent ? 'Revisa tu correo' : 'Cambia tu clave') : 'Inicia sesión'}
+      subtitle={mode === 'forgot' ? (resetSent ? undefined : 'Te mandamos un enlace para elegir una clave nueva.') : 'Qué bueno verte de nuevo.'}
       logoLink={!installed}
       chrome={!installed}
       aside={(
@@ -175,6 +200,71 @@ function LoginForm() {
         </>
       )}
     >
+      {mode === 'forgot' ? (
+        <div key="forgot" className="pr-in">
+          {resetSent ? (
+            <div className="flex flex-col gap-4">
+              <span className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                    style={{ background: 'color-mix(in srgb, var(--mint) 14%, var(--surface))', color: 'var(--mint-ink)' }}>
+                <MailCheck className="w-6 h-6" aria-hidden />
+              </span>
+              <p role="status" className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+                Si <strong className="font-bold break-all" style={{ color: 'var(--ink)' }}>{email.trim()}</strong> tiene una cuenta, te enviamos un enlace para crear o cambiar tu contraseña.
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
+                Puede tardar un par de minutos. Si no lo ves, revisa el correo no deseado.
+              </p>
+              <button
+                type="button" onClick={() => handleForgotPassword()} disabled={resetBusy || resetWait > 0}
+                className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 tabular-nums transition-transform active:scale-[.99]"
+                style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
+              >
+                {resetBusy ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Enviando…</>
+                  : resetWait > 0 ? `Reenviar en ${resetWait} s` : 'Reenviar el enlace'}
+              </button>
+              <div className="flex items-center justify-between gap-2">
+                <button type="button" onClick={() => { setResetSent(false); setResetError('') }}
+                  className="min-h-[44px] text-sm font-bold" style={{ color: 'var(--primary-text)' }}>
+                  Usar otro correo
+                </button>
+                <button type="button" onClick={backToLogin}
+                  className="min-h-[44px] text-sm font-bold inline-flex items-center gap-1.5" style={{ color: 'var(--primary-text)' }}>
+                  <ArrowLeft className="w-4 h-4" aria-hidden /> Iniciar sesión
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} noValidate className="flex flex-col gap-4">
+              <AuthField
+                id="reset-email" name="email" label="Correo electrónico" type="email" inputMode="email"
+                value={email} onChange={setEmail} autoComplete="username" enterKeyHint="go"
+                placeholder="nombre@correo.cl" icon={<Mail className="w-4 h-4" />}
+                hint="El mismo con el que te invitaron o creaste tu cuenta."
+                invalid={!!resetError} describedBy={resetError ? 'reset-error' : undefined}
+              />
+              {resetError && (
+                <p id="reset-error" role="alert" className="text-xs font-bold rounded-xl px-4 py-3"
+                   style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
+                  {resetError}
+                </p>
+              )}
+              <button
+                type="submit" disabled={resetBusy || resetWait > 0}
+                className="cta-primary w-full rounded-2xl font-bold text-base flex items-center justify-center gap-2 tabular-nums transition-transform active:scale-[.99]"
+                style={{ minHeight: 52, border: 'none', fontFamily: 'inherit' }}
+              >
+                {resetBusy ? <><Loader2 className="w-5 h-5 auth-spinner" aria-hidden /> Enviando…</>
+                  : resetWait > 0 ? `Espera ${resetWait} s` : 'Enviarme el enlace'}
+              </button>
+              <button type="button" onClick={backToLogin}
+                className="self-center min-h-[44px] px-2 text-sm font-bold inline-flex items-center gap-1.5" style={{ color: 'var(--primary-text)' }}>
+                <ArrowLeft className="w-4 h-4" aria-hidden /> Volver a iniciar sesión
+              </button>
+            </form>
+          )}
+        </div>
+      ) : (
+        <div key="login" className="pr-fade">
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
         <AuthField
           id="email" name="email" label="Correo electrónico" type="email" inputMode="email"
@@ -190,26 +280,26 @@ function LoginForm() {
           invalid={hasError} describedBy={hasError ? 'login-error' : undefined}
           below={
             <button
-              type="button" onClick={handleForgotPassword} disabled={resetBusy || resetWait > 0}
-              className="mt-1 min-h-[44px] -ml-1 px-1 text-xs font-bold tabular-nums disabled:opacity-60"
+              type="button" onClick={openForgot}
+              className="mt-1 min-h-[44px] -ml-1 px-1 text-sm font-bold"
               style={{ color: 'var(--primary-text)' }}
             >
-              {resetBusy ? 'Enviando…' : resetWait > 0 ? `Reenviar en ${resetWait} s` : '¿Olvidaste tu contraseña?'}
+              ¿Olvidaste tu contraseña?
             </button>
           }
         />
 
-        {resetSent && (
-          <p role="status" className="text-xs font-semibold rounded-xl px-4 py-3" style={{ color: 'var(--ink)', background: 'var(--primary-soft)' }}>
-            Si ese correo tiene una cuenta, te enviamos un enlace para crear o cambiar tu contraseña. Revisa también el correo no deseado.
-          </p>
-        )}
-
         {error && (
-          <p id="login-error" role="alert" className="text-xs font-bold rounded-xl px-4 py-3"
-             style={{ color: 'var(--coral-ink)', background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
-            {error}
-          </p>
+          <div id="login-error" role="alert" className="rounded-xl px-4 py-3"
+               style={{ background: 'color-mix(in srgb, var(--coral) 10%, var(--surface))' }}>
+            <p className="text-xs font-bold" style={{ color: 'var(--coral-ink)' }}>{error}</p>
+            {error === BAD_LINK && (
+              <button type="button" onClick={openForgot}
+                className="mt-1 -mb-2 min-h-[44px] text-sm font-bold" style={{ color: 'var(--primary-text)' }}>
+                Pedir un enlace nuevo
+              </button>
+            )}
+          </div>
         )}
 
         <button
@@ -223,6 +313,8 @@ function LoginForm() {
         </button>
         <p className="sr-only" role="status" aria-live="polite">{lockNote}</p>
       </form>
+        </div>
+      )}
     </AuthShell>
   )
 }

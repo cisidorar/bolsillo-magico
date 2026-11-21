@@ -5,6 +5,6 @@ import { MetadataRoute } from 'next'
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{ userAgent: '*', allow: ['/$', '/demo', '/seguridad'], disallow: '/' }],
-    sitemap: 'https://bolsillomagico.com/sitemap.xml',
+    sitemap: 'https://www.bolsillomagico.com/sitemap.xml',
   }
 }

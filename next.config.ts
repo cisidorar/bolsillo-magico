@@ -17,7 +17,8 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // Scripts: solo self + inline (Next.js no requiere unsafe-eval en producción)
-      "script-src 'self' 'unsafe-inline'",
+      // En desarrollo Next necesita unsafe-eval (recarga en caliente); sin él la página no se hidrata.
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
       // Estilos: self + inline (Tailwind genera estilos inline)
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Fuentes

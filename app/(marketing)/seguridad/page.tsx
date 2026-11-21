@@ -10,7 +10,7 @@ const description =
 export const metadata: Metadata = {
   title: { absolute: title },
   description,
-  alternates: { canonical: 'https://bolsillomagico.com/seguridad' },
+  alternates: { canonical: 'https://www.bolsillomagico.com/seguridad' },
 }
 
 // Solo lo que se puede verificar en el código y la configuración de la app.

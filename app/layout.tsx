@@ -9,7 +9,7 @@ const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600'], var
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'], variable: '--font-jakarta' })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://bolsillomagico.com'),
+  metadataBase: new URL('https://www.bolsillomagico.com'),
   title: {
     default: 'Bolsillo Mágico',
     template: '%s · Bolsillo Mágico',

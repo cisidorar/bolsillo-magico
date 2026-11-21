@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 
 // Destino del enlace de los correos de invitación y de recuperación.
 // Requiere que las plantillas de Supabase apunten acá:
-//   https://bolsillomagico.com/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=%2Fupdate-password%3Fwelcome%3D1
+//   https://www.bolsillomagico.com/api/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=%2Fupdate-password%3Fwelcome%3D1
 //
 // Dos pasos a propósito (GET muestra un botón, POST verifica el token):
 // Hotmail/Outlook, Gmail y los antivirus de correo "abren" los enlaces antes que la
