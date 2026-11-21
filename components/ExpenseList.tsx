@@ -170,7 +170,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   {e.category && (
                     <span
-                      className="cat-badge inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                      className="cat-badge inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                       style={{ '--cat-bg': e.category.bg_color, '--cat-color': e.category.color } as React.CSSProperties}
                     >
                       {isEmoji(e.category.icon)
@@ -181,7 +181,7 @@ export default function ExpenseList({ expenses, showDate, dateFormat, variant = 
                     </span>
                   )}
                   {e.payment_method && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[color:var(--ink-2)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded-full flex-shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[color:var(--ink-2)] bg-[var(--surface-2)] px-1.5 py-0.5 rounded-full flex-shrink-0">
                       <PaymentIcon cardType={e.payment_method.card_type} />
                       {e.payment_method.name}
                     </span>

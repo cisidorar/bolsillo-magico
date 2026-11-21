@@ -177,14 +177,21 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                 </button>
               )}
 
-              {/* Date label */}
-              <span className="text-sm font-bold capitalize flex-1" style={{ color: 'var(--ink)' }}>
-                {group.label}
-              </span>
+              {/* Fecha: el día de la semana manda (se escanea mejor que 19/11/2026); la fecha exacta acompaña */}
+              {(() => {
+                const rel = group.label === 'Hoy' || group.label === 'Ayer'
+                const weekday = new Date(group.date + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'long' })
+                return (
+                  <span className="flex-1 min-w-0 truncate">
+                    <span className="text-sm font-bold capitalize" style={{ color: 'var(--ink)' }}>{rel ? group.label : weekday}</span>
+                    <span className="text-xs ml-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>{rel ? weekday : group.label}</span>
+                  </span>
+                )
+              })()}
 
-              {/* Count chip */}
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: 'var(--ink-3)', background: 'var(--surface-2)' }}>
-                {group.expenses.length}
+              {/* Cuántos gastos del día */}
+              <span className="text-xs tabular-nums hidden sm:inline" style={{ color: 'var(--ink-3)' }}>
+                {group.expenses.length} gasto{group.expenses.length !== 1 ? 's' : ''}
               </span>
 
               {/* Day total */}
@@ -267,7 +274,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           {e.category && (
                             <span
-                              className="cat-badge inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                              className="cat-badge inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                               style={{ '--cat-bg': catBg, '--cat-color': catColor } as React.CSSProperties}
                             >
                               {isEmoji(e.category.icon)
@@ -278,25 +285,25 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                             </span>
                           )}
                           {e.payment_method && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
                               <PaymentIcon cardType={e.payment_method.card_type} />
                               {e.payment_method.name}
                             </span>
                           )}
                           {propertyExpenseIds.includes(e.id) && (
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            <span className="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                               style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                               Propiedad
                             </span>
                           )}
                           {e.shared_expense_id && (
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            <span className="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                               style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                               Compartido{(e.card_extra ?? 0) > 0 ? ` · tarjeta cobró ${formatCLP(e.amount + (e.card_extra ?? 0))}` : ''}
                             </span>
                           )}
                           {!e.shared_expense_id && (e.card_extra ?? 0) > 0 && (
-                            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                            <span className="inline-flex items-center text-[11px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0"
                               style={{ background: 'var(--primary-soft)', color: 'var(--primary)' }}>
                               Dividido · tarjeta cobró {formatCLP(e.amount + (e.card_extra ?? 0))}
                             </span>

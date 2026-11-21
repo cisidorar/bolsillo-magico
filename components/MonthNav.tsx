@@ -41,7 +41,7 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
       <button
         onClick={() => navigate(-1)}
         className="flex items-center justify-center rounded-lg text-[color:var(--primary)] hover:bg-[var(--primary-soft)] transition-colors"
-        style={{ minWidth: 40, minHeight: 40 }}
+        style={{ minWidth: 44, minHeight: 44 }}
         aria-label="Mes anterior"
       >
         <ChevronLeft className="w-4 h-4" />
@@ -51,8 +51,8 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
         onClick={!isCurrentMonth ? goToCurrent : undefined}
         disabled={isCurrentMonth}
         title={!isCurrentMonth ? 'Ir al mes actual' : undefined}
-        className="text-xs font-bold text-[color:var(--primary)] min-w-[96px] text-center capitalize px-1 rounded-lg transition-colors disabled:cursor-default hover:bg-[var(--primary-soft)] disabled:hover:bg-transparent"
-        style={{ minHeight: 40 }}
+        className="text-sm font-bold text-[color:var(--primary)] min-w-[112px] text-center capitalize px-1 rounded-lg transition-colors disabled:cursor-default hover:bg-[var(--primary-soft)] disabled:hover:bg-transparent"
+        style={{ minHeight: 44 }}
       >
         {monthName(month)} {year !== now.getFullYear() ? year : ''}
         {isCurrentMonth && (
@@ -64,7 +64,7 @@ export default function MonthNav({ month, year, basePath, extraParams }: Props) 
         onClick={() => navigate(1)}
         disabled={isCurrentMonth}
         className="flex items-center justify-center rounded-lg text-[color:var(--primary)] hover:bg-[var(--primary-soft)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        style={{ minWidth: 40, minHeight: 40 }}
+        style={{ minWidth: 44, minHeight: 44 }}
         aria-label="Mes siguiente"
       >
         <ChevronRight className="w-4 h-4" />

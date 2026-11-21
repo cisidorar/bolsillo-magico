@@ -343,8 +343,8 @@
 }
 .dark .cat-badge {
   background: color-mix(in srgb, var(--cat-color, var(--primary)) 22%, var(--surface)) !important;
-  color: color-mix(in srgb, var(--cat-color, var(--primary)) 100%, #ffffff) !important;
-  border: 1px solid color-mix(in srgb, var(--cat-color, var(--primary)) 40%, transparent) !important;
+  /* Se aclara hacia blanco: un color de categoría oscuro (violeta, azul marino) sobre el fondo oscuro no llegaba a 4,5:1 */
+  color: color-mix(in srgb, var(--cat-color, var(--primary)) 55%, #ffffff) !important;
 }
 
 /* ── Category icon container ─────────────────────────────────────────────── */
