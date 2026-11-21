@@ -572,12 +572,15 @@ export default async function HistorialPage({
         <HistorialExpenses
           dateFormat={dateFormat}
           propertyExpenseIds={propertyExpenseIds}
-          groups={sortedDates.map(date => ({
+          groups={sortedDates.map((date, i) => ({
             date,
             label: relativeDate(date, dateFormat),
             dayTotal: grouped[date].reduce((s, e) => s + e.amount, 0),
+            // El primer y el último día de una página pueden seguir en la vecina: su total es parcial.
+            partial: !isBilling && ((i === 0 && page > 1) || (i === sortedDates.length - 1 && page < totalPages)),
             expenses: grouped[date],
           }))}
+          totalCount={isBilling ? undefined : totalCount}
         />
       )}
 
@@ -585,14 +588,14 @@ export default async function HistorialPage({
       {!isBilling && totalPages > 1 && (
         <div className="flex items-center justify-between pt-2 mt-4">
           {prevHref ? (
-            <Link href={prevHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
+            <Link href={prevHref} className="flex items-center gap-1 px-4 min-h-[44px] text-sm font-semibold rounded-xl transition-colors hover:brightness-95" style={{ color: 'var(--primary)', background: 'var(--primary-soft)' }}>
               <ChevronLeft className="w-4 h-4" />
               Anterior
             </Link>
           ) : <div />}
           <p className="text-xs font-medium" style={{ color: 'var(--ink-3)' }}>Página {page} de {totalPages}</p>
           {nextHref ? (
-            <Link href={nextHref} className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-brand-600 bg-brand-50 rounded-xl hover:bg-brand-100 transition-colors">
+            <Link href={nextHref} className="flex items-center gap-1 px-4 min-h-[44px] text-sm font-semibold rounded-xl transition-colors hover:brightness-95" style={{ color: 'var(--primary)', background: 'var(--primary-soft)' }}>
               Siguiente
               <ChevronRight className="w-4 h-4" />
             </Link>

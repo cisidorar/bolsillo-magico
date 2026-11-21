@@ -18,10 +18,12 @@ interface Group {
   date: string
   label: string
   dayTotal: number
+  /** El día continúa en la página anterior o la siguiente: este total es parcial */
+  partial?: boolean
   expenses: ExpenseWithRelations[]
 }
 
-export default function HistorialExpenses({ groups, dateFormat, propertyExpenseIds = [] }: { groups: Group[]; dateFormat?: DateFormat; propertyExpenseIds?: string[] }) {
+export default function HistorialExpenses({ groups, dateFormat, propertyExpenseIds = [], totalCount }: { groups: Group[]; dateFormat?: DateFormat; propertyExpenseIds?: string[]; totalCount?: number }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -115,7 +117,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-          {totalExpenses} registro{totalExpenses !== 1 ? 's' : ''}
+          {totalCount != null && totalCount > totalExpenses ? `${totalExpenses} de ${totalCount} registros` : `${totalExpenses} registro${totalExpenses !== 1 ? 's' : ''}`}
         </span>
         <div className="flex items-center gap-3">
           {selectMode ? (
@@ -175,9 +177,6 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                 </button>
               )}
 
-              {/* Left accent */}
-              <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--primary)', opacity: 0.4 }} />
-
               {/* Date label */}
               <span className="text-sm font-bold capitalize flex-1" style={{ color: 'var(--ink)' }}>
                 {group.label}
@@ -190,13 +189,14 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
 
               {/* Day total */}
               <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink-2)' }}>
+                {group.partial && <span className="text-[11px] font-medium mr-1.5" style={{ color: 'var(--ink-3)' }} title="El día sigue en otra página">parcial</span>}
                 {formatCLP(group.dayTotal)}
               </span>
 
               {/* Collapse toggle */}
               <button
                 onClick={() => toggleCollapse(group.date)}
-                className="p-0.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors flex-shrink-0" style={{ color: 'var(--ink-3)' }}
+                className="w-11 h-11 -m-3 flex items-center justify-center rounded-xl hover:bg-[var(--surface-2)] transition-colors flex-shrink-0" style={{ color: 'var(--ink-3)' }}
                 aria-label={isCollapsed ? 'Expandir' : 'Colapsar'}
               >
                 {isCollapsed
@@ -229,10 +229,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                       key={e.id}
                       onClick={() => toggle(e.id)}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[var(--surface-2)]"
-                      style={{
-                        borderTop: idx > 0 ? '1px solid var(--border)' : undefined,
-                        background: isSelected ? 'var(--primary-soft)' : undefined,
-                      }}
+                      style={{ background: isSelected ? 'var(--primary-soft)' : undefined }}
                     >
                       {/* Checkbox */}
                       <div className="flex-shrink-0">
@@ -305,7 +302,7 @@ export default function HistorialExpenses({ groups, dateFormat, propertyExpenseI
                       </div>
 
                       {/* Amount */}
-                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--coral-ink)' }}>
+                      <p className="text-sm font-bold tabular-nums flex-shrink-0" style={{ color: 'var(--ink)' }}>
                         −{formatCLP(e.amount)}
                       </p>
                     </button>
