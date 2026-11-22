@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TripIncomeField from '@/components/TripIncomeField'
 import TripExpenseDetail from '@/components/TripExpenseDetail'
+import type { TripIncomeSource } from '@/lib/trip-income'
 import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, Share2, Copy, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
@@ -44,7 +45,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, myHasIncome = true, weights, capacity, goal, planItems, shareLinkExpires = null, joinLinkExpires = null, candidates = [], today, dateFormat,
+  myCategoryId, myHasIncome = true, myIncomeSource = null, weights, capacity, goal, planItems, shareLinkExpires = null, joinLinkExpires = null, candidates = [], today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -57,6 +58,8 @@ export default function SharedTripView({
   myCategoryId:   string | null
   /** Si esta cuenta tiene ingresos registrados (solo se consulta cuando el reparto por sueldo no se puede calcular). */
   myHasIncome?:   boolean
+  /** De dónde sale tu ingreso para este reparto (solo tuyo). */
+  myIncomeSource?: TripIncomeSource | null
   /** Pesos del reparto según sueldo (vacío si no se puede calcular) */
   weights:        Record<string, number>
   /** Lo que ahorras al mes en promedio (null sin ingresos) — solo tuyo */
@@ -580,7 +583,7 @@ export default function SharedTripView({
                       {m.is_guest ? 'sin cuenta' : `@${m.username}`}
                       {m.is_guest && m.guest_income ? ` · promedio ${formatCLP(m.guest_income)}` : ''}
                       {m.status === 'pending' && ' · invitación pendiente'}
-                      {m.status === 'accepted' && income && !m.income_consent && ' · sin compartir porcentaje'}
+                      {m.status === 'accepted' && income && !m.income_consent && ' · falta que confirme su %'}
                     </p>
                   </div>
                   {m.is_guest && isCreator && !closed && (
@@ -780,7 +783,7 @@ export default function SharedTripView({
                             </p>
                           </div>
                         ) : me && !me.income_consent ? (
-                          <p style={{ color: 'var(--ink-2)' }}>Falta tu parte: marca «Mostrar solo mi %» aquí abajo.</p>
+                          <p style={{ color: 'var(--ink-2)' }}>Falta tu parte: confirma que compartes tu porcentaje aquí abajo.</p>
                         ) : (
                           <p style={{ color: 'var(--ink-2)' }}>
                             Tu parte está lista. Falta que otra persona del viaje registre sus ingresos o acepte compartir su %. Mientras tanto se usa lo último calculado.
@@ -805,12 +808,32 @@ export default function SharedTripView({
                         <p style={{ color: 'var(--ink-3)' }}>Nadie ve el sueldo de otro, solo el porcentaje.</p>
                       </div>
                     )}
-                    {me && (
-                      <label className="flex items-center gap-3 font-semibold min-h-[44px]" style={{ color: 'var(--ink)' }}>
-                        <input type="checkbox" className="w-5 h-5 flex-shrink-0 accent-[var(--primary)]" checked={me.income_consent} disabled={busy || closed}
-                          onChange={e => run(() => giveSharedConsent(group.id, e.target.checked))} />
-                        Mostrar solo mi % en este viaje (nunca mi sueldo)
-                      </label>
+                    <details className="pr-details">
+                      <summary className="inline-flex items-center min-h-[44px] font-bold cursor-pointer" style={{ color: 'var(--primary-text)' }}>
+                        ¿Cómo se calcula el porcentaje?
+                      </summary>
+                      <div className="space-y-2 pb-2" style={{ color: 'var(--ink-2)' }}>
+                        <p>A cada persona se le toma su <strong style={{ color: 'var(--ink)' }}>ingreso mensual</strong>: el promedio de sus últimos 6 meses registrados en <strong style={{ color: 'var(--ink)' }}>Ingresos</strong>. Si no tiene, se usa su última liquidación o el monto que declaró al unirse.</p>
+                        <p>Se suman los ingresos de todos y a cada uno le toca la parte que representa su ingreso en esa suma. Cada gasto se reparte con ese porcentaje.</p>
+                        {myIncomeSource && (
+                          <p>
+                            <span className="font-semibold" style={{ color: 'var(--ink)' }}>Tu ingreso sale de: </span>
+                            {myIncomeSource.kind === 'incomes' ? `el promedio de tus últimos ${myIncomeSource.months} ${myIncomeSource.months === 1 ? 'mes' : 'meses'} en Ingresos.`
+                              : myIncomeSource.kind === 'latest' ? 'tu último ingreso registrado en Ingresos.'
+                              : myIncomeSource.kind === 'payslip' ? 'tu última liquidación de sueldo.'
+                              : 'el monto que declaraste al unirte.'}
+                            {' '}<Link href="/ingresos" className="font-bold underline" style={{ color: 'var(--primary-text)' }}>Ver mis ingresos</Link>
+                          </p>
+                        )}
+                        <p style={{ color: 'var(--ink-3)' }}>Se recalcula si cambian los ingresos o entra alguien al viaje. Nadie ve el monto de otra persona, solo su porcentaje.</p>
+                      </div>
+                    </details>
+                    {me && !me.income_consent && (
+                      <button disabled={busy || closed} onClick={() => run(() => giveSharedConsent(group.id, true), 'Listo, compartes tu %')}
+                        className="w-full px-4 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50 transition-transform active:scale-[.99]"
+                        style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+                        Confirmar que comparto mi % (nunca mi sueldo)
+                      </button>
                     )}
                   </div>
                 )}

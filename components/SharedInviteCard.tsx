@@ -23,13 +23,13 @@ export default function SharedInviteCard({
   const { showToast } = useToast()
   const [busy, setBusy] = useState(false)
   // Qué botón se tocó: ese cambia su texto («Uniéndote…») para que se sienta que la app escuchó.
-  const [pending, setPending] = useState<'accept' | 'accept-private' | 'decline' | null>(null)
+  const [pending, setPending] = useState<'accept' | 'decline' | null>(null)
   const [closing, setClosing] = useState(false)
   const [askIncome, setAskIncome] = useState(false)
   const [error, setError] = useState('')
 
   async function accept(consent: boolean) {
-    setBusy(true); setError(''); setPending(consent ? 'accept' : 'accept-private')
+    setBusy(true); setError(''); setPending('accept')
     const cat = await ensureTripCategory()
     const res = await acceptSharedInvite(groupId, cat.ok ? cat.id : null, consent)
     if (!res.ok) { setBusy(false); setPending(null); setError(res.error); return }
@@ -81,7 +81,7 @@ export default function SharedInviteCard({
             </summary>
             <div className="text-sm space-y-1.5 pb-1" style={{ color: 'var(--ink-2)' }}>
               <p>En tus gastos solo aparecerá tu parte. Tus ingresos y tus gastos personales siguen siendo privados.</p>
-              {income && <p>Si prefieres no compartir tu porcentaje, puedes entrar igual: el grupo repartirá parejo hasta que cambies de opinión.</p>}
+              {income && <p>En este viaje todos comparten su porcentaje (nunca el sueldo): es lo que permite repartir según lo que gana cada uno. Si no quieres, puedes rechazar la invitación.</p>}
             </div>
           </details>
           {error && <p role="alert" className="text-sm font-semibold mt-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
@@ -96,13 +96,6 @@ export default function SharedInviteCard({
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
               {pending === 'accept' ? 'Uniéndote…' : income ? 'Aceptar y compartir mi %' : 'Aceptar'}
             </button>
-            {income && (
-              <button disabled={busy} onClick={() => accept(false)}
-                className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50"
-                style={{ color: 'var(--ink-2)', background: 'var(--surface-2)' }}>
-                {pending === 'accept-private' ? 'Uniéndote…' : 'Entrar sin compartir mi %'}
-              </button>
-            )}
             <button disabled={busy} onClick={decline}
               className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50"
               style={{ color: 'var(--ink-2)' }}>

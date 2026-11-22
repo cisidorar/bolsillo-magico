@@ -89,7 +89,7 @@ export default async function JoinTripPage({ params }: { params: Promise<{ token
                   <Users className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden />
                   <p>
                     {view.split_mode === 'income'
-                      ? 'Los gastos se reparten según lo que gana cada uno. Nadie ve el sueldo de otro, solo el porcentaje, y tú eliges si mostrar el tuyo.'
+                      ? 'Los gastos se reparten según lo que gana cada uno. Nadie ve el sueldo de otro, solo el porcentaje: en este viaje todos comparten el suyo.'
                       : 'Los gastos se reparten en partes iguales entre todos.'}
                   </p>
                 </div>

@@ -11,7 +11,7 @@ import { monthlyCapacity, budgetTotal } from '@/lib/trip-plan'
 import TripList, { type TripListRow } from '@/components/TripList'
 import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
-import { hasTripIncome } from '@/lib/trip-income'
+import { hasTripIncome, tripIncomeSource } from '@/lib/trip-income'
 import NewTripButton from '@/components/NewTripButton'
 import PorCobrarView from '@/components/PorCobrarView'
 import ReceivablesCard from '@/components/ReceivablesCard'
@@ -148,12 +148,15 @@ export default async function CompartidosPage({
     // Solo si hace falta: si el reparto por sueldo no se puede calcular, se le dice a cada uno si le falta su ingreso.
     const myHasIncome = selected.split_mode === 'income' && selected.split_error ? await hasTripIncome(supabase, user.id) : true
 
+    const myIncomeSource = selected.split_mode === 'income' ? await tripIncomeSource(supabase, user.id, today) : null
+
     const weights: Record<string, number> = {}
     for (const w of (wRaw ?? []) as { user_id: string; w: number | string }[]) weights[w.user_id] = Number(w.w)
 
     return (
       <SharedTripView
         myHasIncome={myHasIncome}
+        myIncomeSource={myIncomeSource}
         group={selected}
         meId={user.id}
         members={(namesRaw ?? []) as SharedMemberInfo[]}

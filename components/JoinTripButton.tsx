@@ -8,11 +8,11 @@ import { acceptJoinLink, ensureTripCategory } from '@/app/actions/shared'
 /** Botón(es) de "Unirme" de la página /unirse/[token]. Solo se muestra con sesión iniciada. */
 export default function JoinTripButton({ token, income }: { token: string; income: boolean }) {
   const router = useRouter()
-  const [busy, setBusy] = useState<'show' | 'hide' | null>(null)
+  const [busy, setBusy] = useState<'show' | null>(null)
   const [error, setError] = useState('')
 
   async function join(consent: boolean) {
-    setBusy(consent ? 'show' : 'hide'); setError('')
+    setBusy('show'); setError('')
     // Tu parte cae en una categoría propia: "Vacaciones" se crea si no existe.
     const cat = await ensureTripCategory()
     const res = await acceptJoinLink(token, cat.ok ? cat.id : null, consent)
@@ -30,14 +30,6 @@ export default function JoinTripButton({ token, income }: { token: string; incom
         {busy === 'show' ? spinner : null}
         {income ? 'Unirme y mostrar mi %' : 'Unirme al viaje'}
       </button>
-      {income && (
-        <button onClick={() => join(false)} disabled={busy !== null}
-          className="w-full min-h-[48px] rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 transition-transform active:scale-[.98] disabled:opacity-60"
-          style={{ background: 'var(--surface-2)', color: 'var(--ink-2)' }}>
-          {busy === 'hide' ? spinner : null}
-          Unirme sin mostrar mi %
-        </button>
-      )}
       {error && <p role="alert" className="text-sm font-semibold text-center" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
     </div>
   )
