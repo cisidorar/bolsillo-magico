@@ -47,7 +47,13 @@ export default function SharedExpenseSheet({
 
   const [amount, setAmount] = useState(expense ? fmtNum(String(expense.amount)) : '')
   const [desc,   setDesc]   = useState(expense?.description ?? '')
-  const [date,   setDate]   = useState(expense?.date ?? today)
+  // Un gasto nuevo parte dentro de las fechas del viaje: si el viaje ya terminó (o aún no empieza), con la
+  // fecha de hoy quedaba fuera y todo se amontonaba en «Hoy». El de un gasto que ya existe no se toca.
+  const tripStart = group.start_date
+  const tripEnd   = group.end_date ?? group.start_date
+  const inTrip    = (d: string) => (!tripStart || d >= tripStart) && (!tripEnd || d <= tripEnd)
+  const startDate = today > (tripEnd ?? today) ? tripEnd! : today < (tripStart ?? today) ? tripStart! : today
+  const [date,   setDate]   = useState(expense?.date ?? startDate)
   const [cat,    setCat]    = useState<TripCategory>(expense?.trip_category ?? 'otros')
   const [paidBy, setPaidBy] = useState(expense?.paid_by ?? meId)
   const [pmId,   setPmId]   = useState<string>(expense?.payment_method_id ?? '')
@@ -246,6 +252,11 @@ export default function SharedExpenseSheet({
         <InputRow>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} className={inputClass} />
         </InputRow>
+        {date && tripStart && tripEnd && !inTrip(date) && (
+          <p className="text-xs mt-1.5" style={{ color: 'var(--gold-ink)' }}>
+            Esta fecha queda fuera del viaje ({new Date(tripStart! + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })} al {new Date(tripEnd! + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}). Si pagaste después, déjala; si no, cámbiala.
+          </p>
+        )}
       </div>
 
       {/* Cómo se reparte y entre quiénes — solo importa si hay más de una persona */}
