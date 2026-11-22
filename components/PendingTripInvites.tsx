@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import SharedInviteCard from '@/components/SharedInviteCard'
 import type { SplitMode } from '@/lib/shared-split'
+import { hasTripIncome } from '@/lib/trip-income'
 
 /**
  * Invitaciones a viajes sin responder, arriba de Inicio: quien las recibe las ve al entrar y las
@@ -16,6 +17,7 @@ export default async function PendingTripInvites({ userId }: { userId: string })
   const { data: groups } = await supabase.from('shared_groups').select('id, name, split_mode').in('id', ids)
   if (!groups || groups.length === 0) return null
 
+  const needsIncome = groups.some(g => g.split_mode === 'income') && !(await hasTripIncome(supabase, userId))
   const named = await Promise.all(groups.map(async g => {
     const { data } = await supabase.rpc('shared_inviter_name', { p_group: g.id })
     return { id: g.id as string, name: g.name as string, mode: g.split_mode as SplitMode, inviter: (data as string | null) ?? 'Alguien' }
@@ -23,7 +25,7 @@ export default async function PendingTripInvites({ userId }: { userId: string })
 
   return (
     <div className="px-4 lg:px-8 pt-4 lg:pt-6 space-y-3">
-      {named.map(g => <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name} inviter={g.inviter} mode={g.mode} />)}
+      {named.map(g => <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name} inviter={g.inviter} mode={g.mode} needsIncome={needsIncome} />)}
     </div>
   )
 }

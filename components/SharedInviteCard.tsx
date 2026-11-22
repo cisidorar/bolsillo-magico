@@ -4,17 +4,20 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail } from 'lucide-react'
 import { useToast } from '@/components/ToastProvider'
-import { acceptSharedInvite, declineSharedInvite, ensureTripCategory } from '@/app/actions/shared'
+import { acceptSharedInvite, declineSharedInvite, ensureTripCategory, setMyTripIncome } from '@/app/actions/shared'
+import TripIncomeField from '@/components/TripIncomeField'
 import type { SplitMode } from '@/lib/shared-split'
 
 /** Invitación pendiente. En modo sueldo, aceptar incluye el consentimiento (con opción de no darlo). */
 export default function SharedInviteCard({
-  groupId, groupName, inviter, mode,
+  groupId, groupName, inviter, mode, needsIncome = false,
 }: {
   groupId:   string
   groupName: string
   inviter:   string
   mode:      SplitMode
+  /** Reparto según sueldo y esta cuenta aún no tiene de dónde sacar su ingreso: se le pide al aceptar. */
+  needsIncome?: boolean
 }) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -22,6 +25,7 @@ export default function SharedInviteCard({
   // Qué botón se tocó: ese cambia su texto («Uniéndote…») para que se sienta que la app escuchó.
   const [pending, setPending] = useState<'accept' | 'accept-private' | 'decline' | null>(null)
   const [closing, setClosing] = useState(false)
+  const [askIncome, setAskIncome] = useState(false)
   const [error, setError] = useState('')
 
   async function accept(consent: boolean) {
@@ -33,6 +37,13 @@ export default function SharedInviteCard({
     showToast('Te uniste al viaje')
     router.push(`/compartidos?g=${groupId}`)
     router.refresh()
+  }
+
+  async function acceptWithIncome(amount: number) {
+    setBusy(true); setError(''); setPending('accept')
+    const saved = await setMyTripIncome(amount)
+    if (!saved.ok) { setBusy(false); setPending(null); setError(saved.error); return }
+    await accept(true)
   }
 
   async function decline() {
@@ -74,8 +85,13 @@ export default function SharedInviteCard({
             </div>
           </details>
           {error && <p role="alert" className="text-sm font-semibold mt-2" style={{ color: 'var(--coral-ink)' }}>{error}</p>}
+          {askIncome && (
+            <div className="mt-3 rounded-xl p-3.5" style={{ background: 'var(--surface)' }}>
+              <TripIncomeField label="Guardar y unirme" busy={busy} onSubmit={acceptWithIncome} />
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2 mt-2">
-            <button disabled={busy} onClick={() => accept(income)}
+            <button disabled={busy} onClick={() => (income && needsIncome ? setAskIncome(true) : accept(income))}
               className="px-5 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50 transition-transform active:scale-[.98]"
               style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
               {pending === 'accept' ? 'Uniéndote…' : income ? 'Aceptar y compartir mi %' : 'Aceptar'}

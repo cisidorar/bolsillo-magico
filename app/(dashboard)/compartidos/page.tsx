@@ -11,6 +11,7 @@ import { monthlyCapacity, budgetTotal } from '@/lib/trip-plan'
 import TripList, { type TripListRow } from '@/components/TripList'
 import type { TripGoal } from '@/components/TripPlanCard'
 import SharedInviteCard from '@/components/SharedInviteCard'
+import { hasTripIncome } from '@/lib/trip-income'
 import NewTripButton from '@/components/NewTripButton'
 import PorCobrarView from '@/components/PorCobrarView'
 import ReceivablesCard from '@/components/ReceivablesCard'
@@ -144,11 +145,15 @@ export default async function CompartidosPage({
           .eq('group_id', selected.id).eq('kind', 'join').is('revoked_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle()
       : { data: null }
 
+    // Solo si hace falta: si el reparto por sueldo no se puede calcular, se le dice a cada uno si le falta su ingreso.
+    const myHasIncome = selected.split_mode === 'income' && selected.split_error ? await hasTripIncome(supabase, user.id) : true
+
     const weights: Record<string, number> = {}
     for (const w of (wRaw ?? []) as { user_id: string; w: number | string }[]) weights[w.user_id] = Number(w.w)
 
     return (
       <SharedTripView
+        myHasIncome={myHasIncome}
         group={selected}
         meId={user.id}
         members={(namesRaw ?? []) as SharedMemberInfo[]}
@@ -198,6 +203,7 @@ export default async function CompartidosPage({
     return [g.id, (data as string | null) ?? 'Alguien'] as const
   }))
   const inviterById = Object.fromEntries(inviterNames)
+  const inviteNeedsIncome = invites.some(g => g.split_mode === 'income') && !(await hasTripIncome(supabase, user.id))
 
   const rows = mine.map(g => {
     const exp = (allExp ?? []).filter(e => e.group_id === g.id)
@@ -271,7 +277,7 @@ export default async function CompartidosPage({
         <>
       {invites.map(g => (
         <SharedInviteCard key={g.id} groupId={g.id} groupName={g.name}
-          inviter={inviterById[g.id]} mode={g.split_mode} />
+          inviter={inviterById[g.id]} mode={g.split_mode} needsIncome={inviteNeedsIncome} />
       ))}
 
       {rows.length === 0 && invites.length === 0 ? (

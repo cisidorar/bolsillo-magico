@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import TripIncomeField from '@/components/TripIncomeField'
 import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, Share2, Copy, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
@@ -12,7 +13,7 @@ import {
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement, setSharedGroupClosed,
-  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, createJoinLink, revokeJoinLink, removeSharedMember, setSharedMode, giveSharedConsent,
+  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, createJoinLink, revokeJoinLink, removeSharedMember, setSharedMode, giveSharedConsent, setMyTripIncome,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
@@ -42,7 +43,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 export default function SharedTripView({
   group, meId, members, expenses, shares, settlements, categories, paymentMethods,
-  myCategoryId, weights, capacity, goal, planItems, shareLinkExpires = null, joinLinkExpires = null, candidates = [], today, dateFormat,
+  myCategoryId, myHasIncome = true, weights, capacity, goal, planItems, shareLinkExpires = null, joinLinkExpires = null, candidates = [], today, dateFormat,
 }: {
   group:          SharedGroup
   meId:           string
@@ -53,6 +54,8 @@ export default function SharedTripView({
   categories:     Category[]
   paymentMethods: PaymentMethod[]
   myCategoryId:   string | null
+  /** Si esta cuenta tiene ingresos registrados (solo se consulta cuando el reparto por sueldo no se puede calcular). */
+  myHasIncome?:   boolean
   /** Pesos del reparto según sueldo (vacío si no se puede calcular) */
   weights:        Record<string, number>
   /** Lo que ahorras al mes en promedio (null sin ingresos) — solo tuyo */
@@ -737,9 +740,26 @@ export default function SharedTripView({
                 {income && !alone && (
                   <div className="text-xs space-y-1.5" style={{ color: 'var(--ink-2)' }}>
                     {group.split_error ? (
-                      <p style={{ color: 'var(--gold-ink)' }}>
-                        Falta que todos acepten compartir su porcentaje y tengan ingresos registrados. Mientras tanto se usa lo último calculado.
-                      </p>
+                      <div className="space-y-1.5 rounded-xl px-3.5 py-3" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+                        <p className="font-bold" style={{ color: 'var(--gold-ink)' }}>Todavía no se puede calcular el porcentaje de cada uno</p>
+                        {me && !myHasIncome ? (
+                          <div className="space-y-2">
+                            <p style={{ color: 'var(--ink-2)' }}>Falta tu parte: cuéntanos cuánto ganas al mes y se calcula solo.</p>
+                            <TripIncomeField label="Guardar y calcular" busy={busy} error={error}
+                              onSubmit={amount => run(() => setMyTripIncome(amount), 'Listo, ya se calcula el reparto')} />
+                            <p style={{ color: 'var(--ink-3)' }}>
+                              ¿Prefieres llevar tus ingresos al día?{' '}
+                              <Link href="/ingresos" className="font-bold underline" style={{ color: 'var(--primary-text)' }}>Registrarlos en Ingresos</Link>
+                            </p>
+                          </div>
+                        ) : me && !me.income_consent ? (
+                          <p style={{ color: 'var(--ink-2)' }}>Falta tu parte: marca «Mostrar solo mi %» aquí abajo.</p>
+                        ) : (
+                          <p style={{ color: 'var(--ink-2)' }}>
+                            Tu parte está lista. Falta que otra persona del viaje registre sus ingresos o acepte compartir su %. Mientras tanto se usa lo último calculado.
+                          </p>
+                        )}
+                      </div>
                     ) : wSum > 0 && (
                       <p>
                         {accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(' · ')}

@@ -45,6 +45,7 @@ const ERRORS: Record<string, string> = {
   expense_not_found:    'Ese gasto ya no existe.',
   invalid_recipient:    'Destinatario inválido.',
   invalid_income:       'Pon al menos un sueldo para sacar el promedio.',
+  invalid_declared_income: 'Pon un monto mayor a cero.',
   too_many_guests:      'Llegaste al máximo de personas sin cuenta en este viaje.',
   not_guest:            'Esa persona tiene cuenta; su ingreso sale de sus propios datos.',
   only_payer:           'Solo quien pagó el gasto puede sacarlo del viaje.',
@@ -400,4 +401,9 @@ export async function payPlanItem(id: string, amount: number | null, date: strin
   const r = await rpc('shared_plan_item_pay', { p_id: id, p_amount: amount, p_date: date, p_payment_method: paymentMethodId })
   revalidatePath('/recurrentes')
   return r
+}
+
+/** Declara mi ingreso mensual promedio para repartir según sueldo (privado: nadie lo ve, solo el %). */
+export async function setMyTripIncome(amount: number) {
+  return rpc('shared_my_income_set', { p_amount: amount })
 }
