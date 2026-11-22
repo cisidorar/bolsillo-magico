@@ -420,7 +420,7 @@ export default function SharedTripView({
             <div key={day}>
               <div className="flex items-baseline justify-between gap-2 mb-2 px-1">
                 <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{dayLabel(day)}</p>
-                <p className="text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(rows.reduce((t, r) => t + r.amount, 0))}</p>
+                {rows.length > 1 && <p className="text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(rows.reduce((t, r) => t + r.amount, 0))}</p>}
               </div>
               <div className="card-flat p-1.5 space-y-0.5">
                 {rows.map(e => {
@@ -437,7 +437,9 @@ export default function SharedTripView({
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate" style={{ color: 'var(--ink)' }}>{e.description}</p>
                         <p className="text-xs truncate" style={{ color: 'var(--ink-3)' }}>
-                          {alone ? catLabel(e.trip_category) : `pagó ${payer} · tu parte ${formatCLP(myPart)}`}
+                          {alone ? catLabel(e.trip_category) : (
+                            <>pagó {payer} · tu parte <span className="font-semibold tabular-nums" style={{ color: 'var(--ink-2)' }}>{formatCLP(myPart)}</span></>
+                          )}
                         </p>
                       </div>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
