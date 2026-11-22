@@ -15,6 +15,8 @@ export interface TripListRow {
   total:         number
   budget:        number
   transferCount: number
+  /** En qué se fue la plata: categorías más pesadas, con su % del total */
+  top:           { label: string; pct: number }[]
 }
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
@@ -34,7 +36,7 @@ function fmtRange(start: string | null, end: string | null): string {
 
 /** Lo que importa de este viaje hoy, en una frase. */
 function headline(r: TripListRow, today: string): string {
-  if (r.phase === 'settling') return r.transferCount === 1 ? 'Falta 1 transferencia' : `Faltan ${r.transferCount} transferencias`
+  if (r.phase === 'settling') return 'Por saldar'
   if (r.phase === 'traveling') {
     const t = tripDay(r.start, r.end, today)
     return t ? `Día ${t.day}${t.total ? ` de ${t.total}` : ''}` : 'En viaje'
@@ -60,6 +62,9 @@ function Featured({ r, today }: { r: TripListRow; today: string }) {
   const bal = balanceText(r)
   const settle = r.phase === 'settling'
   const toneColor = bal?.tone === 'owed' ? 'var(--mint-on-brand-soft)' : bal?.tone === 'owes' ? 'var(--gold-on-brand)' : '#fff'
+  // Después del viaje lo primero es cuánto se gastó; el estado va en la línea de abajo.
+  const after = (r.phase === 'settling' || r.phase === 'done' || r.phase === 'closed') && r.total > 0
+  const title = after ? `${r.people < 2 ? 'Gastaste' : 'Gastamos'} ${formatCLP(r.total)}` : headline(r, today)
   return (
     <Link href={`/compartidos?g=${r.id}`}
       className="hero-gradient group rounded-3xl p-6 lg:p-8 text-white min-h-[220px] lg:min-h-[260px] flex flex-col justify-between gap-8 transition-transform active:scale-[.99]">
@@ -78,9 +83,16 @@ function Featured({ r, today }: { r: TripListRow; today: string }) {
 
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="font-display text-4xl lg:text-5xl font-extrabold leading-none tracking-tight">{headline(r, today)}</p>
+          <p className="font-display text-4xl lg:text-5xl font-extrabold leading-none tracking-tight">{title}</p>
           <p className="text-sm mt-3 tabular-nums" style={{ color: 'rgba(255,255,255,.82)' }}>
-            {bal ? (
+            {after ? (
+              <>
+                {bal && bal.tone !== 'even'
+                  ? <span className="font-bold" style={{ color: toneColor }}>{bal.text}</span>
+                  : r.phase === 'closed' ? 'Viaje cerrado' : r.phase === 'done' ? 'Cuentas cuadradas' : 'Cuentas al día'}
+                {' · '}{people(r.people)}
+              </>
+            ) : bal ? (
               <>
                 <span className="font-bold" style={{ color: toneColor }}>{bal.text}</span> · {formatCLP(r.total)} en total
               </>
@@ -92,6 +104,18 @@ function Featured({ r, today }: { r: TripListRow; today: string }) {
               <>Aún sin gastos ni presupuesto</>
             )}
           </p>
+          {r.top.length > 0 && r.total > 0 && (
+            <div className="mt-4 max-w-md" aria-label={r.top.map(c => `${c.label} ${c.pct}%`).join(', ')} role="img">
+              <div className="flex h-2 gap-0.5 overflow-hidden rounded-full">
+                {r.top.map((c, i) => (
+                  <span key={c.label} className="rc-grow" style={{ width: `${c.pct}%`, background: '#fff', opacity: [0.95, 0.6, 0.38, 0.22][i], ['--d' as string]: `${i * 50}ms` }} />
+                ))}
+              </div>
+              <p className="text-xs mt-2 tabular-nums" style={{ color: 'rgba(255,255,255,.82)' }}>
+                {r.top.slice(0, 3).map(c => `${c.label} ${c.pct}%`).join(' · ')}
+              </p>
+            </div>
+          )}
         </div>
         <span className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:translate-x-0.5"
           style={{ background: 'rgba(255,255,255,.18)' }} aria-hidden>

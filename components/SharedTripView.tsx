@@ -15,7 +15,7 @@ import {
 import { TRIP_CATEGORY_ICON } from '@/lib/trip-category-icons'
 import {
   settleShared, deleteSettlement, setSharedGroupClosed,
-  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, createJoinLink, revokeJoinLink, removeSharedMember, setSharedMode, giveSharedConsent, setMyTripIncome,
+  inviteToSharedGroup, addSharedGuest, updateSharedGuest, createShareLink, revokeShareLink, createJoinLink, revokeJoinLink, removeSharedMember, setSharedMode, giveSharedConsent, setMyTripIncome, saveSharedExpense,
   type FoundUser,
 } from '@/app/actions/shared'
 import SharedExpenseSheet from './SharedExpenseSheet'
@@ -80,6 +80,7 @@ export default function SharedTripView({
   const [sheet, setSheet] = useState<{ expense: SharedExpenseRow | null } | null>(null)
   // Tocar un gasto abre primero su detalle; editar es un paso aparte.
   const [viewing, setViewing] = useState<SharedExpenseRow | null>(null)
+  const [outsideHidden, setOutsideHidden] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -129,6 +130,31 @@ export default function SharedTripView({
     if (!/\d/.test(rel)) return rel
     const t = new Date(day + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '').replace(',', '')
     return t.charAt(0).toUpperCase() + t.slice(1)
+  }
+
+  // Gastos con fecha fuera del viaje (se cargaron después con la fecha de hoy): se ofrece moverlos de una vez.
+  const tripFirst = group.start_date, tripLast = group.end_date ?? group.start_date
+  const outside = tripFirst && tripLast && !closed
+    ? expenses.filter(e => e.date < tripFirst || e.date > tripLast) : []
+  async function moveOutside() {
+    if (!tripFirst || !tripLast) return
+    setBusy(true); setError('')
+    let done = 0
+    for (const e of outside) {
+      const target = e.date > tripLast ? tripLast : tripFirst
+      const parts = Object.keys(sharesByExp[e.id] ?? {})
+      const res = await saveSharedExpense({
+        id: e.id, groupId: group.id, tripCategory: e.trip_category, description: e.description, date: target,
+        amount: e.amount, paidBy: e.paid_by, paymentMethodId: e.payment_method_id, splitKind: e.split_kind,
+        participants: e.split_kind === 'exact' ? parts : (e.everyone ? null : parts),
+        exact: e.split_kind === 'exact' ? (sharesByExp[e.id] ?? null) : null,
+      })
+      if (!res.ok) { setBusy(false); setError(done > 0 ? `Moví ${done} y se detuvo: ${res.error}` : res.error); router.refresh(); return }
+      done++
+    }
+    setBusy(false)
+    showToast(`${done} ${done === 1 ? 'gasto movido' : 'gastos movidos'} a las fechas del viaje`)
+    router.refresh()
   }
 
   const byDay = new Map<string, SharedExpenseRow[]>()
@@ -417,6 +443,28 @@ export default function SharedTripView({
         </div>
         {addButton}
       </div>
+
+      {outside.length > 0 && !outsideHidden && (
+        <div className="mb-4 rounded-2xl p-4" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+          <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
+            {outside.length} {outside.length === 1 ? 'gasto tiene' : 'gastos tienen'} fecha fuera del viaje
+          </p>
+          <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
+            El viaje fue del {fmtRange(tripFirst, tripLast)}. Si se cargaron después con la fecha de hoy, los pasamos a las fechas del viaje para que el desglose por día tenga sentido.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <button disabled={busy} onClick={moveOutside}
+              className="px-4 min-h-[44px] rounded-xl text-sm font-bold disabled:opacity-50 transition-transform active:scale-[.98]"
+              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
+              {busy ? 'Moviendo…' : `Mover al ${new Date(tripLast! + 'T12:00:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }).replace('.', '')}`}
+            </button>
+            <button disabled={busy} onClick={() => setOutsideHidden(true)}
+              className="px-4 min-h-[44px] rounded-xl text-sm font-semibold disabled:opacity-50" style={{ color: 'var(--ink-2)' }}>
+              Dejarlos como están
+            </button>
+          </div>
+        </div>
+      )}
 
       {itemsList && (
         <div className="mb-6">{itemsList}</div>

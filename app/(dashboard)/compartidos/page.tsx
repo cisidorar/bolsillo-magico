@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plane, ChevronRight, HandCoins } from 'lucide-react'
 import { formatCLP, getNowChile, type DateFormat } from '@/lib/utils'
-import { groupBalance, suggestedTransfers, tripPhase, TRIP_PHASE_LABEL, daysToStart, tripDay, type TripPhase } from '@/lib/shared-split'
+import { groupBalance, suggestedTransfers, tripPhase, spentByCategory, TRIP_CATEGORIES, TRIP_PHASE_LABEL, daysToStart, tripDay, type TripPhase, type TripCategory } from '@/lib/shared-split'
 import type { SharedGroup, SharedMemberRow, SharedExpenseRow, SharedShareRow, SettlementRow, SharedMemberInfo, SharedPlanItemRow } from '@/lib/shared-types'
 import type { Category, PaymentMethod } from '@/types'
 import SharedTripView from '@/components/SharedTripView'
@@ -195,7 +195,7 @@ export default async function CompartidosPage({
   const ids = mine.map(g => g.id)
   const [{ data: allExp }, { data: allShares }, { data: allSet }] = ids.length
     ? await Promise.all([
-        supabase.from('shared_expenses').select('id, group_id, amount, paid_by').in('group_id', ids),
+        supabase.from('shared_expenses').select('id, group_id, amount, paid_by, trip_category').in('group_id', ids),
         supabase.from('shared_expense_shares').select('expense_id, group_id, user_id, share').in('group_id', ids),
         supabase.from('shared_settlements').select('group_id, from_user, to_user, amount').in('group_id', ids),
       ])
@@ -221,7 +221,11 @@ export default async function CompartidosPage({
     )
     const net = bal.net[user.id] ?? 0
     const transferCount = suggestedTransfers(bal.net).length
-    return { g, bal, net, people: memberIds.length, transferCount, phase: tripPhase(g, today, transferCount > 0) }
+    // En qué se fue la plata: las categorías más pesadas (para la barra de la tarjeta)
+    const spent = spentByCategory(exp.map(e => ({ trip_category: e.trip_category as TripCategory, amount: e.amount })))
+    const top = TRIP_CATEGORIES.map(c => ({ label: c.label, v: spent[c.key] })).filter(c => c.v > 0).sort((a, b) => b.v - a.v).slice(0, 4)
+      .map(c => ({ label: c.label, pct: bal.total > 0 ? Math.round((c.v / bal.total) * 100) : 0 }))
+    return { g, bal, net, people: memberIds.length, transferCount, top, phase: tripPhase(g, today, transferCount > 0) }
   })
 
   // Lo que necesita atención primero; lo terminado/cerrado va a "Anteriores".
@@ -234,6 +238,7 @@ export default async function CompartidosPage({
   const listRows: TripListRow[] = sorted.map(r => ({
     id: r.g.id, name: r.g.name, start: r.g.start_date, end: r.g.end_date, phase: r.phase,
     people: r.people, net: r.net, total: r.bal.total, budget: budgetTotal(r.g.budget ?? {}), transferCount: r.transferCount,
+    top: r.top,
   }))
 
   // Dos vistas separadas: Viajes y Por cobrar. Sin viajes pero con cobros pendientes,
