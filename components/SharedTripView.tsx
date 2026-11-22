@@ -153,7 +153,7 @@ export default function SharedTripView({
   // "Día N de M" ya no va acá en viaje — tiene su propio lugar destacado
   // junto al gasto en TripSpendHero; repetirlo aquí sería decir lo mismo dos veces.
   const headerHint =
-    phase === 'settling' ? `${transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`} para cuadrar`
+    phase === 'settling' ? 'Cuentas por cuadrar'
     : phase === 'planning' && dStart != null ? (dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : null
 
@@ -161,7 +161,7 @@ export default function SharedTripView({
   const afterTrip = (phase === 'settling' || phase === 'done' || phase === 'closed') && bal.total > 0
   const heroTitle =
     afterTrip ? `${alone ? 'Gastaste' : 'Gastamos'} ${formatCLP(bal.total)}`
-    : phase === 'settling' ? (transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`)
+    : phase === 'settling' ? 'Cuentas por cuadrar'
     : phase === 'traveling' ? (dayInfo ? `Día ${dayInfo.day}${dayInfo.total ? ` de ${dayInfo.total}` : ''}` : 'En viaje')
     : phase === 'planning' ? (dStart == null ? 'Fechas por definir' : dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : phase === 'done' ? 'Viaje terminado' : 'Viaje cerrado'
@@ -188,7 +188,8 @@ export default function SharedTripView({
   const peopleTxt = alone ? 'Solo tú' : `${accepted.length} personas`
   const statusLine: React.ReactNode =
     phase === 'settling'
-      ? <>{transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`}{!alone && (owed || owes) && <> · <span className="font-bold" style={{ color: owed ? 'var(--mint-on-brand-soft)' : 'var(--gold-on-brand)' }}>{owed ? `Te deben ${formatCLP(mine)}` : `Debes ${formatCLP(-mine)}`}</span></>}</>
+      ? (alone || (!owed && !owes) ? 'Cuentas al día'
+          : <span className="font-bold" style={{ color: owed ? 'var(--mint-on-brand-soft)' : 'var(--gold-on-brand)' }}>{owed ? `Te deben ${formatCLP(mine)}` : `Debes ${formatCLP(-mine)}`}</span>)
       : phase === 'done' ? (alone ? 'Viaje terminado' : 'Viaje terminado · cuentas cuadradas')
       : 'Viaje cerrado'
   const heroLine: React.ReactNode =
@@ -786,7 +787,12 @@ export default function SharedTripView({
                           <p style={{ color: 'var(--ink-2)' }}>Falta tu parte: confirma que compartes tu porcentaje aquí abajo.</p>
                         ) : (
                           <p style={{ color: 'var(--ink-2)' }}>
-                            Tu parte está lista. Falta que otra persona del viaje registre sus ingresos o acepte compartir su %. Mientras tanto se usa lo último calculado.
+                            {(() => {
+                              const sinConfirmar = accepted.filter(m => m.user_id !== meId && !m.income_consent).map(m => nameOf(m.user_id))
+                              return sinConfirmar.length > 0
+                                ? <>Tu parte está lista. Falta que <strong style={{ color: 'var(--ink)' }}>{sinConfirmar.join(' y ')}</strong> {sinConfirmar.length === 1 ? 'confirme' : 'confirmen'} que {sinConfirmar.length === 1 ? 'comparte' : 'comparten'} su %: lo hace al abrir este viaje con su cuenta. Mientras tanto se usa el último reparto calculado.</>
+                                : <>Tu parte está lista. Falta que otra persona del viaje registre sus ingresos. Mientras tanto se usa el último reparto calculado.</>
+                            })()}
                           </p>
                         )}
                       </div>
