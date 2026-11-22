@@ -4,7 +4,7 @@ import { TRIP_CATEGORIES, type TripCategory } from '@/lib/shared-split'
 
 /** Resumen al cerrar el viaje: lo que costó, lo tuyo y contra el presupuesto. */
 export default function TripClosedSummary({
-  total, myShare, myPaid, budget, spent, people, count, startDate, endDate,
+  total, myShare, myPaid, budget, spent, people, count, startDate, endDate, hideTotal = false, hideMine = false,
 }: {
   total:     number
   myShare:   number
@@ -15,6 +15,10 @@ export default function TripClosedSummary({
   count:     number
   startDate: string | null
   endDate:   string | null
+  /** El total ya está en el encabezado de la página: aquí solo se cuenta de qué se compone. */
+  hideTotal?: boolean
+  /** «Tu parte» y «Pusiste tú» ya los muestra la cuadratura de cuentas. */
+  hideMine?:  boolean
 }) {
   const days = startDate && endDate
     ? Math.max(1, Math.round((new Date(endDate + 'T12:00:00').getTime() - new Date(startDate + 'T12:00:00').getTime()) / 86400000) + 1)
@@ -30,8 +34,8 @@ export default function TripClosedSummary({
       </div>
 
       <div>
-        <p className="font-display text-3xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>
-        <p className="text-xs mt-1.5" style={{ color: 'var(--ink-3)' }}>
+        {!hideTotal && <p className="font-display text-3xl font-extrabold tabular-nums leading-none" style={{ color: 'var(--ink)' }}>{formatCLP(total)}</p>}
+        <p className={hideTotal ? 'text-sm' : 'text-xs mt-1.5'} style={{ color: hideTotal ? 'var(--ink-2)' : 'var(--ink-3)' }}>
           en {count} {count === 1 ? 'gasto' : 'gastos'}{people > 1 ? ` · ${people} personas` : ''}
           {days ? ` · ${days} ${days === 1 ? 'día' : 'días'} (${formatCLP(Math.round(total / days))} al día)` : ''}
         </p>
@@ -42,7 +46,7 @@ export default function TripClosedSummary({
         )}
       </div>
 
-      {people > 1 && <div className="grid grid-cols-2 gap-3">
+      {people > 1 && !hideMine && <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
           <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Tu parte</p>
           <p className="text-lg font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import TripIncomeField from '@/components/TripIncomeField'
+import TripExpenseDetail from '@/components/TripExpenseDetail'
 import { ArrowLeft, Plus, Handshake, Clock, Users, Check, Settings2, UserPlus, X, Pencil, Share2, Copy, ChevronRight, CalendarDays, Wallet, CircleCheck, Lock } from 'lucide-react'
 import { formatCLP, relativeDate, type DateFormat } from '@/lib/utils'
 import { useToast } from '@/components/ToastProvider'
@@ -74,6 +75,8 @@ export default function SharedTripView({
   const router = useRouter()
   const { showToast } = useToast()
   const [sheet, setSheet] = useState<{ expense: SharedExpenseRow | null } | null>(null)
+  // Tocar un gasto abre primero su detalle; editar es un paso aparte.
+  const [viewing, setViewing] = useState<SharedExpenseRow | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [budgetOpen, setBudgetOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -151,8 +154,11 @@ export default function SharedTripView({
     : phase === 'planning' && dStart != null ? (dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : null
 
+  // Después del viaje lo primero es cuánto se gastó; el estado (falta transferir, cuadrado, cerrado) va debajo.
+  const afterTrip = (phase === 'settling' || phase === 'done' || phase === 'closed') && bal.total > 0
   const heroTitle =
-    phase === 'settling' ? (transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`)
+    afterTrip ? `${alone ? 'Gastaste' : 'Gastamos'} ${formatCLP(bal.total)}`
+    : phase === 'settling' ? (transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`)
     : phase === 'traveling' ? (dayInfo ? `Día ${dayInfo.day}${dayInfo.total ? ` de ${dayInfo.total}` : ''}` : 'En viaje')
     : phase === 'planning' ? (dStart == null ? 'Fechas por definir' : dStart === 1 ? 'Sale mañana' : `Sale en ${dStart} días`)
     : phase === 'done' ? 'Viaje terminado' : 'Viaje cerrado'
@@ -177,8 +183,14 @@ export default function SharedTripView({
 
   const planTotal = budgetSum > 0 ? budgetSum : budgetTotal(derivedBudget)
   const peopleTxt = alone ? 'Solo tú' : `${accepted.length} personas`
+  const statusLine: React.ReactNode =
+    phase === 'settling'
+      ? <>{transfers.length === 1 ? 'Falta 1 transferencia' : `Faltan ${transfers.length} transferencias`}{!alone && (owed || owes) && <> · <span className="font-bold" style={{ color: owed ? 'var(--mint-on-brand-soft)' : 'var(--gold-on-brand)' }}>{owed ? `Te deben ${formatCLP(mine)}` : `Debes ${formatCLP(-mine)}`}</span></>}</>
+      : phase === 'done' ? (alone ? 'Viaje terminado' : 'Viaje terminado · cuentas cuadradas')
+      : 'Viaje cerrado'
   const heroLine: React.ReactNode =
-    phase === 'planning'
+    afterTrip ? <>{statusLine} · {peopleTxt}{expenses.length > 0 ? ` · ${expenses.length} ${expenses.length === 1 ? 'gasto' : 'gastos'}` : ''}</>
+    : phase === 'planning'
       ? (planTotal > 0 ? `Costaría ${formatCLP(planTotal)} · ${peopleTxt}` : `${peopleTxt} · aún sin presupuesto`)
       : phase === 'traveling'
         ? `${peopleTxt} · ${group.end_date ? `vuelven el ${fmtRange(group.end_date, null).replace(/ \d{4}$/, '')}` : 'sin fecha de vuelta'}`
@@ -327,7 +339,8 @@ export default function SharedTripView({
       total={bal.total} myShare={bal.share[meId] ?? 0} myPaid={bal.paid[meId] ?? 0}
       budget={budgetSum} spent={spent}
       people={accepted.length} count={expenses.length}
-      startDate={group.start_date} endDate={group.end_date} />
+      startDate={group.start_date} endDate={group.end_date}
+      hideTotal={bal.total > 0} hideMine={phase === 'settling' && !alone} />
   ) : null
 
   const doneCard = phase === 'done' ? (
@@ -428,9 +441,9 @@ export default function SharedTripView({
                   const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
                   const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
                   return (
-                    <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
+                    <button key={e.id} onClick={() => setViewing(e)}
                       className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-xl text-left transition-colors active:bg-[var(--surface-2)] [@media(hover:hover)]:hover:bg-[var(--surface-2)]"
-                      style={{ cursor: closed ? 'default' : 'pointer' }}>
+                      style={{ cursor: 'pointer' }}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
                         <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                       </div>
@@ -443,7 +456,7 @@ export default function SharedTripView({
                         </p>
                       </div>
                       <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--ink)' }}>{formatCLP(e.amount)}</p>
-                      {!closed && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />}
+                      <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
                     </button>
                   )
                 })}
@@ -463,8 +476,8 @@ export default function SharedTripView({
   const main =
     phase === 'planning'  ? <>{steps}{planCard}{suggested}{gastos}{saldo}</>
     : phase === 'traveling' ? <>{spendHero}{suggested}{saldo}{gastos}</>
-    : phase === 'settling'  ? <>{settlementLedger}{suggested}{summary}{gastos}</>
-    : phase === 'done'      ? <>{doneCard}{suggested}{summary}{gastos}</>
+    : phase === 'settling'  ? <>{settlementLedger}{summary}{gastos}{suggested}</>
+    : phase === 'done'      ? <>{summary}{doneCard}{gastos}{suggested}</>
     : <>{summary}{gastos}</>
 
   return (
@@ -830,6 +843,16 @@ export default function SharedTripView({
         </div>
       </div>
 
+      {viewing && (
+        <TripExpenseDetail
+          expense={viewing} group={group} meId={meId}
+          members={accepted.map(m => ({ user_id: m.user_id, name: m.display_name }))}
+          shares={sharesByExp[viewing.id] ?? {}} paymentMethods={paymentMethods}
+          canEdit={!closed}
+          onEdit={() => { const e = viewing; setViewing(null); setSheet({ expense: e }) }}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {sheet && (
         <SharedExpenseSheet
           key={sheet.expense?.id ?? 'new'}
