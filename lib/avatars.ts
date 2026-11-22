@@ -7,7 +7,7 @@ export const AVATARS = [
   { id: 'leon',     label: 'León' },
   { id: 'capibara', label: 'Capibara' },
   { id: 'tigre',    label: 'Tigre' },
-  { id: 'pinguino', label: 'Pingüino' },
+  { id: 'hamster',  label: 'Hámster' },
 ] as const
 
 export type AvatarId = (typeof AVATARS)[number]['id']
