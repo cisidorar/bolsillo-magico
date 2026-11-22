@@ -117,6 +117,14 @@ export default function SharedTripView({
     return true
   }
 
+  // «Mié 18 nov» (o Hoy / Ayer): se lee de un vistazo, a diferencia de 18/11/2026.
+  function dayLabel(day: string) {
+    const rel = relativeDate(day, dateFormat)
+    if (!/\d/.test(rel)) return rel
+    const t = new Date(day + 'T12:00:00').toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short' }).replace(/\./g, '').replace(',', '')
+    return t.charAt(0).toUpperCase() + t.slice(1)
+  }
+
   const byDay = new Map<string, SharedExpenseRow[]>()
   for (const e of [...expenses].sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))) {
     byDay.set(e.date, [...(byDay.get(e.date) ?? []), e])
@@ -261,14 +269,13 @@ export default function SharedTripView({
   const settlementLedger = !alone && (expenses.length > 0 || settlements.length > 0) ? (
     <div className="card-flat overflow-hidden">
       <div className="px-5 py-4" style={{ background: balStyle.bg }}>
-        <p className="text-xs font-semibold" style={{ color: balStyle.color }}>Cuadremos cuentas</p>
-        <p className="font-display text-2xl font-bold mt-1 tabular-nums" style={{ color: balStyle.color }}>
+        <p className="font-display text-2xl font-bold tabular-nums" style={{ color: balStyle.color }}>
           {owed ? `Te deben ${formatCLP(mine)}` : owes ? `Debes ${formatCLP(-mine)}` : 'Están a mano'}
         </p>
       </div>
       <div className="grid grid-cols-2">
         <div className="p-4">
-          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Pusieron</p>
+          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--ink-2)' }}>Pusieron</p>
           {accepted.map(m => (
             <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
               <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
@@ -277,7 +284,7 @@ export default function SharedTripView({
           ))}
         </div>
         <div className="p-4">
-          <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--ink-3)' }}>Les corresponde</p>
+          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--ink-2)' }}>Les corresponde</p>
           {accepted.map(m => (
             <div key={m.user_id} className="flex justify-between text-sm py-1 gap-2">
               <span className="truncate" style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>
@@ -411,17 +418,18 @@ export default function SharedTripView({
           {itemsList && <p className="text-[11px] font-bold -mb-2" style={{ color: 'var(--mint-ink)' }}>Pagado</p>}
           {[...byDay.entries()].map(([day, rows]) => (
             <div key={day}>
-              <div className="flex items-center gap-2 mb-2">
-                <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{relativeDate(day, dateFormat)}</p>
+              <div className="flex items-baseline justify-between gap-2 mb-2 px-1">
+                <p className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>{dayLabel(day)}</p>
+                <p className="text-xs font-semibold tabular-nums" style={{ color: 'var(--ink-3)' }}>{formatCLP(rows.reduce((t, r) => t + r.amount, 0))}</p>
               </div>
-              <div className="card-flat overflow-hidden [&>*+*]:border-t [&>*+*]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
+              <div className="card-flat p-1.5 space-y-0.5">
                 {rows.map(e => {
                   const myPart = sharesByExp[e.id]?.[meId] ?? 0
                   const payer = e.paid_by === meId ? 'tú' : nameOf(e.paid_by)
                   const CatIcon = TRIP_CATEGORY_ICON[e.trip_category]
                   return (
                     <button key={e.id} onClick={() => !closed && setSheet({ expense: e })}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[56px] rounded-xl text-left transition-colors active:bg-[var(--surface-2)] [@media(hover:hover)]:hover:bg-[var(--surface-2)]"
                       style={{ cursor: closed ? 'default' : 'pointer' }}>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--primary-soft)' }}>
                         <CatIcon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
@@ -486,7 +494,11 @@ export default function SharedTripView({
           </div>
           <a href="#personas" aria-label={`${accepted.length} ${accepted.length === 1 ? 'persona' : 'personas'}, ver quiénes van`}
             className="flex items-center flex-shrink-0 min-h-[44px]">
-            {members.slice(0, 4).map((m, i) => (
+            {members.slice(0, 4).map((m, i) => m.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={m.user_id} src={m.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover ring-2"
+                style={{ marginLeft: i ? -10 : 0, opacity: m.status === 'pending' ? 0.6 : 1, background: '#fff', ['--tw-ring-color' as string]: '#1B6DD4' }} />
+            ) : (
               <span key={m.user_id} className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ring-2"
                 style={{
                   marginLeft: i ? -10 : 0, background: '#fff', color: '#1B6DD4', opacity: m.status === 'pending' ? 0.6 : 1,
@@ -512,7 +524,7 @@ export default function SharedTripView({
         </div>
 
         {/* Columna lateral — personas, reparto y el historial de transferencias ya hechas */}
-        <div className="space-y-5">
+        <div className="space-y-5 lg:sticky lg:top-6 lg:self-start">
           {/* Personas */}
           <div id="personas" className="card p-4">
             <div className="flex items-center justify-between mb-2">
@@ -729,10 +741,10 @@ export default function SharedTripView({
                   {(['equal', 'income'] as SplitMode[]).map(m => (
                     <button key={m} disabled={busy || closed || !isCreator} onClick={() => group.split_mode !== m && run(() => setSharedMode(group.id, m), 'Reparto actualizado')}
                       aria-pressed={group.split_mode === m}
-                      className="px-3.5 py-2 min-h-[40px] rounded-full text-xs font-semibold border disabled:cursor-default"
+                      className="px-3.5 py-2 min-h-[40px] rounded-full text-xs font-semibold disabled:cursor-default transition-colors"
                       style={group.split_mode === m
-                        ? { background: 'var(--primary-soft)', color: 'var(--primary)', borderColor: 'var(--primary)' }
-                        : { background: 'var(--surface)', color: 'var(--ink-3)', borderColor: 'var(--border)', opacity: isCreator ? 1 : 0.6 }}>
+                        ? { background: 'var(--primary-soft)', color: 'var(--primary-text)' }
+                        : { background: 'var(--surface-2)', color: 'var(--ink-3)', opacity: isCreator ? 1 : 0.6 }}>
                       {m === 'equal' ? 'Partes iguales' : 'Según lo que gana cada uno'}
                     </button>
                   ))}
@@ -761,10 +773,22 @@ export default function SharedTripView({
                         )}
                       </div>
                     ) : wSum > 0 && (
-                      <p>
-                        {accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(' · ')}
-                        <span style={{ color: 'var(--ink-3)' }}> — nadie ve el sueldo de otro.</span>
-                      </p>
+                      <div className="space-y-2">
+                        <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full rc-grow" role="img"
+                          aria-label={accepted.map(m => `${nameOf(m.user_id)} ${Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%`).join(', ')}>
+                          {accepted.map((m, i) => (
+                            <span key={m.user_id} style={{ width: `${((weights[m.user_id] ?? 0) / wSum) * 100}%`, background: 'var(--primary)', opacity: [1, 0.55, 0.32, 0.2][i % 4] }} />
+                          ))}
+                        </div>
+                        <p className="tabular-nums">
+                          {accepted.map((m, i) => (
+                            <span key={m.user_id}>{i > 0 && <span style={{ color: 'var(--ink-3)' }}> · </span>}
+                              <span style={{ color: 'var(--ink-2)' }}>{nameOf(m.user_id)}</span>{' '}
+                              <span className="font-bold" style={{ color: 'var(--ink)' }}>{Math.round(((weights[m.user_id] ?? 0) / wSum) * 100)}%</span></span>
+                          ))}
+                        </p>
+                        <p style={{ color: 'var(--ink-3)' }}>Nadie ve el sueldo de otro, solo el porcentaje.</p>
+                      </div>
                     )}
                     {me && (
                       <label className="flex items-center gap-3 font-semibold min-h-[44px]" style={{ color: 'var(--ink)' }}>

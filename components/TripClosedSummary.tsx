@@ -44,23 +44,28 @@ export default function TripClosedSummary({
 
       {people > 1 && <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Tu parte</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Tu parte</p>
           <p className="text-lg font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myShare)}</p>
         </div>
         <div className="rounded-2xl p-3" style={{ background: 'var(--surface-2)' }}>
-          <p className="text-[11px] font-bold" style={{ color: 'var(--ink-3)' }}>Pusiste tú</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>Pusiste tú</p>
           <p className="text-lg font-bold tabular-nums mt-0.5" style={{ color: 'var(--ink)' }}>{formatCLP(myPaid)}</p>
         </div>
       </div>}
 
       {top.length > 0 && (
-        <div className="space-y-1.5">
-          {top.map(c => (
-            <div key={c.key} className="flex justify-between text-xs">
-              <span style={{ color: 'var(--ink-2)' }}>{c.label}</span>
-              <span className="tabular-nums font-semibold" style={{ color: 'var(--ink)' }}>
-                {formatCLP(c.v)} <span style={{ color: 'var(--ink-3)' }}>· {Math.round((c.v / total) * 100)}%</span>
-              </span>
+        <div className="space-y-3">
+          {top.map((c, i) => (
+            <div key={c.key}>
+              <div className="flex justify-between gap-2 text-sm">
+                <span style={{ color: 'var(--ink-2)' }}>{c.label}</span>
+                <span className="tabular-nums font-semibold" style={{ color: 'var(--ink)' }}>
+                  {formatCLP(c.v)} <span style={{ color: 'var(--ink-3)' }}>· {Math.round((c.v / total) * 100)}%</span>
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full" style={{ background: 'var(--surface-2)' }} aria-hidden>
+                <div className="h-full rounded-full rc-grow" style={{ width: `${Math.max(2, (c.v / top[0].v) * 100)}%`, background: 'var(--primary)', opacity: i === 0 ? 1 : 0.55, ['--d' as string]: `${i * 40}ms` }} />
+              </div>
             </div>
           ))}
         </div>
