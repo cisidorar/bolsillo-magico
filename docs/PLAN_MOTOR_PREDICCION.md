@@ -39,6 +39,22 @@ Lo que dice la literatura (resumen de la investigación de nov 2026):
 
 5. **Registro diario fuera de muestra** — tabla `signal_snapshots` (migración `20261123_signal_snapshots.sql`). El cron `sync-prices` guarda una fila por ticker por día (rating, convicción, flags de cada componente, momentum 12-1, régimen) y `fill_signal_outcomes()` completa después los retornos del ticker y de SPY a 5/20/60 ruedas. En ~6 meses habrá ~3.000 filas imposibles de sobreajustar.
 
+## Revisión de operaciones reales (23 nov 2026)
+
+Cruce de `stock_purchases`/`stock_sales` con lo que decía el motor (`daily_signals`, `daily_decisions`) y el contexto de mercado de la semana (elecciones del 5-nov y temor a frenar data centers; renuncia y reposición del CEO de Nvidia; −10,7% del índice de semis el 20-nov).
+
+- Posiciones abiertas: costo US$7.700, valor ~US$5.700 al cierre del 20-nov (−26%; SPY ≈ −8% en las mismas fechas). 53% del costo en semis/IA (SOXL 3× incluido).
+- Compras con etiqueta `compra_fuerte` (16, US$4.301): −34,9% vs SPY −9,4%. Ventas: 4 de 7 salieron antes de caídas de 22-38%.
+- SOXL tuvo señales de venta desde el 14-oct y cruce de la muerte el 28-29-oct (~US$102; cerró a 30,9). INTC pasó 31 días seguidos en "precaución" sin escalar.
+- **Bugs encontrados y corregidos**: (1) split 8×1 de SNDK sin ajustar → la app mostraba −95% y una alarma de US$1.325 contra un precio de 79; ahora detección + recarga + `apply_stock_split()`. (2) `computeDailyDecisions` calculaba el efectivo como Σ aportes sin restar compras (US$10.906 vs ~US$500 reales) → el correo sugería montos de ~US$10.000; ahora usa `cashFromTotals` y no sugiere nada sin efectivo.
+
+### Mejoras pendientes de esa revisión
+- [ ] Tope de exposición por tema (semis/IA ~30-35%, SOXL contando ×3) que baje la sugerencia del motor.
+- [ ] Tesis y criterio de invalidación por posición, mostrados junto a las noticias cuando la acción cae >8% en un día.
+- [ ] Modo "día de shock": tras una caída extrema del índice, sin ventas mecánicas "ahora"; revisar a los 2 días.
+- [ ] "Precaución" que lleva >10 días debe escalar (cuánto cayó desde que empezó) en vez de repetirse igual.
+- [ ] Diario de decisiones: por cada compra, qué decía el motor y cómo le fue vs SPY.
+
 ## Pendiente
 
 - [ ] Aplicar la migración `20261123_signal_snapshots.sql` **antes** de desplegar (si no, el cron solo loguea el error, pero `signal_stats` no se actualiza porque el upsert incluye `avg_excess_20`).

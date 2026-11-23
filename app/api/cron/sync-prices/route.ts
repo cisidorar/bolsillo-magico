@@ -421,6 +421,30 @@ async function updateTrailingStops(supabase: SupabaseClient): Promise<{ updated:
   return { updated, skipped }
 }
 
+// ── Splits (nov 2026, caso SNDK 8×1) ─────────────────────────────────────────
+// syncTicker() recarga el historial ajustado y deja un marcador `{SYM}_SPLIT` en
+// price_cache (factor en `price`, fecha del primer día post-split en `name`).
+// apply_stock_split() ajusta acciones/costo/alarma de cada usuario una sola
+// vez por (ticker, fecha): llamarla de nuevo con el mismo marcador no hace nada.
+async function applyPendingSplits(supabase: SupabaseClient): Promise<{ applied: number }> {
+  try {
+    const { data } = await supabase.from('price_cache').select('ticker, price, name').like('ticker', '%_SPLIT')
+    let applied = 0
+    for (const m of (data ?? []) as { ticker: string; price: number; name: string | null }[]) {
+      if (!m.ticker.endsWith('_SPLIT') || !m.name || !(Number(m.price) > 0)) continue
+      const { data: n, error } = await supabase.rpc('apply_stock_split', {
+        p_ticker: m.ticker.slice(0, -'_SPLIT'.length), p_date: m.name, p_factor: Number(m.price),
+      })
+      if (error) { console.error(`[sync-prices] apply_stock_split ${m.ticker}:`, error.message); continue }
+      if (Number(n) > 0) { applied += Number(n); console.log(`[sync-prices] split ${m.ticker} (${m.price}×): ${n} posiciones ajustadas`) }
+    }
+    return { applied }
+  } catch (err) {
+    console.error('[sync-prices] applyPendingSplits falló:', err)
+    return { applied: 0 }
+  }
+}
+
 async function computeDailySignals(supabase: SupabaseClient) {
   const [{ data: wl }, { data: pos }] = await Promise.all([
     supabase.from('watchlist').select('id, user_id, ticker, target_price, target_direction, target_notified'),
@@ -673,9 +697,10 @@ async function computeDailyDecisions(
   if (wlRows.length === 0) return { decisions: 0 }
 
   const userIds = [...new Set(wlRows.map(r => r.user_id))]
-  const [{ data: posRows }, { data: usdRows }] = await Promise.all([
+  const [{ data: posRows }, { data: usdRows }, { data: buyRows }] = await Promise.all([
     supabase.from('stock_positions').select('user_id, ticker, shares, avg_cost_usd').in('user_id', userIds),
     supabase.from('usd_purchases').select('user_id, usd_amount').in('user_id', userIds),
+    supabase.from('stock_purchases').select('user_id, total_paid_usd').in('user_id', userIds),
   ])
 
   const positionsByUser = new Map<string, { ticker: string; shares: number; avgCost: number }[]>()
@@ -685,15 +710,21 @@ async function computeDailyDecisions(
     list.push({ ticker: p.ticker as string, shares: Number(p.shares), avgCost: Number(p.avg_cost_usd) })
     positionsByUser.set(uid, list)
   }
-  // Saldo de billetera aproximado: Σ movimientos (aportes+ventas) − costo de
-  // TODAS las posiciones del usuario. El cron no distingue legacy vs
-  // financiadas por la billetera (esa distinción vive en wallet_cost_usd,
-  // consultable, pero para una SUGERENCIA de monto esta aproximación nunca
-  // infla el saldo — en el peor caso lo subestima, que es el lado seguro.
+  // Efectivo = lo que entró − lo que se gastó en compras (lib/wallet-cash.ts).
+  // Nov 2026, bug real: aquí se usaba solo Σ movimientos, SIN restar las
+  // compras — con US$10.906 aportados y US$10.405 ya invertidos, el correo
+  // sugería "compra US$9.897 de MU" teniendo ~US$500 de efectivo real. El
+  // comentario que había decía que restaba el costo de las posiciones; no lo
+  // hacía (y esa fórmula tampoco servía: ver el encabezado de wallet-cash.ts).
   const walletMovByUser = new Map<string, number>()
   for (const r of usdRows ?? []) {
     const uid = r.user_id as string
     walletMovByUser.set(uid, (walletMovByUser.get(uid) ?? 0) + Number(r.usd_amount))
+  }
+  const spentByUser = new Map<string, number>()
+  for (const r of buyRows ?? []) {
+    const uid = r.user_id as string
+    spentByUser.set(uid, (spentByUser.get(uid) ?? 0) + Number(r.total_paid_usd))
   }
 
   const decisionRows: {
@@ -742,12 +773,14 @@ async function computeDailyDecisions(
     if (isBuy && picked) {
       const positions = positionsByUser.get(userId) ?? []
       const costOfPositions = positions.reduce((s, p) => s + p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost), 0)
-      const walletCash      = Math.max(0, walletMovByUser.get(userId) ?? 0)
+      const walletCash      = Math.max(0, cashFromTotals(walletMovByUser.get(userId) ?? 0, spentByUser.get(userId) ?? 0) ?? 0)
       const portfolioValueUsd = costOfPositions + walletCash
-      if (portfolioValueUsd > 0) {
+      // Sin efectivo no hay monto que sugerir. Antes `walletCash || maxUsd`
+      // caía al tope por riesgo justo cuando el efectivo era 0.
+      if (portfolioValueUsd > 0 && walletCash > 0) {
         const sizing = positionSizeUsd(portfolioValueUsd, picked.a.price, picked.a.alarm)
         // Además del riesgo, no sugerir más de lo que realmente hay disponible
-        if (sizing) suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash || sizing.maxUsd) * 100) / 100
+        if (sizing) suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash) * 100) / 100
       }
     }
 
@@ -883,6 +916,10 @@ export async function GET(request: Request) {
         ? r.value
         : { ticker: tickers[i], inserted: 0, source: null, reasons: [`excepción: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] })
 
+    // Splits detectados (por este sync o por /api/technical): ajusta las
+    // posiciones de los usuarios ANTES del snapshot de cartera y de las señales.
+    const splits = await applyPendingSplits(supabase)
+
     const ok     = results.filter(r => r.source !== null).length
     const failed = results.filter(r => r.source === null)
     console.log(`[sync-prices] ${ok}/${tickers.length} ok`, failed.map(f => `${f.ticker}: ${f.reasons.join('·')}`))
@@ -920,6 +957,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       synced: ok,
       total:  tickers.length,
+      splits,
       failed: failed.map(f => ({ ticker: f.ticker, reasons: f.reasons })),
       digest,
       digestEmail,

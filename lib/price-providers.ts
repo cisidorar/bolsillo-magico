@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { looksLikeSplit, splitFactorFromAdjusted } from './splits'
 
 // ── Proveedores de OHLCV diario + sync a price_history ───────────────────────
 // Cadena: Tiingo (primaria — free tier 1000 req/día, 50/hora, 500 símbolos/mes)
@@ -176,6 +177,10 @@ export interface SyncResult {
   inserted: number
   source:   string | null
   reasons:  string[]
+  /** Split detectado y confirmado con el historial ajustado del proveedor
+   *  (nov 2026): el historial del ticker ya se reemplazó. Falta ajustar las
+   *  posiciones de los usuarios — lo hace el cron con apply_stock_split(). */
+  split?:   { factor: number; date: string }
 }
 
 /**
@@ -202,6 +207,74 @@ export async function syncTicker(supabase: SupabaseClient, ticker: string): Prom
   if (from > today) return { ticker, inserted: 0, source: 'al día', reasons }
 
   // Cadena de proveedores
+  const { rows, source } = await fetchChain(ticker, from, reasons)
+  if (!rows) return { ticker, inserted: 0, source: null, reasons }
+
+  // ── Split no ajustado (nov 2026, caso SNDK 8×1) ────────────────────────────
+  // El sync es incremental: si hubo un split, lo guardado antes queda sin
+  // ajustar y lo nuevo viene ajustado. Si lo recién traído se ve como split
+  // frente al último día guardado, se pide el historial completo (ajustado) y
+  // se compara el MISMO día: ahí sale el factor exacto. Si da ~1 era un
+  // crash real y no se toca nada.
+  let split: { factor: number; date: string } | undefined
+  let toUpsert = rows
+  if (last?.date) {
+    const next = [...rows].sort((a, b) => a.date.localeCompare(b.date))[0]
+    const { data: prevRow } = await supabase
+      .from('price_history').select('date, close, volume')
+      .eq('ticker', ticker).eq('date', last.date).maybeSingle()
+    if (next && prevRow && next.close > 0 && next.date > last.date) {
+      const { data: recent } = await supabase
+        .from('price_history').select('volume').eq('ticker', ticker)
+        .order('date', { ascending: false }).limit(20)
+      const vols = (recent ?? []).map(r => Number(r.volume)).filter(v => v > 0)
+      const avgVol = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : undefined
+      if (looksLikeSplit(
+        { date: prevRow.date as string, close: Number(prevRow.close), volume: Number(prevRow.volume ?? 0) },
+        { date: next.date, close: next.close, volume: Number(next.volume ?? 0) },
+        avgVol,
+      )) {
+        // Desde el primer día guardado (no solo 430 días): una fila vieja sin
+        // ajustar que quedara fuera de la recarga contaminaría SMA200/rango anual
+        const { data: first } = await supabase
+          .from('price_history').select('date').eq('ticker', ticker)
+          .order('date', { ascending: true }).limit(1).maybeSingle()
+        const fullFrom = first?.date && first.date < isoDaysAgo(LOOKBACK_D) ? first.date as string : isoDaysAgo(LOOKBACK_D)
+        const full = await fetchChain(ticker, fullFrom, reasons)
+        const adjPrev = full.rows?.find(r => r.date === last.date)
+        const factor = adjPrev ? splitFactorFromAdjusted(Number(prevRow.close), adjPrev.close) : null
+        if (full.rows && factor !== null) {
+          split = { factor, date: next.date }
+          toUpsert = full.rows   // historial completo ya ajustado: pisa todo lo viejo
+          // Marcador durable: quien detecta puede ser /api/technical (sesión de
+          // usuario, que no puede ajustar posiciones de nadie). El cron lo lee
+          // y llama apply_stock_split() — idempotente por (ticker, fecha).
+          await supabase.from('price_cache').upsert({
+            ticker: `${ticker}_SPLIT`, price: factor, name: next.date, fetched_at: new Date().toISOString(),
+          })
+          reasons.push(`Split ${factor}× detectado el ${next.date}: historial recargado`)
+        } else if (!full.rows) {
+          reasons.push('Posible split pero no se pudo recargar el historial ajustado (se reintenta en el próximo sync)')
+        }
+      }
+    }
+  }
+
+  // Upsert por lotes (PK ticker+date hace la dedupe)
+  const { error } = await supabase.from('price_history').upsert(toUpsert, { onConflict: 'ticker,date' })
+  if (error) {
+    reasons.push(`upsert: ${error.message}`)
+    // source=null aunque el proveedor haya respondido bien: si el upsert falla,
+    // los datos no quedaron persistidos y no debe contarse como "sincronizado".
+    return { ticker, inserted: 0, source: null, reasons }
+  }
+  return { ticker, inserted: toUpsert.length, source, reasons, ...(split ? { split } : {}) }
+}
+
+/** Cadena de proveedores: Tiingo → Alpha Vantage → Yahoo → Stooq. */
+async function fetchChain(
+  ticker: string, from: string, reasons: string[],
+): Promise<{ rows: OhlcvRow[] | null; source: string | null }> {
   const tiingoKey = process.env.TIINGO_API_KEY
   const avKey     = process.env.ALPHAVANTAGE_API_KEY
   let rows: OhlcvRow[] | null = null
@@ -211,19 +284,8 @@ export async function syncTicker(supabase: SupabaseClient, ticker: string): Prom
   if (!rows && avKey) { rows = await alphaVantageDaily(ticker, from, avKey, reasons); if (rows) source = 'alphavantage' }
   if (!rows) { rows = await yahooDaily(ticker, from, reasons); if (rows) source = 'yahoo' }
   if (!rows) { rows = await stooqDaily(ticker, from, reasons); if (rows) source = 'stooq' }
-  if (!tiingoKey) reasons.push('Tiingo sin configurar (TIINGO_API_KEY)')
-
-  if (!rows) return { ticker, inserted: 0, source: null, reasons }
-
-  // Upsert por lotes (PK ticker+date hace la dedupe)
-  const { error } = await supabase.from('price_history').upsert(rows, { onConflict: 'ticker,date' })
-  if (error) {
-    reasons.push(`upsert: ${error.message}`)
-    // source=null aunque el proveedor haya respondido bien: si el upsert falla,
-    // los datos no quedaron persistidos y no debe contarse como "sincronizado".
-    return { ticker, inserted: 0, source: null, reasons }
-  }
-  return { ticker, inserted: rows.length, source, reasons }
+  if (!tiingoKey && !reasons.includes('Tiingo sin configurar (TIINGO_API_KEY)')) reasons.push('Tiingo sin configurar (TIINGO_API_KEY)')
+  return { rows, source }
 }
 
 /** Lee las velas de la BD (viejo → nuevo), incluyendo high/low/volume para
