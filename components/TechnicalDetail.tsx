@@ -193,6 +193,7 @@ export default function TechnicalDetail({
   // quien quiera profundizar (feedback de Cas: "mucho texto, abrumador").
   const [openSection, setOpenSection] = useState<DetailSection>('resumen')
   const [showWhy, setShowWhy] = useState(false)
+  const [showAllRationale, setShowAllRationale] = useState(false)
   const { showToast } = useToast()
   // D6 (roadmap de calidad de decisión): ETFs apalancados (SOXL 3×, etc.)
   // tienen decay estructural y su volatilidad hace que la regla del 1% de
@@ -485,17 +486,12 @@ export default function TechnicalDetail({
 
       {/* -1. Guard intradía: hoy se movió fuerte, el análisis quedó viejo */}
       {bigMove && (
-        // Aviso de atención, no de acción hoy: va como chip gold con su explicación en una línea (UX5: un solo
-        // banner coral por pantalla, y el veredicto de abajo ya puede serlo).
-        <div className="rounded-2xl px-4 py-3" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
-          <p className="text-sm font-bold" style={{ color: 'var(--gold-ink)' }}>
-            Hoy se mueve fuerte: {devPct > 0 ? '+' : ''}{devPct}% desde el cierre analizado
-          </p>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Las señales de abajo son del cierre anterior y pueden estar viejas; se recalculan al próximo cierre.
-            Las distancias a los niveles ya usan el precio en vivo.
-          </p>
-        </div>
+        // Atención, no acción hoy (UX5): una sola línea gold. Antes era un bloque entero que, con el veredicto de
+        // abajo, apilaba dos cajas casi idénticas y empujaba «Dónde está el precio» fuera de la pantalla.
+        <p className="rounded-2xl px-4 py-2.5 text-sm" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))', color: 'var(--ink-2)' }}>
+          <span className="font-bold" style={{ color: 'var(--gold-ink)' }}>Hoy {devPct > 0 ? '+' : ''}{devPct}% desde el cierre analizado.</span>{' '}
+          Las señales de abajo pueden estar viejas; se recalculan al próximo cierre.
+        </p>
       )}
 
       {/* 0. Cabecera fija: score + acción con monto + el porqué en 2 líneas
@@ -513,7 +509,13 @@ export default function TechnicalDetail({
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
-        <p className="text-sm leading-relaxed mt-2" style={{ color: 'var(--ink)' }}>{rationale}</p>
+        <p className={`text-sm leading-relaxed mt-2 ${showAllRationale ? '' : 'line-clamp-3'}`} style={{ color: 'var(--ink)' }}>{rationale}</p>
+        {rationale.length > 170 && (
+          <button onClick={() => setShowAllRationale(v => !v)} aria-expanded={showAllRationale}
+            className="text-xs font-bold min-h-[36px] -mb-1" style={{ color: toTextColor(headerColor) }}>
+            {showAllRationale ? 'Ver menos' : 'Leer todo'}
+          </button>
+        )}
         {position && a.rating.caution && (
           <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold-ink)' }}>
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.

@@ -1291,7 +1291,9 @@ export default function Radar({
                 : 'De tu cartera'
 
               // Cifra de apoyo: si el protagonista es el valor, la ganancia total; si no, el valor.
-              const support = sortKey === 'value'
+              // Mientras no llega el precio en vivo el valor sale al costo: se marca apagado y se reserva el espacio.
+              const pending = !q && !quotesError
+              const support = pending ? null : sortKey === 'value'
                 ? (row.gainUsd !== null && row.gainPct !== null
                     ? { label: 'Ganancia total', text: `${maskStr(hideAmounts, fmtUSDSigned(row.gainUsd))} · ${fmtPct(row.gainPct)}`, tone: toneOf(row.gainUsd, true) }
                     : null)
@@ -1315,6 +1317,7 @@ export default function Radar({
                   weightText={row.distPct !== null ? fmtPct(row.distPct, false) : null}
                   weightFill={row.distPct !== null ? row.distPct / maxDist : 0}
                   alert={sellNow ? { label: trendReversed ? 'Sal ya' : 'Vende', reversed: !!trendReversed, reason: sellReason } : null}
+                  pending={pending}
                   index={i}
                   onOpen={() => openDetail(row.ticker)}
                 />

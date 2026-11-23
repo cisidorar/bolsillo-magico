@@ -30,6 +30,8 @@ export interface StockCardProps {
   weightFill: number
   /** Señal de venta: «Sal ya» (cambio de tendencia) o «Vende» (tomar ganancias). */
   alert?:     { label: string; reversed: boolean; reason?: string | null } | null
+  /** Aún no llega el precio en vivo: se reserva el espacio de nombre, apoyo y chip para que nada salte al llegar. */
+  pending?:   boolean
   /** Posición en la lista: escalona la entrada de la barra. */
   index?:     number
   onOpen:     () => void
@@ -40,8 +42,9 @@ export interface StockCardProps {
  * una cifra de apoyo, cómo le fue hoy y cuánto pesa en la cartera. Todo lo demás vive en el detalle.
  */
 export default function StockCard({
-  ticker, name, logo, heroLabel, hero, heroTone, support, today, weightText, weightFill, alert, index = 0, onOpen,
+  ticker, name, logo, heroLabel, hero, heroTone, support, today, weightText, weightFill, alert, pending = false, index = 0, onOpen,
 }: StockCardProps) {
+  const bone = { background: 'var(--surface-2)' }
   const alertTint = alert
     ? alert.reversed
       ? 'color-mix(in srgb, var(--coral) 9%, var(--surface))'
@@ -70,8 +73,11 @@ export default function StockCard({
               </span>
             )}
           </span>
-          {name && <span className="block text-xs truncate mt-0.5" style={{ color: 'var(--ink-3)' }}>{name}</span>}
+          {name
+            ? <span className="block text-xs truncate mt-0.5" style={{ color: 'var(--ink-3)' }}>{name}</span>
+            : pending ? <span className="block rounded-md mt-0.5 animate-pulse" style={{ ...bone, width: 120, height: 16 }} aria-hidden /> : null}
         </span>
+        {pending && !today && <span className="rounded-full flex-shrink-0 animate-pulse" style={{ ...bone, width: 58, height: 24 }} aria-hidden />}
         {today && (
           <span className="flex items-center gap-0.5 text-xs font-bold tabular-nums px-2 py-1 rounded-full flex-shrink-0"
             style={{
@@ -89,9 +95,10 @@ export default function StockCard({
       <div>
         <span className="block text-xs" style={{ color: 'var(--ink-3)' }}>{heroLabel}</span>
         <span className="flex items-end justify-between gap-3">
-          <span className="font-display text-[28px] leading-none font-extrabold tabular-nums tracking-tight" style={{ color: TONE[heroTone] }}>{hero}</span>
+          <span className="font-display text-[28px] leading-none font-extrabold tabular-nums tracking-tight" style={{ color: pending ? TONE.muted : TONE[heroTone] }}>{hero}</span>
           <ChevronRight className="sc-chev w-4 h-4 flex-shrink-0 mb-1" style={{ color: 'var(--ink-3)' }} aria-hidden />
         </span>
+        {pending && !support && <span className="block rounded-md mt-2 animate-pulse" style={{ ...bone, width: 170, height: 20 }} aria-hidden />}
         {support && (
           <span className="block text-sm mt-2 tabular-nums" style={{ color: 'var(--ink-3)' }}>
             {support.label}{' '}
