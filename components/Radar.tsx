@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import ServiceLogo from '@/components/ServiceLogo'
+import StockCard from '@/components/stock/StockCard'
 import InversionesToggle, { type InversionesView } from '@/components/InversionesToggle'
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
@@ -1221,36 +1222,34 @@ export default function Radar({
           </div>
         </div>
       ) : (
-        <div className="card overflow-hidden mb-4">
-          <div className="flex items-center justify-between px-4 lg:px-5 py-2.5 border-b text-[11px] font-bold" style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}>
-            <span>Acción</span>
-            {/* Orden de la tabla (ago 2026, a pedido de Cas): dropdown con los
-                6 criterios de SORT_OPTIONS — reemplaza el label fijo "Valor ·
-                Hoy" por el criterio elegido, la tabla se sigue viendo igual. */}
+        <div className="mb-4">
+          {/* Orden: un solo criterio a la vez; el número grande de cada tarjeta es ese criterio. */}
+          <div className="flex items-center justify-between gap-3 mb-3 px-1">
+            <h2 className="text-sm font-bold" style={{ color: 'var(--ink-2)' }}>Tus acciones</h2>
             <div className="relative">
               <button
                 onClick={() => setSortMenuOpen(v => !v)}
                 aria-expanded={sortMenuOpen}
                 aria-haspopup="true"
-                className="flex items-center gap-1 normal-case font-bold transition-opacity hover:opacity-70 py-3 -my-3"
-                style={{ color: 'var(--ink-3)' }}
+                className="flex items-center gap-1.5 min-h-[44px] -my-2 px-3 rounded-xl text-xs font-bold transition-colors hover:bg-[var(--surface-2)]"
+                style={{ color: 'var(--ink-2)' }}
               >
-                Ordenar: {sortOptions.find(o => o.key === sortKey)?.label}
-                <ChevronDown className="w-3 h-3" />
+                Ordenar: <span style={{ color: 'var(--ink)' }}>{sortOptions.find(o => o.key === sortKey)?.label}</span>
+                <ChevronDown className="w-3.5 h-3.5" />
               </button>
               {sortMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setSortMenuOpen(false)} />
                   <div
-                    className="absolute right-0 top-full mt-1.5 z-20 rounded-2xl border overflow-hidden py-1"
-                    style={{ background: 'var(--surface)', borderColor: 'var(--border)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', minWidth: 170 }}
+                    className="absolute right-0 top-full mt-1.5 z-20 rounded-2xl overflow-hidden py-1"
+                    style={{ background: 'var(--surface)', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', minWidth: 190 }}
                   >
                     {sortOptions.map(o => (
                       <button
                         key={o.key}
                         onClick={() => { setSortKey(o.key); setSortMenuOpen(false) }}
-                        className="flex items-center w-full min-h-[44px] text-left px-3.5 text-xs font-semibold normal-case tracking-normal whitespace-nowrap transition-colors hover:opacity-80"
-                        style={{ color: sortKey === o.key ? 'var(--primary)' : 'var(--ink-2)', background: sortKey === o.key ? 'var(--primary-soft)' : 'transparent' }}
+                        className="flex items-center w-full min-h-[44px] text-left px-4 text-sm font-semibold whitespace-nowrap transition-colors hover:opacity-80"
+                        style={{ color: sortKey === o.key ? 'var(--primary-text)' : 'var(--ink-2)', background: sortKey === o.key ? 'var(--primary-soft)' : 'transparent' }}
                       >
                         {o.label}
                       </button>
@@ -1260,108 +1259,77 @@ export default function Radar({
               )}
             </div>
           </div>
-          <div className="[&>button+button]:border-t [&>button+button]:border-[color-mix(in_srgb,var(--border)_55%,transparent)]">
-            {(showAllPositions ? myPerformance : myPerformance.slice(0, TOP_POSITIONS)).map(row => {
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {(showAllPositions ? myPerformance : myPerformance.slice(0, TOP_POSITIONS)).map((row, i) => {
               const q = quotes[row.ticker]
-              // Reportado por Cas: la fila no daba ninguna pista de que había
-              // que vender — había que abrir el detalle para enterarse.
-              // A pedido de Cas (filosofía "comprar barato para largo
-              // plazo"): un trim táctico en zona caliente (tendencia de
-              // fondo viva, se vende una parte y se mantiene el resto) no es
-              // lo mismo que un cambio de tendencia real (acá sí toca
-              // salir) — mismo criterio que TechnicalDetail/actionFlag:
-              // trendReversed → coral "ultra fuerte", trim → gold.
+              // Señal de venta (misma lógica de siempre): cambio de tendencia real → «Sal ya» en coral con su motivo;
+              // un trim táctico (tendencia de fondo viva) → «Vende» en gold, sin motivo.
               const a = analyses[row.ticker]
               const sellNow = typeof a === 'object' && a.sell.find(t => t.now)
               const trendReversed = typeof a === 'object' && (a.rating.label === 'venta' || a.rating.label === 'venta_fuerte')
-              const sellColor = trendReversed ? 'var(--coral-ink)' : 'var(--gold-ink)'
-              const sellBg    = trendReversed ? 'rgba(255,111,97,0.20)' : 'rgba(255,194,60,0.15)'
-              // sep 2026 (Cas: "en el correo no se ve tan grave como se
-              // muestra en la pagina" — el correo del digest manda una caja
-              // completa con "SEÑAL DE VENTA" + el motivo técnico; esta fila
-              // compacta de Mis acciones solo tenía el chip "Sal ya" sin
-              // ningún motivo, mismo ticker/mismo día, dos niveles de alarma
-              // distintos). Se agrega el motivo corto (mismo criterio que
-              // signalDetail() del cron: primer gatillo coral, o el primero
-              // coral si ninguno es "trigger") debajo del ticker, solo para
-              // el caso más serio (trendReversed) — no para el trim táctico.
               const sellReason = trendReversed && typeof a === 'object'
                 ? (a.signals.find(s => s.trigger && s.tone === 'coral')?.title
                     ?? a.signals.find(s => s.tone === 'coral')?.title
                     ?? null)
                 : null
+
+              // El protagonista es el criterio de orden elegido (pedido de Cas, ago 2026: un número, no cuatro).
+              const heroValue = row[SORT_FIELD[sortKey]]
+              const heroIsPct = sortKey === 'gainPct' || sortKey === 'dailyPct' || sortKey === 'distPct'
+              const heroSigned = sortKey === 'gainPct' || sortKey === 'gainUsd' || sortKey === 'dailyPct' || sortKey === 'dailyUsd'
+              const heroUsd = sortKey === 'gainUsd' || sortKey === 'dailyUsd'
+              const toneOf = (v: number | null, signed: boolean): 'ink' | 'mint' | 'coral' | 'muted' =>
+                v === null ? 'muted' : !signed ? 'ink' : v >= 0 ? 'mint' : 'coral'
+              const heroText = heroValue === null ? '—'
+                : heroIsPct ? fmtPct(heroValue, heroSigned)
+                : heroUsd ? maskStr(hideAmounts, fmtUSDSigned(heroValue))
+                : maskStr(hideAmounts, fmtUSD(heroValue))
+              const heroLabel = sortKey === 'value' ? 'Valor'
+                : sortKey === 'gainPct' || sortKey === 'gainUsd' ? 'Ganancia total'
+                : sortKey === 'dailyPct' || sortKey === 'dailyUsd' ? 'Hoy'
+                : 'De tu cartera'
+
+              // Cifra de apoyo: si el protagonista es el valor, la ganancia total; si no, el valor.
+              const support = sortKey === 'value'
+                ? (row.gainUsd !== null && row.gainPct !== null
+                    ? { label: 'Ganancia total', text: `${maskStr(hideAmounts, fmtUSDSigned(row.gainUsd))} · ${fmtPct(row.gainPct)}`, tone: toneOf(row.gainUsd, true) }
+                    : null)
+                : { label: 'Valor', text: maskStr(hideAmounts, fmtUSD(row.valueUsd)), tone: 'ink' as const }
+
+              // Cómo le fue hoy (chip), salvo que ya sea el protagonista.
+              const showToday = sortKey !== 'dailyPct' && sortKey !== 'dailyUsd' && row.dailyPct !== null
+              const maxDist = Math.max(...myPerformance.map(r => r.distPct ?? 0), 1)
+
               return (
-                <button
+                <StockCard
                   key={row.ticker}
-                  onClick={() => openDetail(row.ticker)}
-                  className="w-full flex items-center gap-3 px-4 lg:px-5 py-3.5 text-left transition-colors hover:bg-black/5"
-                  style={sellNow ? {
-                    background: trendReversed ? 'rgba(255,111,97,0.08)' : 'rgba(255,194,60,0.06)',
-                  } : undefined}
-                >
-                  <ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={36} fallbackColor={avatarColor(row.ticker)} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{row.ticker}</p>
-                      {sellNow && (
-                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: sellBg, color: sellColor }}>
-                          {trendReversed ? 'Sal ya' : 'Vende'}
-                        </span>
-                      )}
-                    </div>
-                    {sellReason ? (
-                      <p className="text-[11px] truncate font-semibold" style={{ color: 'var(--coral-ink)' }}>{sellReason}</p>
-                    ) : q?.name ? (
-                      <p className="text-[11px] truncate" style={{ color: 'var(--ink-3)' }}>{q.name}</p>
-                    ) : null}
-                  </div>
-                  {/* A pedido de Cas (ago 2026): "que salga a la derecha solo
-                      un numero y que sea el porcentaje, no cuatro numeros
-                      como sale ahora, lo mismo con todas las otras
-                      categorias" — antes solo Distribución % colapsaba a un
-                      único número; el resto (incluida Ganancia total %, el
-                      caso reportado con captura) seguía mostrando el stack
-                      completo de 3 líneas sin importar el criterio elegido.
-                      Ahora el número mostrado SIEMPRE es el mismo campo por
-                      el que se está ordenando — un solo criterio a la vista,
-                      no cuatro magnitudes distintas compitiendo. */}
-                  <div className="text-right flex-shrink-0" style={{ minWidth: 90 }}>
-                    {(() => {
-                      const value = row[SORT_FIELD[sortKey]]
-                      const isPct = sortKey === 'gainPct' || sortKey === 'dailyPct' || sortKey === 'distPct'
-                      const isSigned = sortKey === 'gainPct' || sortKey === 'gainUsd' || sortKey === 'dailyPct' || sortKey === 'dailyUsd'
-                      const color = value === null
-                        ? 'var(--ink-3)'
-                        : !isSigned
-                          ? 'var(--ink)'
-                          : value >= 0 ? 'var(--mint-ink)' : 'var(--coral-ink)'
-                      const text = value === null
-                        ? '—'
-                        : isPct
-                          ? fmtPct(value, isSigned)
-                          : sortKey === 'gainUsd' || sortKey === 'dailyUsd'
-                            ? maskStr(hideAmounts, fmtUSDSigned(value))
-                            : maskStr(hideAmounts, fmtUSD(value))
-                      return (
-                        <p className="text-base font-bold tabular-nums" style={{ color }}>
-                          {text}
-                        </p>
-                      )
-                    })()}
-                  </div>
-                  <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--ink-3)' }} />
-                </button>
+                  ticker={row.ticker}
+                  name={q?.name}
+                  logo={<ServiceLogo domain={q?.domain ?? null} name={row.ticker} size={44} fallbackColor={avatarColor(row.ticker)} />}
+                  heroLabel={heroLabel}
+                  hero={heroText}
+                  heroTone={toneOf(heroValue, heroSigned)}
+                  support={support}
+                  today={showToday && row.dailyPct !== null ? { text: fmtPct(Math.abs(row.dailyPct), false), tone: row.dailyPct >= 0 ? 'mint' : 'coral', up: row.dailyPct >= 0 } : null}
+                  weightText={row.distPct !== null ? fmtPct(row.distPct, false) : null}
+                  weightFill={row.distPct !== null ? row.distPct / maxDist : 0}
+                  alert={sellNow ? { label: trendReversed ? 'Sal ya' : 'Vende', reversed: !!trendReversed, reason: sellReason } : null}
+                  index={i}
+                  onOpen={() => openDetail(row.ticker)}
+                />
               )
             })}
           </div>
+
           {myPerformance.length > TOP_POSITIONS && (
             <button
               onClick={() => setShowAllPositions(v => !v)}
-              className="w-full flex items-center justify-center gap-1.5 py-3 text-xs font-bold transition-opacity hover:opacity-70 border-t border-[color-mix(in_srgb,var(--border)_55%,transparent)]"
-              style={{ color: 'var(--primary)' }}
+              className="w-full flex items-center justify-center gap-1.5 min-h-[48px] mt-2 rounded-2xl text-sm font-bold transition-colors hover:bg-[var(--surface-2)]"
+              style={{ color: 'var(--primary-text)' }}
             >
-              {showAllPositions ? 'Mostrar solo el top 6' : `Ver las ${myPerformance.length - TOP_POSITIONS} restantes`}
-              {showAllPositions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showAllPositions ? 'Mostrar solo las 6 principales' : `Ver las ${myPerformance.length - TOP_POSITIONS} restantes`}
+              {showAllPositions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           )}
         </div>

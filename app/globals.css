@@ -684,3 +684,17 @@ div[role="dialog"][aria-modal="true"] > div:first-child { animation: dlgSheet .3
 @keyframes hxIn { from { opacity: 0; transform: translateY(16px); } }
 .hx-in { animation: hxIn .2s cubic-bezier(0.23, 1, 0.32, 1); }
 @media (prefers-reduced-motion: reduce) { .hx-in { animation: none; } }
+
+/* Tarjeta de una acción (Mis acciones): al presionar se hunde apenas (160 ms), y con mouse la flecha da un paso
+   a la derecha. Nada se mueve por sí solo: es respuesta al toque, no decoración. Con movimiento reducido, quieta. */
+.sc-card { transition: transform .16s cubic-bezier(0.23, 1, 0.32, 1), background-image .16s ease; cursor: pointer; }
+.sc-card:active { transform: scale(0.985); }
+.sc-chev { transition: transform .16s cubic-bezier(0.23, 1, 0.32, 1); }
+@media (hover: hover) and (pointer: fine) {
+  .sc-card:hover { background-image: linear-gradient(rgba(127,127,127,.07), rgba(127,127,127,.07)); }
+  .sc-card:hover .sc-chev { transform: translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-card:active { transform: none; }
+  .sc-card:hover .sc-chev { transform: none; }
+}

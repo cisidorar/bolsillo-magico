@@ -16,6 +16,8 @@ import { getEarnings } from '@/lib/earnings-cache'
 import { businessDaysUntil, type EarningsInfo } from '@/lib/earnings'
 import { ConvictionChip, RateSensitivityChip } from '@/components/RiskRail'
 import InfoTap from '@/components/InfoTap'
+import PriceLadder, { type LadderPoint } from '@/components/stock/PriceLadder'
+import PositionSummary from '@/components/stock/PositionSummary'
 import { relativeDate } from '@/lib/utils'
 import type { StockPosition, StockSale, StockPurchase } from '@/app/(dashboard)/inversiones/page'
 import { useToast } from '@/components/ToastProvider'
@@ -152,47 +154,6 @@ function fmtDateLabel(dateStr: string): string {
 // dibujo: los mismos números, ya ordenados de menor a mayor, con el precio
 // de ahora resaltado en el medio. Feedback de Cas (jul 2026, screenshot de
 // TSM): "mucho texto, abrumador, no se entiende".
-
-interface LadderPoint { price: number; label: string; sublabel?: string; color: string; emphasis?: boolean }
-
-function PriceLadder({ points }: { points: LadderPoint[] }) {
-  if (points.length < 2) return null
-  const sorted = [...points].sort((a, b) => a.price - b.price)
-  const W = 560, H = 76, padX = 8
-  const min = sorted[0].price
-  const max = sorted[sorted.length - 1].price
-  const range = max - min || 1
-  const x = (p: number) => padX + ((p - min) / range) * (W - padX * 2)
-
-  // Anti-colisión simple: si dos etiquetas quedan muy cerca en X, la de abajo
-  // se corre (mismo patrón que PriceChart con los niveles del gráfico).
-  const minGap = 92
-  let prevX = -Infinity
-  const laid = sorted.map(p => {
-    const rawX = x(p.price)
-    const labelX = Math.max(rawX, prevX + minGap)
-    prevX = labelX
-    return { ...p, dotX: rawX, labelX }
-  })
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block" aria-hidden="true">
-      <line x1={padX} y1={H / 2} x2={W - padX} y2={H / 2} stroke="var(--border)" strokeWidth="2" />
-      {laid.map((p, i) => (
-        <g key={i}>
-          <line x1={p.dotX} y1={H / 2 - 4} x2={p.dotX} y2={H / 2 + 4} stroke={p.color} strokeWidth="2" />
-          <circle cx={p.dotX} cy={H / 2} r={p.emphasis ? 5 : 3.5} fill={p.color} />
-          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 - 10} fontSize="10" fontWeight="700" fill={toTextColor(p.color)} textAnchor="middle">
-            {fmtUSD(p.price)}
-          </text>
-          <text x={Math.min(Math.max(p.labelX, 34), W - 34)} y={H / 2 + 22} fontSize="9" fontWeight="600" fill="var(--ink-3)" textAnchor="middle">
-            {p.label}
-          </text>
-        </g>
-      ))}
-    </svg>
-  )
-}
 
 type DetailSection = 'resumen' | 'plan' | 'chart' | 'signals' | 'history'
 
@@ -492,11 +453,11 @@ export default function TechnicalDetail({
           lateral aunque el índice termine plano ("decay"). El monto sugerido
           de las secciones de abajo ya viene dividido por el factor. */}
       {leverage && (
-        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
+        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
           <p className="text-xs font-bold" style={{ color: 'var(--gold-ink)' }}>
             Apalancado {leverage.factor}× — pensado para días u horas, no para mantener
           </p>
-          <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
             Se mueve {leverage.factor}× lo que se mueve su índice cada DÍA — mantenerlo semanas en un mercado
             lateral pierde valor aunque el índice termine plano ("decay"). El monto sugerido de abajo ya está
             dividido por {leverage.factor} para arriesgar el mismo 1% real de tu portafolio.
@@ -508,13 +469,13 @@ export default function TechnicalDetail({
           el motor es 100% técnico y ciego a eventos — sin esto se podía sugerir
           comprar la víspera del reporte, justo cuando el gráfico menos predice. */}
       {earningsSoon && daysToEarnings !== null && (
-        <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: 'rgba(255,194,60,0.10)', border: '1px solid rgba(255,194,60,0.3)' }}>
+        <div className="rounded-2xl px-3.5 py-3 flex items-start gap-2.5" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
           <CalendarClock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
           <div>
             <p className="text-xs font-bold" style={{ color: 'var(--gold-ink)' }}>
               Reporta resultados {daysToEarnings === 0 ? 'hoy' : `en ${daysToEarnings} día${daysToEarnings !== 1 ? 's' : ''} hábil${daysToEarnings !== 1 ? 'es' : ''}`}
             </p>
-            <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
               El gráfico pesa menos hasta entonces — un gap de apertura puede saltarse tu alarma de salida por completo.
               {earningsVeryClose && ' El monto sugerido de hoy ya está reducido a la mitad por esto.'}
             </p>
@@ -524,13 +485,15 @@ export default function TechnicalDetail({
 
       {/* -1. Guard intradía: hoy se movió fuerte, el análisis quedó viejo */}
       {bigMove && (
-        <div className="rounded-2xl px-3.5 py-3" style={{ background: 'rgba(255,111,97,0.10)', border: '1px solid rgba(255,111,97,0.25)' }}>
-          <p className="text-xs font-bold" style={{ color: 'var(--coral-ink)' }}>
-            Hoy se mueve fuerte: {devPct > 0 ? '+' : ''}{devPct}% respecto del cierre analizado
+        // Aviso de atención, no de acción hoy: va como chip gold con su explicación en una línea (UX5: un solo
+        // banner coral por pantalla, y el veredicto de abajo ya puede serlo).
+        <div className="rounded-2xl px-4 py-3" style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
+          <p className="text-sm font-bold" style={{ color: 'var(--gold-ink)' }}>
+            Hoy se mueve fuerte: {devPct > 0 ? '+' : ''}{devPct}% desde el cierre analizado
           </p>
-          <p className="text-[10px] mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Las señales y el rating de abajo son del cierre anterior y pueden estar obsoletos. Las distancias
-            de los niveles ya usan el precio en vivo. Todo se recalcula al próximo cierre.
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            Las señales de abajo son del cierre anterior y pueden estar viejas; se recalculan al próximo cierre.
+            Las distancias a los niveles ya usan el precio en vivo.
           </p>
         </div>
       )}
@@ -538,19 +501,19 @@ export default function TechnicalDetail({
       {/* 0. Cabecera fija: score + acción con monto + el porqué en 2 líneas
           (U3 del roadmap UX) — esto es lo único que hace falta leer para
           decidir; el resto de bloques son profundización opcional. */}
-      <div className="rounded-2xl px-3.5 py-3" style={{ background: HEADER_BG[headerColor] ?? 'var(--surface-2)' }}>
+      <div className="rounded-2xl px-4 py-3.5" style={{ background: HEADER_BG[headerColor] ?? 'var(--surface-2)' }}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <ConvictionChip score={conviction.score} tier={conviction.tier} />
             {rateSensitivity && <RateSensitivityChip result={rateSensitivity} />}
-            <p className="text-sm font-extrabold truncate" style={{ color: toTextColor(headerColor) }}>{headerAction}</p>
+            <p className="text-base font-extrabold truncate" style={{ color: toTextColor(headerColor) }}>{headerAction}</p>
           </div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 tabular-nums"
+          <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 tabular-nums"
             style={{ background: 'var(--surface)', color: toTextColor(headerColor) }}>
             {a.rating.pros} a favor · {a.rating.cons} en contra
           </span>
         </div>
-        <p className="text-xs leading-relaxed font-semibold mt-1.5" style={{ color: 'var(--ink)' }}>{rationale}</p>
+        <p className="text-sm leading-relaxed mt-2" style={{ color: 'var(--ink)' }}>{rationale}</p>
         {position && a.rating.caution && (
           <p className="text-[11px] mt-1.5 font-bold" style={{ color: 'var(--gold-ink)' }}>
             Aunque la tendencia larga sigue al alza, se están acumulando señales de debilidad — buen momento para evaluar si tomar ganancias.
@@ -567,12 +530,12 @@ export default function TechnicalDetail({
             <button
               key={s.id}
               onClick={() => setOpenSection(s.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all"
+              className="flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-xl text-xs font-bold flex-shrink-0 transition-colors"
               style={active
                 ? { background: 'var(--primary)', color: 'var(--primary-ink)' }
-                : { background: 'var(--surface-2)', color: 'var(--ink-3)' }}
+                : { background: 'var(--surface-2)', color: 'var(--ink-2)' }}
             >
-              <Icon className="w-3 h-3" />
+              <Icon className="w-3.5 h-3.5" />
               {s.label}
             </button>
           )
@@ -584,33 +547,12 @@ export default function TechnicalDetail({
           estado de hoy sin leer el plan completo (feedback de Cas: el popup
           abría directo en "Plan" con ~15 líneas de texto, "abrumador"). */}
       {openSection === 'resumen' && <>
-      {position && (() => {
-        const px = livePrice ?? a.price
-        const valueUsd = position.shares * px
-        const retPct = ((px - position.avgCost) / position.avgCost) * 100
-        const gainUsd = position.shares * (px - position.avgCost)
-        const retColor = retPct >= 0 ? 'var(--mint)' : 'var(--coral)'
-        return (
-          <div className="rounded-2xl px-3.5 py-3" style={{ background: 'var(--surface-2)' }}>
-            <p className="text-[11px] font-bold mb-1" style={{ color: 'var(--ink-3)' }}>Tu posición</p>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-base font-extrabold tabular-nums" style={{ color: 'var(--ink)' }}>{fmtUSD(valueUsd)}</p>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full tabular-nums"
-                style={{ background: retPct >= 0 ? 'rgba(31,190,141,0.12)' : 'rgba(255,111,97,0.12)', color: retColor }}>
-                {gainUsd >= 0 ? '+' : '-'}{fmtUSD(gainUsd)} ({retPct >= 0 ? '+' : ''}{retPct.toFixed(1)}%)
-              </span>
-            </div>
-            <p className="text-[11px] mt-1 tabular-nums" style={{ color: 'var(--ink-3)' }}>
-              {position.shares.toLocaleString('es-CL', { maximumFractionDigits: 8 })} acc. · costo prom. {fmtUSD(position.avgCost)}
-            </p>
-          </div>
-        )
-      })()}
+      {position && <PositionSummary shares={position.shares} avgCost={position.avgCost} price={livePrice ?? a.price} />}
 
       {/* X2: escalera de precios — reemplaza las frases sueltas de costo,
           salida, techo/piso por un solo dibujo. */}
-      <div className="rounded-2xl px-3 py-3" style={{ background: 'var(--surface-2)' }}>
-        <p className="flex items-center gap-1 text-[11px] font-bold mb-1 px-0.5" style={{ color: 'var(--ink-3)' }}>
+      <div className="rounded-2xl p-4" style={{ background: 'var(--surface-2)' }}>
+        <p className="flex items-center gap-1 text-xs font-semibold mb-3" style={{ color: 'var(--ink-3)' }}>
           Dónde está el precio
           <InfoTap explanation="Tu costo (si tienes la posición), la salida (el precio donde el plan dice vender — sube con el trailing si viene ganando, nunca baja) y el próximo techo, todos en una misma recta." />
         </p>
