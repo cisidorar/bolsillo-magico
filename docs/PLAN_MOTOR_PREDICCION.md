@@ -49,7 +49,7 @@ Cruce de `stock_purchases`/`stock_sales` con lo que decía el motor (`daily_sign
 - **Bugs encontrados y corregidos**: (1) split 8×1 de SNDK sin ajustar → la app mostraba −95% y una alarma de US$1.325 contra un precio de 79; ahora detección + recarga + `apply_stock_split()`. (2) `computeDailyDecisions` calculaba el efectivo como Σ aportes sin restar compras (US$10.906 vs ~US$500 reales) → el correo sugería montos de ~US$10.000; ahora usa `cashFromTotals` y no sugiere nada sin efectivo.
 
 ### Mejoras pendientes de esa revisión
-- [ ] Tope de exposición por tema (semis/IA ~30-35%, SOXL contando ×3) que baje la sugerencia del motor.
+- [x] Tope de exposición por tema (nov 2026): `lib/theme-exposure.ts` — semis/IA y cripto, tope 35% del valor de la cartera a valor de mercado, ETF apalancados contados por su factor (SOXL ×3). Con la cartera real del 20-nov, semis/IA ya era ~42% efectivo. Aplica a «¿Qué comprar hoy?» de la app (`Radar.tsx`) y a `daily_decisions` del cron/correo: se salta a los candidatos del tema topado (y lo explica), limita el monto a lo que cabe bajo el tope, y desde el 80% muestra un chip gold. **No** cambia los flags `buy` por fila ni `daily_signals` (siguen siendo por ticker). Los temas son una lista corta explícita; MSFT/GOOGL/META no se mezclan con semis aunque dependan del mismo gasto en IA.
 - [ ] Tesis y criterio de invalidación por posición, mostrados junto a las noticias cuando la acción cae >8% en un día.
 - [ ] Modo "día de shock": tras una caída extrema del índice, sin ventas mecánicas "ahora"; revisar a los 2 días.
 - [ ] "Precaución" que lleva >10 días debe escalar (cuánto cayó desde que empezó) en vez de repetirse igual.

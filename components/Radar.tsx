@@ -15,6 +15,7 @@ import InversionesToggle, { type InversionesView } from '@/components/Inversione
 import type { TechnicalAnalysis } from '@/lib/technical'
 import type { SearchResult } from '@/app/api/stock-search/route'
 import { getAnalysis, getCachedBacktestStats, getCachedRateContext, AnalysisError } from '@/lib/analysis-cache'
+import { computeThemeExposure, checkThemeCap, themesNearCap, type ThemeCapCheck } from '@/lib/theme-exposure'
 import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionResult, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { positionSizeUsd } from '@/lib/technical'
 import { detectLeverage } from '@/lib/leveraged-etfs'
@@ -387,6 +388,20 @@ export default function Radar({
 
   const portfolioValueUsd = totalValueUsd + Math.max(0, walletAvailable ?? 0)
 
+  // Tope por tema (nov 2026, lib/theme-exposure.ts): seis posiciones de
+  // semis/IA son UNA sola apuesta. Se mide a valor de mercado con los ETF
+  // apalancados contados por su factor, y limita tanto QUÉ se sugiere comprar
+  // como CUÁNTO (ver themeCapFor).
+  const themeExposures = computeThemeExposure(
+    Object.entries(ownedMap).map(([ticker, o]) => ({
+      ticker, valueUsd: o.shares * (quotes[ticker]?.price ?? o.avgCost), name: quotes[ticker]?.name ?? null,
+    })),
+    portfolioValueUsd,
+  )
+  function themeCapFor(ticker: string): ThemeCapCheck | null {
+    return checkThemeCap(ticker, themeExposures, portfolioValueUsd, quotes[ticker]?.name ?? null)
+  }
+
   // W2 (roadmap de vista, fase 2): "cómo va lo que ya tengo" de un vistazo —
   // antes había que ir al tab Tengo y leer fila por fila. Una fila por
   // ticker (agregado, no por lote — mismo criterio que ownedMap), ordenada
@@ -577,7 +592,9 @@ export default function Radar({
     // D6: ETFs apalancados (SOXL, etc.) — el tope de riesgo real se divide
     // por el factor, si no la regla del 1% termina arriesgando ~3%.
     const leverage = detectLeverage(ticker, quotes[ticker]?.name ?? null)
-    const maxUsd = leverage ? sizing.maxUsd / leverage.factor : sizing.maxUsd
+    let maxUsd = leverage ? sizing.maxUsd / leverage.factor : sizing.maxUsd
+    const themeCap = themeCapFor(ticker)
+    if (themeCap) maxUsd = Math.min(maxUsd, themeCap.maxAddUsd)
     const cashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
     let usd = cashCap !== null ? Math.min(maxUsd, cashCap) : maxUsd
     const pos = ownedMap[ticker]
@@ -621,7 +638,14 @@ export default function Radar({
   // Cas). Ahora se busca el primer candidato ACCIONABLE en todo el ranking
   // (ya viene ordenado por score, así que sigue siendo el de mayor convicción
   // *entre los que tienen entrada hoy*), no solo el de mayor score a secas.
-  const bestActionable = ranking.find(r => isActionableBuyNow(r.a, r.conviction, marketRegime)) ?? null
+  // Nov 2026: además de tener entrada hoy, el tema no puede estar ya en el tope.
+  // El primer candidato con entrada que se salta por eso queda en `themeSkipped`
+  // para explicarlo (no desaparecer sin decir por qué).
+  const actionableCandidates = ranking.filter(r => isActionableBuyNow(r.a, r.conviction, marketRegime))
+  const bestActionable = actionableCandidates.find(r => !themeCapFor(r.ticker)?.blocked) ?? null
+  const themeSkipped = actionableCandidates.find(r => themeCapFor(r.ticker)?.blocked) ?? null
+  const themeSkippedCap = themeSkipped ? themeCapFor(themeSkipped.ticker) : null
+  const topThemeCap = bestActionable ? themeCapFor(bestActionable.ticker) : null
   const topSizing = bestActionable !== null && portfolioValueUsd > 0
     ? positionSizeUsd(portfolioValueUsd, quotes[bestActionable.ticker]?.price ?? bestActionable.a.price, bestActionable.a.alarm)
     : null
@@ -634,10 +658,14 @@ export default function Radar({
   const topDaysToEarnings = businessDaysUntil(bestActionableEarnings?.nextDate ?? null)
   const topEarningsVeryClose = topDaysToEarnings !== null && topDaysToEarnings <= 2
   const topCashCap = walletAvailable !== null ? Math.max(0, walletAvailable) : null
+  // ¿El tope del tema es lo que achica el monto (y no el 1% de riesgo)?
+  const topThemeLimited = topThemeCap !== null && topSizing !== null
+    && topThemeCap.maxAddUsd < (topLeverage ? topSizing.maxUsd / topLeverage.factor : topSizing.maxUsd)
   const topSuggestedUsd = topSizing !== null
     ? (() => {
         let maxUsd = topLeverage ? topSizing.maxUsd / topLeverage.factor : topSizing.maxUsd
         if (topEarningsVeryClose) maxUsd = maxUsd / 2
+        if (topThemeCap) maxUsd = Math.min(maxUsd, topThemeCap.maxAddUsd)
         return topCashCap !== null ? Math.min(maxUsd, topCashCap) : maxUsd
       })()
     : null
@@ -1666,6 +1694,20 @@ export default function Radar({
               </div>
             ) : top === null ? (
               <p className="text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>Sin datos suficientes todavía.</p>
+            ) : bestActionable === null && themeSkipped !== null && themeSkippedCap !== null ? (
+              <>
+                {/* Nov 2026: hay entrada hoy, pero solo en un tema que ya pesa
+                    demasiado. Gold (atención pronto), no coral: no es una
+                    emergencia, es no sumarle más a la misma apuesta. */}
+                <p className="text-sm font-extrabold leading-snug" style={{ color: 'var(--gold-ink)' }}>
+                  Hoy no sumes más a {themeSkippedCap.label}.
+                </p>
+                <p className="text-xs leading-relaxed mt-1.5" style={{ color: 'var(--ink-2)' }}>
+                  <TickerLink t={themeSkipped.ticker} onOpen={openDetail} bold /> ({themeSkipped.conviction.score}/100) tiene entrada hoy, pero {themeSkippedCap.label} ya
+                  es {themeSkippedCap.pct.toLocaleString('es-CL', { maximumFractionDigits: 0 })}% de tu cartera (tope {themeSkippedCap.capPct}%): varias acciones que se mueven juntas son una sola apuesta.
+                  Si quieres sumar, que sea en otro tema.
+                </p>
+              </>
             ) : !topIsBuyTier && bestActionable === null ? (
               <>
                 <p className="text-sm font-extrabold" style={{ color: 'var(--ink)' }}>Hoy no compres nada de tu lista.</p>
@@ -1711,6 +1753,16 @@ export default function Radar({
                     <TickerLink t={top.ticker} onOpen={openDetail} muted /> se ve mejor en general ({top.conviction.score}/100), pero todavía no marca el momento de entrar.
                   </p>
                 )}
+                {themeSkipped !== null && themeSkippedCap !== null && (
+                  <p className="text-[11px] leading-relaxed mt-1 font-semibold" style={{ color: 'var(--gold-ink)' }}>
+                    <TickerLink t={themeSkipped.ticker} onOpen={openDetail} muted /> también tiene entrada, pero {themeSkippedCap.label} ya es {themeSkippedCap.pct.toLocaleString('es-CL', { maximumFractionDigits: 0 })}% de tu cartera (tope {themeSkippedCap.capPct}%) — no se sugiere.
+                  </p>
+                )}
+                {topThemeLimited && topThemeCap !== null && (
+                  <p className="text-[11px] leading-relaxed mt-1 font-semibold" style={{ color: 'var(--gold-ink)' }}>
+                    Monto limitado por el tope de {topThemeCap.label} ({topThemeCap.pct.toLocaleString('es-CL', { maximumFractionDigits: 0 })}% de tu cartera hoy, tope {topThemeCap.capPct}%).
+                  </p>
+                )}
                 {/* D3 (roadmap de calidad de decisión): earnings a la vuelta de
                     la esquina — el monto de abajo ya viene reducido a la mitad. */}
                 {topDaysToEarnings !== null && topDaysToEarnings <= 5 && (
@@ -1748,6 +1800,19 @@ export default function Radar({
                   </p>
                 )}
               </>
+            )}
+            {/* Chip de concentración (UX5: gold + pill, nunca banner): aparece
+                desde el 80% del tope, antes de que el motor deje de sugerir. */}
+            {themesNearCap(themeExposures).length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {themesNearCap(themeExposures).map(e => (
+                  <span key={e.theme} className="text-[10px] font-bold px-2 py-1 rounded-full"
+                    style={{ background: 'rgba(255,194,60,0.15)', color: 'var(--gold-ink)' }}
+                    title={`${e.tickers.join(', ')} — se mueven juntas: cuentan como una sola apuesta`}>
+                    {e.label}: {e.pct.toLocaleString('es-CL', { maximumFractionDigits: 0 })}% de tu cartera (tope 35%)
+                  </span>
+                ))}
+              </div>
             )}
             {/* P4 (roadmap largo plazo): cierra el círculo sueldo → meta →
                 compra — antes la meta mensual de aporte (profiles.monthly_invest_goal)

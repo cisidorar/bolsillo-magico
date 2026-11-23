@@ -13,6 +13,7 @@ import { computeRatePath } from '@/lib/rate-path'
 import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 import { cashFromTotals } from '@/lib/wallet-cash'
+import { computeThemeExposure, checkThemeCap } from '@/lib/theme-exposure'
 import { NYSE_HOLIDAYS, todayEt, isNyseTradingDay } from '@/lib/nyse-calendar'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -765,22 +766,36 @@ async function computeDailyDecisions(
     // que tiene el mismo fix). candidates ya viene ordenado por score desc,
     // así que el primer accionable sigue siendo el de mayor convicción entre
     // los que de verdad tienen entrada hoy.
-    const bestActionable = candidates.find(c => isActionableBuyNow(c.a, c.conviction, marketRegime)) ?? null
+    //
+    // Nov 2026: además, el tema no puede estar ya en el tope (lib/theme-exposure.ts)
+    // — mismo criterio que el panel de la app. Seis acciones de semis/IA son
+    // UNA apuesta; el motor no puede seguir sugiriendo sumarle más.
+    const userPositions = positionsByUser.get(userId) ?? []
+    const walletCash = Math.max(0, cashFromTotals(walletMovByUser.get(userId) ?? 0, spentByUser.get(userId) ?? 0) ?? 0)
+    const userPortfolioUsd = userPositions.reduce((s, p) => s + p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost), 0) + walletCash
+    const exposures = computeThemeExposure(
+      userPositions.map(p => ({ ticker: p.ticker, valueUsd: p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost) })),
+      userPortfolioUsd,
+    )
+    const capOf = (ticker: string) => checkThemeCap(ticker, exposures, userPortfolioUsd)
+    const actionable = candidates.filter(c => isActionableBuyNow(c.a, c.conviction, marketRegime))
+    const bestActionable = actionable.find(c => !capOf(c.ticker)?.blocked) ?? null
+    const themeSkipped = actionable.find(c => capOf(c.ticker)?.blocked) ?? null
     const isBuy = bestActionable !== null
     const picked = bestActionable ?? top
 
     let suggestedUsd: number | null = null
     if (isBuy && picked) {
-      const positions = positionsByUser.get(userId) ?? []
-      const costOfPositions = positions.reduce((s, p) => s + p.shares * (analysesByTicker.get(p.ticker)?.price ?? p.avgCost), 0)
-      const walletCash      = Math.max(0, cashFromTotals(walletMovByUser.get(userId) ?? 0, spentByUser.get(userId) ?? 0) ?? 0)
-      const portfolioValueUsd = costOfPositions + walletCash
+      const portfolioValueUsd = userPortfolioUsd
       // Sin efectivo no hay monto que sugerir. Antes `walletCash || maxUsd`
       // caía al tope por riesgo justo cuando el efectivo era 0.
       if (portfolioValueUsd > 0 && walletCash > 0) {
         const sizing = positionSizeUsd(portfolioValueUsd, picked.a.price, picked.a.alarm)
         // Además del riesgo, no sugerir más de lo que realmente hay disponible
-        if (sizing) suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash) * 100) / 100
+        if (sizing) {
+          const themeRoom = capOf(picked.ticker)?.maxAddUsd ?? Infinity
+          suggestedUsd = Math.round(Math.min(sizing.maxUsd, walletCash, themeRoom) * 100) / 100
+        }
       }
     }
 
@@ -792,7 +807,9 @@ async function computeDailyDecisions(
       suggested_usd: suggestedUsd,
       verdict: isBuy
         ? picked.conviction.verdict
-        : `Ni ${top.ticker}, tu mejor candidata (${top.conviction.score}/100), tiene caso suficiente para comprar hoy.`,
+        : themeSkipped !== null
+          ? `Hoy no sumes más a ${capOf(themeSkipped.ticker)?.label}: ${themeSkipped.ticker} tiene entrada, pero ese tema ya es ${Math.round(capOf(themeSkipped.ticker)?.pct ?? 0)}% de tu cartera (tope ${capOf(themeSkipped.ticker)?.capPct}%).`
+          : `Ni ${top.ticker}, tu mejor candidata (${top.conviction.score}/100), tiene caso suficiente para comprar hoy.`,
       reasons: picked.conviction.reasons.slice(0, 3),
     })
   }
