@@ -34,7 +34,9 @@ export async function GET(request: Request) {
         { status: 502 },
       )
     }
-    const result = backtestSignals(candles)
+    // Contra SPY: "acertó" = le ganó al mercado, no solo "subió"
+    const spy = symbol === 'SPY' ? null : await readCandles(supabase, 'SPY').catch(() => null)
+    const result = backtestSignals(candles, spy)
     return NextResponse.json({ ticker: symbol, result } satisfies SignalBacktestResponse, {
       // El resultado solo cambia con el cierre del día — igual que /api/technical
       headers: { 'Cache-Control': 'private, max-age=3600' },

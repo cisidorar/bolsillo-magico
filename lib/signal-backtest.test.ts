@@ -72,3 +72,37 @@ describe('backtestSignals', () => {
     }
   })
 })
+
+describe('backtestSignals contra SPY (nov 2026)', () => {
+  const closes = Array.from({ length: 400 }, (_, i) => 100 * Math.pow(1.0008, i) + Math.sin(i / 5) * 4)
+
+  it('sin benchmark: vsBenchmark false y excess20 null (comportamiento previo)', () => {
+    const r = backtestSignals(toCandles(closes))
+    expect(r.vsBenchmark).toBe(false)
+    for (const e of r.events) expect(e.excess20).toBeNull()
+  })
+
+  it('con benchmark: excess20 = retorno propio − retorno de SPY en las mismas fechas', () => {
+    // SPY sube exactamente 0.1% diario: en 20 ruedas ≈ +2.02%
+    const spy = toCandles(Array.from({ length: 400 }, (_, i) => 100 * Math.pow(1.001, i)))
+    const r = backtestSignals(toCandles(closes), spy)
+    expect(r.vsBenchmark).toBe(true)
+    const spy20 = (Math.pow(1.001, 20) - 1) * 100
+    for (const e of r.events) {
+      if (e.return20 === null) continue
+      expect(e.excess20).not.toBeNull()
+      expect(e.excess20!).toBeCloseTo(e.return20 - spy20, 0)
+    }
+  })
+
+  it('una acción que sube menos que SPY no "acierta" aunque suba', () => {
+    // El ticker sube 0.05%/día con ondas; SPY sube 0.5%/día: toda compra pierde contra el mercado
+    const spy = toCandles(Array.from({ length: 400 }, (_, i) => 100 * Math.pow(1.005, i)))
+    const r = backtestSignals(toCandles(closes), spy)
+    for (const s of r.stats) {
+      if (s.label === 'compra' || s.label === 'compra_fuerte') {
+        if (s.hitRate20 !== null) expect(s.hitRate20).toBe(0)
+      }
+    }
+  })
+})

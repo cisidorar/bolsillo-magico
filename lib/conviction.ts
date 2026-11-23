@@ -100,7 +100,10 @@ export function computeConviction(
       if (stat.count < 3) {
         reasons.push(`Esta señal solo pasó ${stat.count} vez${stat.count !== 1 ? 'es' : ''} en el último año en esta acción — muy poca evidencia propia todavía.`)
       } else {
-        reasons.push(`Esta señal acertó ${stat.hitRate20}% de las veces (${stat.count} repeticiones) en esta acción en el último año.`)
+        // avgExcess20 existe solo si el backtest se midió contra SPY (nov 2026)
+        reasons.push(stat.avgExcess20 !== null && stat.avgExcess20 !== undefined
+          ? `Esta señal le ganó al mercado (SPY) ${stat.hitRate20}% de las veces (${stat.count} repeticiones) en esta acción en el último año.`
+          : `Esta señal acertó ${stat.hitRate20}% de las veces (${stat.count} repeticiones) en esta acción en el último año.`)
       }
     }
   }

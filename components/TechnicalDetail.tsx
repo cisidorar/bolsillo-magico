@@ -1084,7 +1084,9 @@ export default function TechnicalDetail({
                       </p>
                       {s.hitRate20 !== null && (
                         <p className="text-[10px] tabular-nums" style={{ color: 'var(--ink-3)' }}>
-                          Acertó {s.hitRate20}% de las veces a 1 mes
+                          {backtest.vsBenchmark
+                            ? `Le ${isBuy ? 'ganó' : 'fue peor que'} al mercado (SPY) ${s.hitRate20}% de las veces a 1 mes`
+                            : `Acertó ${s.hitRate20}% de las veces a 1 mes`}
                         </p>
                       )}
                     </div>

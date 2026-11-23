@@ -279,3 +279,42 @@ describe('volumen inusual', () => {
     expect(a.volumeSignal).toBe('up')
   })
 })
+
+// ── Pesos de los gatillos (nov 2026, docs/INVESTIGACION_SENALES.md) ──────────
+// Divergencia alcista y cruce dorado bajaron de +2 a +1: en ~9 años y 65
+// tickers rindieron peor que el promedio a 1 mes. El lado vendedor sigue en −2.
+// Este test recalcula triggerScore desde los campos del análisis con los
+// pesos documentados — si alguien vuelve a tocar un peso sin actualizar la
+// tabla de docs/WATCHLIST_TECNICO.md, falla acá.
+describe('pesos de gatillos del rating', () => {
+  const expectedTrigger = (a: ReturnType<typeof analyze>): number => {
+    const has = (k: string) => a.signals.some(s => s.kind === k)
+    let t = 0
+    if (a.divergence === 'bullish') t += 1
+    if (a.divergence === 'bearish') t -= 2
+    if (has('golden_cross')) t += 1
+    if (has('death_cross'))  t -= 2
+    if (a.macdCross === 'bullish') t += 1
+    if (a.macdCross === 'bearish') t -= 1
+    if (a.volumeSignal === 'up')   t += 1
+    if (a.volumeSignal === 'down') t -= 1
+    if (a.rsi14 !== null && a.rsi14 <= 30) t += 1
+    if (a.rsi14 !== null && a.rsi14 >= 70) t -= 1
+    if (has('near_support'))    t += 1
+    if (has('near_resistance')) t -= 1
+    return t
+  }
+
+  it('el cruce dorado suma +1 (no +2) y el resto de gatillos suma lo documentado', () => {
+    // Caída larga y luego recuperación: en algún punto la SMA50 cruza sobre la SMA200
+    const full = Array.from({ length: 520 }, (_, i) =>
+      (i < 260 ? 150 - i * 0.2 : 98 + (i - 260) * 0.35) + Math.sin(i / 3) * 1.2)
+    let sawGolden = false
+    for (let n = 300; n <= full.length; n += 2) {
+      const a = analyze(toCandles(full.slice(0, n)))
+      expect(a.rating.triggerScore).toBe(expectedTrigger(a))
+      if (a.signals.some(s => s.kind === 'golden_cross')) sawGolden = true
+    }
+    expect(sawGolden).toBe(true)
+  })
+})

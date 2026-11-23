@@ -46,7 +46,7 @@ WatchlistPanel.tsx ('use client')    ← CRUD + quotes + panel expandible
 `TechnicalRating` separa dos sumas:
 
 - **`trendScore` (estado):** SMA200 ±1/±2 según pendiente, mínimos anuales −1, sobre-extensión (≥15% sobre SMA200) −1. Contexto persistente.
-- **`triggerScore` (gatillos/eventos):** divergencia ±2, cruce dorado/muerte ±2, MACD ±1, volumen ±1, RSI extremo ±1, soporte/resistencia cercano ±1.
+- **`triggerScore` (gatillos/eventos):** divergencia alcista +1 / bajista −2, cruce dorado +1 / de la muerte −2, MACD ±1, volumen ±1, RSI extremo ±1, soporte/resistencia cercano ±1. (Nov 2026: divergencia alcista y cruce dorado bajaron de +2 a +1 por evidencia — ver `docs/PLAN_MOTOR_PREDICCION.md`.)
 
 `score = trendScore + triggerScore`. **Compra/venta exigen al menos un gatillo alineado** — estar en tendencia alcista ya no produce "Compra" permanente (fatiga de alertas para revisión semanal). Umbrales: compra_fuerte `score ≥5 && trigger ≥2` · compra `score ≥2 && trigger ≥1` · venta/venta_fuerte simétricos · resto neutral. `pros`/`cons` cuentan los mismos componentes puntuados (incluida la tendencia), así el banner nunca dice "Compra · 0 a favor".
 

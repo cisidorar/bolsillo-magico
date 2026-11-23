@@ -870,9 +870,15 @@ export function analyze(candles: DailyCandles): TechnicalAnalysis {
   else if (distPct !== null && distPct >= 15) trendScore += addComp(-1)   // sobre-extendida: comprar el estirón resta
 
   let triggerScore = 0
-  if (divergence === 'bullish') triggerScore += addComp(2)
+  // Nov 2026 (docs/INVESTIGACION_SENALES.md): divergencia alcista y cruce
+  // dorado pesaban +2 (el doble que el resto) pero en ~9 años y 65 tickers
+  // rindieron PEOR que el promedio a 1 mes, en ambas mitades del período y
+  // también sin la watchlist. No alcanza para decir que restan (|t|<2), sí
+  // para quitarles el peso doble. El lado vendedor queda en −2: proteger
+  // capital no necesita la misma vara de evidencia.
+  if (divergence === 'bullish') triggerScore += addComp(1)
   if (divergence === 'bearish') triggerScore += addComp(-2)
-  if (cross === 'golden') triggerScore += addComp(2)
+  if (cross === 'golden') triggerScore += addComp(1)
   if (cross === 'death')  triggerScore += addComp(-2)
   if (macdCross === 'bullish') triggerScore += addComp(1)
   if (macdCross === 'bearish') triggerScore += addComp(-1)

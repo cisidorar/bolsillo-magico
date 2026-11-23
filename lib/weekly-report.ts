@@ -62,7 +62,7 @@ export async function computeWeeklyItems(
 
     const { data: statsRows } = await supabase
       .from('signal_stats')
-      .select('label, count, hit_rate_20, avg_return_20, avg_return_60')
+      .select('*')   // '*' y no columnas: avg_excess_20 llegó después (migración 20261123)
       .eq('ticker', ticker)
     const backtestStats: LabelStat[] | null = statsRows && statsRows.length > 0
       ? statsRows.map(r => ({
@@ -71,6 +71,7 @@ export async function computeWeeklyItems(
           hitRate20:   r.hit_rate_20   !== null ? Number(r.hit_rate_20)   : null,
           avgReturn20: r.avg_return_20 !== null ? Number(r.avg_return_20) : null,
           avgReturn60: r.avg_return_60 !== null ? Number(r.avg_return_60) : null,
+          avgExcess20: r.avg_excess_20 !== null && r.avg_excess_20 !== undefined ? Number(r.avg_excess_20) : null,
         }))
       : null
 

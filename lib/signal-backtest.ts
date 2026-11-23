@@ -21,6 +21,7 @@ export interface SignalEvent {
   price: number
   return20: number | null   // % a ~1 mes (20 ruedas) después de la señal
   return60: number | null   // % a ~3 meses (60 ruedas) después de la señal
+  excess20: number | null   // return20 − retorno de SPY en las mismas fechas (null sin benchmark)
 }
 
 export interface LabelStat {
@@ -29,13 +30,18 @@ export interface LabelStat {
   avgReturn20:  number | null
   avgReturn60:  number | null
   hitRate20:    number | null   // % de veces que la señal "acertó" a 20 ruedas
-                                  // (compra: subió · venta: bajó o se evitó una caída)
+                                  // Con benchmark (nov 2026): compra = le ganó a SPY ·
+                                  // venta = le fue peor que a SPY. Sin benchmark: el
+                                  // criterio viejo (subió / bajó), que en un mercado
+                                  // alcista "acierta" ~60% aunque la señal sea al azar.
+  avgExcess20?: number | null   // retorno excedente promedio vs SPY a 20 ruedas (ausente/null = sin benchmark)
 }
 
 export interface SignalBacktestResult {
   events:     SignalEvent[]   // más reciente primero
   stats:      LabelStat[]
   windowDays: number
+  vsBenchmark: boolean        // true = hitRate20 mide contra SPY
 }
 
 const EVAL_WINDOW = 260   // ~1 año hábil de transiciones a evaluar
@@ -44,7 +50,9 @@ const MIN_HISTORY  = 260  // SMA200 + margen: antes de esto analyze() no opina d
 const BUY_LABELS:  RatingLabel[] = ['compra', 'compra_fuerte']
 const SELL_LABELS: RatingLabel[] = ['venta', 'venta_fuerte']
 
-export function backtestSignals(candles: DailyCandles): SignalBacktestResult {
+/** `benchmark` (SPY) opcional: si viene, el acierto se mide contra el
+ *  mercado y no contra cero — ver docs/PLAN_MOTOR_PREDICCION.md. */
+export function backtestSignals(candles: DailyCandles, benchmark?: DailyCandles | null): SignalBacktestResult {
   const n = candles.closes.length
   const start = Math.max(MIN_HISTORY, n - EVAL_WINDOW)
   const events: SignalEvent[] = []
@@ -55,6 +63,19 @@ export function backtestSignals(candles: DailyCandles): SignalBacktestResult {
     if (j >= n) return null
     const base = candles.closes[idx]
     return base > 0 ? Math.round(((candles.closes[j] - base) / base) * 1000) / 10 : null
+  }
+
+  const benchIdx = benchmark ? new Map(benchmark.dates.map((d, i) => [d, i])) : null
+  const excessReturn = (idx: number, daysFwd: number): number | null => {
+    if (!benchmark || !benchIdx) return null
+    const own = fwdReturn(idx, daysFwd)
+    const b0 = benchIdx.get(candles.dates[idx])
+    const j = idx + daysFwd
+    if (own === null || b0 === undefined || j >= n) return null
+    const b1 = benchIdx.get(candles.dates[j])
+    if (b1 === undefined || !(benchmark.closes[b0] > 0)) return null
+    const bench = ((benchmark.closes[b1] - benchmark.closes[b0]) / benchmark.closes[b0]) * 100
+    return Math.round((own - bench) * 10) / 10
   }
 
   for (let i = start; i < n; i++) {
@@ -71,27 +92,31 @@ export function backtestSignals(candles: DailyCandles): SignalBacktestResult {
     if (isEntry) {
       events.push({
         date: candles.dates[i], label, price: candles.closes[i],
-        return20: fwdReturn(i, 20), return60: fwdReturn(i, 60),
+        return20: fwdReturn(i, 20), return60: fwdReturn(i, 60), excess20: excessReturn(i, 20),
       })
     }
     prevLabel = label
   }
 
+  const vsBenchmark = !!benchmark && benchmark.closes.length > 0
   const labelsPresent = [...new Set(events.map(e => e.label))]
   const stats: LabelStat[] = labelsPresent.map(label => {
     const evs = events.filter(e => e.label === label)
     const r20s = evs.map(e => e.return20).filter((v): v is number => v !== null)
     const r60s = evs.map(e => e.return60).filter((v): v is number => v !== null)
     const isBuy = BUY_LABELS.includes(label)
-    const hits  = r20s.filter(v => isBuy ? v > 0 : v < 0)
+    const ex20s = evs.map(e => e.excess20).filter((v): v is number => v !== null)
+    const graded = vsBenchmark ? ex20s : r20s
+    const hits  = graded.filter(v => isBuy ? v > 0 : v < 0)
     return {
       label,
       count: evs.length,
       avgReturn20: r20s.length > 0 ? Math.round((r20s.reduce((s, v) => s + v, 0) / r20s.length) * 10) / 10 : null,
       avgReturn60: r60s.length > 0 ? Math.round((r60s.reduce((s, v) => s + v, 0) / r60s.length) * 10) / 10 : null,
-      hitRate20:   r20s.length > 0 ? Math.round((hits.length / r20s.length) * 1000) / 10 : null,
+      hitRate20:   graded.length > 0 ? Math.round((hits.length / graded.length) * 1000) / 10 : null,
+      avgExcess20: ex20s.length > 0 ? Math.round((ex20s.reduce((s, v) => s + v, 0) / ex20s.length) * 10) / 10 : null,
     }
   })
 
-  return { events: events.reverse(), stats, windowDays: n - start }
+  return { events: events.reverse(), stats, windowDays: n - start, vsBenchmark }
 }

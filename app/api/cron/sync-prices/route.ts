@@ -6,6 +6,7 @@ import { analyze, positionSizeUsd, type TechnicalAnalysis, type PriceZone } from
 import { computeAndSnapshotNetWorth, reconcileClosedMonthDebt } from '@/lib/net-worth'
 import { computeConviction, isActionableBuyNow, computeMarketRegime, riskRewardRatio, type ConvictionTier, type MarketRegime } from '@/lib/conviction'
 import { backtestSignals, type LabelStat } from '@/lib/signal-backtest'
+import { extractFlags, momentum12_1 } from '@/lib/signal-research'
 import { getNowChile } from '@/lib/utils'
 import { nextFomcMeeting, fedRateSentence } from '@/lib/market-week'
 import { computeRatePath } from '@/lib/rate-path'
@@ -438,6 +439,7 @@ async function computeDailySignals(supabase: SupabaseClient) {
   const analysesByTicker = new Map<string, TechnicalAnalysis>()
   // Para sincronizar price_cache con los precios de cierre EOD después del loop
   const changePctByTicker = new Map<string, number>()
+  const mom12_1ByTicker = new Map<string, number | null>()
   // D1 (roadmap de calidad de decisión): track record por ticker, calculado
   // UNA vez por ticker por día acá (no por usuario) y reutilizado en
   // computeDailyDecisions — antes ese 20% del score se pasaba en null en
@@ -445,7 +447,7 @@ async function computeDailySignals(supabase: SupabaseClient) {
   const statsByTicker = new Map<string, LabelStat[]>()
   const statRows: {
     ticker: string; label: string; count: number
-    hit_rate_20: number | null; avg_return_20: number | null; avg_return_60: number | null
+    hit_rate_20: number | null; avg_return_20: number | null; avg_return_60: number | null; avg_excess_20: number | null
   }[] = []
 
   // sep 2026 (Cas: "es posible correr el análisis?" — daily_signals llevaba 2
@@ -457,6 +459,10 @@ async function computeDailySignals(supabase: SupabaseClient) {
   // real en producción incluso DESPUÉS de acotar el paso de sincronización.
   // readCandles es I/O (red), no CPU — corre en paralelo igual que el paso de
   // sync de tickers, en vez de pagar esa latencia 24 veces seguidas.
+  // Nov 2026: el track record se mide contra SPY (¿le ganó al mercado?), no
+  // contra cero — se lee una sola vez y se comparte entre todos los tickers.
+  const spyCandles = await readCandles(supabase, 'SPY').catch(() => null)
+
   const perTicker = await Promise.all(tickers.map(async (ticker) => {
     try {
       const candles = await readCandles(supabase, ticker)
@@ -475,13 +481,13 @@ async function computeDailySignals(supabase: SupabaseClient) {
       const statRowsForTicker: typeof statRows = []
       if (candles.closes.length >= 260) {
         try {
-          const { stats: s } = backtestSignals(candles)
+          const { stats: s } = backtestSignals(candles, ticker === 'SPY' ? null : spyCandles)
           if (s.length > 0) {
             stats = s
             for (const row of s) {
               statRowsForTicker.push({
                 ticker, label: row.label, count: row.count,
-                hit_rate_20: row.hitRate20, avg_return_20: row.avgReturn20, avg_return_60: row.avgReturn60,
+                hit_rate_20: row.hitRate20, avg_return_20: row.avgReturn20, avg_return_60: row.avgReturn60, avg_excess_20: row.avgExcess20 ?? null,
               })
             }
           }
@@ -489,7 +495,7 @@ async function computeDailySignals(supabase: SupabaseClient) {
           console.error(`[sync-prices] backtestSignals() falló para ${ticker}:`, err)
         }
       }
-      return { ticker, analysis, changePct, stats, statRowsForTicker }
+      return { ticker, analysis, changePct, stats, statRowsForTicker, mom12_1: momentum12_1(closes, closes.length - 1) }
     } catch (err) {
       console.error(`[sync-prices] analyze() falló para ${ticker}:`, err)
       return null
@@ -500,6 +506,7 @@ async function computeDailySignals(supabase: SupabaseClient) {
     if (!r) continue
     analysesByTicker.set(r.ticker, r.analysis)
     changePctByTicker.set(r.ticker, r.changePct)
+    mom12_1ByTicker.set(r.ticker, r.mom12_1)
     if (r.stats) {
       statsByTicker.set(r.ticker, r.stats)
       statRows.push(...r.statRowsForTicker)
@@ -517,6 +524,8 @@ async function computeDailySignals(supabase: SupabaseClient) {
   for (const [ticker, analysis] of analysesByTicker) {
     convictionByTicker.set(ticker, computeConviction(analysis, statsByTicker.get(ticker) ?? null, spyReturn6m))
   }
+
+  await recordSignalSnapshots(supabase, analysesByTicker, convictionByTicker, marketRegime, mom12_1ByTicker)
 
   // buildSignals corre DESPUÉS de tener convictionByTicker/marketRegime (no
   // en el loop de arriba) porque 'buy' ahora depende de isActionableBuyNow,
@@ -579,6 +588,51 @@ async function computeDailySignals(supabase: SupabaseClient) {
   const decisions = await computeDailyDecisions(supabase, wlRows, analysesByTicker, spyReturn6m, marketRegime, convictionByTicker)
 
   return { signals: allSignals.length, targetsReached: allNotifiedIds.length, decisions: decisions.decisions, signalStats: statRows.length }
+}
+
+// ── Registro diario del motor (nov 2026, docs/PLAN_MOTOR_PREDICCION.md) ─────
+// Una fila por ticker por día con lo que el motor leyó; fill_signal_outcomes()
+// completa después cuánto rindió vs SPY. Es la prueba fuera de muestra real:
+// sin esto, "¿el motor sirve?" solo se puede contestar con backtests, que son
+// fáciles de sobreajustar. Nunca debe frenar el resto del cron.
+async function recordSignalSnapshots(
+  supabase: SupabaseClient,
+  analysesByTicker: Map<string, TechnicalAnalysis>,
+  convictionByTicker: Map<string, ReturnType<typeof computeConviction>>,
+  marketRegime: MarketRegime | null,
+  mom12_1ByTicker: Map<string, number | null>,
+): Promise<void> {
+  try {
+    const rows = [...analysesByTicker.entries()].map(([ticker, a]) => {
+      const c = convictionByTicker.get(ticker) ?? null
+      return {
+        ticker,
+        snapshot_date:    a.asOf,
+        price:            a.price,
+        rating_label:     a.rating.label,
+        rating_score:     a.rating.score,
+        trend_score:      a.rating.trendScore,
+        trigger_score:    a.rating.triggerScore,
+        conviction_score: c?.score ?? null,
+        conviction_tier:  c?.tier ?? null,
+        price_zone:       a.priceZone,
+        actionable_buy:   c ? isActionableBuyNow(a, c, marketRegime) : false,
+        market_regime:    marketRegime,
+        flags:            extractFlags(a),
+        mom12_1:          mom12_1ByTicker.get(ticker) ?? null,
+      }
+    })
+    if (rows.length > 0) {
+      // ignoreDuplicates: si el cron corre dos veces el mismo día, la primera
+      // lectura queda (no se pisan retornos ya medidos)
+      const { error } = await supabase.from('signal_snapshots').upsert(rows, { onConflict: 'ticker,snapshot_date', ignoreDuplicates: true })
+      if (error) console.error('[sync-prices] signal_snapshots upsert error:', error.message)
+    }
+    const { error: fillErr } = await supabase.rpc('fill_signal_outcomes')
+    if (fillErr) console.error('[sync-prices] fill_signal_outcomes error:', fillErr.message)
+  } catch (err) {
+    console.error('[sync-prices] recordSignalSnapshots falló:', err)
+  }
 }
 
 // Fuerza relativa vs SPY + régimen de mercado — compartido entre el enriquecido
