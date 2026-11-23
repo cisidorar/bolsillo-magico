@@ -14,6 +14,7 @@ import { fetchAllMacroSeries } from '@/lib/macro-fetch'
 import { invokeEdgeFunction } from '@/lib/invoke-edge-function'
 import { cashFromTotals } from '@/lib/wallet-cash'
 import { computeThemeExposure, checkThemeCap } from '@/lib/theme-exposure'
+import { cautionStreak, cautionNote, type CautionDay } from '@/lib/caution-streak'
 import { NYSE_HOLIDAYS, todayEt, isNyseTradingDay } from '@/lib/nyse-calendar'
 
 // ── Cron diario: sincroniza OHLCV + arma las señales del digest diario ───────
@@ -422,6 +423,35 @@ async function updateTrailingStops(supabase: SupabaseClient): Promise<{ updated:
   return { updated, skipped }
 }
 
+async function appendCautionStreaks(supabase: SupabaseClient, signals: SignalRow[]): Promise<void> {
+  try {
+    const cautions = signals.filter(r => r.kind === 'caution')
+    if (cautions.length === 0) return
+    const { dateStr: today } = getNowChile()
+    const since = new Date(new Date(today + 'T12:00:00').getTime() - 75 * 86_400_000).toISOString().slice(0, 10)
+    const { data } = await supabase
+      .from('daily_signals')
+      .select('user_id, ticker, signal_date, price')
+      .eq('kind', 'caution')
+      .gte('signal_date', since)
+      .lt('signal_date', today)
+      .in('user_id', [...new Set(cautions.map(r => r.user_id))])
+    const prior = new Map<string, CautionDay[]>()
+    for (const r of (data ?? []) as { user_id: string; ticker: string; signal_date: string; price: number }[]) {
+      const k = `${r.user_id}:${r.ticker}`
+      const arr = prior.get(k) ?? []
+      arr.push({ date: r.signal_date, price: Number(r.price) })
+      prior.set(k, arr)
+    }
+    for (const row of cautions) {
+      const note = cautionNote(cautionStreak(prior.get(`${row.user_id}:${row.ticker}`) ?? [], today, row.price))
+      if (note) row.message = `${row.message}. ${note}`
+    }
+  } catch (err) {
+    console.error('[sync-prices] appendCautionStreaks falló:', err)
+  }
+}
+
 // ── Splits (nov 2026, caso SNDK 8×1) ─────────────────────────────────────────
 // syncTicker() recarga el historial ajustado y deja un marcador `{SYM}_SPLIT` en
 // price_cache (factor en `price`, fecha del primer día post-split en `name`).
@@ -566,6 +596,10 @@ async function computeDailySignals(supabase: SupabaseClient) {
     allSignals.push(...signals)
     allNotifiedIds.push(...notifiedIds)
   }
+
+  // Precaución que se repite (nov 2026, lib/caution-streak.ts): un mismo mensaje
+  // 31 días seguidos no informa; cuánto lleva y qué hizo el precio, sí.
+  await appendCautionStreaks(supabase, allSignals)
 
   for (const row of allSignals) {
     const c = convictionByTicker.get(row.ticker)

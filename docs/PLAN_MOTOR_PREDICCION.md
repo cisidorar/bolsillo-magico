@@ -51,8 +51,8 @@ Cruce de `stock_purchases`/`stock_sales` con lo que decía el motor (`daily_sign
 ### Mejoras pendientes de esa revisión
 - [x] Tope de exposición por tema (nov 2026): `lib/theme-exposure.ts` — semis/IA y cripto, tope 35% del valor de la cartera a valor de mercado, ETF apalancados contados por su factor (SOXL ×3). Con la cartera real del 20-nov, semis/IA ya era ~42% efectivo. Aplica a «¿Qué comprar hoy?» de la app (`Radar.tsx`) y a `daily_decisions` del cron/correo: se salta a los candidatos del tema topado (y lo explica), limita el monto a lo que cabe bajo el tope, y desde el 80% muestra un chip gold. **No** cambia los flags `buy` por fila ni `daily_signals` (siguen siendo por ticker). Los temas son una lista corta explícita; MSFT/GOOGL/META no se mezclan con semis aunque dependan del mismo gasto en IA.
 - [ ] Tesis y criterio de invalidación por posición, mostrados junto a las noticias cuando la acción cae >8% en un día.
-- [ ] Modo "día de shock": tras una caída extrema del índice, sin ventas mecánicas "ahora"; revisar a los 2 días.
-- [ ] "Precaución" que lleva >10 días debe escalar (cuánto cayó desde que empezó) en vez de repetirse igual.
+- [x] ~~Modo "día de shock"~~ — **descartado con datos** (nov 2026). Probé en SPY 2017-2026 qué pasa después de un día con caída ≤ −3% (34 días, 19 episodios): retorno a 1/5/10/20 ruedas de +0,35% / −0,26% / −0,80% / +1,49%, contra +0,06% / +0,29% / +0,60% / +1,20% de cualquier día. No se distingue del normal (ni rebota ni sigue cayendo de forma fiable), con peor caso de −30% (feb-2020). El rebote del 23-nov es un solo caso; una regla "no vendas tras un shock" o "compra el pánico" no tiene respaldo. Si algún día se quiere un freno, que sea de comportamiento (confirmar antes de vender con la pantalla en rojo), no una señal.
+- [x] "Precaución" que lleva ≥10 días seguidos ahora suma al mensaje del correo cuántos días lleva y qué hizo el precio desde que empezó (`lib/caution-streak.ts`). Solo contexto: no cambia la señal ni el rating (INTC pasó 31 días con el mismo mensaje mientras cayó de ~92 a 51).
 - [ ] Diario de decisiones: por cada compra, qué decía el motor y cómo le fue vs SPY.
 
 ## Pendiente
