@@ -1260,7 +1260,8 @@ export default function Radar({
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* grid-cols-1 es obligatorio: sin él la columna crece hasta el texto más largo sin cortar y la página se sale en celular. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {(showAllPositions ? myPerformance : myPerformance.slice(0, TOP_POSITIONS)).map((row, i) => {
               const q = quotes[row.ticker]
               // Señal de venta (misma lógica de siempre): cambio de tendencia real → «Sal ya» en coral con su motivo;

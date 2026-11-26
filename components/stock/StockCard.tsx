@@ -56,7 +56,7 @@ export default function StockCard({
     <button
       type="button"
       onClick={onOpen}
-      className="sc-card card group w-full text-left p-4 lg:p-[18px] flex flex-col gap-4"
+      className="sc-card card group w-full min-w-0 text-left p-4 lg:p-[18px] flex flex-col gap-4"
       style={alertTint ? { background: alertTint } : undefined}
       aria-label={`${ticker}${name ? `, ${name}` : ''}. ${heroLabel} ${hero}${alert ? `. ${alert.label}` : ''}. Ver detalle`}
     >
