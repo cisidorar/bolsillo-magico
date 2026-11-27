@@ -42,7 +42,7 @@ function badgeFor(c: Charge, today: string): { text: string; tone: Tone | 'neutr
 
 export default function PropertyEstado({
   charges, today, monthKeys, selectedMonth, onSelectMonth, busy, unconfirmed,
-  onOpen, onPay, onUnpay, onUploadBill, onBulkPay, onBulkCollect, onConfirm,
+  onOpen, onPay, onUnpay, onUploadBill, onBulkPay, onBulkCollect, onConfirm, notice,
 }: {
   charges: Charge[]
   today: string
@@ -59,6 +59,8 @@ export default function PropertyEstado({
   onBulkPay: (cs: Charge[]) => void
   onBulkCollect: () => void
   onConfirm: (id: string) => void
+  /** El aviso de reajuste vigente: va a la vista en la primera pestaña, sin tener que buscarlo. */
+  notice?: React.ReactNode
 }) {
   const model = useMemo(() => estadoModel(charges, today, selectedMonth, formatCLP), [charges, today, selectedMonth])
   const grid = useMemo(() => monthGrid(charges, monthKeys, today), [charges, monthKeys, today])
@@ -132,6 +134,8 @@ export default function PropertyEstado({
           </div>
         </div>
       </div>
+
+      {notice}
 
       {/* ── Paga el arrendatario ────────────────────────────────────────── */}
       {presentTenant > 0 && (

@@ -23,7 +23,7 @@ import {
   saveProperty, deleteProperty, saveCharge, markChargePaid,
   unmarkChargePaid, confirmCharge, deleteCharge, generateAseoCharges,
   saveLease, deleteLease, generateLeaseCharges, getPropertyDocUrl,
-  extractAseoReceiptDraft, generateUtilityReminders, applyRentAdjustment, getRentAdjustmentPdfUrl, createRentAdjustmentNow,
+  extractAseoReceiptDraft, generateUtilityReminders, applyRentAdjustment, createRentAdjustmentNow,
 } from '@/app/actions/property'
 import type { ParsedAseoReceipt } from '@/lib/aseo-receipt-parser'
 import {
@@ -33,6 +33,7 @@ import { computeRentAdjustment, adjustmentWindow, monthStart } from '@/lib/rent-
 import type { IpcObservation } from '@/lib/cl-indicators'
 import UtilityBillUploader from '@/components/UtilityBillUploader'
 import PropertyEstado from '@/components/PropertyEstado'
+import RentNoticeDoc, { type RentNotice } from '@/components/property/RentNoticeDoc'
 import { suggestUtilities } from '@/lib/cl-utilities'
 
 export interface Property {
@@ -237,6 +238,11 @@ function relativeDue(dueDate: string, today: string): string {
 }
 
 export default function PropertyManager({ property, charges, lease, ipcSeries, pendingAdjustment = null, pastAdjustments = [], today, view, openNew, categories = [], paymentMethods = [] }: Props) {
+  // El aviso de reajuste vigente, a la vista en «Estado»: el último, mientras esté pendiente o rija hace menos de 60 días.
+  const lastNotice = pastAdjustments[0] ?? null
+  const currentNotice = lastNotice && (!lastNotice.applied_at
+    || (Date.parse(today + 'T12:00:00') - Date.parse(lastNotice.adjustment_month + 'T12:00:00')) / 86400000 < 60) ? lastNotice : null
+
   const router = useRouter()
   // `propForm` guarda a quién edita: 'new' es una propiedad nueva, un objeto
   // Property es edición. Antes era boolean y no podía distinguir los dos casos
@@ -451,6 +457,9 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, p
           onBulkPay={cs => setBulkPayFor(cs)}
           onBulkCollect={() => markAllPending()}
           onConfirm={id => { void run(() => confirmCharge(id)) }}
+          notice={currentNotice && (
+            <div className="card p-4 pr-fade"><RentNoticeDoc notice={currentNotice} /></div>
+          )}
         />
       ) : view === 'info' ? (
         // ── Información ──────────────────────────────────────────────────
@@ -471,11 +480,6 @@ export default function PropertyManager({ property, charges, lease, ipcSeries, p
               lease={lease} ipcSeries={ipcSeries} today={today} busy={busy}
               pendingAdjustment={pendingAdjustment}
               onApplyAdjustment={() => pendingAdjustment && run(() => applyRentAdjustment(pendingAdjustment.id))}
-              onOpenAdjustmentPdf={async () => {
-                if (!pendingAdjustment) return
-                const r = await getRentAdjustmentPdfUrl(pendingAdjustment.id)
-                if (r.ok) window.open(r.url, '_blank', 'noopener')
-              }}
               onEdit={() => setLeaseForm(true)}
               pastAdjustments={pastAdjustments}
             />
@@ -958,14 +962,13 @@ function Fact({ label, value, bold, color }: { label: string; value: string; bol
  * cuándo toca reajustar, cuándo hay que avisar si no se renueva, y si faltan
  * meses de arriendo por generar.
  */
-function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjustments, onApplyAdjustment, onOpenAdjustmentPdf, onEdit }: {
+function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjustments, onApplyAdjustment, onEdit }: {
   lease: Lease | null
   ipcSeries: IpcObservation[] | null
   today: string
   busy: boolean
   pendingAdjustment: PendingAdjustment | null
   onApplyAdjustment: () => void
-  onOpenAdjustmentPdf: () => void
   onEdit: () => void
   pastAdjustments: PastAdjustment[]
 }) {
@@ -1045,43 +1048,8 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
         )}
       </dl>
 
-      {/* Reajuste — gold, es accionable pero no urgente (UX5) */}
-      {pendingAdjustment ? (
-        <div className="mt-3 p-3 rounded-xl"
-             style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
-          <div className="flex items-start gap-2">
-            <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
-            <div className="min-w-0">
-              <p className="text-xs font-bold" style={{ color: 'var(--ink)' }}>
-                {pendingAdjustment.floored
-                  ? 'Reajuste calculado: el IPC fue negativo, la renta se mantiene'
-                  : `Reajuste calculado: la renta sube a ${formatCLP(pendingAdjustment.new_rent)}`}
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                IPC acumulado {Number(pendingAdjustment.cumulative_pct).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%
-                {!pendingAdjustment.floored && <> · +{formatCLP(pendingAdjustment.new_rent - pendingAdjustment.previous_rent)}</>}
-                {' '}desde {fmtDate(pendingAdjustment.adjustment_month)}.
-                {pendingAdjustment.notified_at ? ' Te lo mandé por correo con el PDF.' : ''}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-2.5">
-            <button onClick={onOpenAdjustmentPdf}
-              className="px-3 min-h-[44px] rounded-xl text-xs font-semibold border"
-              style={{ color: 'var(--ink-2)', borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-              Ver PDF
-            </button>
-            <button onClick={onApplyAdjustment} disabled={busy}
-              className="px-3 min-h-[44px] rounded-xl text-xs font-bold disabled:opacity-50"
-              style={{ background: 'var(--primary)', color: 'var(--primary-ink)' }}>
-              Aplicar ahora
-            </button>
-          </div>
-          <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-3)' }}>
-            Se aplica solo el {fmtDate(pendingAdjustment.adjustment_month)}: la renta y los arriendos aún no pagados desde esa fecha se actualizan. Puedes aplicarlo antes si quieres.
-          </p>
-        </div>
-      ) : adjSoon && (
+      {/* Se acerca el reajuste y aún no se calcula — gold, accionable pero no urgente (UX5) */}
+      {!pendingAdjustment && adjSoon && (
         <div className="mt-3 p-3 rounded-xl flex items-start gap-2"
              style={{ background: 'color-mix(in srgb, var(--gold) 12%, var(--surface))' }}>
           <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--gold-ink)' }} />
@@ -1121,40 +1089,49 @@ function LeaseCard({ lease, ipcSeries, today, busy, pendingAdjustment, pastAdjus
         </div>
       )}
 
-      {/* Los 2 últimos reajustes generados, con su PDF, siempre a la vista
-          (aplicados o pendientes). Con reajuste activo la sección no desaparece:
-          sin ninguno dice cuándo llegará el primero. */}
-      {lease.adjustment_kind !== 'none' && (
-        <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <p className="text-xs font-bold mb-1.5" style={{ color: 'var(--ink)' }}>Últimos reajustes</p>
-          {pastAdjustments.length === 0 && (
-            <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-              Aún no hay reajustes generados{nextAdj ? `. El primero se genera solo para el ${fmtDate(nextAdj)}` : ''}; aquí quedará su PDF para verlo y descargarlo cuando quieras.
-            </p>
-          )}
-          <ul className="space-y-1">
-            {pastAdjustments.map(a => (
-              <li key={a.id} className="flex items-center gap-2 text-xs">
-                <span className="flex-1 min-w-0" style={{ color: 'var(--ink-2)' }}>
-                  {fmtDate(a.adjustment_month)} · {formatCLP(a.previous_rent)} → {formatCLP(a.new_rent)}
-                  {' '}<span style={{ color: 'var(--ink-3)' }}>
-                    ({a.floored ? 'IPC negativo' : `+${Number(a.cumulative_pct).toLocaleString('es-CL', { maximumFractionDigits: 2 })}%`}{a.applied_at ? '' : ' · pendiente'})
-                  </span>
-                </span>
-                <button
-                  onClick={async () => {
-                    const r = await getRentAdjustmentPdfUrl(a.id, true)
-                    if (r.ok) window.location.href = r.url
-                  }}
-                  className="px-2.5 min-h-[44px] text-xs font-semibold flex-shrink-0"
-                  style={{ color: 'var(--primary)' }}>
-                  Descargar PDF
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Los avisos de reajuste, con su PDF: una sola lista (el pendiente y los dos últimos). Con reajuste activo
+          la sección no desaparece: sin ninguno dice cuándo llegará el primero. */}
+      {lease.adjustment_kind !== 'none' && (() => {
+        const notices: RentNotice[] = pendingAdjustment && !pastAdjustments.some(a => a.id === pendingAdjustment.id)
+          ? [{ ...pendingAdjustment, applied_at: null }, ...pastAdjustments]
+          : pastAdjustments
+        return (
+          <div className="mt-5">
+            <p className="text-sm font-bold mb-3" style={{ color: 'var(--ink)' }}>Avisos de reajuste</p>
+            {notices.length === 0 && (
+              <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+                Aún no hay avisos{nextAdj ? `. El primero se genera solo para el ${fmtDate(nextAdj)}` : ''}; aquí quedará su PDF para verlo y descargarlo cuando quieras.
+              </p>
+            )}
+            <ul className="space-y-5">
+              {notices.map(n => {
+                const isPending = pendingAdjustment?.id === n.id
+                return (
+                  <li key={n.id}>
+                    <RentNoticeDoc
+                      stacked notice={n}
+                      detail={isPending
+                        ? <>IPC acumulado {Number(pendingAdjustment!.cumulative_pct).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%{!n.floored && <> · +{formatCLP(n.new_rent - n.previous_rent)}</>}{pendingAdjustment!.notified_at ? ' · te lo mandé por correo' : ''}</>
+                        : undefined}
+                      extra={isPending ? (
+                        <div className="mt-3 sm:pl-14">
+                          <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                            Se aplica solo el {fmtDate(n.adjustment_month)}: la renta y los arriendos aún no pagados desde esa fecha se actualizan.
+                          </p>
+                          <button onClick={onApplyAdjustment} disabled={busy}
+                            className="mt-1 min-h-[44px] text-sm font-bold disabled:opacity-50" style={{ color: 'var(--primary-text)' }}>
+                            Aplicar ahora
+                          </button>
+                        </div>
+                      ) : undefined}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )
+      })()}
     </div>
   )
 }
